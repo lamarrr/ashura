@@ -2,13 +2,21 @@
 #include "ashura/engine/passes/ngon.h"
 #include "ashura/engine/systems.h"
 #include "ashura/std/math.h"
+#include "ashura/std/sformat.h"
 
 namespace ash
 {
 
-void NgonPass::acquire()
+Str NgonPass::label()
 {
-  gpu::Shader shader = sys->shader.get("Ngon"_str).unwrap().shader;
+  return "Ngon"_str;
+}
+
+gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader)
+{
+  auto tagged_label =
+    snformat<gpu::MAX_LABEL_SIZE>("Ngon Graphics Pipeline: {}"_str, label)
+      .unwrap();
 
   gpu::RasterizationState raster_state{.depth_clamp_enable = false,
                                        .polygon_mode = gpu::PolygonMode::Fill,
@@ -48,11 +56,17 @@ void NgonPass::acquire()
   };
 
   gpu::DescriptorSetLayout set_layouts[] = {
-    sys->gpu.sb_layout_, sys->gpu.sb_layout_, sys->gpu.sb_layout_,
-    sys->gpu.samplers_layout_, sys->gpu.textures_layout_};
+    sys->gpu.samplers_layout_,    // 0: samplers
+    sys->gpu.textures_layout_,    // 1: textures
+    sys->gpu.sb_layout_,          // 2: world_to_ndc
+    sys->gpu.sb_layout_,          // 3: transforms
+    sys->gpu.sb_layout_,          // 4: vtx_buffer
+    sys->gpu.sb_layout_,          // 5: idx_buffer
+    sys->gpu.sb_layout_           // 6: materials
+  };
 
   gpu::GraphicsPipelineInfo pipeline_info{
-    .label         = "Ngon Graphics Pipeline"_str,
+    .label         = tagged_label,
     .vertex_shader = gpu::ShaderStageInfo{.shader      = shader,
                                           .entry_point = "vert"_str,
                                           .specialization_constants      = {},
@@ -67,7 +81,7 @@ void NgonPass::acquire()
     .stencil_format         = {&sys->gpu.depth_stencil_format_, 1},
     .vertex_input_bindings  = {},
     .vertex_attributes      = {},
-    .push_constants_size    = sizeof(ShaderConstants),
+    .push_constants_size    = 0,
     .descriptor_set_layouts = set_layouts,
     .primitive_topology     = gpu::PrimitiveTopology::TriangleList,
     .rasterization_state    = raster_state,
@@ -76,10 +90,36 @@ void NgonPass::acquire()
     .cache                  = sys->gpu.pipeline_cache_
   };
 
-  pipeline = sys->gpu.device_->create_graphics_pipeline(pipeline_info).unwrap();
+  return sys->gpu.device_->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
-void NgonPass::encode(gpu::CommandEncoder & e, NgonPassParams const & params)
+NgonPass::NgonPass(AllocatorRef allocator) : variants_{allocator}
+{
+}
+
+void NgonPass::acquire()
+{
+  pipeline_ =
+    create_pipeline("Base", sys->shader.get("Ngon.Base"_str).unwrap().shader);
+}
+
+void NgonPass::add_variant(Str label, gpu::Shader shader)
+{
+  auto pipeline = create_pipeline(label, shader);
+  bool exists;
+  variants_.push(label, pipeline, &exists, false).unwrap();
+  CHECK(!exists, "");
+}
+
+void NgonPass::remove_variant(Str label)
+{
+  auto pipeline = variants_.try_get(label).unwrap();
+  variants_.erase(label);
+  sys->gpu.release(pipeline);
+}
+
+void NgonPass::encode(gpu::CommandEncoder & e, NgonPassParams const & params,
+                      Str variant)
 {
   InplaceVec<gpu::RenderingAttachment, 1> color;
   InplaceVec<gpu::RenderingAttachment, 1> stencil;
@@ -126,17 +166,27 @@ void NgonPass::encode(gpu::CommandEncoder & e, NgonPassParams const & params)
     .stencil_attachment = stencil};
 
   e.begin_rendering(info);
-  e.bind_graphics_pipeline(pipeline);
-  e.bind_descriptor_sets(
-    span({params.vertices_ssbo, params.indices_ssbo, params.params_ssbo,
-          sys->gpu.samplers_, params.textures}),
-    span({params.vertices_ssbo_offset, params.indices_ssbo_offset,
-          params.params_ssbo_offset}));
-  e.push_constants(span({
-                          ShaderConstants{.world_to_ndc = params.world_to_ndc,
-                                          .uv_transform = params.uv_transform}
-  })
-                     .as_u8());
+
+  auto variant_pipeline =
+    variant.is_empty() ? pipeline_ : variants_.try_get(variant).unwrap();
+
+  e.bind_graphics_pipeline(variant_pipeline);
+  e.bind_descriptor_sets(span({
+                           params.samplers,                           //
+                           params.textures,                           //
+                           params.world_to_ndc.buffer.descriptor_,    //
+                           params.transforms.buffer.descriptor_,      //
+                           params.vertices.buffer.descriptor_,        //
+                           params.indices.buffer.descriptor_,         //
+                           params.materials.buffer.descriptor_        //
+                         }),
+                         span({
+                           params.world_to_ndc.slice.offset,    //
+                           params.transforms.slice.offset,      //
+                           params.vertices.slice.offset,        //
+                           params.indices.slice.offset,         //
+                           params.materials.slice.offset        //
+                         }));
   e.set_graphics_state(gpu::GraphicsState{
     .scissor             = params.scissor,
     .viewport            = params.viewport,
@@ -155,7 +205,11 @@ void NgonPass::encode(gpu::CommandEncoder & e, NgonPassParams const & params)
 
 void NgonPass::release()
 {
-  sys->gpu.device_->uninit(pipeline);
+  sys->gpu.device_->uninit(pipeline_);
+  for (auto [_, pipeline] : variants_)
+  {
+    sys->gpu.device_->uninit(pipeline);
+  }
 }
 
 }    // namespace ash

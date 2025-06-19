@@ -31,17 +31,15 @@ struct BlurPass final : Pass
   static constexpr u32 MAX_SPREAD_RADIUS = 16;
   static constexpr u32 MAX_PASSES        = 16;
 
-  gpu::GraphicsPipeline downsample_pipeline = nullptr;
-  gpu::GraphicsPipeline upsample_pipeline   = nullptr;
+  gpu::GraphicsPipeline downsample_pipeline_ = nullptr;
 
-  BlurPass() = default;
+  gpu::GraphicsPipeline upsample_pipeline_ = nullptr;
+
+  BlurPass(AllocatorRef);
 
   virtual ~BlurPass() override = default;
 
-  virtual Str label() override
-  {
-    return "Blur"_str;
-  }
+  virtual Str label() override;
 
   virtual void acquire() override;
 

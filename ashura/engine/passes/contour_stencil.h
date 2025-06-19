@@ -26,16 +26,13 @@ struct ContourStencilPassParams
 
 struct ContourStencilPass final : Pass
 {
-  gpu::GraphicsPipeline pipeline = nullptr;
+  gpu::GraphicsPipeline pipeline_ = nullptr;
 
-  virtual Str label() override
-  {
-    return "ContourStencil"_str;
-  }
-
-  ContourStencilPass() = default;
+  ContourStencilPass(AllocatorRef);
 
   virtual ~ContourStencilPass() override = default;
+
+  virtual Str label() override;
 
   virtual void acquire() override;
 

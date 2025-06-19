@@ -27,23 +27,28 @@ struct PBRPassParams
 
 struct PBRPass final : Pass
 {
-  gpu::GraphicsPipeline pipeline           = nullptr;
-  gpu::GraphicsPipeline wireframe_pipeline = nullptr;
+  gpu::GraphicsPipeline pipeline_ = nullptr;
 
-  PBRPass() = default;
+  gpu::GraphicsPipeline wireframe_pipeline_ = nullptr;
+
+  StrDict<gpu::GraphicsPipeline> variants_;
+
+  PBRPass(AllocatorRef);
 
   virtual ~PBRPass() override = default;
 
-  virtual Str label() override
-  {
-    return "PBR"_str;
-  }
+  virtual Str label() override;
 
   virtual void acquire() override;
 
   virtual void release() override;
 
-  void encode(gpu::CommandEncoder & encoder, PBRPassParams const & params);
+  void add_variant(Str label, gpu::Shader shader);
+
+  void remove_variant(Str label);
+
+  void encode(gpu::CommandEncoder & encoder, PBRPassParams const & params,
+              Str variant = {});
 };
 
 }    // namespace ash

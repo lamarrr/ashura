@@ -27,22 +27,26 @@ struct NgonPassParams
 
 struct NgonPass : Pass
 {
-  gpu::GraphicsPipeline pipeline = nullptr;
+  gpu::GraphicsPipeline pipeline_ = nullptr;
 
-  NgonPass() = default;
+  StrDict<gpu::GraphicsPipeline> variants_;
+
+  NgonPass(AllocatorRef);
 
   virtual ~NgonPass() override = default;
 
-  virtual Str label() override
-  {
-    return "Ngon"_str;
-  }
-
+  virtual Str label() override;
+  
   virtual void acquire() override;
 
   virtual void release() override;
 
-  void encode(gpu::CommandEncoder & encoder, NgonPassParams const & params);
+  void add_variant(Str label, gpu::Shader shader);
+
+  void remove_variant(Str label);
+
+  void encode(gpu::CommandEncoder & encoder, NgonPassParams const & params,
+              Str variant);
 };
 
 }    // namespace ash

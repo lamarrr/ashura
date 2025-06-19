@@ -6,6 +6,11 @@
 namespace ash
 {
 
+Str ContourStencilPass::label()
+{
+  return "ContourStencil"_str;
+}
+
 void ContourStencilPass::acquire()
 {
   gpu::Shader shader = sys->shader.get("Stencil"_str).unwrap().shader;
@@ -59,7 +64,8 @@ void ContourStencilPass::acquire()
     .cache                  = sys->gpu.pipeline_cache_
   };
 
-  pipeline = sys->gpu.device_->create_graphics_pipeline(pipeline_info).unwrap();
+  pipeline_ =
+    sys->gpu.device_->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
 void ContourStencilPass::encode(gpu::CommandEncoder &            e,
@@ -82,7 +88,7 @@ void ContourStencilPass::encode(gpu::CommandEncoder &            e,
                           .stencil_attachment = stencil};
 
   e.begin_rendering(info);
-  e.bind_graphics_pipeline(pipeline);
+  e.bind_graphics_pipeline(pipeline_);
 
   auto const even_odd_fail_op =
     params.invert ? gpu::StencilOp::Keep : gpu::StencilOp::Invert;
@@ -145,7 +151,7 @@ void ContourStencilPass::encode(gpu::CommandEncoder &            e,
 
 void ContourStencilPass::release()
 {
-  sys->gpu.device_->uninit(pipeline);
+  sys->gpu.device_->uninit(pipeline_);
 }
 
 }    // namespace ash

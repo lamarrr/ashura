@@ -2,13 +2,21 @@
 #include "ashura/engine/passes/pbr.h"
 #include "ashura/engine/systems.h"
 #include "ashura/std/math.h"
+#include "ashura/std/sformat.h"
 
 namespace ash
 {
 
-void PBRPass::acquire()
+Str PBRPass::label()
 {
-  gpu::Shader shader = sys->shader.get("PBR"_str).unwrap().shader;
+  return "PBR"_str;
+}
+
+gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader)
+{
+  auto tagged_label =
+    snformat<gpu::MAX_LABEL_SIZE>("PBR Graphics Pipeline: {}"_str, label)
+      .unwrap();
 
   gpu::RasterizationState raster_state{.depth_clamp_enable = false,
                                        .polygon_mode = gpu::PolygonMode::Fill,
@@ -48,11 +56,17 @@ void PBRPass::acquire()
   };
 
   gpu::DescriptorSetLayout const set_layouts[] = {
-    sys->gpu.sb_layout_, sys->gpu.sb_layout_,       sys->gpu.sb_layout_,
-    sys->gpu.sb_layout_, sys->gpu.samplers_layout_, sys->gpu.textures_layout_};
+    sys->gpu.samplers_layout_,    // 0: samplers
+    sys->gpu.textures_layout_,    // 1: textures
+    sys->gpu.sb_layout_,          // 2: vertices
+    sys->gpu.sb_layout_,          // 3: indices
+    sys->gpu.sb_layout_,          // 4: world constantts
+    sys->gpu.sb_layout_,          // 5: materials
+    sys->gpu.sb_layout_           // 6: lights
+  };
 
   gpu::GraphicsPipelineInfo pipeline_info{
-    .label         = "PBR Graphics Pipeline"_str,
+    .label         = tagged_label,
     .vertex_shader = gpu::ShaderStageInfo{.shader      = shader,
                                           .entry_point = "vert"_str,
                                           .specialization_constants      = {},
@@ -67,7 +81,7 @@ void PBRPass::acquire()
     .stencil_format         = {&sys->gpu.depth_stencil_format_, 1},
     .vertex_input_bindings  = {},
     .vertex_attributes      = {},
-    .push_constants_size    = sizeof(ShaderConstants),
+    .push_constants_size    = 0,
     .descriptor_set_layouts = set_layouts,
     .primitive_topology     = gpu::PrimitiveTopology::TriangleList,
     .rasterization_state    = raster_state,
@@ -76,15 +90,39 @@ void PBRPass::acquire()
     .cache                  = sys->gpu.pipeline_cache_
   };
 
-  pipeline = sys->gpu.device_->create_graphics_pipeline(pipeline_info).unwrap();
+  return sys->gpu.device_->create_graphics_pipeline(pipeline_info).unwrap();
+}
 
+PBRPass::PBRPass(AllocatorRef allocator) : variants_{allocator}
+{
+}
+
+void PBRPass::acquire()
+{
+  gpu::Shader shader = sys->shader.get("PBR"_str).unwrap().shader;
   pipeline_info.rasterization_state.polygon_mode = gpu::PolygonMode::Line;
 
-  wireframe_pipeline =
+  wireframe_pipeline_ =
     sys->gpu.device_->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
-void PBRPass::encode(gpu::CommandEncoder & e, PBRPassParams const & params)
+void PBRPass::add_variant(Str label, gpu::Shader shader)
+{
+  auto pipeline = create_pipeline(label, shader);
+  bool exists;
+  variants_.push(label, pipeline, &exists, false).unwrap();
+  CHECK(!exists, "");
+}
+
+void PBRPass::remove_variant(Str label)
+{
+  auto pipeline = variants_.try_get(label).unwrap();
+  variants_.erase(label);
+  sys->gpu.release(pipeline);
+}
+
+void PBRPass::encode(gpu::CommandEncoder & e, PBRPassParams const & params,
+                     Str variant)
 {
   InplaceVec<gpu::RenderingAttachment, 1> color;
   InplaceVec<gpu::RenderingAttachment, 1> depth;
@@ -142,8 +180,12 @@ void PBRPass::encode(gpu::CommandEncoder & e, PBRPassParams const & params)
     .stencil_attachment = stencil};
 
   e.begin_rendering(info);
-  e.bind_graphics_pipeline(params.wireframe ? this->wireframe_pipeline :
-                                              pipeline);
+
+  auto variant_pipeline =
+    variant.is_empty() ? pipeline_ : variants_.try_get(variant).unwrap();
+
+  e.bind_graphics_pipeline(params.wireframe ? wireframe_pipeline_ :
+                                              variant_pipeline);
 
   e.set_graphics_state(gpu::GraphicsState{
     .scissor             = params.scissor,
@@ -160,24 +202,34 @@ void PBRPass::encode(gpu::CommandEncoder & e, PBRPassParams const & params)
     .depth_compare_op   = gpu::CompareOp::Less,
     .depth_write_enable = true
   });
-  e.bind_descriptor_sets(
-    span({params.vertices_ssbo, params.indices_ssbo, params.params_ssbo,
-          params.lights_ssbo, sys->gpu.samplers_, params.textures}),
-    span({params.vertices_ssbo_offset, params.indices_ssbo_offset,
-          params.params_ssbo_offset, params.lights_ssbo_offset}));
-  e.push_constants(span({
-                          ShaderConstants{.world_to_ndc = params.world_to_ndc,
-                                          .uv_transform = params.uv_transform}
-  })
-                     .as_u8());
-  e.draw(params.num_indices, 1, 0, params.instance);
+  e.bind_descriptor_sets(span({
+                           params.samplers,                       //
+                           params.textures,                       //
+                           params.vertices.buffer.descriptor_,    //
+                           params.indices.buffer.descriptor_,     //
+                           params.world.buffer.descriptor_,       //
+                           params.material.buffer.descriptor_,    //
+                           params.lights.buffer.descriptor_,      //
+                         }),
+                         span({
+                           params.vertices.slice.offset,    //
+                           params.indices.slice.offset,     //
+                           params.world.slice.offset,       //
+                           params.material.slice.offset,    //
+                           params.lights.slice.offset       //
+                         }));
+  e.draw(params.num_indices, 1, 0, 0);
   e.end_rendering();
 }
 
 void PBRPass::release()
 {
-  sys->gpu.device_->uninit(pipeline);
-  sys->gpu.device_->uninit(wireframe_pipeline);
+  sys->gpu.device_->uninit(pipeline_);
+  sys->gpu.device_->uninit(wireframe_pipeline_);
+  for (auto [_, pipeline] : variants_)
+  {
+    sys->gpu.device_->uninit(pipeline);
+  }
 }
 
 }    // namespace ash

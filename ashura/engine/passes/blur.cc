@@ -6,6 +6,11 @@
 namespace ash
 {
 
+Str BlurPass::label()
+{
+  return "Blur"_str;
+}
+
 void BlurPass::acquire()
 {
   // https://www.youtube.com/watch?v=ml-5OGZC7vE
@@ -83,19 +88,19 @@ void BlurPass::acquire()
     .cache                  = sys->gpu.pipeline_cache_
   };
 
-  downsample_pipeline =
+  downsample_pipeline_ =
     sys->gpu.device_->create_graphics_pipeline(pipeline_info).unwrap();
 
   pipeline_info.fragment_shader.entry_point = "frag_upsample"_str;
 
-  upsample_pipeline =
+  upsample_pipeline_ =
     sys->gpu.device_->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
 void BlurPass::release()
 {
-  sys->gpu.device_->uninit(downsample_pipeline);
-  sys->gpu.device_->uninit(upsample_pipeline);
+  sys->gpu.device_->uninit(downsample_pipeline_);
+  sys->gpu.device_->uninit(upsample_pipeline_);
 }
 
 void sample(BlurPass & b, gpu::CommandEncoder & e, Vec2U spread_radius,
@@ -125,8 +130,8 @@ void sample(BlurPass & b, gpu::CommandEncoder & e, Vec2U spread_radius,
                                        .depth_attachment   = {},
                                        .stencil_attachment = {}});
 
-  e.bind_graphics_pipeline(upsample ? b.upsample_pipeline :
-                                      b.downsample_pipeline);
+  e.bind_graphics_pipeline(upsample ? b.upsample_pipeline_ :
+                                      b.downsample_pipeline_);
   e.set_graphics_state(gpu::GraphicsState{
     .scissor = dst_area,
     .viewport{.offset = as_vec2(dst_area.offset),

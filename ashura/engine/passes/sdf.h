@@ -26,23 +26,27 @@ struct SdfPassParams
 
 struct SdfPass final : Pass
 {
-  gpu::GraphicsPipeline pipeline = nullptr;
-  StrDict<gpu::GraphicsPipeline> variants;
+  gpu::GraphicsPipeline          pipeline_ = nullptr;
 
-  virtual Str label() override
-  {
-    return "SDF"_str;
-  }
+  StrDict<gpu::GraphicsPipeline> variants_;
 
-  SdfPass() = default;
+
+  SdfPass(AllocatorRef);
 
   virtual ~SdfPass() override = default;
+
+  virtual Str label() override;
 
   virtual void acquire() override;
 
   virtual void release() override;
 
-  void encode(gpu::CommandEncoder & encoder, SdfPassParams const & params);
+  void add_variant(Str label, gpu::Shader shader);
+
+  void remove_variant(Str label);
+
+  void encode(gpu::CommandEncoder & encoder, SdfPassParams const & params,
+              Str variant = {});
 };
 
 }    // namespace ash
