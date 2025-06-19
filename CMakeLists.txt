@@ -327,7 +327,7 @@ if(NOT ASH_EXCLUDE_TESTS)
     ashura_std_tests
     ashura/std/tests/async.cc
     ashura/std/tests/enum.cc
-    ashura/std/tests/hash_map.cc
+    ashura/std/tests/dict.cc
     ashura/std/tests/list.cc
     ashura/std/tests/main.cc
     ashura/std/tests/option.cc
@@ -342,7 +342,7 @@ endif()
 
 # ASHURA STD - BENCHMARKS
 
-# add_executable(ashura_std_bench ashura/std/bench/hash_map.cc)
+# add_executable(ashura_std_bench ashura/std/bench/dict.cc)
 
 # target_link_libraries(ashura_std_bench benchmark::benchmark
 # benchmark::benchmark_main ashura_std)

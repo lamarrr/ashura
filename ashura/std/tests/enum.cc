@@ -1,12 +1,12 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/std/enum.h"
-#include "ashura/std/map.h"
+#include "ashura/std/dict.h"
 #include "gtest/gtest.h"
 
 TEST(EnumTest, Basic)
 {
   using namespace ash;
-  Enum<StrMap<int>, int, float, int *> f{nullptr};
+  Enum<StrDict<int>, int, float, int *> f{nullptr};
   EXPECT_EQ(f.index(), 3);
 
   static constexpr Enum<int, char, float> e{0.2F};

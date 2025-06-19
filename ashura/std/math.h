@@ -244,7 +244,7 @@ inline T damplerp(T const & low, T const & high, T const & dt,
 template <typename T>
 constexpr T unlerp(T const & low, T const & high, T const & v)
 {
-  return (v - low) / (high - low);
+  return (low == high) ? low : ((v - low) / (high - low));
 }
 
 template <typename T>
@@ -755,9 +755,19 @@ struct Vec4
     return {x, y};
   }
 
+  constexpr Vec2 xz() const
+  {
+    return {x, z};
+  }
+
   constexpr Vec2 yz() const
   {
     return {y, z};
+  }
+
+  constexpr Vec2 yw() const
+  {
+    return {y, w};
   }
 
   constexpr Vec3 xyz() const
@@ -768,6 +778,11 @@ struct Vec4
   constexpr Vec3 yzw() const
   {
     return {y, z, w};
+  }
+
+  constexpr Vec2 zw() const
+  {
+    return {z, w};
   }
 
   constexpr Vec4 with_x(f32 x) const
@@ -794,6 +809,11 @@ struct Vec4
 constexpr Vec4 vec4(Vec3 xyz, f32 w)
 {
   return Vec4{xyz.x, xyz.y, xyz.z, w};
+}
+
+constexpr Vec4 vec4(Vec2 xy, f32 z, f32 w)
+{
+  return Vec4{xy.x, xy.y, z, w};
 }
 
 constexpr Vec4 vec4(f32 x, Vec3 yzw)
@@ -1320,6 +1340,21 @@ constexpr Vec2U operator+(u32 a, Vec2U b)
   return Vec2U{a + b.x, a + b.y};
 }
 
+constexpr Vec2U sat_add(Vec2U a, Vec2U b)
+{
+  return Vec2U{sat_add(a.x, b.x), sat_add(a.y, b.y)};
+}
+
+constexpr Vec2U sat_add(Vec2U a, u32 b)
+{
+  return Vec2U{sat_add(a.x, b), sat_add(a.y, b)};
+}
+
+constexpr Vec2U sat_add(u32 a, Vec2U b)
+{
+  return Vec2U{sat_add(a, b.x), sat_add(a, b.y)};
+}
+
 constexpr Vec2U operator-(Vec2U a, Vec2U b)
 {
   return Vec2U{a.x - b.x, a.y - b.y};
@@ -1333,6 +1368,21 @@ constexpr Vec2U operator-(Vec2U a, u32 b)
 constexpr Vec2U operator-(u32 a, Vec2U b)
 {
   return Vec2U{a - b.x, a - b.y};
+}
+
+constexpr Vec2U sat_sub(Vec2U a, Vec2U b)
+{
+  return Vec2U{sat_sub(a.x, b.x), sat_sub(a.y, b.y)};
+}
+
+constexpr Vec2U sat_sub(Vec2U a, u32 b)
+{
+  return Vec2U{sat_sub(a.x, b), sat_sub(a.y, b)};
+}
+
+constexpr Vec2U sat_sub(u32 a, Vec2U b)
+{
+  return Vec2U{sat_sub(a, b.x), sat_sub(a, b.y)};
 }
 
 constexpr Vec2U operator*(Vec2U a, Vec2U b)
@@ -1587,6 +1637,16 @@ constexpr Vec2U clamp_vec(Vec2U v, Vec2U low, Vec2U high)
   return Vec2U{clamp(v.x, low.x, high.x), clamp(v.y, low.y, high.y)};
 }
 
+constexpr Vec2 min_vec(Vec2 v, Vec2 high)
+{
+  return Vec2{min(v.x, high.x), min(v.y, high.y)};
+}
+
+constexpr Vec2U min_vec(Vec2U v, Vec2U high)
+{
+  return Vec2U{min(v.x, high.x), min(v.y, high.y)};
+}
+
 constexpr Vec2 as_vec2(Vec2U a)
 {
   return Vec2{(f32) a.x, (f32) a.y};
@@ -1779,6 +1839,18 @@ constexpr Mat2 operator*(Mat2 const & a, Mat2 const & b)
     .rows = {{dot(a[0], b.x()), dot(a[0], b.y())},
              {dot(a[1], b.x()), dot(a[1], b.y())}}
   };
+}
+
+constexpr Mat2 operator*(Mat2 const & a, f32 b)
+{
+  return Mat2{
+    .rows = {a[0] * b, a[1] * b}
+  };
+}
+
+constexpr Mat2 operator*(f32 a, Mat2 const & b)
+{
+  return b * a;
 }
 
 constexpr Mat2 operator/(Mat2 const & a, Mat2 const & b)
@@ -2025,6 +2097,18 @@ constexpr Mat3 operator*(Mat3 const & a, Affine3 const & b)
   };
 }
 
+constexpr Mat3 operator*(Mat3 const & a, f32 b)
+{
+  return Mat3{
+    .rows = {a[0] * b, a[1] * b, a[2] * b}
+  };
+}
+
+constexpr Mat3 operator*(f32 a, Mat3 const & b)
+{
+  return b * a;
+}
+
 constexpr Affine3 operator*(Affine3 const & a, Affine3 const & b)
 {
   return Affine3{
@@ -2164,6 +2248,18 @@ constexpr Mat4 operator*(Mat4 const & a, Mat4 const & b)
              {dot(a[3], b.x()), dot(a[3], b.y()), dot(a[3], b.z()),
        dot(a[3], b.w())}}
   };
+}
+
+constexpr Mat4 operator*(Mat4 const & a, f32 b)
+{
+  return Mat4{
+    .rows = {a[0] * b, a[1] * b, a[2] * b, a[3] * b}
+  };
+}
+
+constexpr Mat4 operator*(f32 a, Mat4 const & b)
+{
+  return b * a;
 }
 
 constexpr Mat4 operator/(Mat4 const & a, Mat4 const & b)
@@ -2492,7 +2588,7 @@ constexpr Mat4 adjoint(Mat4 const & a)
            a[0].z * a[1].x * a[2].w - a[0].x * a[1].w * a[2].z;
   r[2].x = a[1].x * a[2].y * a[3].w + a[1].y * a[2].w * a[3].x +
            a[1].w * a[2].x * a[3].y - a[1].w * a[2].y * a[3].x -
-           a[1].y * a[2].y * a[3].w - a[1].x * a[2].w * a[3].y;
+           a[1].y * a[2].x * a[3].w - a[1].x * a[2].w * a[3].y;
   r[2].y = -a[0].x * a[2].y * a[3].w - a[0].y * a[2].w * a[3].x -
            a[0].w * a[2].x * a[3].y + a[0].w * a[2].y * a[3].x +
            a[0].y * a[2].x * a[3].w + a[0].x * a[2].w * a[3].y;
@@ -2511,7 +2607,7 @@ constexpr Mat4 adjoint(Mat4 const & a)
   r[3].z = -a[0].x * a[1].y * a[3].z - a[0].y * a[1].z * a[3].x -
            a[0].z * a[1].x * a[3].y + a[0].z * a[1].y * a[3].x +
            a[0].y * a[1].x * a[3].z + a[0].x * a[1].z * a[3].y;
-  r[3].w = a[0].x * a[1].y * a[2].z + a[0].y * a[1].z * a[2].y +
+  r[3].w = a[0].x * a[1].y * a[2].z + a[0].y * a[1].z * a[2].x +
            a[0].z * a[1].x * a[2].y - a[0].z * a[1].y * a[2].x -
            a[0].y * a[1].x * a[2].z - a[0].x * a[1].z * a[2].y;
   return r;
@@ -2519,17 +2615,17 @@ constexpr Mat4 adjoint(Mat4 const & a)
 
 constexpr Mat2 inverse(Mat2 a)
 {
-  return Mat2::splat(1.0F / determinant(a)) * adjoint(a);
+  return (1.0F / determinant(a)) * adjoint(a);
 }
 
 constexpr Mat3 inverse(Mat3 const & a)
 {
-  return Mat3::splat(1.0F / determinant(a)) * adjoint(a);
+  return (1.0F / determinant(a)) * adjoint(a);
 }
 
 constexpr Mat4 inverse(Mat4 const & a)
 {
-  return Mat4::splat(1.0F / determinant(a)) * adjoint(a);
+  return (1.0F / determinant(a)) * adjoint(a);
 }
 
 constexpr Affine3 translate2d(Vec2 t)
@@ -2729,6 +2825,32 @@ inline Vec2 rotor(f32 a)
   return Vec2{cos(a), sin(a)};
 }
 
+inline constexpr Affine4 transform2d_to_3d(Affine3 const & mat)
+{
+  return Affine4{
+    .rows = {{mat.rows[0][0], mat.rows[0][1], 0, mat.rows[0][2]},
+             {mat.rows[1][0], mat.rows[1][1], 0, mat.rows[1][2]},
+             {0.0F, 0.0F, 1.0F, 0.0F}}
+  };
+}
+
+inline constexpr Affine3 transform3d_to_2d(Affine4 const & mat)
+{
+  return Affine3{
+    .rows = {{mat.rows[0][0], mat.rows[0][1], mat.rows[0][3]},
+             {mat.rows[1][0], mat.rows[1][1], mat.rows[1][3]}}
+  };
+}
+
+inline constexpr Mat3 transform3d_to_2d(Mat4 const & mat)
+{
+  return Mat3{
+    .rows = {{mat.rows[0][0], mat.rows[0][1], mat.rows[0][3]},
+             {mat.rows[1][0], mat.rows[1][1], mat.rows[1][3]},
+             {mat.rows[2][0], mat.rows[2][1], mat.rows[2][3]}}
+  };
+}
+
 inline constexpr f32 ALIGNMENT_LEFT   = -0.5F;
 inline constexpr f32 ALIGNMENT_RIGHT  = 0.5F;
 inline constexpr f32 ALIGNMENT_TOP    = -0.5F;
@@ -2744,6 +2866,13 @@ inline constexpr Vec2 ALIGNMENT_BOTTOM_CENTER{0, 0.5F};
 inline constexpr Vec2 ALIGNMENT_BOTTOM_RIGHT{0.5F, 0.5F};
 inline constexpr Vec2 ALIGNMENT_LEFT_CENTER{-0.5F, 0};
 inline constexpr Vec2 ALIGNMENT_RIGHT_CENTER{0.5F, 0};
+
+typedef Vec2 f32x2;
+typedef Vec3 f32x3;
+typedef Vec4 f32x4;
+typedef Mat2 f32x2x2;
+typedef Mat3 f32x3x3;
+typedef Mat4 f32x4x4;
 
 constexpr Vec4 opacity(f32 v)
 {
@@ -2902,7 +3031,12 @@ struct CRect
     return end();
   }
 
-  constexpr f32 area() const
+  constexpr auto bounds() const
+  {
+    return Tuple{tl(), tr(), bl(), br()};
+  }
+
+  constexpr auto area() const
   {
     return extent.x * extent.y;
   }

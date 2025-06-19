@@ -26,9 +26,9 @@ struct [[nodiscard]] Vec
   using Iter = SpanIter<T>;
   using View = Span<T>;
 
-  static constexpr usize ALIGNMENT = max(alignof(T), MIN_VEC_ALIGNMENT);
+  static constexpr usize ALIGNMENT = max(alignof(Type), MIN_VEC_ALIGNMENT);
 
-  T *          storage_   = nullptr;
+  Type *       storage_   = nullptr;
   usize        size_      = 0;
   usize        capacity_  = 0;
   AllocatorRef allocator_ = {};
@@ -45,7 +45,7 @@ struct [[nodiscard]] Vec
   {
   }
 
-  constexpr Vec(AllocatorRef allocator, T * storage, usize capacity,
+  constexpr Vec(AllocatorRef allocator, Type * storage, usize capacity,
                 usize size) :
     storage_{storage},
     size_{size},
@@ -120,7 +120,7 @@ struct [[nodiscard]] Vec
     return size() == 0;
   }
 
-  constexpr T * data() const
+  constexpr Type * data() const
   {
     return assume_aligned<ALIGNMENT>(storage_);
   }
@@ -137,27 +137,17 @@ struct [[nodiscard]] Vec
 
   constexpr usize size_bytes() const
   {
-    return sizeof(T) * size();
-  }
-
-  constexpr u16 size16() const
-  {
-    return (u16) size();
-  }
-
-  constexpr u32 size32() const
-  {
-    return (u32) size();
-  }
-
-  constexpr u64 size64() const
-  {
-    return (u64) size();
+    return sizeof(Type) * size();
   }
 
   constexpr usize capacity() const
   {
     return capacity_;
+  }
+
+  constexpr usize capacity_bytes() const
+  {
+    return sizeof(Type) * capacity();
   }
 
   constexpr auto begin() const
@@ -170,27 +160,27 @@ struct [[nodiscard]] Vec
     return IterEnd{};
   }
 
-  constexpr T & first() const
+  constexpr Type & first() const
   {
     return get(0);
   }
 
-  constexpr T & last() const
+  constexpr Type & last() const
   {
     return get(size() - 1);
   }
 
-  constexpr T & operator[](usize index) const
+  constexpr Type & operator[](usize index) const
   {
     return get(index);
   }
 
-  constexpr T & get(usize index) const
+  constexpr Type & get(usize index) const
   {
     return data()[index];
   }
 
-  constexpr Option<T &> try_get(usize index) const
+  constexpr Option<Type &> try_get(usize index) const
   {
     if (index >= size()) [[unlikely]]
     {
@@ -203,7 +193,7 @@ struct [[nodiscard]] Vec
   template <typename... Args>
   constexpr void set(usize index, Args &&... args) const
   {
-    data()[index] = T{static_cast<Args &&>(args)...};
+    data()[index] = Type{static_cast<Args &&>(args)...};
   }
 
   constexpr void clear()
@@ -234,7 +224,7 @@ struct [[nodiscard]] Vec
       return Ok{};
     }
 
-    if constexpr (TriviallyRelocatable<T>)
+    if constexpr (TriviallyRelocatable<Type>)
     {
       if (!allocator_->pnrealloc(ALIGNMENT, capacity_, target_capacity,
                                  storage_)) [[unlikely]]
@@ -244,7 +234,7 @@ struct [[nodiscard]] Vec
     }
     else
     {
-      T * new_storage;
+      Type * new_storage;
       if (!allocator_->pnalloc(ALIGNMENT, target_capacity, new_storage))
         [[unlikely]]
       {
@@ -272,7 +262,7 @@ struct [[nodiscard]] Vec
       return Ok{};
     }
 
-    if constexpr (TriviallyRelocatable<T>)
+    if constexpr (TriviallyRelocatable<Type>)
     {
       if (!allocator_->pnrealloc(ALIGNMENT, capacity_, size_, storage_))
         [[unlikely]]
@@ -282,7 +272,7 @@ struct [[nodiscard]] Vec
     }
     else
     {
-      T * new_storage;
+      Type * new_storage;
       if (!allocator_->pnalloc(ALIGNMENT, size_, new_storage)) [[unlikely]]
       {
         return Err{};
@@ -325,7 +315,7 @@ struct [[nodiscard]] Vec
   constexpr void erase(Slice slice)
   {
     slice = slice(size_);
-    if constexpr (TriviallyRelocatable<T>)
+    if constexpr (TriviallyRelocatable<Type>)
     {
       mem::move(Span{data() + slice.end(), size_ - slice.end()},
                 data() + slice.begin());
@@ -348,7 +338,7 @@ struct [[nodiscard]] Vec
       return Err{};
     }
 
-    new (data() + size_) T{static_cast<Args &&>(args)...};
+    new (data() + size_) Type{static_cast<Args &&>(args)...};
 
     size_++;
 
@@ -382,7 +372,7 @@ struct [[nodiscard]] Vec
       return Err{};
     }
 
-    if constexpr (TriviallyRelocatable<T>)
+    if constexpr (TriviallyRelocatable<Type>)
     {
       // potentially overlapping
       mem::move(Span{data() + first, size_ - first}, data() + first + distance);
@@ -418,11 +408,11 @@ struct [[nodiscard]] Vec
       return Err{};
     }
 
-    new (data() + pos) T{static_cast<Args &&>(args)...};
+    new (data() + pos) Type{static_cast<Args &&>(args)...};
     return Ok{};
   }
 
-  constexpr Result<> insert_span(usize pos, Span<T const> span)
+  constexpr Result<> insert_span(usize pos, Span<Type const> span)
   {
     pos = min(pos, size_);
 
@@ -431,7 +421,7 @@ struct [[nodiscard]] Vec
       return Err{};
     }
 
-    if constexpr (TriviallyCopyConstructible<T>)
+    if constexpr (TriviallyCopyConstructible<Type>)
     {
       mem::copy(span, data() + pos);
     }
@@ -443,7 +433,7 @@ struct [[nodiscard]] Vec
     return Ok{};
   }
 
-  constexpr Result<> insert_span_move(usize pos, Span<T> span)
+  constexpr Result<> insert_span_move(usize pos, Span<Type> span)
   {
     pos = min(pos, size_);
 
@@ -452,7 +442,7 @@ struct [[nodiscard]] Vec
       return Err{};
     }
 
-    if constexpr (TriviallyMoveConstructible<T>)
+    if constexpr (TriviallyMoveConstructible<Type>)
     {
       mem::copy(span, data() + pos);
     }
@@ -490,7 +480,7 @@ struct [[nodiscard]] Vec
     return Ok{};
   }
 
-  constexpr Result<> extend(Span<T const> span)
+  constexpr Result<> extend(Span<Type const> span)
   {
     usize const pos = size_;
 
@@ -501,7 +491,7 @@ struct [[nodiscard]] Vec
 
     // free to use memcpy because the source range is not overlapping with this
     // anyway
-    if constexpr (TriviallyCopyConstructible<T>)
+    if constexpr (TriviallyCopyConstructible<Type>)
     {
       mem::copy(span, data() + pos);
     }
@@ -513,7 +503,7 @@ struct [[nodiscard]] Vec
     return Ok{};
   }
 
-  constexpr Result<> extend_move(Span<T> span)
+  constexpr Result<> extend_move(Span<Type> span)
   {
     usize const pos = size_;
 
@@ -523,7 +513,7 @@ struct [[nodiscard]] Vec
     }
 
     // non-overlapping, use memcpy
-    if constexpr (TriviallyMoveConstructible<T>)
+    if constexpr (TriviallyMoveConstructible<Type>)
     {
       mem::copy(span, data() + pos);
     }
@@ -612,9 +602,9 @@ struct [[nodiscard]] PinVec
   using Iter = SpanIter<T>;
   using View = Span<T>;
 
-  static constexpr usize ALIGNMENT = max(alignof(T), MIN_VEC_ALIGNMENT);
+  static constexpr usize ALIGNMENT = max(alignof(Type), MIN_VEC_ALIGNMENT);
 
-  T *          storage_;
+  Type *       storage_;
   usize        size_;
   usize        capacity_;
   AllocatorRef allocator_;
@@ -627,7 +617,7 @@ struct [[nodiscard]] PinVec
   {
   }
 
-  constexpr PinVec(AllocatorRef allocator, T * storage, usize capacity,
+  constexpr PinVec(AllocatorRef allocator, Type * storage, usize capacity,
                    usize size) :
     storage_{storage},
     size_{size},
@@ -673,7 +663,7 @@ struct [[nodiscard]] PinVec
   static constexpr Result<PinVec> make(usize        capacity,
                                        AllocatorRef allocator = {})
   {
-    T * storage;
+    Type * storage;
     if (!allocator->pnalloc(ALIGNMENT, capacity, storage)) [[unlikely]]
     {
       return Err{};
@@ -723,7 +713,7 @@ struct [[nodiscard]] PinVec
     return size() == 0;
   }
 
-  constexpr T * data() const
+  constexpr Type * data() const
   {
     return assume_aligned<ALIGNMENT>(storage_);
   }
@@ -740,22 +730,17 @@ struct [[nodiscard]] PinVec
 
   constexpr usize size_bytes() const
   {
-    return sizeof(T) * size();
-  }
-
-  constexpr u32 size32() const
-  {
-    return (u32) size();
-  }
-
-  constexpr u64 size64() const
-  {
-    return (u64) size();
+    return sizeof(Type) * size();
   }
 
   constexpr usize capacity() const
   {
     return capacity_;
+  }
+
+  constexpr usize capacity_bytes() const
+  {
+    return sizeof(Type) * capacity();
   }
 
   constexpr auto begin() const
@@ -768,22 +753,22 @@ struct [[nodiscard]] PinVec
     return IterEnd{};
   }
 
-  constexpr T & first() const
+  constexpr Type & first() const
   {
     return get(0);
   }
 
-  constexpr T & last() const
+  constexpr Type & last() const
   {
     return get(size() - 1);
   }
 
-  constexpr T & operator[](usize index) const
+  constexpr Type & operator[](usize index) const
   {
     return get(index);
   }
 
-  constexpr T & get(usize index) const
+  constexpr Type & get(usize index) const
   {
     return data()[index];
   }
@@ -821,7 +806,7 @@ struct [[nodiscard]] PinVec
       return Err{};
     }
 
-    new (data() + size_) T{static_cast<Args &&>(args)...};
+    new (data() + size_) Type{static_cast<Args &&>(args)...};
 
     size_++;
 
@@ -854,7 +839,7 @@ struct [[nodiscard]] PinVec
     return Ok{};
   }
 
-  constexpr Result<> extend(Span<T const> span)
+  constexpr Result<> extend(Span<Type const> span)
   {
     usize const pos = size_;
 
@@ -865,7 +850,7 @@ struct [[nodiscard]] PinVec
 
     // free to use memcpy because the source range is not overlapping with this
     // anyway
-    if constexpr (TriviallyCopyConstructible<T>)
+    if constexpr (TriviallyCopyConstructible<Type>)
     {
       mem::copy(span, data() + pos);
     }
@@ -877,7 +862,7 @@ struct [[nodiscard]] PinVec
     return Ok{};
   }
 
-  constexpr Result<> extend_move(Span<T> span)
+  constexpr Result<> extend_move(Span<Type> span)
   {
     usize const pos = size_;
 
@@ -887,7 +872,7 @@ struct [[nodiscard]] PinVec
     }
 
     // non-overlapping, use memcpy
-    if constexpr (TriviallyMoveConstructible<T>)
+    if constexpr (TriviallyMoveConstructible<Type>)
     {
       mem::copy(span, data() + pos);
     }
@@ -1001,32 +986,32 @@ struct [[nodiscard]] BitVec
     size_ = 0;
   }
 
-  constexpr bool operator[](usize index) const
+  constexpr Type operator[](usize index) const
   {
     return get(index);
   }
 
-  constexpr bool first() const
+  constexpr Type first() const
   {
     return get(0);
   }
 
-  constexpr bool last() const
+  constexpr Type last() const
   {
     return get(size() - 1);
   }
 
-  constexpr bool get(usize index) const
+  constexpr Type get(usize index) const
   {
     return view().get(index);
   }
 
-  constexpr void set(usize index, bool value) const
+  constexpr void set(usize index, Type value) const
   {
     view().set(index, value);
   }
 
-  constexpr bool get_bit(usize index) const
+  constexpr Type get_bit(usize index) const
   {
     return get(index);
   }
@@ -1260,9 +1245,9 @@ struct [[nodiscard]] InplaceVec
     return size() == 0;
   }
 
-  constexpr T * data() const
+  constexpr Type * data() const
   {
-    return assume_aligned<ALIGNMENT>(reinterpret_cast<T *>(this->storage_));
+    return assume_aligned<ALIGNMENT>(reinterpret_cast<Type *>(this->storage_));
   }
 
   static constexpr usize alignment()
@@ -1277,22 +1262,7 @@ struct [[nodiscard]] InplaceVec
 
   constexpr usize size_bytes() const
   {
-    return sizeof(T) * size();
-  }
-
-  constexpr u16 size16() const
-  {
-    return (u16) size();
-  }
-
-  constexpr u32 size32() const
-  {
-    return (u32) size();
-  }
-
-  constexpr u64 size64() const
-  {
-    return (u64) size();
+    return sizeof(Type) * size();
   }
 
   static constexpr usize capacity()
@@ -1310,27 +1280,27 @@ struct [[nodiscard]] InplaceVec
     return IterEnd{};
   }
 
-  constexpr T & first() const
+  constexpr Type & first() const
   {
     return get(0);
   }
 
-  constexpr T & last() const
+  constexpr Type & last() const
   {
     return get(size() - 1);
   }
 
-  constexpr T & operator[](usize index) const
+  constexpr Type & operator[](usize index) const
   {
     return get(index);
   }
 
-  constexpr T & get(usize index) const
+  constexpr Type & get(usize index) const
   {
     return data()[index];
   }
 
-  constexpr Option<T &> try_get(usize index) const
+  constexpr Option<Type &> try_get(usize index) const
   {
     if (index >= size()) [[unlikely]]
     {
@@ -1343,7 +1313,7 @@ struct [[nodiscard]] InplaceVec
   template <typename... Args>
   constexpr void set(usize index, Args &&... args) const
   {
-    data()[index] = T{static_cast<Args &&>(args)...};
+    data()[index] = Type{static_cast<Args &&>(args)...};
   }
 
   constexpr void clear()
@@ -1372,7 +1342,7 @@ struct [[nodiscard]] InplaceVec
   {
     slice = slice(size_);
 
-    if constexpr (TriviallyRelocatable<T>)
+    if constexpr (TriviallyRelocatable<Type>)
     {
       mem::move(Span{data() + slice.end(), size_ - slice.end()},
                 data() + slice.begin());
@@ -1396,7 +1366,7 @@ struct [[nodiscard]] InplaceVec
       return Err{};
     }
 
-    new (data() + size_) T{static_cast<Args &&>(args)...};
+    new (data() + size_) Type{static_cast<Args &&>(args)...};
 
     size_++;
 
@@ -1431,7 +1401,7 @@ struct [[nodiscard]] InplaceVec
       return Err{};
     }
 
-    if constexpr (TriviallyRelocatable<T>)
+    if constexpr (TriviallyRelocatable<Type>)
     {
       // potentially overlapping
       mem::move(Span{data() + first, size_ - first}, data() + first + distance);
@@ -1467,11 +1437,11 @@ struct [[nodiscard]] InplaceVec
       return Err{};
     }
 
-    new (data() + pos) T{static_cast<Args &&>(args)...};
+    new (data() + pos) Type{static_cast<Args &&>(args)...};
     return Ok{};
   }
 
-  constexpr Result<> insert_span(usize pos, Span<T const> span)
+  constexpr Result<> insert_span(usize pos, Span<Type const> span)
   {
     pos = min(pos, size_);
 
@@ -1480,7 +1450,7 @@ struct [[nodiscard]] InplaceVec
       return Err{};
     }
 
-    if constexpr (TriviallyCopyConstructible<T>)
+    if constexpr (TriviallyCopyConstructible<Type>)
     {
       // non-overlapping, use memcpy
       mem::copy(span, data() + pos);
@@ -1493,7 +1463,7 @@ struct [[nodiscard]] InplaceVec
     return Ok{};
   }
 
-  constexpr Result<> insert_span_move(usize pos, Span<T> span)
+  constexpr Result<> insert_span_move(usize pos, Span<Type> span)
   {
     pos = min(pos, size_);
 
@@ -1502,7 +1472,7 @@ struct [[nodiscard]] InplaceVec
       return Err{};
     }
 
-    if constexpr (TriviallyMoveConstructible<T>)
+    if constexpr (TriviallyMoveConstructible<Type>)
     {
       // non-overlapping, use memcpy
       mem::copy(span, data() + pos);
@@ -1541,7 +1511,7 @@ struct [[nodiscard]] InplaceVec
     return Ok{};
   }
 
-  constexpr Result<> extend(Span<T const> span)
+  constexpr Result<> extend(Span<Type const> span)
   {
     usize const pos = size_;
 
@@ -1550,7 +1520,7 @@ struct [[nodiscard]] InplaceVec
       return Err{};
     }
 
-    if constexpr (TriviallyCopyConstructible<T>)
+    if constexpr (TriviallyCopyConstructible<Type>)
     {
       // non-overlapping, use memcpy
       mem::copy(span, data() + pos);
@@ -1563,7 +1533,7 @@ struct [[nodiscard]] InplaceVec
     return Ok{};
   }
 
-  constexpr Result<> extend_move(Span<T> span)
+  constexpr Result<> extend_move(Span<Type> span)
   {
     usize const pos = size_;
 
@@ -1572,7 +1542,7 @@ struct [[nodiscard]] InplaceVec
       return Err{};
     }
 
-    if constexpr (TriviallyMoveConstructible<T>)
+    if constexpr (TriviallyMoveConstructible<Type>)
     {
       // non-overlapping, use memcpy
       mem::copy(span, data() + pos);
@@ -1760,16 +1730,6 @@ struct SparseVec
   constexpr usize size() const
   {
     return index_to_id_.size();
-  }
-
-  constexpr u32 size32() const
-  {
-    return index_to_id_.size32();
-  }
-
-  constexpr u64 size64() const
-  {
-    return index_to_id_.size64();
   }
 
   constexpr auto begin() const

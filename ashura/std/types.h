@@ -786,6 +786,22 @@ struct CoreSlice
   {
     return begin() < size && end() >= size;
   }
+
+  constexpr CoreSlice<u32> as_u32() const
+  {
+    return CoreSlice<u32>{static_cast<u32>(offset), static_cast<u32>(span)};
+  }
+
+  constexpr CoreSlice<u64> as_u64() const
+  {
+    return CoreSlice<u64>{static_cast<u64>(offset), static_cast<u64>(span)};
+  }
+
+  constexpr CoreSlice<usize> as_usize() const
+  {
+    return CoreSlice<usize>{static_cast<usize>(offset),
+                            static_cast<usize>(span)};
+  }
 };
 
 template <typename S>
@@ -880,16 +896,45 @@ constexpr auto size(T && a) -> decltype(a.size())
   return a.size();
 }
 
+template <typename T>
+concept Sized = requires (T t) {
+  { size(t) };
+};
+
+template <typename T, u8 N>
+constexpr u8 size8(T (&)[N])
+{
+  return N;
+}
+
+template <Sized T>
+constexpr auto size8(T && a)
+{
+  return static_cast<u8>(a.size());
+}
+
+template <typename T, u16 N>
+constexpr u16 size16(T (&)[N])
+{
+  return N;
+}
+
+template <Sized T>
+constexpr auto size16(T && a)
+{
+  return static_cast<u16>(a.size());
+}
+
 template <typename T, u32 N>
 constexpr u32 size32(T (&)[N])
 {
   return N;
 }
 
-template <typename T>
-constexpr auto size32(T && a) -> decltype(a.size32())
+template <Sized T>
+constexpr auto size32(T && a)
 {
-  return a.size32();
+  return static_cast<u32>(a.size());
 }
 
 template <typename T, u64 N>
@@ -898,10 +943,10 @@ constexpr u64 size64(T (&)[N])
   return N;
 }
 
-template <typename T>
-constexpr auto size64(T && a) -> decltype(a.size64())
+template <Sized T>
+constexpr auto size64(T && a)
 {
-  return a.size64();
+  return static_cast<u64>(a.size());
 }
 
 template <typename T, usize N>
@@ -911,21 +956,9 @@ constexpr usize size_bytes(T (&)[N])
 }
 
 template <typename T>
-constexpr auto size_bytes(T && a) -> decltype(a.size())
+constexpr auto size_bytes(T && a) -> decltype(a.size_bytes())
 {
-  return sizeof(T) * a.size();
-}
-
-template <typename T, usize N>
-constexpr usize size_bits(T (&)[N])
-{
-  return sizeof(T) * 8 * N;
-}
-
-template <typename T>
-constexpr auto size_bits(T && a) -> decltype(a.size())
-{
-  return sizeof(T) * a.size() * 8;
+  return a.size_bytes();
 }
 
 template <typename T>
@@ -1052,16 +1085,6 @@ struct Span
     return size_;
   }
 
-  constexpr u32 size32() const
-  {
-    return (u32) size();
-  }
-
-  constexpr u64 size64() const
-  {
-    return (u64) size();
-  }
-
   constexpr usize size_bytes() const
   {
     return sizeof(T) * size();
@@ -1165,6 +1188,16 @@ struct Span
     return Span{data() + s.offset, s.span};
   }
 
+  constexpr Span slice(Slice16 s) const
+  {
+    return slice(s.as_usize());
+  }
+
+  constexpr Span slice(Slice32 s) const
+  {
+    return slice(s.as_usize());
+  }
+
   constexpr Span slice(usize offset, usize span) const
   {
     return slice(Slice{offset, span});
@@ -1173,18 +1206,6 @@ struct Span
   constexpr Span slice(usize offset) const
   {
     return slice(offset, USIZE_MAX);
-  }
-
-  constexpr Span slice(Slice32 s) const
-  {
-    s = s((u32) size());
-    return Span{data() + s.offset, s.span};
-  }
-
-  constexpr Span slice(Slice16 s) const
-  {
-    s = s((u16) size());
-    return Span{data() + s.offset, s.span};
   }
 
   template <typename U>
@@ -1617,16 +1638,6 @@ struct Array
     return SIZE;
   }
 
-  static constexpr u32 size32()
-  {
-    return (u32) size();
-  }
-
-  static constexpr u64 size64()
-  {
-    return (u64) size();
-  }
-
   static constexpr usize capacity()
   {
     return size();
@@ -1753,16 +1764,6 @@ struct Array<T, 0>
   static constexpr usize size()
   {
     return SIZE;
-  }
-
-  static constexpr u32 size32()
-  {
-    return (u32) size();
-  }
-
-  static constexpr u64 size64()
-  {
-    return (u64) size();
   }
 
   static constexpr usize capacity()

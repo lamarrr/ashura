@@ -1223,7 +1223,7 @@ Result<gpu::Device *, Status>
   u32 selected_dev_idx      = num_devs;
   u32 selected_queue_family = VK_QUEUE_FAMILY_IGNORED;
 
-  for (usize i = 0; i < preferred_types.size32(); i++)
+  for (usize i = 0; i < size32(preferred_types); i++)
   {
     for (u32 idev = 0; idev < num_devs && selected_dev_idx == num_devs; idev++)
     {
@@ -2110,7 +2110,7 @@ Result<gpu::Shader, Status> Device::create_shader(gpu::ShaderInfo const & info)
 Result<gpu::DescriptorSetLayout, Status> Device::create_descriptor_set_layout(
   gpu::DescriptorSetLayoutInfo const & info)
 {
-  u32 const num_bindings                 = info.bindings.size32();
+  u32 const num_bindings                 = size32(info.bindings);
   u32       num_descriptors              = 0;
   u32       num_variable_length          = 0;
   u32       sizing[NUM_DESCRIPTOR_TYPES] = {};
@@ -2182,7 +2182,7 @@ Result<gpu::DescriptorSetLayout, Status> Device::create_descriptor_set_layout(
     .sType =
       VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO_EXT,
     .pNext         = nullptr,
-    .bindingCount  = info.bindings.size32(),
+    .bindingCount  = size32(info.bindings),
     .pBindingFlags = vk_binding_flags};
 
   VkDescriptorSetLayoutCreateInfo create_info{
@@ -2314,7 +2314,7 @@ Result<gpu::DescriptorSet, Status>
     .sType =
       VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO_EXT,
     .pNext              = nullptr,
-    .descriptorSetCount = info.variable_lengths.size32(),
+    .descriptorSetCount = size32(info.variable_lengths),
     .pDescriptorCounts  = info.variable_lengths.data()};
 
   VkDescriptorSetAllocateInfo alloc_info{
@@ -2413,7 +2413,7 @@ Result<gpu::PipelineCache, Status>
 Result<gpu::ComputePipeline, Status>
   Device::create_compute_pipeline(gpu::ComputePipelineInfo const & info)
 {
-  u32 const num_descriptor_sets = info.descriptor_set_layouts.size32();
+  u32 const num_descriptor_sets = size32(info.descriptor_set_layouts);
 
   CHECK(num_descriptor_sets <= gpu::MAX_PIPELINE_DESCRIPTOR_SETS, "");
   CHECK(info.push_constants_size <= gpu::MAX_PUSH_CONSTANTS_SIZE, "");
@@ -2432,7 +2432,7 @@ Result<gpu::ComputePipeline, Status>
   }
 
   VkSpecializationInfo vk_specialization{
-    .mapEntryCount = info.compute_shader.specialization_constants.size32(),
+    .mapEntryCount = size32(info.compute_shader.specialization_constants),
     .pMapEntries   = (VkSpecializationMapEntry const *)
                      info.compute_shader.specialization_constants.data(),
     .dataSize = info.compute_shader.specialization_constants_data.size_bytes(),
@@ -2510,7 +2510,7 @@ Result<gpu::ComputePipeline, Status>
     ComputePipeline{.vk_pipeline         = vk_pipeline,
                     .vk_layout           = vk_layout,
                     .push_constants_size = info.push_constants_size,
-                    .num_sets = info.descriptor_set_layouts.size32()};
+                    .num_sets            = size32(info.descriptor_set_layouts)};
 
   return Ok{(gpu::ComputePipeline) pipeline};
 }
@@ -2518,14 +2518,14 @@ Result<gpu::ComputePipeline, Status>
 Result<gpu::GraphicsPipeline, Status>
   Device::create_graphics_pipeline(gpu::GraphicsPipelineInfo const & info)
 {
-  u32 const num_descriptor_sets = info.descriptor_set_layouts.size32();
-  u32 const num_input_bindings  = info.vertex_input_bindings.size32();
-  u32 const num_attributes      = info.vertex_attributes.size32();
+  u32 const num_descriptor_sets = size32(info.descriptor_set_layouts);
+  u32 const num_input_bindings  = size32(info.vertex_input_bindings);
+  u32 const num_attributes      = size32(info.vertex_attributes);
   u32 const num_blend_color_attachments =
-    info.color_blend_state.attachments.size32();
-  u32 const num_colors   = info.color_formats.size32();
-  u32 const num_depths   = info.depth_format.size32();
-  u32 const num_stencils = info.stencil_format.size32();
+    size32(info.color_blend_state.attachments);
+  u32 const num_colors   = size32(info.color_formats);
+  u32 const num_depths   = size32(info.depth_format);
+  u32 const num_stencils = size32(info.stencil_format);
 
   CHECK(!(info.rasterization_state.polygon_mode != gpu::PolygonMode::Fill &&
           !phy_dev.vk_features.fillModeNonSolid),
@@ -2549,14 +2549,14 @@ Result<gpu::GraphicsPipeline, Status>
   }
 
   VkSpecializationInfo vk_vs_specialization{
-    .mapEntryCount = info.vertex_shader.specialization_constants.size32(),
+    .mapEntryCount = size32(info.vertex_shader.specialization_constants),
     .pMapEntries   = (VkSpecializationMapEntry const *)
                      info.vertex_shader.specialization_constants.data(),
     .dataSize = info.vertex_shader.specialization_constants_data.size_bytes(),
     .pData    = info.vertex_shader.specialization_constants_data.data()};
 
   VkSpecializationInfo vk_fs_specialization{
-    .mapEntryCount = info.fragment_shader.specialization_constants.size32(),
+    .mapEntryCount = size32(info.fragment_shader.specialization_constants),
     .pMapEntries   = (VkSpecializationMapEntry const *)
                      info.fragment_shader.specialization_constants.data(),
     .dataSize = info.fragment_shader.specialization_constants_data.size_bytes(),
@@ -2799,7 +2799,7 @@ Result<gpu::GraphicsPipeline, Status>
     .sType    = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR,
     .pNext    = nullptr,
     .viewMask = 0,
-    .colorAttachmentCount    = info.color_formats.size32(),
+    .colorAttachmentCount    = size32(info.color_formats),
     .pColorAttachmentFormats = color_formats,
     .depthAttachmentFormat   = depth_format,
     .stencilAttachmentFormat = stencil_format};
@@ -2853,15 +2853,15 @@ Result<gpu::GraphicsPipeline, Status>
     GraphicsPipeline{.vk_pipeline         = vk_pipeline,
                      .vk_layout           = vk_layout,
                      .push_constants_size = info.push_constants_size,
-                     .num_sets     = info.descriptor_set_layouts.size32(),
-                     .num_colors   = num_colors,
-                     .num_depths   = num_depths,
-                     .num_stencils = num_stencils,
+                     .num_sets            = size32(info.descriptor_set_layouts),
+                     .num_colors          = num_colors,
+                     .num_depths          = num_depths,
+                     .num_stencils        = num_stencils,
                      .sample_count = info.rasterization_state.sample_count};
 
-  mem::copy(info.color_formats, pipeline->colors);
-  mem::copy(info.depth_format, pipeline->depth);
-  mem::copy(info.stencil_format, pipeline->stencil);
+  mem::copy(info.color_formats, pipeline->color_fmts);
+  mem::copy(info.depth_format, pipeline->depth_fmts);
+  mem::copy(info.stencil_format, pipeline->stencil_fmts);
 
   return Ok{(gpu::GraphicsPipeline) pipeline};
 }
@@ -3623,7 +3623,7 @@ Result<Void, Status>
   Device::merge_pipeline_cache(gpu::PipelineCache             dst,
                                Span<gpu::PipelineCache const> srcs)
 {
-  u32 const num_srcs = srcs.size32();
+  u32 const num_srcs = size32(srcs);
 
   CHECK(num_srcs > 0, "");
 
@@ -3782,8 +3782,8 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
     case gpu::DescriptorType::UniformBuffer:
     {
       pBufferInfo = (VkDescriptorBufferInfo *) scratch.data();
-      count       = update.buffers.size32();
-      for (u32 i = 0; i < update.buffers.size32(); i++)
+      count       = size32(update.buffers);
+      for (u32 i = 0; i < size32(update.buffers); i++)
       {
         gpu::BufferBinding const & b      = update.buffers[i];
         Buffer *                   buffer = (Buffer *) b.buffer;
@@ -3798,7 +3798,7 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
     case gpu::DescriptorType::Sampler:
     {
       pImageInfo = (VkDescriptorImageInfo *) scratch.data();
-      count      = update.images.size32();
+      count      = size32(update.images);
       for (u32 i = 0; i < update.images.size(); i++)
       {
         pImageInfo[i] =
@@ -3812,7 +3812,7 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
     case gpu::DescriptorType::SampledImage:
     {
       pImageInfo = (VkDescriptorImageInfo *) scratch.data();
-      count      = update.images.size32();
+      count      = size32(update.images);
       for (u32 i = 0; i < update.images.size(); i++)
       {
         ImageView * view = (ImageView *) update.images[i].image_view;
@@ -3827,7 +3827,7 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
     case gpu::DescriptorType::CombinedImageSampler:
     {
       pImageInfo = (VkDescriptorImageInfo *) scratch.data();
-      count      = update.images.size32();
+      count      = size32(update.images);
       for (u32 i = 0; i < update.images.size(); i++)
       {
         gpu::ImageBinding const & b    = update.images[i];
@@ -3843,7 +3843,7 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
     case gpu::DescriptorType::StorageImage:
     {
       pImageInfo = (VkDescriptorImageInfo *) scratch.data();
-      count      = update.images.size32();
+      count      = size32(update.images);
       for (u32 i = 0; i < update.images.size(); i++)
       {
         ImageView * view = (ImageView *) update.images[i].image_view;
@@ -3858,7 +3858,7 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
     case gpu::DescriptorType::InputAttachment:
     {
       pImageInfo = (VkDescriptorImageInfo *) scratch.data();
-      count      = update.images.size32();
+      count      = size32(update.images);
       for (u32 i = 0; i < update.images.size(); i++)
       {
         ImageView * view = (ImageView *) update.images[i].image_view;
@@ -3874,7 +3874,7 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
     case gpu::DescriptorType::UniformTexelBuffer:
     {
       pTexelBufferView = (VkBufferView *) scratch.data();
-      count            = update.texel_buffers.size32();
+      count            = size32(update.texel_buffers);
       for (u32 i = 0; i < update.texel_buffers.size(); i++)
       {
         BufferView * view   = (BufferView *) update.texel_buffers[i];
@@ -4445,7 +4445,7 @@ void CommandEncoder::copy_buffer(gpu::Buffer src_, gpu::Buffer dst_,
   ENCODE_PRELUDE();
   Buffer * const src        = (Buffer *) src_;
   Buffer * const dst        = (Buffer *) dst_;
-  u32 const      num_copies = copies.size32();
+  u32 const      num_copies = size32(copies);
 
   CHECK(!is_in_pass(), "");
   CHECK(has_bits(src->info.usage, gpu::BufferUsage::TransferSrc), "");
@@ -4510,7 +4510,7 @@ void CommandEncoder::clear_color_image(
 {
   ENCODE_PRELUDE();
   Image * const dst        = (Image *) dst_;
-  u32 const     num_ranges = ranges.size32();
+  u32 const     num_ranges = size32(ranges);
 
   static_assert(sizeof(gpu::Color) == sizeof(VkClearColorValue));
   CHECK(!is_in_pass(), "");
@@ -4562,7 +4562,7 @@ void CommandEncoder::clear_depth_stencil_image(
 {
   ENCODE_PRELUDE();
   Image * const dst        = (Image *) dst_;
-  u32 const     num_ranges = ranges.size32();
+  u32 const     num_ranges = size32(ranges);
 
   static_assert(sizeof(gpu::DepthStencil) == sizeof(VkClearDepthStencilValue));
   CHECK(!is_in_pass(), "");
@@ -4614,7 +4614,7 @@ void CommandEncoder::copy_image(gpu::Image src_, gpu::Image dst_,
   ENCODE_PRELUDE();
   Image * const src        = (Image *) src_;
   Image * const dst        = (Image *) dst_;
-  u32 const     num_copies = copies.size32();
+  u32 const     num_copies = size32(copies);
 
   CHECK(!is_in_pass(), "");
   CHECK(num_copies > 0, "");
@@ -4709,7 +4709,7 @@ void CommandEncoder::copy_buffer_to_image(
   ENCODE_PRELUDE();
   Buffer * const src        = (Buffer *) src_;
   Image * const  dst        = (Image *) dst_;
-  u32 const      num_copies = copies.size32();
+  u32 const      num_copies = size32(copies);
 
   CHECK(!is_in_pass(), "");
   CHECK(num_copies > 0, "");
@@ -4788,7 +4788,7 @@ void CommandEncoder::blit_image(gpu::Image src_, gpu::Image dst_,
   ENCODE_PRELUDE();
   Image * const src       = (Image *) src_;
   Image * const dst       = (Image *) dst_;
-  u32 const     num_blits = blits.size32();
+  u32 const     num_blits = size32(blits);
 
   CHECK(!is_in_pass(), "");
   CHECK(num_blits > 0, "");
@@ -4883,7 +4883,7 @@ void CommandEncoder::resolve_image(gpu::Image src_, gpu::Image dst_,
   ENCODE_PRELUDE();
   Image * const src          = (Image *) src_;
   Image * const dst          = (Image *) dst_;
-  u32 const     num_resolves = resolves.size32();
+  u32 const     num_resolves = size32(resolves);
 
   CHECK(!is_in_pass(), "");
   CHECK(num_resolves > 0, "");
@@ -5025,9 +5025,9 @@ void validate_attachment(gpu::RenderingAttachment const & info,
 void CommandEncoder::begin_rendering(gpu::RenderingInfo const & info)
 {
   ENCODE_PRELUDE();
-  u32 const num_color_attachments   = info.color_attachments.size32();
-  u32 const num_depth_attachments   = info.depth_attachment.size32();
-  u32 const num_stencil_attachments = info.stencil_attachment.size32();
+  u32 const num_color_attachments   = size32(info.color_attachments);
+  u32 const num_depth_attachments   = size32(info.depth_attachment);
+  u32 const num_stencil_attachments = size32(info.stencil_attachment);
 
   CHECK(!is_in_pass(), "");
   CHECK(num_color_attachments <= gpu::MAX_PIPELINE_COLOR_ATTACHMENTS, "");
@@ -5496,15 +5496,15 @@ void CommandEncoder::validate_render_pass_compatible(
   GraphicsPipeline *        pipeline = (GraphicsPipeline *) pipeline_;
 
   CHECK(pipeline->num_colors == ctx.num_color_attachments, "");
-  CHECK(pipeline->num_depths == ctx.num_depth_attachments, "");
-  CHECK(pipeline->num_stencils == ctx.num_stencil_attachments, "");
+  CHECK(pipeline->num_depths >= ctx.num_depth_attachments, "");
+  CHECK(pipeline->num_stencils >= ctx.num_stencil_attachments, "");
 
   for (u32 i = 0; i < pipeline->num_colors; i++)
   {
-    if (pipeline->colors[i] != gpu::Format::Undefined)
+    if (pipeline->color_fmts[i] != gpu::Format::Undefined)
     {
       CHECK(ctx.color_attachments[i].view != nullptr, "");
-      CHECK(pipeline->colors[i] ==
+      CHECK(pipeline->color_fmts[i] ==
               IMAGE_FROM_VIEW(ctx.color_attachments[i].view)->info.format,
             "");
       CHECK(pipeline->sample_count ==
@@ -5513,23 +5513,23 @@ void CommandEncoder::validate_render_pass_compatible(
     }
   }
 
-  for (u32 i = 0; i < pipeline->num_depths; i++)
+  for (u32 i = 0; i < ctx.num_depth_attachments; i++)
   {
-    if (pipeline->depth[i] != gpu::Format::Undefined)
+    if (pipeline->depth_fmts[i] != gpu::Format::Undefined)
     {
       CHECK(ctx.depth_attachment[i].view != nullptr, "");
-      CHECK(pipeline->depth[i] ==
+      CHECK(pipeline->depth_fmts[i] ==
               IMAGE_FROM_VIEW(ctx.depth_attachment[i].view)->info.format,
             "");
     }
   }
 
-  for (u32 i = 0; i < pipeline->num_stencils; i++)
+  for (u32 i = 0; i < ctx.num_stencil_attachments; i++)
   {
-    if (pipeline->stencil[i] != gpu::Format::Undefined)
+    if (pipeline->stencil_fmts[i] != gpu::Format::Undefined)
     {
       CHECK(ctx.stencil_attachment[i].view != nullptr, "");
-      CHECK(pipeline->stencil[i] ==
+      CHECK(pipeline->stencil_fmts[i] ==
               IMAGE_FROM_VIEW(ctx.stencil_attachment[i].view)->info.format,
             "");
     }
@@ -5774,8 +5774,8 @@ void CommandEncoder::bind_descriptor_sets(
   Span<u32 const>                dynamic_offsets)
 {
   ENCODE_PRELUDE();
-  u32 const num_sets            = descriptor_sets.size32();
-  u32 const num_dynamic_offsets = dynamic_offsets.size32();
+  u32 const num_sets            = size32(descriptor_sets);
+  u32 const num_dynamic_offsets = size32(dynamic_offsets);
 
   CHECK(is_in_pass(), "");
   CHECK(num_sets <= gpu::MAX_PIPELINE_DESCRIPTOR_SETS, "");
@@ -5945,7 +5945,7 @@ void CommandEncoder::bind_vertex_buffers(Span<gpu::Buffer const> vertex_buffers,
   RenderPassContext & ctx = render_ctx;
 
   CHECK(is_in_render_pass(), "");
-  u32 const num_vertex_buffers = vertex_buffers.size32();
+  u32 const num_vertex_buffers = size32(vertex_buffers);
   CHECK(num_vertex_buffers > 0, "");
   CHECK(num_vertex_buffers <= gpu::MAX_VERTEX_ATTRIBUTES, "");
   CHECK(offsets.size() == vertex_buffers.size(), "");

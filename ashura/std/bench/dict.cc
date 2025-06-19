@@ -1,5 +1,5 @@
 /// SPDX-License-Identifier: MIT
-#include "ashura/std/map.h"
+#include "ashura/std/dict.h"
 #include "ashura/std/types.h"
 #include "stdint.h"
 #include <algorithm>
@@ -1122,7 +1122,7 @@ constexpr Str DATASET[] = {
 
 static void BM_Map_Probe32(benchmark::State & state)
 {
-  StrMap<i64, u32> map;
+  StrDict<i64, u32> map;
   i64 const        num_inserts = state.range(0);
   i64              num_queries = 0;
 
@@ -1151,7 +1151,7 @@ static void BM_Map_Probe32(benchmark::State & state)
 
 static void BM_Map_Probe64(benchmark::State & state)
 {
-  StrMap<i64, u64> map;
+  StrDict<i64, u64> map;
   i64 const        num_inserts = state.range(0);
   i64              num_queries = 0;
 

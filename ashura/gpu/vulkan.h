@@ -404,16 +404,16 @@ struct ComputePipeline
 
 struct GraphicsPipeline
 {
-  VkPipeline       vk_pipeline                                 = nullptr;
-  VkPipelineLayout vk_layout                                   = nullptr;
-  u32              push_constants_size                         = 0;
-  u32              num_sets                                    = 0;
-  gpu::Format      colors[gpu::MAX_PIPELINE_COLOR_ATTACHMENTS] = {};
-  gpu::Format      depth[1]                                    = {};
-  gpu::Format      stencil[1]                                  = {};
-  u32              num_colors                                  = 0;
-  u32              num_depths                                  = 0;
-  u32              num_stencils                                = 0;
+  VkPipeline       vk_pipeline                                     = nullptr;
+  VkPipelineLayout vk_layout                                       = nullptr;
+  u32              push_constants_size                             = 0;
+  u32              num_sets                                        = 0;
+  gpu::Format      color_fmts[gpu::MAX_PIPELINE_COLOR_ATTACHMENTS] = {};
+  gpu::Format      depth_fmts[1]                                   = {};
+  gpu::Format      stencil_fmts[1]                                 = {};
+  u32              num_colors                                      = 0;
+  u32              num_depths                                      = 0;
+  u32              num_stencils                                    = 0;
   gpu::SampleCount sample_count = gpu::SampleCount::C1;
 };
 

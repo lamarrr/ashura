@@ -418,10 +418,11 @@ enum class LoadOp : u8
   DontCare = 2
 };
 
-enum class StoreOp : u8
+enum class StoreOp : u32
 {
   Store    = 0,
-  DontCare = 1
+  DontCare = 1,
+  None     = 1'000'301'000
 };
 
 enum class BlendFactor : u8

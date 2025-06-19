@@ -222,16 +222,6 @@ struct [[nodiscard]] Dict
     return num_entries_;
   }
 
-  constexpr u32 size32() const
-  {
-    return (u32) num_entries_;
-  }
-
-  constexpr u64 size64() const
-  {
-    return (u64) num_entries_;
-  }
-
   constexpr usize capacity() const
   {
     return num_probes_;
@@ -568,7 +558,7 @@ template <typename V, typename D = usize>
 using StrDict = Dict<Str, V, SpanHash, StrEq, D>;
 
 template <typename V, typename D = usize>
-using StrVecDict = Dict<Vec<char>, V, SpanHash, StrEq, D>;
+using StringDict = Dict<Vec<char>, V, SpanHash, StrEq, D>;
 
 template <typename K, typename V, typename D = usize>
 using BitDict = Dict<K, V, BitHash, BitEq, D>;
