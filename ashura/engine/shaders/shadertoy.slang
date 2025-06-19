@@ -3,7 +3,7 @@
 #pragma once
 #include "types.slang"
 
-struct Input
+struct Inputs
 {
   f32x3 Resolution;              // viewport resolution (in pixels)
   f32   Time;                    // shader playback time (in seconds)
@@ -20,31 +20,33 @@ struct Input
 struct VertexOutput
 {
   f32x4                     pos : SV_Position;
-  [[vk::location(0)]] f32x2 uv : LOCAL_POSITION;
+  [[vk::location(0)]] f32x2 uv : REL_POS;
 };
 
 [[vk::binding(0, 0)]]
-row_major StructuredBuffer<Input, Std430DataLayout> in;
+ConstantBuffer<Inputs> in;
 
-[[vk::binding(0, 1)]] SamplerState Samplers[];
+[[vk::binding(0, 1)]]
+SamplerState Samplers[];
 
-[[vk::binding(0, 2)]] Texture2D Channels[];    // input channels. XX = 2D/Cube
+[[vk::binding(0, 2)]]
+Texture2D Channels[];    // input channels. XX = 2D/Cube
 
 static constexpr f32x2 VERTEX_BUFFER[] = {f32x2(-0.5, -0.5), f32x2(0.5, -0.5),
                                           f32x2(0.5, 0.5), f32x2(-0.5, 0.5)};
 
-f32x4 mainImage(f32x2 fragCoord);
+f32x4 main_image(f32x2 fragCoord);
 
 [[shader("vertex")]]
-VertexOutput vs_main(u32 vertex_idx : SV_VertexID)
+VertexOutput vert(u32 vertex_idx : SV_VertexID)
 {
   f32x2 local_pos = VERTEX_BUFFER[vertex_idx];
   return VertexOutput(f32x4(local_pos * 2, 0, 1), local_pos + 0.5);
 }
 
 [[shader("fragment")]]
-f32x4 fs_upsample_main([[vk::location(0)]] f32x2 uv : UV_COORD) :
+f32x4 frag(VertexOutput in) :
   COLOR
 {
-  return mainImage(uv);
+  return main_image(in.uv);
 }

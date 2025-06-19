@@ -13,14 +13,47 @@ f32 xor_op(f32 a, f32 b)
   return max(min(a, b), -max(a, b));
 }
 
-f32 round_op(f32 sd, f32 r)
+f32 round(f32 sd, f32 r)
 {
   return sd - r;
 }
 
-f32 onion_op(f32 sd, f32 r)
+f32 onion(f32 sd, f32 r)
 {
   return abs(sd) - r;
+}
+
+f32 union(f32 d1, f32 d2)
+{
+  return min(d1, d2);
+}
+
+f32 sub(f32 d1, f32 d2)
+{
+  return max(-d1, d2);
+}
+
+f32 intersection(f32 d1, f32 d2)
+{
+  return max(d1, d2);
+}
+
+f32 smooth_union(f32 d1, f32 d2, f32 k)
+{
+  f32 h = clamp(0.5 + 0.5 * (d2 - d1) / k, 0.0, 1.0);
+  return lerp(d2, d1, h) - k * h * (1.0 - h);
+}
+
+f32 smooth_sub(f32 d1, f32 d2, f32 k)
+{
+  f32 h = clamp(0.5 - 0.5 * (d2 + d1) / k, 0.0, 1.0);
+  return lerp(d2, -d1, h) + k * h * (1.0 - h);
+}
+
+f32 smooth_intersection(f32 d1, f32 d2, f32 k)
+{
+  f32 h = clamp(0.5 - 0.5 * (d2 - d1) / k, 0.0, 1.0);
+  return lerp(d2, d1, h) + k * h * (1.0 - h);
 }
 
 /// see: https://www.shadertoy.com/view/DlVcW1
@@ -260,79 +293,15 @@ f32 quad(f32x3 p, f32x3 a, f32x3 b, f32x3 c, f32x3 d)
       dot(nor, pa) * dot(nor, pa) / dot2(nor));
 }
 
-struct Fill2Mask
-{
-  f32 signed_distance;
-  f32 mask;
-};
-
-struct Stroke2Mask
-{
-  f32 edge_signed_distance;
-  f32 ring_signed_distance;
-  f32 edge_mask;
-  f32 ring_mask;
-};
-
-Fill2Mask fill(f32 edge_signed_dist, f32 feather)
+f32 antialiased_mask(f32 edge_signed_dist)
 {
   f32 edge_mask = 1 - antialias_mask(edge_signed_dist, 1);
-  return Fill2Mask(edge_signed_dist, edge_mask);
+  return edge_mask;
 }
 
-Stroke2Mask stroke(f32 edge_signed_dist, f32 feather)
+f32 ring_signed_distance(f32 edge_signed_dist, f32 feather)
 {
-  f32 ring_signed_dist = onion_op(edge_signed_dist, feather);
-  f32 edge_mask        = 1 - antialias_mask(edge_signed_dist, 1);
-  f32 ring_mask        = 1 - antialias_mask(ring_signed_dist, 1);
-  return Stroke2Mask(edge_signed_dist, ring_signed_dist, edge_mask, ring_mask);
-}
-
-struct FloodMask
-{
-  f32 edge_mask;
-};
-
-struct FeatherMask
-{
-  f32 edge_mask;
-  f32 feather_alpha;
-};
-
-struct StrokeMask
-{
-  f32 edge_mask;
-  f32 ring_mask;
-};
-
-struct SoftenMask
-{
-  f32 edge_mask;
-  f32 soften_alpha;
-};
-
-FloodMask flood(Fill s, f32 feather)
-{
-  return FloodMask(s.mask);
-}
-
-SoftenMask softened(Fill s, f32 feather)
-{
-  f32 soften_sd    = 1 - smoothstep(0, feather, s.signed_distance);
-  f32 soften_alpha = s.mask * soften_sd;
-  return SoftenMask(s.mask, soften_alpha);
-}
-
-FeatherMask feathered(Fill s, f32 feather)
-{
-  f32 feather_sd    = 1 - smoothstep(0, feather, s.signed_distance);
-  f32 feather_alpha = s.mask * feather_sd;
-  return FeatherMask(s.mask, feather_alpha);
-}
-
-StrokeMask stroked(Stroke s, f32 feather)
-{
-  return StrokeMask(s.edge_mask, s.ring_mask);
+  return onion(edge_signed_dist, feather);
 }
 
 enum class ShadeType : u32
@@ -343,23 +312,33 @@ enum class ShadeType : u32
   Stroked   = 3
 };
 
+enum class ShapeType : u32
+{
+  RRect    = 0,
+  Squircle = 1,
+  SDFMap   = 2
+};
+
 enum class BlendOp : u32
 {
-  None              = 0,
-  Add               = 1,
-  Substract         = 2,
-  Xor               = 3,
-  Round             = 4,
-  Onion             = 5,
-  Min               = 6,
-  ExpSmoothMin      = 7,
-  RootSmoothMin     = 8,
-  SigSmoothMin      = 9,
-  QuadSmoothMin     = 10,
-  CubicSmoothMin    = 11,
-  QuartSmoothMin    = 12,
-  CircSmoothMin     = 13,
-  CircGeomSmoothMin = 14
+  None                = 0,
+  Sub                 = 1,
+  Xor                 = 2,
+  Round               = 3,
+  Onion               = 4,
+  Union               = 5,
+  Intersection        = 6,
+  SmoothUnion         = 7,
+  SmoothSub           = 8,
+  SmoothIntersection  = 9,
+  ExpSmoothUnion      = 10,
+  RootSmoothUnion     = 11,
+  SigSmoothUnion      = 12,
+  QuadSmoothUnion     = 13,
+  CubicSmoothUnion    = 14,
+  QuartSmoothUnion    = 15,
+  CircSmoothUnion     = 16,
+  CircGeomSmoothUnion = 17
 };
 
 enum class MixOp : u32

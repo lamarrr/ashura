@@ -2,8 +2,7 @@
 
 #pragma once
 #include "materials/custom.inl.slang"
-#include "materials/ngon.slang"
-#include "modules/core.slang"
+#include "materials/quad.slang"
 #include "modules/types.slang"
 
 struct VertexOutput
@@ -24,13 +23,10 @@ Texture2D textures[];
 ConstantBuffer<f32x4x4> world_to_ndc;
 
 [[vk::binding(0, 3)]]
-StructuredBuffer<f32x4x4> transforms;
+StructuredBuffer<f32x4x4> quads;
 
 [[vk::binding(0, 4)]]
-StructuredBuffer<f32x2> vtx_buffer;
-
-[[vk::binding(0, 5)]]
-StructuredBuffer<u32> idx_buffer;
+StructuredBuffer<f32x4x4> transforms;
 
 #ifndef MATERIAL_TYPE
 
@@ -42,27 +38,22 @@ typedef MATERIAL_TYPE MaterialType;
 
 #endif
 
-// [ ] line shader; material with tiling? for dashed lines
-
-[[vk::binding(0, 6)]]
+[[vk::binding(0, 5)]]
 StructuredBuffer<MaterialType> materials;
 
-[[shader("vertex")]]
-VertexOutput vert(u32 instance : SV_InstanceID, u32 vertex : SV_VertexID)
+[[shader("vertex")]] VertexOutput vert(u32 instance : SV_InstanceID,
+                                       u32 vertex : SV_VertexID)
 {
-  u32     idx             = idx_buffer[vertex];
-  f32x2   rel_pos         = vtx_buffer[idx];
+  f32x4   rel_pos         = quads[instance][vertex];
   f32x4x4 world_transform = transforms[instance];
-  f32x4   world_pos       = mul(world_transform, f32x4(rel_pos, 0.0, 1.0));
+  f32x4   world_pos       = mul(world_transform, rel_pos);
   f32x4   screen_pos      = mul(world_to_ndc, world_pos);
-  return VertexOutput(screen_pos, world_pos, f32x4(rel_pos, 0, 1), instance);
+  return VertexOutput(screen_pos, world_pos, rel_pos, instance);
 }
 
-[[shader("fragment")]]
-f32x4 frag(VertexOutput in) :
-  COLOR
+[[shader("fragment")]] f32x4 frag(VertexOutput in) : COLOR
 {
   var material = materials[in.instance];
-  var frag     = ngon::FragmentInfo(in.rel_pos, in.world_pos, in.screen_pos);
+  var frag     = quad::FragmentInfo(in.world_pos, in.screen_pos, in.rel_pos);
   return material.shade(frag, samplers, textures);
 }

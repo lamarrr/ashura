@@ -2,10 +2,10 @@
 // License Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License.
 #include "shadertoy.slang"
 
-f32x4 mainImage(f32x2 fragCoord)
+f32x4 main_image(f32x2 fragCoord)
 {
-  f32x2 q  = fragCoord.xy / in[0].Resolution.xy;
-  f32x2 uv = 0.5 + (q - 0.5) * (0.9 + 0.1 * sin(0.2 * in[0].Time));
+  f32x2 q  = fragCoord.xy / in.Resolution.xy;
+  f32x2 uv = 0.5 + (q - 0.5) * (0.9 + 0.1 * sin(0.2 * in.Time));
 
   f32x3 oricol = Channels[0].Sample(Samplers[0], f32x2(q.x, 1.0 - q.y)).xyz;
   f32x3 col;
@@ -20,11 +20,11 @@ f32x4 mainImage(f32x2 fragCoord)
 
   col *= f32x3(0.95, 1.05, 0.95);
 
-  col *= 0.9 + 0.1 * sin(10.0 * in[0].Time + uv.y * 1000.0);
+  col *= 0.9 + 0.1 * sin(10.0 * in.Time + uv.y * 1000.0);
 
-  col *= 0.99 + 0.01 * sin(110.0 * in[0].Time);
+  col *= 0.99 + 0.01 * sin(110.0 * in.Time);
 
-  f32 comp = smoothstep(0.2, 0.7, sin(in[0].Time));
+  f32 comp = smoothstep(0.2, 0.7, sin(in.Time));
   col      = lerp(col, oricol, clamp(-2.0 + 2.0 * q.x + 3.0 * comp, 0.0, 1.0));
 
   return f32x4(col, 1.0);
