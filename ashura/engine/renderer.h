@@ -1,7 +1,11 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/engine/gpu_system.h"
-#include "ashura/engine/passes.h"
+#include "ashura/engine/passes/blur.h"
+#include "ashura/engine/passes/contour_stencil.h"
+#include "ashura/engine/passes/ngon.h"
+#include "ashura/engine/passes/pbr.h"
+#include "ashura/engine/passes/sdf.h"
 #include "ashura/engine/systems.h"
 #include "ashura/std/dyn.h"
 
@@ -10,36 +14,33 @@ namespace ash
 
 struct Canvas;
 
-struct PassContext
+struct PassBundle
 {
-  ref<BloomPass>    bloom;
-  ref<BlurPass>     blur;
-  ref<NgonPass>     ngon;
-  ref<PBRPass>      pbr;
-  ref<RRectPass>    rrect;
-  ref<SquirclePass> squircle;
-  Vec<Dyn<Pass *>>  all;
+  ref<BlurPass>           blur;
+  ref<NgonPass>           ngon;
+  ref<PBRPass>            pbr;
+  ref<SdfPass>            sdf;
+  ref<ContourStencilPass> contour_stencil;
+  Vec<Dyn<Pass *>>        all;
 
-  static PassContext create(AllocatorRef allocator);
+  static PassBundle create(AllocatorRef allocator);
 
-  PassContext(BloomPass & bloom, BlurPass & blur, NgonPass & ngon,
-              PBRPass & pbr, RRectPass & rrect, SquirclePass & squircle,
-              Vec<Dyn<Pass *>> all) :
-    bloom{bloom},
+  PassBundle(BlurPass & blur, NgonPass & ngon, PBRPass & pbr, SdfPass & sdf,
+             ContourStencilPass & contour_stencil, Vec<Dyn<Pass *>> all) :
     blur{blur},
     ngon{ngon},
     pbr{pbr},
-    rrect{rrect},
-    squircle{squircle},
+    sdf{sdf},
+    contour_stencil{contour_stencil},
     all{std::move(all)}
   {
   }
 
-  PassContext(PassContext const &)             = delete;
-  PassContext(PassContext &&)                  = default;
-  PassContext & operator=(PassContext const &) = delete;
-  PassContext & operator=(PassContext &&)      = default;
-  ~PassContext()                               = default;
+  PassBundle(PassBundle const &)             = delete;
+  PassBundle(PassBundle &&)                  = default;
+  PassBundle & operator=(PassBundle const &) = delete;
+  PassBundle & operator=(PassBundle &&)      = default;
+  ~PassBundle()                              = default;
 
   void acquire();
 
@@ -50,7 +51,7 @@ struct PassContext
 
 struct BlurRenderParam
 {
-  RRectShaderParam rrect         = {};
+  // [ ] RRectShaderParam rrect         = {};
   RectU            area          = {};
   Vec2U            spread_radius = {};
   RectU            scissor       = {};
@@ -62,16 +63,16 @@ struct BlurRenderer
 {
   static void render(FrameGraph & graph, Framebuffer const & fb,
                      Span<ColorTexture const>, Span<DepthStencilTexture const>,
-                     PassContext const & passes, BlurRenderParam const & param);
+                     PassBundle const & passes, BlurRenderParam const & param);
 };
 
 struct Renderer
 {
-  Dyn<PassContext *> passes_;
+  Dyn<PassBundle *> passes_;
 
   static Renderer create(AllocatorRef allocator);
 
-  Renderer(Dyn<PassContext *> passes) : passes_{std::move(passes)}
+  Renderer(Dyn<PassBundle *> passes) : passes_{std::move(passes)}
   {
   }
 
