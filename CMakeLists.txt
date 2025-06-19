@@ -438,3 +438,87 @@ if(NOT ASH_EXCLUDE_EDITOR)
   target_compile_definitions(ashura_editor PUBLIC ${ASH_COMPILE_DEFINITIONS})
   target_link_options(ashura_editor PUBLIC ${ASH_LINK_OPTIONS})
 endif()
+
+# Ashura Engine's Core Shaders
+
+set(SLANGC_PATH
+    ""
+    CACHE PATH "Path to the Slang installation (must contain 'bin/slangc')")
+if(SLANGC_PATH)
+  set(SLANGC_EXECUTABLE "${SLANGC_PATH}/bin/slangc")
+else()
+  find_program(SLANGC_EXECUTABLE slangc)
+endif()
+
+if(NOT SLANGC_EXECUTABLE OR NOT EXISTS "${SLANGC_EXECUTABLE}")
+  message(
+    FATAL_ERROR
+      "slangc not found. Please install Slang or set SLANGC_PATH to the correct location. Currently set to ${SLANGC_EXECUTABLE}"
+  )
+else()
+  message(STATUS "Using slangc: ${SLANGC_EXECUTABLE}")
+endif()
+
+set(SLANG_SRC_DIR "${CMAKE_SOURCE_DIR}/ashura/engine/shaders")
+set(SLANG_INCLUDE_DIR "${SLANG_SRC_DIR}")
+set(SLANG_OUT_DIR "${CMAKE_BINARY_DIR}/assets/shaders")
+
+set(SLANG_FEATURE_LIST
+    SPV_EXT_descriptor_indexing
+    SPV_KHR_non_semantic_info
+    spvImageQuery
+    spvImageGatherExtended
+    spvShaderNonUniformEXT
+    spvShaderNonUniform
+    SPV_GOOGLE_user_type
+    spvDerivativeControl
+    spvSparseResidency
+    spvMinLod
+    spvFragmentFullyCoveredEXT)
+string(JOIN "+" SLANG_FEATURES ${SLANG_FEATURE_LIST})
+
+set(SLANG_FLAGS
+    -profile
+    "spirv_1_3+${SLANG_FEATURES}"
+    -emit-spirv-directly
+    -preserve-params
+    -matrix-layout-row-major
+    -fvk-use-gl-layout
+    -fvk-use-entrypoint-name
+    -O3)
+
+function(compile_shader shader_file)
+  set(input "${SLANG_SRC_DIR}/${shader_file}")
+  set(output_spv "${SLANG_OUT_DIR}/${shader_file}.spv")
+  set(output_asm "${SLANG_OUT_DIR}/${shader_file}.spv-asm")
+
+  add_custom_command(
+    OUTPUT ${output_spv}
+    COMMAND ${SLANGC_EXECUTABLE} -target spirv ${SLANG_FLAGS} ${input} -o
+            ${output_spv} -I ${SLANG_INCLUDE_DIR}
+    DEPENDS ${input}
+    COMMENT "Compiling ${shader_file} -> SPIR-V")
+
+  add_custom_command(
+    OUTPUT ${output_asm}
+    COMMAND ${SLANGC_EXECUTABLE} -target spirv-asm ${SLANG_FLAGS} ${input} -o
+            ${output_asm} -I ${SLANG_INCLUDE_DIR}
+    DEPENDS ${input}
+    COMMENT "Compiling ${shader_file} -> SPIR-V ASM")
+
+  add_custom_target(${shader_file}_shaders ALL DEPENDS ${output_spv}
+                                                       ${output_asm})
+endfunction()
+
+set(SHADER_FILES
+    blur.slang
+    ngon.slang
+    pbr.slang
+    rrect.slang
+    squircle.slang
+    contour_cover.slang
+    contour_stencil.slang)
+
+foreach(shader ${SHADER_FILES})
+  compile_shader(${shader})
+endforeach()
