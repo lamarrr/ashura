@@ -2,7 +2,7 @@
 #pragma once
 #include "ashura/engine/font.h"
 #include "ashura/engine/image_decoder.h"
-#include "ashura/engine/shader.h"
+#include "ashura/engine/shaderc.h"
 #include "ashura/engine/text.h"
 #include "ashura/engine/window.h"
 #include "ashura/gpu/gpu.h"

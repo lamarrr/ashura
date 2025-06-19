@@ -2,7 +2,7 @@
 #pragma once
 #include "ashura/gpu/gpu.h"
 #include "ashura/std/allocators.h"
-#include "ashura/std/map.h"
+#include "ashura/std/dict.h"
 #include "ashura/std/option.h"
 #include "ashura/std/types.h"
 #include "ashura/std/vec.h"
@@ -189,7 +189,7 @@ struct Sampler
   gpu::Sampler sampler = nullptr;
 };
 
-typedef Map<gpu::SamplerInfo, Sampler, SamplerHasher, SamplerEq, u32>
+typedef Dict<gpu::SamplerInfo, Sampler, SamplerHasher, SamplerEq, u32>
   SamplerCache;
 
 struct GpuSystem;

@@ -293,11 +293,13 @@ void RenderText::render(TextRenderer renderer, Vec2 center, f32 align_width,
 }
 
 Tuple<isize, CaretAlignment> RenderText::hit(Vec2 center, f32 align_width,
-                                             Mat4 const & t, Vec2 pos) const
+                                             Mat4 const & transform,
+                                             Vec2         transformed_pos) const
 {
-  auto s     = Vec2{t[0][0], t[1][1]};
-  auto local = (pos - center) / s;
-  return layout_.hit(block(), block_style(align_width), local);
+  auto const inv_xfm   = inverse(transform);
+  auto const pos       = (inv_xfm * vec4(transformed_pos, 0, 1)).xy();
+  auto const local_pos = pos - center;
+  return layout_.hit(block(), block_style(align_width), local_pos);
 }
 
 }    // namespace ash

@@ -140,7 +140,8 @@ struct RenderText
   /// @param pos the canvas-space text position to hit
   /// @returns .v0: caret index, .v1: caret location
   Tuple<isize, CaretAlignment> hit(Vec2 center, f32 align_width,
-                                   Mat4 const & transform, Vec2 pos) const;
+                                   Mat4 const & transform,
+                                   Vec2         transformed_pos) const;
 };
 
 }    // namespace ash
