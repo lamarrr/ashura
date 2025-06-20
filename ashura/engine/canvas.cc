@@ -6,57 +6,64 @@
 namespace ash
 {
 
-void path::rect(Vec<Vec2> & vtx)
+void path::rect(Vec<Vec2> & vtx, Vec2 extent, Vec2 translation)
 {
-  static constexpr Vec2 coords[] = {
-    {-0.5, -0.5},
-    {0.5,  -0.5},
-    {0.5,  0.5 },
-    {-0.5, 0.5 }
+  Vec2 const coords[] = {
+    Vec2{-0.5, -0.5}
+    * extent + translation,
+    Vec2{0.5,  -0.5}
+    * extent + translation,
+    Vec2{0.5,  0.5 }
+    * extent + translation,
+    Vec2{-0.5, 0.5 }
+    * extent + translation
   };
 
   vtx.extend(coords).unwrap();
 }
 
-void path::arc(Vec<Vec2> & vtx, f32 start, f32 stop, usize segments)
+void path::arc(Vec<Vec2> & vtx, Vec2 extent, Vec2 translation, f32 start,
+               f32 stop, usize segments)
 {
   if (segments < 2)
   {
     return;
   }
 
-  auto const first = vtx.size32();
+  auto const first = vtx.size();
 
   vtx.extend_uninit(segments).unwrap();
 
   f32 const step = (stop - start) / (segments - 1);
 
-  for (u32 i = 0; i < segments; i++)
+  for (usize i = 0; i < segments; i++)
   {
-    vtx[first + i] = rotor(i * step) - 0.5F;
+    vtx[first + i] = (rotor(i * step) - 0.5F) * extent + translation;
   }
 }
 
-void path::circle(Vec<Vec2> & vtx, usize segments)
+void path::circle(Vec<Vec2> & vtx, Vec2 extent, Vec2 translation,
+                  usize segments)
 {
   if (segments < 4)
   {
     return;
   }
 
-  auto const first = vtx.size32();
+  auto const first = vtx.size();
 
   vtx.extend_uninit(segments).unwrap();
 
   f32 const step = (2 * PI) / (segments - 1);
 
-  for (u32 i = 0; i < segments; i++)
+  for (usize i = 0; i < segments; i++)
   {
-    vtx[first + i] = rotor(i * step) - 0.5F;
+    vtx[first + i] = (rotor(i * step) - 0.5F) * extent + translation;
   }
 }
 
-void path::squircle(Vec<Vec2> & vtx, f32 elasticity, usize segments)
+void path::squircle(Vec<Vec2> & vtx, Vec2 extent, Vec2 translation,
+                    f32 elasticity, usize segments)
 {
   if (segments < 32)
   {
@@ -67,17 +74,18 @@ void path::squircle(Vec<Vec2> & vtx, f32 elasticity, usize segments)
 
   elasticity = clamp(elasticity * 0.5F, 0.0F, 0.5F);
 
-  path::cubic_bezier(vtx, {0, -0.5F}, {elasticity, -0.5F}, {0.5F, -0.5F},
-                     {0.5F, 0}, n);
-  path::cubic_bezier(vtx, {0.5F, 0}, {0.5F, elasticity}, {0.5F, 0.5F},
-                     {0, 0.5F}, n);
-  path::cubic_bezier(vtx, {0, 0.5F}, {-elasticity, 0.5F}, {-0.5F, 0.5F},
-                     {-0.5F, 0}, n);
-  path::cubic_bezier(vtx, {-0.5F, 0}, {-0.5F, -elasticity}, {-0.5F, -0.5F},
-                     {0, -0.5F}, n);
+  path::cubic_bezier(vtx, extent, translation, {0, -0.5F}, {elasticity, -0.5F},
+                     {0.5F, -0.5F}, {0.5F, 0}, n);
+  path::cubic_bezier(vtx, extent, translation, {0.5F, 0}, {0.5F, elasticity},
+                     {0.5F, 0.5F}, {0, 0.5F}, n);
+  path::cubic_bezier(vtx, extent, translation, {0, 0.5F}, {-elasticity, 0.5F},
+                     {-0.5F, 0.5F}, {-0.5F, 0}, n);
+  path::cubic_bezier(vtx, extent, translation, {-0.5F, 0}, {-0.5F, -elasticity},
+                     {-0.5F, -0.5F}, {0, -0.5F}, n);
 }
 
-void path::rrect(Vec<Vec2> & vtx, Vec4 radii, usize segments)
+void path::rrect(Vec<Vec2> & vtx, Vec2 extent, Vec2 translation, Vec4 radii,
+                 usize segments)
 {
   if (segments < 8)
   {
@@ -99,52 +107,59 @@ void path::rrect(Vec<Vec2> & vtx, Vec4 radii, usize segments)
   auto const curve_segments = (segments - 8) >> 2;
   f32 const  step =
     (curve_segments == 0) ? 0.0F : ((PI * 0.5F) / curve_segments);
-  auto const first = vtx.size32();
+  auto const first = vtx.size();
 
   vtx.extend_uninit(segments).unwrap();
 
-  u32 i = 0;
+  usize i = 0;
 
   vtx[first + i++] = Vec2{0.5F, 0.5F - radii.z};
 
-  for (u32 s = 0; s < curve_segments; s++)
+  for (usize s = 0; s < curve_segments; s++)
   {
-    vtx[first + i++] = (0.5F - radii.z) + radii.z * rotor(s * step);
+    vtx[first + i++] =
+      ((0.5F - radii.z) + radii.z * rotor(s * step)) * extent + translation;
   }
 
-  vtx[first + i++] = Vec2{0.5F - radii.z, 0.5F};
+  vtx[first + i++] = Vec2{0.5F - radii.z, 0.5F} * extent + translation;
 
-  vtx[first + i++] = Vec2{-0.5F + radii.w, 0.5F};
+  vtx[first + i++] = Vec2{-0.5F + radii.w, 0.5F} * extent + translation;
 
-  for (u32 s = 0; s < curve_segments; s++)
+  for (usize s = 0; s < curve_segments; s++)
   {
-    vtx[first + i++] = Vec2{-0.5F + radii.w, 0.5F - radii.w} +
-                       radii.w * rotor(PI * 0.5F + s * step);
+    vtx[first + i++] = (Vec2{-0.5F + radii.w, 0.5F - radii.w} +
+                        radii.w * rotor(PI * 0.5F + s * step)) *
+                         extent +
+                       translation;
   }
 
-  vtx[first + i++] = Vec2{-0.5F, 0.5F - radii.w};
+  vtx[first + i++] = Vec2{-0.5F, 0.5F - radii.w} * extent + translation;
 
-  vtx[first + i++] = Vec2{-0.5F, -0.5F + radii.x};
+  vtx[first + i++] = Vec2{-0.5F, -0.5F + radii.x} * extent + translation;
 
-  for (u32 s = 0; s < curve_segments; s++)
+  for (usize s = 0; s < curve_segments; s++)
   {
-    vtx[first + i++] = (-0.5F + radii.x) + radii.x * rotor(PI + s * step);
+    vtx[first + i++] =
+      ((-0.5F + radii.x) + radii.x * rotor(PI + s * step)) * extent +
+      translation;
   }
 
-  vtx[first + i++] = Vec2{-0.5F + radii.x, -0.5F};
+  vtx[first + i++] = Vec2{-0.5F + radii.x, -0.5F} * extent + translation;
 
-  vtx[first + i++] = Vec2{0.5F - radii.y, -0.5F};
+  vtx[first + i++] = Vec2{0.5F - radii.y, -0.5F} * extent + translation;
 
-  for (u32 s = 0; s < curve_segments; s++)
+  for (usize s = 0; s < curve_segments; s++)
   {
-    vtx[first + i++] = Vec2{0.5F - radii.y, (-0.5F + radii.y)} +
-                       radii.y * rotor(PI * 1.5F + s * step);
+    vtx[first + i++] = (Vec2{0.5F - radii.y, (-0.5F + radii.y)} +
+                        radii.y * rotor(PI * 1.5F + s * step)) *
+                         extent +
+                       translation;
   }
 
   vtx[first + i++] = Vec2{0.5F, -0.5F + radii.y};
 }
 
-void path::brect(Vec<Vec2> & vtx, Vec4 slant)
+void path::brect(Vec<Vec2> & vtx, Vec2 extent, Vec2 translation, Vec4 slant)
 {
   slant.x = clamp(slant.x, 0.0F, 1.0F);
   slant.y = clamp(slant.y, 0.0F, 1.0F);
@@ -158,80 +173,95 @@ void path::brect(Vec<Vec2> & vtx, Vec4 slant)
   slant.w          = min(slant.w, max_radius_w);
 
   Vec2 const vertices[] = {
-    {-0.5F + slant.x, -0.5F          },
-    {0.5F - slant.y,  -0.5F          },
-    {0.5F,            -0.5F + slant.y},
-    {0.5F,            0.5F - slant.z },
-    {0.5F - slant.z,  0.5F           },
-    {-0.5F + slant.w, 0.5F           },
-    {-0.5F,           0.5F - slant.w },
-    {-0.5F,           -0.5F + slant.x}
+    Vec2{-0.5F + slant.x, -0.5F          }
+    * extent + translation,
+    Vec2{0.5F - slant.y,  -0.5F          }
+    * extent + translation,
+    Vec2{0.5F,            -0.5F + slant.y}
+    * extent + translation,
+    Vec2{0.5F,            0.5F - slant.z }
+    * extent + translation,
+    Vec2{0.5F - slant.z,  0.5F           }
+    * extent + translation,
+    Vec2{-0.5F + slant.w, 0.5F           }
+    * extent + translation,
+    Vec2{-0.5F,           0.5F - slant.w }
+    * extent + translation,
+    Vec2{-0.5F,           -0.5F + slant.x}
+    * extent + translation
   };
 
   vtx.extend(vertices).unwrap();
 }
 
-void path::bezier(Vec<Vec2> & vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, usize segments)
+void path::bezier(Vec<Vec2> & vtx, Vec2 extent, Vec2 translation, Vec2 cp0,
+                  Vec2 cp1, Vec2 cp2, usize segments)
 {
   if (segments < 3)
   {
     return;
   }
 
-  auto const first = vtx.size32();
+  auto const first = vtx.size();
 
   vtx.extend_uninit(segments).unwrap();
 
   f32 const step = 1.0F / (segments - 1);
 
-  for (u32 i = 0; i < segments; i++)
+  for (usize i = 0; i < segments; i++)
   {
     vtx[first + i] = Vec2{ash::bezier(cp0.x, cp1.x, cp2.x, step * i),
-                          ash::bezier(cp0.y, cp1.y, cp2.y, step * i)};
+                          ash::bezier(cp0.y, cp1.y, cp2.y, step * i)} *
+                       extent +
+                     translation;
   }
 }
 
-void path::cubic_bezier(Vec<Vec2> & vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, Vec2 cp3,
-                        usize segments)
+void path::cubic_bezier(Vec<Vec2> & vtx, Vec2 extent, Vec2 translation,
+                        Vec2 cp0, Vec2 cp1, Vec2 cp2, Vec2 cp3, usize segments)
 {
   if (segments < 4)
   {
     return;
   }
 
-  auto const first = vtx.size32();
+  auto const first = vtx.size();
 
   vtx.extend_uninit(segments).unwrap();
 
   f32 const step = 1.0F / (segments - 1);
 
-  for (u32 i = 0; i < segments; i++)
+  for (usize i = 0; i < segments; i++)
   {
     vtx[first + i] =
       Vec2{ash::cubic_bezier(cp0.x, cp1.x, cp2.x, cp3.x, step * i),
-           ash::cubic_bezier(cp0.y, cp1.y, cp2.y, cp3.y, step * i)};
+           ash::cubic_bezier(cp0.y, cp1.y, cp2.y, cp3.y, step * i)} *
+        extent +
+      translation;
   }
 }
 
-void path::catmull_rom(Vec<Vec2> & vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, Vec2 cp3,
-                       usize segments)
+void path::catmull_rom(Vec<Vec2> & vtx, Vec2 extent, Vec2 translation, Vec2 cp0,
+                       Vec2 cp1, Vec2 cp2, Vec2 cp3, usize segments)
 {
   if (segments < 4)
   {
     return;
   }
 
-  auto const beg = vtx.size32();
+  auto const beg = vtx.size();
 
   vtx.extend_uninit(segments).unwrap();
 
   f32 const step = 1.0F / (segments - 1);
 
-  for (u32 i = 0; i < segments; i++)
+  for (usize i = 0; i < segments; i++)
   {
     vtx[beg + i] =
       Vec2{ash::cubic_bezier(cp0.x, cp1.x, cp2.x, cp3.x, step * i),
-           ash::cubic_bezier(cp0.y, cp1.y, cp2.y, cp3.y, step * i)};
+           ash::cubic_bezier(cp0.y, cp1.y, cp2.y, cp3.y, step * i)} *
+        extent +
+      translation;
   }
 }
 
@@ -244,11 +274,11 @@ void triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> & vertices,
     return;
   }
 
-  auto const first_vtx    = vertices.size32();
-  auto const first_idx    = indices.size32();
-  auto const num_points   = points.size32();
-  auto const num_vertices = (num_points - 1) * 4;
-  auto const num_indices  = (num_points - 1) * 6 + (num_points - 2) * 6;
+  I const first_vtx    = vertices.size();
+  I const first_idx    = indices.size();
+  I const num_points   = points.size();
+  I const num_vertices = (num_points - 1) * 4;
+  I const num_indices  = (num_points - 1) * 6 + (num_points - 2) * 6;
   vertices.extend_uninit(num_vertices).unwrap();
   indices.extend_uninit(num_indices).unwrap();
 
@@ -314,8 +344,8 @@ template <typename I>
 void triangles(I first_vertex, I num_vertices, Vec<I> & indices)
 {
   CHECK(num_vertices > 3, "");
-  auto const num_triangles = num_vertices / 3;
-  auto const first_idx     = indices.size32();
+  I const num_triangles = num_vertices / 3;
+  I const first_idx     = indices.size();
   indices.extend_uninit(num_triangles * 3).unwrap();
 
   I * idx = indices.data() + first_idx;
@@ -345,8 +375,8 @@ void triangulate_convex(Vec<I> & idx, I first_vertex, I num_vertices)
     return;
   }
 
-  auto const num_indices = (num_vertices - 2) * 3;
-  auto const first_index = idx.size32();
+  I const num_indices = (num_vertices - 2) * 3;
+  I const first_index = idx.size();
 
   idx.extend_uninit(num_indices).unwrap();
 
