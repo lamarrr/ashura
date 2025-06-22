@@ -2,6 +2,7 @@
 #include "ashura/engine/passes/contour_stencil.h"
 #include "ashura/engine/systems.h"
 #include "ashura/std/math.h"
+#include "ashura/std/range.h"
 
 namespace ash
 {
@@ -37,7 +38,13 @@ void ContourStencilPass::acquire()
                                              .min_depth_bounds         = 0,
                                              .max_depth_bounds         = 0};
 
-  gpu::DescriptorSetLayout set_layouts[] = {sys->gpu.sb_layout_};
+  gpu::DescriptorSetLayout set_layouts[] = {
+    sys->gpu.sb_layout_,    // 0: world_to_ndc
+    sys->gpu.sb_layout_,    // 1: triangle_offsets
+    sys->gpu.sb_layout_,    // 2: transforms
+    sys->gpu.sb_layout_,    // 3: vertices
+    sys->gpu.sb_layout_     // 4: regions
+  };
 
   gpu::GraphicsPipelineInfo pipeline_info{
     .label         = "Stencil Graphics Pipeline"_str,
@@ -105,19 +112,19 @@ void ContourStencilPass::encode(gpu::CommandEncoder &            e,
   auto const non_zero_back_pass_op =
     params.invert ? gpu::StencilOp::DecrementAndWrap : gpu::StencilOp::Keep;
 
-  auto const front_fail_op = (params.fill_rule == FillRule::EvenOdd) ?
+  auto const front_fail_op = (params.fill_rule == shader::FillRule::EvenOdd) ?
                                even_odd_fail_op :
                                non_zero_front_fail_op;
 
-  auto const front_pass_op = (params.fill_rule == FillRule::EvenOdd) ?
+  auto const front_pass_op = (params.fill_rule == shader::FillRule::EvenOdd) ?
                                even_odd_pass_op :
                                non_zero_front_pass_op;
 
-  auto const back_fail_op = (params.fill_rule == FillRule::EvenOdd) ?
+  auto const back_fail_op = (params.fill_rule == shader::FillRule::EvenOdd) ?
                               even_odd_fail_op :
                               non_zero_back_fail_op;
 
-  auto const back_pass_op = (params.fill_rule == FillRule::EvenOdd) ?
+  auto const back_pass_op = (params.fill_rule == shader::FillRule::EvenOdd) ?
                               even_odd_pass_op :
                               non_zero_back_pass_op;
 
@@ -143,9 +150,28 @@ void ContourStencilPass::encode(gpu::CommandEncoder &            e,
                         .reference     = 0}
   });
 
-  e.bind_descriptor_sets(span({params.params_ssbo}),
-                         span({params.params_ssbo_offset}));
-  e.draw(3, params.num_instances, 0, params.first_instance);
+  e.bind_descriptor_sets(span({
+                           params.world_to_ndc.buffer.descriptor_,        //
+                           params.triangle_offsets.buffer.descriptor_,    //
+                           params.transforms.buffer.descriptor_,          //
+                           params.vertices.buffer.descriptor_,            //
+                           params.regions.buffer.descriptor_,             //
+                         }),
+                         span({
+                           params.world_to_ndc.slice.offset,        //
+                           params.triangle_offsets.slice.offset,    //
+                           params.transforms.slice.offset,          //
+                           params.vertices.slice.offset,            //
+                           params.regions.slice.offset,             //
+                         }));
+
+  u32 first_vertex = 0;
+  for (auto [i, triangle_count] : enumerate<u32>(params.triangle_counts))
+  {
+    u32 num_vertices = triangle_count * 3;
+    e.draw(num_vertices, 1, first_vertex, i);
+    first_vertex += num_vertices;
+  }
   e.end_rendering();
 }
 

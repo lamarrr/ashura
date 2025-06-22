@@ -11,7 +11,7 @@ namespace ash
 {
 
 /// @details do not change the underlying type. It maps directly to the GPU handle
-enum class TextureId : u32
+enum class [[nodiscard]] TextureId : u32
 {
   Base        = 0,
   White       = 0,
@@ -29,7 +29,7 @@ enum class TextureId : u32
 inline constexpr u32 NUM_DEFAULT_TEXTURES = 10;
 
 /// @details do not change the underlying type. It maps directly to the GPU handle
-enum class SamplerId : u32
+enum class [[nodiscard]] SamplerId : u32
 {
   LinearBlack    = 0,
   NearestBlack   = 1,
@@ -37,10 +37,18 @@ enum class SamplerId : u32
   NearestClamped = 3
 };
 
+enum class [[nodiscard]] StructBufferId : u32
+{
+};
+
+enum class [[nodiscard]] BufferId : u32
+{
+};
+
 inline constexpr u32 NUM_DEFAULT_SAMPLERS = 4;
 
 /// @brief created with sampled, storage, color attachment, and transfer flags
-struct ColorTexture
+struct [[nodiscard]] ColorTexture
 {
   static constexpr gpu::FormatFeatures FEATURES =
     gpu::FormatFeatures::ColorAttachment |
@@ -72,7 +80,7 @@ struct ColorTexture
 };
 
 /// @brief created with color attachment flag
-struct ColorMsaaTexture
+struct [[nodiscard]] ColorMsaaTexture
 {
   gpu::ImageInfo info = {};
 
@@ -95,7 +103,7 @@ struct ColorMsaaTexture
   }
 };
 
-struct DepthStencilTexture
+struct [[nodiscard]] DepthStencilTexture
 {
   static constexpr gpu::FormatFeatures FEATURES =
     gpu::FormatFeatures::DepthStencilAttachment |
@@ -131,7 +139,7 @@ struct DepthStencilTexture
   }
 };
 
-struct Framebuffer
+struct [[nodiscard]] Framebuffer
 {
   /// @brief color texture
   ColorTexture color = {};
@@ -151,7 +159,7 @@ struct SamplerHasher
 {
   constexpr hash64 operator()(gpu::SamplerInfo const & info) const
   {
-    return hash_combine_n(
+    return hash_combine(
       (hash64) info.mag_filter, (hash64) info.min_filter,
       (hash64) info.mip_map_mode, (hash64) info.address_mode_u,
       (hash64) info.address_mode_v, (hash64) info.address_mode_w,
@@ -183,7 +191,7 @@ struct SamplerEq
   }
 };
 
-struct Sampler
+struct [[nodiscard]] Sampler
 {
   SamplerId    id      = SamplerId::LinearBlack;
   gpu::Sampler sampler = nullptr;
@@ -194,7 +202,7 @@ typedef Dict<gpu::SamplerInfo, Sampler, SamplerHasher, SamplerEq, u32>
 
 struct GpuSystem;
 
-struct GpuBuffer
+struct [[nodiscard]] GpuBuffer
 {
   Str label_;
 
@@ -228,7 +236,7 @@ struct GpuBuffer
   void flush(GpuSystem & gpu);
 };
 
-struct ShaderBuffer
+struct [[nodiscard]] ShaderBuffer
 {
   static constexpr gpu::BufferUsage USAGE =
     gpu::BufferUsage::UniformBuffer | gpu::BufferUsage::StorageBuffer |
@@ -248,7 +256,7 @@ struct ShaderBuffer
 
   gpu::DescriptorSet descriptor_;
 
-  ShaderBuffer(Str label, gpu::BufferUsage usage = USAGE);
+  ShaderBuffer(Str label = {}, gpu::BufferUsage usage = USAGE);
   ShaderBuffer(ShaderBuffer const &)             = default;
   ShaderBuffer(ShaderBuffer &&)                  = default;
   ShaderBuffer & operator=(ShaderBuffer const &) = default;
@@ -272,9 +280,15 @@ struct ShaderBuffer
   void flush(GpuSystem & gpu);
 };
 
-typedef ShaderBuffer StructuredBuffer;
+struct [[nodiscard]] ShaderBufferSpan
+{
+  ShaderBuffer buffer = {};
+  Slice32      slice  = {};
+};
 
-typedef ShaderBuffer ConstantBuffer;
+typedef ShaderBuffer StructBuffer;
+
+typedef ShaderBufferSpan StructBufferSpan;
 
 struct GpuQueries
 {
@@ -360,8 +374,8 @@ struct FrameGraph
 
   struct FrameData
   {
-    StructuredBuffer sb{"FrameGraph::StructuredBuffer"_str};
-    GpuBuffer        staging{"FrameGraph::StagingBuffer"_str,
+    StructBuffer sb{"FrameGraph::StructBuffer"_str};
+    GpuBuffer    staging{"FrameGraph::StagingBuffer"_str,
                       gpu::BufferUsage::TransferSrc |
                         gpu::BufferUsage::TransferDst};
 
@@ -375,6 +389,8 @@ struct FrameGraph
   bool              uploaded_;
   Vec<u8>           sb_data_;
   Vec<Slice32>      sb_entries_;
+  Vec<u8>           buff_data_;
+  Vec<Slice32>      buff_entries_;
   Vec<u8>           staging_data_;
   Vec<Upload>       uploads_;
   Vec<Task>         tasks_;
@@ -387,6 +403,8 @@ struct FrameGraph
     uploaded_{false},
     sb_data_{allocator},
     sb_entries_{allocator},
+    buff_data_{allocator},
+    buff_entries_{allocator},
     staging_data_{allocator},
     uploads_{allocator},
     tasks_{allocator},
@@ -401,9 +419,31 @@ struct FrameGraph
   FrameGraph & operator=(FrameGraph &&)      = default;
   ~FrameGraph()                              = default;
 
-  u32 push_ssbo(Span<u8 const> data);
+  template <typename T>
+  StructBufferId push_ssbo(Span<T> data)
+  {
+    return push_ssbo(data.as_u8().as_const());
+  }
 
-  Tuple<StructuredBuffer, Slice32> get_structured_buffer(u32 id);
+  StructBufferId push_ssbo(Span<u8 const> data);
+
+  ShaderBufferSpan get_struct_buffer(StructBufferId id);
+
+  template <typename T>
+  BufferId push_buffer(Span<T> data)
+  {
+    return push_buffer(data.as_u8().as_const());
+  }
+
+  BufferId push_buffer(Span<u8 const> data);
+
+  Span<u8 const> get_buffer(BufferId id);
+
+  template <typename T>
+  Span<T const> get_buffer(BufferId id)
+  {
+    return get_buffer(id).reinterpret<T>();
+  }
 
   void add_pass(Pass pass);
 
@@ -438,11 +478,11 @@ struct FrameGraph
   {
     CHECK(!uploaded_, "");
 
-    auto const offset = staging_data_.size64();
+    auto const offset = size64(staging_data_);
 
     staging_data_.extend(buffer).unwrap();
 
-    Slice64 const slice{offset, buffer.size64()};
+    Slice64 const slice{offset, size64(buffer)};
 
     auto lambda = dyn(arena_, static_cast<Encoder &&>(encoder)).unwrap();
 
@@ -489,7 +529,7 @@ struct GpuSystem
   /// @brief hdr if hdr supported and required.
   gpu::Format color_format_;
 
-  gpu::Format depth_format_;
+  gpu::Format depth_stencil_format_;
 
   gpu::DescriptorSetLayout cb_layout_;
 
@@ -534,7 +574,7 @@ struct GpuSystem
     AllocatorRef allocator, gpu::Device & device, gpu::DeviceProperties props,
     gpu::PipelineCache pipeline_cache, u32 buffering,
     gpu::SampleCount sample_count, gpu::Format color_format,
-    gpu::Format depth_format, gpu::DescriptorSetLayout cb_layout,
+    gpu::Format depth_stencil_format, gpu::DescriptorSetLayout cb_layout,
     gpu::DescriptorSetLayout sb_layout,
     gpu::DescriptorSetLayout textures_layout,
     gpu::DescriptorSetLayout samplers_layout, gpu::DescriptorSet textures,
@@ -549,7 +589,7 @@ struct GpuSystem
     buffering_{buffering},
     sample_count_{sample_count},
     color_format_{color_format},
-    depth_format_{depth_format},
+    depth_stencil_format_{depth_stencil_format},
     cb_layout_{cb_layout},
     sb_layout_{sb_layout},
     textures_layout_{textures_layout},

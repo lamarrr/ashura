@@ -13,7 +13,9 @@ struct World
   f32x4   eye_position;
 };
 
-static constexpr u32 NUM_OBJECT_LIGHTS = 4;
+#ifndef NUM_OBJECT_LIGHTS
+#  define NUM_OBJECT_LIGHTS 4
+#endif
 
 struct Vertex
 {
@@ -66,11 +68,10 @@ typedef LIGHT_TYPE LightType;
 
 struct VertexOutput
 {
-  [[vk::location(0)]] f32x4               rel_pos : REL_POS;
-  [[vk::location(1)]] f32x4               screen_pos : SV_Position;
-  [[vk::location(2)]] f32x4               world_pos : WORLD_POS;
-  [[vk::location(3)]] f32x2               uv : UV_COORD;
-  [[vk::location(4)]] nointerpolation u32 instance : INSTANCE;
+  [[vk::location(0)]] f32x4 rel_pos : REL_POS;
+  [[vk::location(1)]] f32x4 screen_pos : SV_Position;
+  [[vk::location(2)]] f32x4 world_pos : WORLD_POS;
+  [[vk::location(3)]] f32x2 uv : UV_COORD;
 };
 
 struct FragmentOutput
@@ -102,10 +103,10 @@ SamplerState samplers[];
 Texture2D textures[];
 
 [[vk::binding(0, 2)]]
-StructuredBuffer<VertexType> vtx_buffer;
+StructuredBuffer<VertexType> vertices;
 
 [[vk::binding(0, 3)]]
-StructuredBuffer<u32> idx_buffer;
+StructuredBuffer<u32> indices;
 
 [[vk::binding(0, 4)]]
 ConstantBuffer<World> world;
@@ -117,15 +118,15 @@ ConstantBuffer<MaterialType> material;
 StructuredBuffer<LightType> lights;
 
 [[shader("vertex")]]
-VertexOutput vert(u32 instance : SV_InstanceID, u32 vertex : SV_VertexID)
+VertexOutput vert(u32 vertex : SV_VertexID)
 {
-  var    idx        = idx_buffer[vertex];
-  Vertex vtx        = vtx_buffer[idx];
-  f32x4  rel_pos    = vtx.pos();
-  f32x4  world_pos  = mul(world.world_transform, rel_pos);
-  f32x4  screen_pos = mul(world.world_to_ndc, world_pos);
-  f32x2  uv         = vtx.uv();
-  return VertexOutput(rel_pos, screen_pos, world_pos, uv, instance);
+  var   idx        = indices[vertex];
+  var   vtx        = vertices[idx];
+  f32x4 rel_pos    = vtx.pos();
+  f32x4 world_pos  = mul(world.world_transform, rel_pos);
+  f32x4 screen_pos = mul(world.world_to_ndc, world_pos);
+  f32x2 uv         = vtx.uv();
+  return VertexOutput(rel_pos, screen_pos, world_pos, uv);
 }
 
 [[shader("fragment")]]

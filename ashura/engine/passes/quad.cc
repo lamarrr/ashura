@@ -1,5 +1,5 @@
 /// SPDX-License-Identifier: MIT
-#include "ashura/engine/passes/sdf.h"
+#include "ashura/engine/passes/quad.h"
 #include "ashura/engine/systems.h"
 #include "ashura/std/math.h"
 #include "ashura/std/sformat.h"
@@ -7,13 +7,13 @@
 namespace ash
 {
 
-SdfPass::SdfPass(AllocatorRef allocator) : variants_{allocator}
+QuadPass::QuadPass(AllocatorRef allocator) : variants_{allocator}
 {
 }
 
-Str SdfPass::label()
+Str QuadPass::label()
 {
-  return "SDF"_str;
+  return "Quad"_str;
 }
 
 gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader)
@@ -59,13 +59,13 @@ gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader)
     sys->gpu.samplers_layout_,    // 0: samplers
     sys->gpu.textures_layout_,    // 1: textures
     sys->gpu.sb_layout_,          // 2: world_to_ndc
-    sys->gpu.sb_layout_,          // 3: shapes
+    sys->gpu.sb_layout_,          // 3: quads
     sys->gpu.sb_layout_,          // 4: transforms
     sys->gpu.sb_layout_           // 5: materials
   };
 
   auto tagged_label =
-    snformat<gpu::MAX_LABEL_SIZE>("SDF Graphics Pipeline: {}"_str, label)
+    snformat<gpu::MAX_LABEL_SIZE>("Quad Graphics Pipeline: {}"_str, label)
       .unwrap();
 
   gpu::GraphicsPipelineInfo pipeline_info{
@@ -96,13 +96,13 @@ gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader)
   return sys->gpu.device_->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
-void SdfPass::acquire()
+void QuadPass::acquire()
 {
   pipeline_ = create_pipeline("Base"_str,
-                              sys->shader.get("SDF.Base"_str).unwrap().shader);
+                              sys->shader.get("Quad.Base"_str).unwrap().shader);
 }
 
-void SdfPass::add_variant(Str label, gpu::Shader shader)
+void QuadPass::add_variant(Str label, gpu::Shader shader)
 {
   auto pipeline = create_pipeline(label, shader);
   bool exists;
@@ -110,15 +110,15 @@ void SdfPass::add_variant(Str label, gpu::Shader shader)
   CHECK(!exists, "");
 }
 
-void SdfPass::remove_variant(Str label)
+void QuadPass::remove_variant(Str label)
 {
   auto pipeline = variants_.get(label);
   variants_.erase(label);
   sys->gpu.release(pipeline);
 }
 
-void SdfPass::encode(gpu::CommandEncoder & e, SdfPassParams const & params,
-                     Str variant)
+void QuadPass::encode(gpu::CommandEncoder & e, QuadPassParams const & params,
+                      Str variant)
 {
   InplaceVec<gpu::RenderingAttachment, 1> color;
   InplaceVec<gpu::RenderingAttachment, 1> stencil;
@@ -182,13 +182,13 @@ void SdfPass::encode(gpu::CommandEncoder & e, SdfPassParams const & params,
                            params.samplers,                           //
                            params.textures,                           //
                            params.world_to_ndc.buffer.descriptor_,    //
-                           params.shapes.buffer.descriptor_,          //
+                           params.quads.buffer.descriptor_,           //
                            params.transforms.buffer.descriptor_,      //
                            params.materials.buffer.descriptor_        //
                          }),
                          span({
                            params.world_to_ndc.slice.offset,    //
-                           params.shapes.slice.offset,          //
+                           params.quads.slice.offset,           //
                            params.transforms.slice.offset,      //
                            params.materials.slice.offset        //
                          }));
@@ -196,7 +196,7 @@ void SdfPass::encode(gpu::CommandEncoder & e, SdfPassParams const & params,
   e.end_rendering();
 }
 
-void SdfPass::release()
+void QuadPass::release()
 {
   sys->gpu.device_->uninit(pipeline_);
   for (auto [_, pipeline] : variants_)

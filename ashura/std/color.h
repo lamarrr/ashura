@@ -387,13 +387,14 @@ inline constexpr Vec4U8 BLACK = {0x00, 0x00, 0x00, 0xFF};
 
 struct ColorGradient
 {
-  Vec4 top_;
-  Vec4 bottom_;
-  Vec2 rotor_;
+  Vec4 top_    = {};
+  Vec4 bottom_ = {};
+  f32  angle_  = 0;
+  f32  center_ = 0;
 
   constexpr ColorGradient() = default;
 
-  constexpr ColorGradient(Vec4 c) : top_{c}, bottom_{c}, rotor_{1, 0}
+  constexpr ColorGradient(Vec4 c) : top_{c}, bottom_{c}, angle_{0}, center_{0}
   {
   }
 
@@ -401,27 +402,28 @@ struct ColorGradient
   {
   }
 
-  constexpr ColorGradient(Vec4 top, Vec4 bottom, f32 angle) :
+  constexpr ColorGradient(Vec4 top, Vec4 bottom, f32 angle, f32 center) :
     top_{top},
     bottom_{bottom},
-    rotor_{cos(angle), sin(angle)}
+    angle_{angle},
+    center_{center}
   {
   }
 
-  constexpr ColorGradient(Vec4U8 top, Vec4U8 bottom, f32 angle) :
-    ColorGradient{norm(top), norm(bottom), angle}
+  constexpr ColorGradient(Vec4U8 top, Vec4U8 bottom, f32 angle, f32 center) :
+    ColorGradient{norm(top), norm(bottom), angle, center}
   {
   }
 
   constexpr ColorGradient & to_horizontal()
   {
-    rotor_ = {0, 1};
+    angle_ = 0;
     return *this;
   }
 
   constexpr ColorGradient & to_vertical()
   {
-    rotor_ = {1, 0};
+    angle_ = 0.5 * PI;
     return *this;
   }
 

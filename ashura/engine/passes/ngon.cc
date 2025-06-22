@@ -2,6 +2,7 @@
 #include "ashura/engine/passes/ngon.h"
 #include "ashura/engine/systems.h"
 #include "ashura/std/math.h"
+#include "ashura/std/range.h"
 #include "ashura/std/sformat.h"
 
 namespace ash
@@ -113,7 +114,7 @@ void NgonPass::add_variant(Str label, gpu::Shader shader)
 
 void NgonPass::remove_variant(Str label)
 {
-  auto pipeline = variants_.try_get(label).unwrap();
+  auto pipeline = variants_.get(label);
   variants_.erase(label);
   sys->gpu.release(pipeline);
 }
@@ -147,14 +148,15 @@ void NgonPass::encode(gpu::CommandEncoder & e, NgonPassParams const & params,
         .unwrap();
     });
 
-  params.stencil.match([&](PassStencil const & s) {
+  params.stencil.match([&](PassStencil const &) {
     stencil
-      .push(gpu::RenderingAttachment{.view         = s.texture.stencil_view,
-                                     .resolve      = nullptr,
-                                     .resolve_mode = gpu::ResolveModes::None,
-                                     .load_op      = gpu::LoadOp::Load,
-                                     .store_op     = gpu::StoreOp::None,
-                                     .clear        = {}})
+      .push(gpu::RenderingAttachment{
+        .view         = params.framebuffer.depth_stencil.stencil_view,
+        .resolve      = nullptr,
+        .resolve_mode = gpu::ResolveModes::None,
+        .load_op      = gpu::LoadOp::Load,
+        .store_op     = gpu::StoreOp::None,
+        .clear        = {}})
       .unwrap();
   });
 
@@ -168,7 +170,7 @@ void NgonPass::encode(gpu::CommandEncoder & e, NgonPassParams const & params,
   e.begin_rendering(info);
 
   auto variant_pipeline =
-    variant.is_empty() ? pipeline_ : variants_.try_get(variant).unwrap();
+    variant.is_empty() ? pipeline_ : variants_.get(variant);
 
   e.bind_graphics_pipeline(variant_pipeline);
   e.bind_descriptor_sets(span({
@@ -196,10 +198,13 @@ void NgonPass::encode(gpu::CommandEncoder & e, NgonPassParams const & params,
     .back_face_stencil =
       params.stencil.map([](auto s) { return s.back; }).unwrap_or()});
 
-  for (auto [i, vertex_count] : enumerate<u32>(params.index_counts))
+  u32 first_index = 0;
+  for (auto [i, index_count] : enumerate<u32>(params.index_counts))
   {
-    e.draw(vertex_count, 1, 0, params.first_instance + i);
+    e.draw(index_count, 1, first_index, params.first_instance + i);
+    first_index += index_count;
   }
+
   e.end_rendering();
 }
 

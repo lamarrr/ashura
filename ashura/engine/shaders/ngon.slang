@@ -27,10 +27,10 @@ ConstantBuffer<f32x4x4> world_to_ndc;
 StructuredBuffer<f32x4x4> transforms;
 
 [[vk::binding(0, 4)]]
-StructuredBuffer<f32x2> vtx_buffer;
+StructuredBuffer<f32x2> vertices;
 
 [[vk::binding(0, 5)]]
-StructuredBuffer<u32> idx_buffer;
+StructuredBuffer<u32> indices;
 
 #ifndef MATERIAL_TYPE
 
@@ -50,8 +50,8 @@ StructuredBuffer<MaterialType> materials;
 [[shader("vertex")]]
 VertexOutput vert(u32 instance : SV_InstanceID, u32 vertex : SV_VertexID)
 {
-  u32     idx             = idx_buffer[vertex];
-  f32x2   rel_pos         = vtx_buffer[idx];
+  u32     idx             = indices[vertex];
+  f32x2   rel_pos         = vertices[idx];
   f32x4x4 world_transform = transforms[instance];
   f32x4   world_pos       = mul(world_transform, f32x4(rel_pos, 0.0, 1.0));
   f32x4   screen_pos      = mul(world_to_ndc, world_pos);

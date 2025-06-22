@@ -11,6 +11,7 @@ namespace ash
 struct NgonPassParams
 {
   Framebuffer         framebuffer    = {};
+  Option<PassStencil> stencil        = none;
   RectU               scissor        = {};
   gpu::Viewport       viewport       = {};
   gpu::DescriptorSet  samplers       = nullptr;
@@ -22,10 +23,9 @@ struct NgonPassParams
   StructBufferSpan    materials      = {};
   u32                 first_instance = 0;
   Span<u32 const>     index_counts   = {};
-  Option<PassStencil> stencil        = none;
 };
 
-struct NgonPass : Pass
+struct NgonPass final : Pass
 {
   gpu::GraphicsPipeline pipeline_ = nullptr;
 
@@ -33,10 +33,15 @@ struct NgonPass : Pass
 
   NgonPass(AllocatorRef);
 
+  NgonPass(NgonPass const &)             = delete;
+  NgonPass(NgonPass &&)                  = default;
+  NgonPass & operator=(NgonPass const &) = delete;
+  NgonPass & operator=(NgonPass &&)      = default;
+
   virtual ~NgonPass() override = default;
 
   virtual Str label() override;
-  
+
   virtual void acquire() override;
 
   virtual void release() override;

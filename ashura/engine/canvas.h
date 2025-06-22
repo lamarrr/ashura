@@ -1,10 +1,14 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
-#include "ashura/engine/color.h"
-#include "ashura/engine/passes.h"
+#include "ashura/engine/contour.h"
+#include "ashura/engine/encoders.h"
+#include "ashura/engine/pass_bundle.h"
+#include "ashura/engine/shaders.gen.h"
 #include "ashura/engine/text.h"
 #include "ashura/std/allocators.h"
+#include "ashura/std/color.h"
 #include "ashura/std/math.h"
+#include "ashura/std/rc.h"
 #include "ashura/std/types.h"
 
 namespace ash
@@ -14,61 +18,62 @@ namespace ash
 /// normalized to same range.
 namespace path
 {
-void rect(Vec<Vec2> & vtx, Vec2 extent, Vec2 translation);
+
+void rect(Vec<Vec2> & vtx, Vec2 extent, Vec2 center);
 
 /// @brief generate vertices for an arc
 /// @param segments upper bound on the number of segments to divide the arc
 /// into
 /// @param start start angle
 /// @param stop stop angle
-void arc(Vec<Vec2> & vtx, Vec2 extent, Vec2 translation, f32 start, f32 stop,
+void arc(Vec<Vec2> & vtx, Vec2 extent, Vec2 center, f32 start, f32 stop,
          usize segments);
 
 /// @brief generate vertices for a circle
 /// @param segments upper bound on the number of segments to divide the circle
 /// into
-void circle(Vec<Vec2> & vtx, Vec2 extent, Vec2 translation, usize segments);
+void circle(Vec<Vec2> & vtx, Vec2 extent, Vec2 center, usize segments);
 
 /// @brief generate vertices for a circle
 /// @param segments upper bound on the number of segments to divide the circle
 /// into
 /// @param degree number of degrees of the super-ellipse
-void squircle(Vec<Vec2> & vtx, Vec2 extent, Vec2 translation, f32 degree,
+void squircle(Vec<Vec2> & vtx, Vec2 extent, Vec2 center, f32 degree,
               usize segments);
 
 /// @brief generate vertices for a circle
 /// @param segments upper bound on the number of segments to divide the circle
 /// into
 /// @param corner_radii border radius of each corner
-void rrect(Vec<Vec2> & vtx, Vec2 extent, Vec2 translation, Vec4 corner_radii,
+void rrect(Vec<Vec2> & vtx, Vec2 extent, Vec2 center, Vec4 corner_radii,
            usize segments);
 
 /// @brief generate vertices of a bevel rect
 /// @param vtx
 /// @param slants each component represents the relative distance from the
 /// corners of each bevel
-void brect(Vec<Vec2> & vtx, Vec2 extent, Vec2 translation, Vec4 slants);
+void brect(Vec<Vec2> & vtx, Vec2 extent, Vec2 center, Vec4 slants);
 
 /// @brief generate vertices for a quadratic bezier curve
 /// @param segments upper bound on the number of segments to divide the bezier
 /// curve into
 /// @param cp[0-2] control points
-void bezier(Vec<Vec2> & vtx, Vec2 extent, Vec2 translation, Vec2 cp0, Vec2 cp1,
+void bezier(Vec<Vec2> & vtx, Vec2 extent, Vec2 center, Vec2 cp0, Vec2 cp1,
             Vec2 cp2, usize segments);
 
 /// @brief generate vertices for a quadratic bezier curve
 /// @param segments upper bound on the number of segments to divide the bezier
 /// curve into
 /// @param cp[0-3] control points
-void cubic_bezier(Vec<Vec2> & vtx, Vec2 extent, Vec2 translation, Vec2 cp0,
-                  Vec2 cp1, Vec2 cp2, Vec2 cp3, usize segments);
+void cubic_bezier(Vec<Vec2> & vtx, Vec2 extent, Vec2 center, Vec2 cp0, Vec2 cp1,
+                  Vec2 cp2, Vec2 cp3, usize segments);
 
 /// @brief generate a catmull rom spline
 /// @param segments upper bound on the number of segments to divide the bezier
 /// curve into
 /// @param cp[0-3] control points
-void catmull_rom(Vec<Vec2> & vtx, Vec2 extent, Vec2 translation, Vec2 cp0,
-                 Vec2 cp1, Vec2 cp2, Vec2 cp3, usize segments);
+void catmull_rom(Vec<Vec2> & vtx, Vec2 extent, Vec2 center, Vec2 cp0, Vec2 cp1,
+                 Vec2 cp2, Vec2 cp3, usize segments);
 
 /// @brief triangulate a stroke path, given the vertices for its points
 void triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> & vtx,
@@ -101,6 +106,8 @@ constexpr f32 MAX_CLIP_DISTANCE = 0xFF'FFFF;
 inline constexpr CRect MAX_CLIP{.center = Vec2::splat(0),
                                 .extent = Vec2::splat(MAX_CLIP_DISTANCE)};
 
+using shader::sdf::ShadeType;
+
 /// @brief Canvas Shape Description
 struct ShapeInfo
 {
@@ -110,14 +117,12 @@ struct ShapeInfo
   /// @brief object-world-space transform matrix
   Mat4 transform = Mat4::IDENTITY;
 
-  /// @brief corner radii of each corner if rrect
-  Vec4 corner_radii = {};
+  Vec4 radii = {};
 
-  /// @brief lerp intensity between stroke and fill, 0 to fill, 1 to stroke
-  f32 stroke = 0.0F;
+  ShadeType shade_type = ShadeType::Flood;
 
-  /// @brief thickness thickness of the stroke
-  Vec2 thickness = Vec2::splat(1.0F);
+  /// @brief thickness of the stroke
+  f32 feather = 0;
 
   /// @brief Linear Color gradient to use as tint
   ColorGradient tint = {};
@@ -135,12 +140,6 @@ struct ShapeInfo
     {1, 1}
   };
 
-  /// @brief tiling factor
-  f32 tiling = 1;
-
-  /// @brief edge smoothness to apply if it is a rrect
-  f32 edge_smoothness = 1;
-
   CRect clip = MAX_CLIP;
 };
 
@@ -152,7 +151,7 @@ struct ShapeInfo
 /// ┃  6  ┃  7  ┃  8  ┃
 /// ┗━━━━━━━━━━━━━━━━━┛
 ///
-/// Scaling:
+/// Stretching:
 ///
 /// 0 2 6 8; None
 /// 1 7; Horizontal
@@ -160,60 +159,55 @@ struct ShapeInfo
 /// 4;	Horizontal + Vertical
 struct NineSlice
 {
-  TileMode mode   = TileMode::Stretch;
-  Vec4     uvs[9] = {};
+  TileMode mode             = TileMode::Stretch;
+  Vec2     top_left[2]      = {};
+  Vec2     top_center[2]    = {};
+  Vec2     top_right[2]     = {};
+  Vec2     mid_left[2]      = {};
+  Vec2     mid_center[2]    = {};
+  Vec2     mid_right[2]     = {};
+  Vec2     bottom_left[2]   = {};
+  Vec2     bottom_center[2] = {};
+  Vec2     bottom_right[2]  = {};
 };
 
 struct FrameGraph;
 
-struct PassContext;
-
-// [ ] dashed-line single pass shader?: will need uv-transforms
-// [ ] bezier line renderer + line renderer : cap + opacity + blending
-// [ ] fill path renderer
-// [ ] shader functions
-// [ ] convex tesselation is free and doesn't need fill rules
-// [ ] for concave; use stencil then cover
+struct PassBundle;
 
 struct Canvas
 {
+  typedef Fn<void(CanvasPassInfo const &)> PassFnRef;
+
+  typedef Dyn<PassFnRef> PassFn;
+
+  // [ ] contour stencil & rendering pass?
   enum class BatchType : u8
   {
-    None     = 0,
-    RRect    = 1,
-    Squircle = 2,
-    Ngon     = 3,
-    Blur     = 4,
-    Pass     = 5
+    None    = 0,
+    Pass    = 1,
+    Sdf     = 2,
+    Ngon    = 3,
+    Blur    = 4,
+    Contour = 5
   };
 
   struct Batch
   {
-    BatchType type = BatchType::None;
-
-    Slice32 run{};
-
-    CRect clip = MAX_CLIP;
+    BatchType type       = BatchType::None;
+    Slice32   items      = {};
+    hash64    batch_hash = 0;
   };
 
-  struct Blur
+  struct CustomData
   {
-    RRectShaderParam rrect         = {};
-    RectU            area          = {};
-    Vec2U            spread_radius = {};
-  };
-
-  typedef Dyn<
-    Fn<void(FrameGraph &, PassContext &, Canvas const &, Framebuffer const &,
-            Span<ColorTexture const>, Span<DepthStencilTexture const>)>>
-    PassFn;
-
-  struct Pass
-  {
-    Str label = {};
-
+    Str    label = {};
     PassFn task{};
   };
+
+  u32 num_targets_;
+
+  u32 num_masks_;
 
   /// @brief the viewport of the framebuffer this canvas will be targetting
   /// this is in the Framebuffer coordinates (Physical px coordinates)
@@ -243,19 +237,17 @@ struct Canvas
 
   Affine4 viewport_to_fb_;
 
-  Vec<RRectShaderParam> rrect_params_;
+  impl::BlurCanvas blur_;
 
-  Vec<SquircleShaderParam> squircle_params_;
+  impl::NgonCanvas<> ngon_;
 
-  Vec<NgonShaderParam> ngon_params_;
+  impl::SdfCanvas<> sdf_;
 
-  Vec<Vec2> ngon_vertices_;
+  impl::CompositeSdfCanvas<> composited_sdf_;
 
-  Vec<u32> ngon_indices_;
+  impl::ContourCanvas<> contour_;
 
-  Vec<u32> ngon_index_counts_;
-
-  Vec<Blur> blurs_;
+  impl::SdfCanvas<shader::sdf::NoiseMaterial> noise_;
 
   Vec<Pass> passes_;
 
@@ -265,7 +257,13 @@ struct Canvas
   // are done executing
   ArenaPool frame_arena_;
 
+  u32 target_;
+
+  Option<u32> stencil_;
+
   explicit Canvas(AllocatorRef allocator) :
+    num_layers_{0},
+    num_masks_{0},
     viewport_{},
     extent_{},
     framebuffer_extent_{},
@@ -276,14 +274,14 @@ struct Canvas
     ndc_to_viewport_{Affine4::IDENTITY},
     viewport_to_fb_{Affine4::IDENTITY},
     rrect_params_{allocator},
-    ngon_params_{allocator},
-    ngon_vertices_{allocator},
-    ngon_indices_{allocator},
-    ngon_index_counts_{allocator},
+    ngon_{allocator},
     blurs_{allocator},
     passes_{allocator},
+    contour_{allocator},
     batches_{allocator},
-    frame_arena_{allocator}
+    frame_arena_{allocator},
+    mask_{none},
+    layer_{0}
   {
   }
 
@@ -293,7 +291,8 @@ struct Canvas
   Canvas & operator=(Canvas &&)      = default;
   ~Canvas()                          = default;
 
-  Canvas & begin_recording(gpu::Viewport const & viewport, Vec2 extent,
+  Canvas & begin_recording(u32 num_layers, u32 num_masks,
+                           gpu::Viewport const & viewport, Vec2 extent,
                            Vec2U framebuffer_extent);
 
   Canvas & end_recording();
@@ -336,9 +335,9 @@ struct Canvas
   /// @param area region in the canvas to apply the blur to
   Canvas & blur(ShapeInfo const & info);
 
-  /// @brief register a custom canvas pass to be executed in the render thread
-  Canvas & pass(Pass pass);
+  Canvas & pass_(Pass pass);
 
+  /// @brief register a custom canvas pass to be executed in the render thread
   template <typename Lambda>
   Canvas & pass(Str label, Lambda task)
   {
@@ -350,10 +349,47 @@ struct Canvas
     // no need to free it
     lambda.allocator_ = noop_allocator;
 
-    auto f = fn(*lambda);
+    auto f = PassFnRef(lambda.get());
 
-    return pass(Pass{.label = label, .task = transmute(std::move(lambda), f)});
+    return pass_(Pass{.label = label, .task = transmute(std::move(lambda), f)});
   }
+
+  u32 num_targets() const;
+
+  Canvas & clear_target(u32 target);
+
+  Canvas & set_target(u32 target);
+
+  u32 target() const;
+
+  u32 num_stencils() const;
+
+  Canvas & clear_stencil();
+
+  Canvas & set_stencil(Option<u32> stencil);
+
+  Option<u32> stencil() const;
+
+  // [ ] how to go from paths to masks; how to curve around bezier curves
+
+  // [ ] dashed-line single pass shader?: will need uv-transforms
+  // [ ] bezier line renderer + line renderer : cap + opacity + blending
+  // [ ] fill path renderer
+  // [ ] shader functions
+  // [ ] convex tesselation is free and doesn't need fill rules
+  // [ ] for concave; use stencil then cover
+  // [ ] batch multiple contour stencil passes so we can perform them in a single write, different write masks. rect-allocation?
+
+  // [ ] masks for blur shape
+  // [ ] render to layer
+  // [ ] with_mask()?
+  // [ ] quad pass with custom shaders
+
+  Canvas & contour_stencil(u32 mask, u32 write_mask, Contour2D const & contour);
+
+  // [ ] draw line
+
+  Canvas & contour();
 
   Canvas & text(Span<TextLayer const> layers, Span<ShapeInfo const> shapes,
                 Span<TextRenderInfo const> infos, Span<usize const> sorted);
@@ -366,10 +402,6 @@ struct Canvas
          Span<TextRenderInfo const> infos,
          Span<usize const> sorted) { p->text(layers, shapes, infos, sorted); }};
   }
-
-  // [ ] render to layer
-  // [ ] with_mask()?
-  // [ ] quad pass
 };
 
 }    // namespace ash

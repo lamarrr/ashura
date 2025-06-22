@@ -10,30 +10,39 @@ namespace ash
 
 struct PBRPassParams
 {
-  Framebuffer         framebuffer = {};
-  RectU               scissor     = {};
-  gpu::Viewport       viewport    = {};
-  bool                wireframe   = false;
-  gpu::DescriptorSet  samplers    = nullptr;
-  gpu::DescriptorSet  textures    = nullptr;
-  StructBufferSpan    vertices    = {};
-  StructBufferSpan    indices     = {};
-  StructBufferSpan    world       = {};
-  StructBufferSpan    material    = {};
-  StructBufferSpan    lights      = {};
-  u32                 num_indices = 0;
-  Option<PassStencil> stencil     = none;
+  Framebuffer         framebuffer  = {};
+  Option<PassStencil> stencil      = none;
+  RectU               scissor      = {};
+  gpu::Viewport       viewport     = {};
+  gpu::PolygonMode    polygon_mode = gpu::PolygonMode::Fill;
+  gpu::DescriptorSet  samplers     = nullptr;
+  gpu::DescriptorSet  textures     = nullptr;
+  StructBufferSpan    vertices     = {};
+  StructBufferSpan    indices      = {};
+  StructBufferSpan    world        = {};
+  StructBufferSpan    material     = {};
+  StructBufferSpan    lights       = {};
+  u32                 num_indices  = 0;
 };
 
 struct PBRPass final : Pass
 {
-  gpu::GraphicsPipeline pipeline_ = nullptr;
+  struct Pipeline
+  {
+    gpu::GraphicsPipeline fill  = nullptr;
+    gpu::GraphicsPipeline line  = nullptr;
+    gpu::GraphicsPipeline point = nullptr;
+  };
 
-  gpu::GraphicsPipeline wireframe_pipeline_ = nullptr;
-
-  StrDict<gpu::GraphicsPipeline> variants_;
+  Pipeline          pipeline_;
+  StrDict<Pipeline> variants_;
 
   PBRPass(AllocatorRef);
+
+  PBRPass(PBRPass const &)             = delete;
+  PBRPass(PBRPass &&)                  = default;
+  PBRPass & operator=(PBRPass const &) = delete;
+  PBRPass & operator=(PBRPass &&)      = default;
 
   virtual ~PBRPass() override = default;
 

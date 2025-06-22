@@ -8,7 +8,7 @@
 namespace ash
 {
 
-struct SdfPassParams
+struct QuadPassParams
 {
   Framebuffer         framebuffer  = {};
   Option<PassStencil> stencil      = none;
@@ -17,26 +17,26 @@ struct SdfPassParams
   gpu::DescriptorSet  samplers     = nullptr;
   gpu::DescriptorSet  textures     = nullptr;
   StructBufferSpan    world_to_ndc = {};
-  StructBufferSpan    shapes       = {};
+  StructBufferSpan    quads        = {};
   StructBufferSpan    transforms   = {};
   StructBufferSpan    materials    = {};
   Slice32             instances    = {};
 };
 
-struct SdfPass final : Pass
+struct QuadPass final : Pass
 {
   gpu::GraphicsPipeline pipeline_ = nullptr;
 
   StrDict<gpu::GraphicsPipeline> variants_;
 
-  SdfPass(AllocatorRef);
+  QuadPass(AllocatorRef);
 
-  SdfPass(SdfPass const &)             = delete;
-  SdfPass(SdfPass &&)                  = default;
-  SdfPass & operator=(SdfPass const &) = delete;
-  SdfPass & operator=(SdfPass &&)      = default;
+  QuadPass(QuadPass const &)             = delete;
+  QuadPass(QuadPass &&)                  = default;
+  QuadPass & operator=(QuadPass const &) = delete;
+  QuadPass & operator=(QuadPass &&)      = default;
 
-  virtual ~SdfPass() override = default;
+  virtual ~QuadPass() override = default;
 
   virtual Str label() override;
 
@@ -48,7 +48,7 @@ struct SdfPass final : Pass
 
   void remove_variant(Str label);
 
-  void encode(gpu::CommandEncoder & encoder, SdfPassParams const & params,
+  void encode(gpu::CommandEncoder & encoder, QuadPassParams const & params,
               Str variant = {});
 };
 

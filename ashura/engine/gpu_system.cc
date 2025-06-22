@@ -1,5 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/engine/gpu_system.h"
+#include "ashura/std/range.h"
 #include "ashura/std/sformat.h"
 #include "ashura/std/str.h"
 #include "ashura/std/trace.h"
@@ -256,7 +257,7 @@ void GpuQueries::begin_frame(gpu::Device & dev, gpu::CommandEncoder & enc)
 
 Option<u32> GpuQueries::begin_timespan(gpu::CommandEncoder & enc, Str label)
 {
-  auto const id = timespan_labels_.size32();
+  auto const id = size32(timespan_labels_);
 
   if (id + 1 > timespans_capacity_)
   {
@@ -278,7 +279,7 @@ void GpuQueries::end_timespan(gpu::CommandEncoder & enc, u32 id)
 
 Option<u32> GpuQueries::begin_statistics(gpu::CommandEncoder & enc, Str label)
 {
-  auto const id = statistics_labels_.size32();
+  auto const id = size32(statistics_labels_);
 
   if (id + 1 > statistics_capacity_)
   {
@@ -297,7 +298,7 @@ void GpuQueries::end_statistics(gpu::CommandEncoder & enc, u32 id)
   enc.end_statistics(statistics_, id);
 }
 
-u32 FrameGraph::push_ssbo(Span<u8 const> data)
+StructBufferId FrameGraph::push_ssbo(Span<u8 const> data)
 {
   CHECK(!uploaded_, "");
   auto const offset = sb_data_.size();
@@ -310,14 +311,36 @@ u32 FrameGraph::push_ssbo(Span<u8 const> data)
     align_offset<usize>(gpu::BUFFER_OFFSET_ALIGNMENT, sb_data_.size());
   sb_data_.resize_uninit(aligned_size).unwrap();
 
-  return (u32) idx;
+  return StructBufferId{(u32) idx};
 }
 
-Tuple<StructuredBuffer, Slice32> FrameGraph::get_structured_buffer(u32 id)
+ShaderBufferSpan FrameGraph::get_struct_buffer(StructBufferId id)
 {
   CHECK(uploaded_, "");
-  Slice32 slice = sb_entries_.try_get(id).unwrap();
+  Slice32 slice = sb_entries_.get((usize) id);
   return {frame_data_[ring_index_].sb, slice};
+}
+
+BufferId FrameGraph::push_buffer(Span<u8 const> data)
+{
+  CHECK(!uploaded_, "");
+  auto const offset = buff_data_.size();
+  buff_data_.extend(data).unwrap();
+  auto const size = data.size();
+  auto const idx  = buff_entries_.size();
+  CHECK(buff_data_.size() <= U32_MAX, "");
+  buff_entries_.push(Slice32{(u32) offset, (u32) size}).unwrap();
+  auto const aligned_size =
+    align_offset<usize>(MIN_VEC_ALIGNMENT, buff_data_.size());
+  buff_data_.resize_uninit(aligned_size).unwrap();
+  return BufferId{(u32) idx};
+}
+
+Span<u8 const> FrameGraph::get_buffer(BufferId id)
+{
+  CHECK(uploaded_, "");
+  Slice32 slice = buff_entries_.get((usize) id);
+  return buff_data_.view().slice(slice);
 }
 
 void FrameGraph::add_pass(Pass pass)
@@ -377,9 +400,11 @@ void FrameGraph::execute(GpuSystem & gpu)
 
   timespan.match([&](auto i) { gpu.end_timespan(i); });
 
-  ring_index_ = (ring_index_ + 1) % frame_data_.size32();
+  ring_index_ = (ring_index_ + 1) % size32(frame_data_);
   uploaded_   = false;
   sb_entries_.clear();
+  buff_entries_.clear();
+  buff_data_.reset();
   uploads_.clear();
   tasks_.clear();
   passes_.clear();
@@ -499,7 +524,7 @@ GpuSystem GpuSystem::create(AllocatorRef allocator, gpu::Device & device,
   gpu::DescriptorSetLayout ssbo_layout =
     device
       .create_descriptor_set_layout(gpu::DescriptorSetLayoutInfo{
-        .label    = "StructuredBuffer Layout"_str,
+        .label    = "StructBuffer Layout"_str,
         .bindings = span({gpu::DescriptorBindingInfo{
           .type               = gpu::DescriptorType::DynamicStorageBuffer,
           .count              = 1,
@@ -774,6 +799,10 @@ GpuSystem GpuSystem::create(AllocatorRef allocator, gpu::Device & device,
 
 void GpuSystem::shutdown(Vec<u8> & cache)
 {
+  for (auto & queries : queries_)
+  {
+    queries.uninit(*device_);
+  }
   frame_graph_.release(*this);
   device_->get_pipeline_cache_data(pipeline_cache_, cache).unwrap();
   release(textures_);
@@ -950,7 +979,7 @@ static DepthStencilTexture create_depth_texture(GpuSystem & gpu,
   gpu::ImageInfo info{
     .label  = label,
     .type   = gpu::ImageType::Type2D,
-    .format = gpu.depth_format_,
+    .format = gpu.depth_stencil_format_,
     .usage  = gpu::ImageUsage::DepthStencilAttachment |
              gpu::ImageUsage::Sampled | gpu::ImageUsage::TransferDst |
              gpu::ImageUsage::TransferSrc,
@@ -1119,7 +1148,7 @@ Sampler GpuSystem::create_sampler(gpu::SamplerInfo const & info)
 
   Sampler entry{.id = id, .sampler = sampler};
 
-  sampler_cache_.insert(info, entry).unwrap();
+  sampler_cache_.push(info, entry).unwrap();
 
   return entry;
 }
@@ -1127,7 +1156,7 @@ Sampler GpuSystem::create_sampler(gpu::SamplerInfo const & info)
 TextureId GpuSystem::alloc_texture_id(gpu::ImageView view)
 {
   usize i = texture_slots_.view().find_clear_bit();
-  CHECK(i < size_bits(texture_slots_), "Out of Texture Slots");
+  CHECK(i < texture_slots_.size(), "Out of Texture Slots");
   texture_slots_.set_bit(i);
 
   add_task([i, this, view]() {
@@ -1154,7 +1183,7 @@ void GpuSystem::release_texture_id(TextureId id)
 SamplerId GpuSystem::alloc_sampler_id(gpu::Sampler sampler)
 {
   usize i = sampler_slots_.view().find_clear_bit();
-  CHECK(i < size_bits(sampler_slots_), "Out of Sampler Slots");
+  CHECK(i < sampler_slots_.size(), "Out of Sampler Slots");
   sampler_slots_.set_bit(i);
 
   add_task([i, this, sampler]() {

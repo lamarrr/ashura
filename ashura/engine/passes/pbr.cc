@@ -12,15 +12,16 @@ Str PBRPass::label()
   return "PBR"_str;
 }
 
-gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader)
+gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader,
+                                      gpu::PolygonMode polygon_mode)
 {
   auto tagged_label =
     snformat<gpu::MAX_LABEL_SIZE>("PBR Graphics Pipeline: {}"_str, label)
       .unwrap();
 
   gpu::RasterizationState raster_state{.depth_clamp_enable = false,
-                                       .polygon_mode = gpu::PolygonMode::Fill,
-                                       .cull_mode    = gpu::CullMode::None,
+                                       .polygon_mode       = polygon_mode,
+                                       .cull_mode = gpu::CullMode::None,
                                        .front_face =
                                          gpu::FrontFace::CounterClockWise,
                                        .depth_bias_enable          = false,
@@ -93,17 +94,23 @@ gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader)
   return sys->gpu.device_->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
+PBRPass::Pipeline create_pipeline(Str label, gpu::Shader shader)
+{
+  return {
+    .fill  = create_pipeline(label, shader, gpu::PolygonMode::Fill),
+    .line  = create_pipeline(label, shader, gpu::PolygonMode::Line),
+    .point = create_pipeline(label, shader, gpu::PolygonMode::Point),
+  };
+}
+
 PBRPass::PBRPass(AllocatorRef allocator) : variants_{allocator}
 {
 }
 
 void PBRPass::acquire()
 {
-  gpu::Shader shader = sys->shader.get("PBR"_str).unwrap().shader;
-  pipeline_info.rasterization_state.polygon_mode = gpu::PolygonMode::Line;
-
-  wireframe_pipeline_ =
-    sys->gpu.device_->create_graphics_pipeline(pipeline_info).unwrap();
+  pipeline_ = create_pipeline("Base"_str,
+                              sys->shader.get("PBR.Base"_str).unwrap().shader);
 }
 
 void PBRPass::add_variant(Str label, gpu::Shader shader)
@@ -116,9 +123,11 @@ void PBRPass::add_variant(Str label, gpu::Shader shader)
 
 void PBRPass::remove_variant(Str label)
 {
-  auto pipeline = variants_.try_get(label).unwrap();
+  auto pipeline = variants_.get(label);
   variants_.erase(label);
-  sys->gpu.release(pipeline);
+  sys->gpu.release(pipeline.fill);
+  sys->gpu.release(pipeline.line);
+  sys->gpu.release(pipeline.point);
 }
 
 void PBRPass::encode(gpu::CommandEncoder & e, PBRPassParams const & params,
@@ -161,14 +170,15 @@ void PBRPass::encode(gpu::CommandEncoder & e, PBRPassParams const & params,
                                .clear        = {}})
     .unwrap();
 
-  params.stencil.match([&](PassStencil const & s) {
+  params.stencil.match([&](PassStencil const &) {
     stencil
-      .push(gpu::RenderingAttachment{.view         = s.texture.stencil_view,
-                                     .resolve      = nullptr,
-                                     .resolve_mode = gpu::ResolveModes::None,
-                                     .load_op      = gpu::LoadOp::Load,
-                                     .store_op     = gpu::StoreOp::None,
-                                     .clear        = {}})
+      .push(gpu::RenderingAttachment{
+        .view         = params.framebuffer.depth_stencil.stencil_view,
+        .resolve      = nullptr,
+        .resolve_mode = gpu::ResolveModes::None,
+        .load_op      = gpu::LoadOp::Load,
+        .store_op     = gpu::StoreOp::None,
+        .clear        = {}})
       .unwrap();
   });
 
@@ -182,10 +192,24 @@ void PBRPass::encode(gpu::CommandEncoder & e, PBRPassParams const & params,
   e.begin_rendering(info);
 
   auto variant_pipeline =
-    variant.is_empty() ? pipeline_ : variants_.try_get(variant).unwrap();
+    variant.is_empty() ? pipeline_ : variants_.get(variant);
 
-  e.bind_graphics_pipeline(params.wireframe ? wireframe_pipeline_ :
-                                              variant_pipeline);
+  gpu::GraphicsPipeline pipeline = variant_pipeline.fill;
+
+  switch (params.polygon_mode)
+  {
+    case gpu::PolygonMode::Fill:
+      pipeline = variant_pipeline.fill;
+      break;
+    case gpu::PolygonMode::Line:
+      pipeline = variant_pipeline.line;
+      break;
+    case gpu::PolygonMode::Point:
+      pipeline = variant_pipeline.point;
+      break;
+  }
+
+  e.bind_graphics_pipeline(pipeline);
 
   e.set_graphics_state(gpu::GraphicsState{
     .scissor             = params.scissor,
@@ -224,11 +248,14 @@ void PBRPass::encode(gpu::CommandEncoder & e, PBRPassParams const & params,
 
 void PBRPass::release()
 {
-  sys->gpu.device_->uninit(pipeline_);
-  sys->gpu.device_->uninit(wireframe_pipeline_);
+  sys->gpu.device_->uninit(pipeline_.fill);
+  sys->gpu.device_->uninit(pipeline_.line);
+  sys->gpu.device_->uninit(pipeline_.point);
   for (auto [_, pipeline] : variants_)
   {
-    sys->gpu.device_->uninit(pipeline);
+    sys->gpu.device_->uninit(pipeline.fill);
+    sys->gpu.device_->uninit(pipeline.line);
+    sys->gpu.device_->uninit(pipeline.point);
   }
 }
 

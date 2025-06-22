@@ -36,37 +36,6 @@ static const f32 GAMMA = 2.2;
 
 static const f32 EPSILON = 0.00000011920929;
 
-struct Slice32
-{
-  u32 first_;
-  u32 span_;
-
-  u32 first()
-  {
-    return first_;
-  }
-
-  u32 span()
-  {
-    return span_;
-  }
-};
-
-struct FixedSlice32<u32 N>
-{
-  u32 first_;
-
-  u32 first()
-  {
-    return first_;
-  }
-
-  u32 span()
-  {
-    return N;
-  }
-};
-
 enum class BlendMode : u32
 {
   Clear      = 0,

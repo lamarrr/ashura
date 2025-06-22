@@ -107,8 +107,8 @@ struct FlatMaterial : Material
 struct NoiseMaterial : Material
 {
   quad::NoiseMaterial noise;
-  u32                 sampler_id;
-  u32                 map_id;
+  SamplerId           sampler_id;
+  TextureId           map_id;
 
   f32x4 flood(FragmentInfo info, f32 edge_signed_distance, f32 edge_mask,
               SamplerState samplers[], Texture2D textures[])
