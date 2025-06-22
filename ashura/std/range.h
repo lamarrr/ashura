@@ -1,5 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
+#include "ashura/std/option.h"
 #include "ashura/std/tuple.h"
 #include "ashura/std/types.h"
 #include <algorithm>
@@ -258,6 +259,117 @@ template <typename Index = usize, Range R>
 constexpr auto enumerate(R && range)
 {
   return EnumerateRange<decltype(begin(range)), Index>{.iter_{begin(range)}};
+}
+
+template <typename Iter, typename Map>
+struct MapIter
+{
+  Iter iter_;
+  Map  map_;
+
+  constexpr decltype(auto) operator*() const
+  {
+    return map_(*iter_);
+  }
+
+  constexpr MapIter & operator++()
+  {
+    iter_++;
+    return *this;
+  }
+
+  constexpr MapIter operator++(int)
+  {
+    auto old = *this;
+    this->operator++();
+    return old;
+  }
+
+  constexpr bool operator!=(IterEnd) const
+  {
+    return iter_ != iter_end;
+  }
+
+  constexpr auto size() const requires (SizedIter<Iter>)
+  {
+    return iter_.size();
+  }
+
+  constexpr auto max_size() const requires (BoundedSizeIter<Iter>)
+  {
+    return iter_.max_size();
+  }
+};
+
+template <typename Iter, typename Map>
+constexpr MapIter<Iter, Map> map(Iter && iter, Map && map)
+{
+  return MapIter<Iter, Map>{.iter_{static_cast<Iter &&>(iter)},
+                            .map_{static_cast<Map &&>(map)}};
+}
+
+template <typename Iter, typename Predicate>
+struct FilterIter
+{
+  Iter      valid_iter_;
+  Predicate predicate_;
+
+  constexpr Option<decltype(*valid_iter_)> operator*() const
+  {
+    if (predicate_(*valid_iter_))
+    {
+      return *valid_iter_;
+    }
+
+    return none;
+  }
+
+  constexpr void seek()
+  {
+    while (!predicate_(*valid_iter_) && valid_iter_ != iter_end)
+    {
+      valid_iter_++;
+    }
+  }
+
+  constexpr FilterIter & operator++()
+  {
+    valid_iter_++;
+    return *this;
+  }
+
+  constexpr FilterIter operator++(int)
+  {
+    auto old = *this;
+    this->operator++();
+    return old;
+  }
+
+  constexpr bool operator!=(IterEnd) const
+  {
+    return valid_iter_ != iter_end;
+  }
+
+  constexpr auto max_size() const
+    requires (SizedIter<Iter> && !BoundedSizeIter<Iter>)
+  {
+    return valid_iter_.size();
+  }
+
+  constexpr auto max_size() const
+    requires (BoundedSizeIter<Iter> && !SizedIter<Iter>)
+  {
+    return valid_iter_.max_size();
+  }
+};
+
+template <typename Iter, typename Predicate>
+constexpr FilterIter<Iter, Predicate> filter(Iter &&      iter,
+                                             Predicate && predicate)
+{
+  return FilterIter<Iter, Predicate>{
+    .valid_iter_{static_cast<Iter &&>(iter)},
+    .predicate_{static_cast<Predicate &&>(predicate)}};
 }
 
 template <OutRange A, OutRange B, typename SwapOp = Swap>
