@@ -37,6 +37,7 @@ typedef u64       bool64;
 typedef usize     sbool;
 typedef float     f32;
 typedef double    f64;
+typedef u8        hash8;
 typedef u16       hash16;
 typedef u32       hash32;
 typedef u64       hash64;
@@ -95,6 +96,11 @@ inline constexpr f64 F64_EPS          = DBL_EPSILON;
 inline constexpr f64 F64_INF          = INFINITY;
 
 inline constexpr f32 PI = 3.14159265358979323846F;
+
+inline constexpr hash8  NULL_HASH8  = 0;
+inline constexpr hash16 NULL_HASH16 = 0;
+inline constexpr hash32 NULL_HASH32 = 0;
+inline constexpr hash64 NULL_HASH64 = 0;
 
 template <typename T>
 struct NumTraits;

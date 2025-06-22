@@ -911,7 +911,7 @@ void System::focus_seq(Ctx const & ctx)
 void System::compose_event(ViewId id, Events::Type event, Option<HitInfo> hit,
                            Option<ScrollInfo> scroll)
 {
-  auto [_, v] = event_queue.insert(id, Events{}, nullptr, false).v();
+  auto [_, v] = event_queue.push(id, Events{}, nullptr, false).v();
 
   v.bits = Events::Bits::Type{v.bits | Events::Bits::at(event)};
 

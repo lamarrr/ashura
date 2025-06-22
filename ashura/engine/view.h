@@ -5,6 +5,7 @@
 #include "ashura/engine/input.h"
 #include "ashura/engine/renderer.h"
 #include "ashura/std/math.h"
+#include "ashura/std/range.h"
 #include "ashura/std/types.h"
 
 namespace ash
