@@ -12,10 +12,11 @@ constexpr hash64 hash_combine(hash64 hash_a, hash64 hash_b)
 }
 
 template <typename... H>
-constexpr hash64 hash_combine_n(hash64 hash_a, H... hash_b)
+constexpr hash64 hash_combine(hash64 hash_a, hash64 hash_b, H... hash_c)
 {
+  hash_a = hash_combine(hash_a, hash_b);
   // clang-format off
-  ((hash_a = hash_combine(hash_a, hash_b)), ...);
+  ((hash_a = hash_combine(hash_a, hash_c)), ...);
   // clang-format on
   return hash_a;
 }

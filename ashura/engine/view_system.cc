@@ -95,7 +95,7 @@ Events System::drain_events(View & view, u16 idx)
 
   if (view.hot_)
   {
-    ids.insert(view.id(), idx).unwrap();
+    ids.push(view.id(), idx).unwrap();
     view.hot_ = false;
     event_queue.try_get(view.id()).match([&](auto & e) { event = e; });
   }

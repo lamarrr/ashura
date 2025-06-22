@@ -1131,7 +1131,7 @@ static void BM_Map_Probe32(benchmark::State & state)
     for (i64 i = 0; i < num_inserts; i++)
     {
       auto & dp = DATASET[i % size(DATASET)];
-      map.insert(dp, 0).unwrap();
+      map.push(dp, 0).unwrap();
     }
     for (auto & dp : DATASET)
     {
@@ -1160,7 +1160,7 @@ static void BM_Map_Probe64(benchmark::State & state)
     for (i64 i = 0; i < num_inserts; i++)
     {
       auto & dp = DATASET[i % size(DATASET)];
-      map.insert(dp, 0).unwrap();
+      map.push(dp, 0).unwrap();
     }
     for (auto & dp : DATASET)
     {

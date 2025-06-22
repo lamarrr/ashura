@@ -265,9 +265,14 @@ struct [[nodiscard]] Dict
     return try_get(key, hash);
   }
 
-  [[nodiscard]] constexpr V & operator[](auto const & key) const
+  [[nodiscard]] constexpr V & get(auto const & key) const
   {
     return try_get(key).unwrap();
+  }
+
+  [[nodiscard]] constexpr V & operator[](auto const & key) const
+  {
+    return get(key);
   }
 
   [[nodiscard]] constexpr bool has(auto const & key) const
@@ -393,7 +398,7 @@ struct [[nodiscard]] Dict
   /// @return The inserted or existing value if the insert was successful
   /// without a memory allocation error, otherwise an Err
   [[nodiscard]] constexpr Result<Tuple<K &, V &>>
-    insert(K key, V value, bool * exists = nullptr, bool replace = true)
+    push(K key, V value, bool * exists = nullptr, bool replace = true)
   {
     if (exists != nullptr)
     {

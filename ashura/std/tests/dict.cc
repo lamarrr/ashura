@@ -8,10 +8,10 @@ TEST(DictTest, Insertion)
   StrDict<int> dict;
   EXPECT_FALSE(dict.has("A"_str));
 
-  ASSERT_TRUE(dict.insert("A"_str, 0).is_ok());
+  ASSERT_TRUE(dict.push("A"_str, 0).is_ok());
   EXPECT_TRUE(dict.has("A"_str));
   EXPECT_EQ(dict["A"_str], 0);
-  ASSERT_TRUE(dict.insert("B"_str, 1).is_ok());
+  ASSERT_TRUE(dict.push("B"_str, 1).is_ok());
   EXPECT_TRUE(dict.has("A"_str));
   EXPECT_TRUE(dict.has("B"_str));
   EXPECT_EQ(dict["A"_str], 0);
