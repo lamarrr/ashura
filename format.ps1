@@ -1,4 +1,6 @@
 
+$CURRENT_SRC_DIR = "$PSScriptRoot"
+
 
 function cpp_format {
 
@@ -23,13 +25,15 @@ function cmake_format {
 
     param($file)
 
-    cmake-format.exe -c ".cmake-format.json" -i "$file"
+    cmake-format.exe -c "$CURRENT_SRC_DIR/.cmake-format.json" -i "$file"
 }
 
-cpp_format -folder ashura/std
-cpp_format -folder ashura/gpu
-cpp_format -folder ashura/engine
-slang_format -folder ashura/engine/shaders
-slang_format -folder ashura/engine/shaders/modules
-slang_format -folder ashura/engine/shaders/effects
-cmake_format -file ./CMakeLists.txt
+cpp_format -folder $CURRENT_SRC_DIR/ashura/std
+cpp_format -folder $CURRENT_SRC_DIR/ashura/gpu
+cpp_format -folder $CURRENT_SRC_DIR/ashura/engine
+cpp_format -folder $CURRENT_SRC_DIR/ashura/engine/passes
+cpp_format -folder $CURRENT_SRC_DIR/ashura/engine/views
+slang_format -folder $CURRENT_SRC_DIR/ashura/engine/shaders
+slang_format -folder $CURRENT_SRC_DIR/ashura/engine/shaders/modules
+slang_format -folder $CURRENT_SRC_DIR/ashura/engine/shaders/materials
+cmake_format -file $CURRENT_SRC_DIR/CMakeLists.txt

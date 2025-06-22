@@ -725,7 +725,7 @@ ref(T &) -> ref<T>;
 /// To prevent `.offset + .span` from overflow or out-of-bounds call the resolve operator
 ///
 template <typename S>
-struct CoreSlice
+struct [[nodiscard]] CoreSlice
 {
   static constexpr S END = NumTraits<S>::MAX;
 
@@ -829,7 +829,7 @@ struct IterEnd
 inline constexpr IterEnd iter_end;
 
 template <typename T>
-struct SpanIter
+struct [[nodiscard]] SpanIter
 {
   using Type = T;
   using Ref  = T &;
@@ -1031,7 +1031,7 @@ concept SpanCompatibleContainer =
   SpanContainer<Container> && SpanCompatible<ContainerDataType<Container>, T>;
 
 template <typename T>
-struct Span
+struct [[nodiscard]] Span
 {
   using Type = T;
   using Repr = T;
