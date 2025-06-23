@@ -135,6 +135,12 @@ constexpr void relocate_nonoverlapping(Span<T> src, Span<T> dst)
   relocate_nonoverlapping(src, dst.data());
 }
 
+template <typename T>
+bool byte_eq(T a, T b)
+{
+  return mem::eq(Span{&a, 1}, Span{&b, 1});
+}
+
 }    // namespace obj
 
 }    // namespace ash

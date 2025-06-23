@@ -1,10 +1,10 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/std/cfg.h"
-#include "ashura/std/range.h"
 #include "ashura/std/tuple.h"
 #include "ashura/std/types.h"
 #include <bit>
+#include <limits>
 #include <math.h>
 
 namespace ash
@@ -3443,17 +3443,6 @@ constexpr bool is_outside_frustum(Mat4 const & mvp, Vec3 offset, Vec3 extent)
 
   return left == NUM_CORNERS | right == NUM_CORNERS | top == NUM_CORNERS |
          bottom == NUM_CORNERS | back == NUM_CORNERS;
-}
-
-constexpr void frustum_cull(Mat4 const &     mvp,
-                            Span<Mat4 const> global_transforms,
-                            Span<Box const> aabbs, BitSpan<u64> is_visible)
-{
-  for (auto [i, aabb] : enumerate(aabbs))
-  {
-    is_visible.set(i, !is_outside_frustum(mvp * global_transforms[i],
-                                          aabb.offset, aabbs[i].extent));
-  }
 }
 
 /// @brief Calculate the inverse of a 2d scale and translation-only transformation matrix
