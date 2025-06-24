@@ -169,13 +169,13 @@ void sample(BlurPass & b, gpu::CommandEncoder & e,
   e.end_rendering();
 }
 
-void BlurPass::upsample(gpu::CommandEncoder &   encoder,
+void BlurPass::upsample(gpu::CommandEncoder &  encoder,
                         BlurPassParams const & params)
 {
   sample(*this, encoder, params, true);
 }
 
-void BlurPass::downsample(gpu::CommandEncoder &   encoder,
+void BlurPass::downsample(gpu::CommandEncoder &  encoder,
                           BlurPassParams const & params)
 {
   sample(*this, encoder, params, false);

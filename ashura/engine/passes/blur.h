@@ -43,8 +43,7 @@ struct BlurPass final : Pass
 
   void upsample(gpu::CommandEncoder & encoder, BlurPassParams const & params);
 
-  void downsample(gpu::CommandEncoder &   encoder,
-                  BlurPassParams const & params);
+  void downsample(gpu::CommandEncoder & encoder, BlurPassParams const & params);
 };
 
 }    // namespace ash

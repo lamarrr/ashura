@@ -34,8 +34,7 @@ struct PBRPass final : Pass
     gpu::GraphicsPipeline point = nullptr;
   };
 
-  Pipeline          pipeline_;
-  StrDict<Pipeline> variants_;
+  SparseVec<Vec<Tuple<Str, Pipeline>>> variants_;
 
   PBRPass(AllocatorRef);
 
@@ -52,12 +51,16 @@ struct PBRPass final : Pass
 
   virtual void release() override;
 
-  void add_variant(Str label, gpu::Shader shader);
+  ShaderVariantId add_variant(Str label, gpu::Shader shader);
 
   void remove_variant(Str label);
 
+  void remove_variant(ShaderVariantId id);
+
+  ShaderVariantId get_variant_id(Str label);
+
   void encode(gpu::CommandEncoder & encoder, PBRPassParams const & params,
-              Str variant = {});
+              ShaderVariantId variant);
 };
 
 }    // namespace ash

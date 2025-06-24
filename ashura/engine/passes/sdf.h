@@ -27,7 +27,7 @@ struct SdfPass final : Pass
 {
   gpu::GraphicsPipeline pipeline_ = nullptr;
 
-  StrDict<gpu::GraphicsPipeline> variants_;
+  SparseVec<Vec<Tuple<Str, gpu::GraphicsPipeline>>> variants_;
 
   SdfPass(AllocatorRef);
 
@@ -44,12 +44,16 @@ struct SdfPass final : Pass
 
   virtual void release() override;
 
-  void add_variant(Str label, gpu::Shader shader);
+  ShaderVariantId add_variant(Str label, gpu::Shader shader);
 
   void remove_variant(Str label);
 
+  void remove_variant(ShaderVariantId id);
+
+  ShaderVariantId get_variant_id(Str label);
+
   void encode(gpu::CommandEncoder & encoder, SdfPassParams const & params,
-              Str variant = {});
+              ShaderVariantId variant);
 };
 
 }    // namespace ash

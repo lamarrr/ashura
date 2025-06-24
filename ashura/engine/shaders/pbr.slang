@@ -46,6 +46,16 @@ typedef VERTEX_TYPE VertexType;
 
 #endif
 
+#ifndef INDEX_TYPE
+
+typedef u32 IndexType;
+
+#else
+
+typedef INDEX_TYPE IndexType;
+
+#endif
+
 #ifndef MATERIAL_TYPE
 
 typedef pbr::BaseMaterial MaterialType;
@@ -106,7 +116,7 @@ Texture2D textures[];
 StructuredBuffer<VertexType> vertices;
 
 [[vk::binding(0, 3)]]
-StructuredBuffer<u32> indices;
+StructuredBuffer<IndexType> indices;
 
 [[vk::binding(0, 4)]]
 ConstantBuffer<World> world;

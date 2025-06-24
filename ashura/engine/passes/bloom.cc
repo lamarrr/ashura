@@ -1,3 +1,9 @@
+/// SPDX-License-Identifier: MIT
+#include "ashura/engine/passes/bloom.h"
+
+namespace ash
+{
+
 void BloomPass::acquire()
 {
 }
@@ -14,3 +20,5 @@ void BloomPass::encode(gpu::CommandEncoder &, BloomPassParams const &)
   /// B' = Blur(B) + C'
   /// A' = Blur(A) + B'
 }
+
+}    // namespace ash
