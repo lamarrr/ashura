@@ -26,7 +26,7 @@ inline constexpr u32          CLIENT_VERSION = VK_MAKE_API_VERSION(0, 0, 0, 1);
 
 inline constexpr u32 MAX_MEMORY_HEAP_PROPERTIES = 32;
 inline constexpr u32 MAX_MEMORY_HEAPS           = 16;
-inline constexpr u8  NUM_DESCRIPTOR_TYPES       = 11;
+inline constexpr u32 NUM_DESCRIPTOR_TYPES       = 11;
 
 typedef VkSampler             Sampler;
 typedef VkShaderModule        Shader;
@@ -265,16 +265,16 @@ struct BufferView
 inline constexpr u32 COLOR_ASPECT_IDX   = 0;
 inline constexpr u32 DEPTH_ASPECT_IDX   = 0;
 inline constexpr u32 STENCIL_ASPECT_IDX = 1;
+inline constexpr u32 MAX_IMAGE_ASPECTS  = 2;
 
 struct Image
 {
-  gpu::ImageInfo    info                = {};
-  bool              is_swapchain_image  = false;
-  VkImage           vk_image            = nullptr;
-  VmaAllocation     vma_allocation      = nullptr;
-  VmaAllocationInfo vma_allocation_info = {};
-  ImageState        states[2]           = {};
-  u32               num_aspects         = 0;
+  gpu::ImageInfo                            info                = {};
+  bool                                      is_swapchain_image  = false;
+  VkImage                                   vk_image            = nullptr;
+  VmaAllocation                             vma_allocation      = nullptr;
+  VmaAllocationInfo                         vma_allocation_info = {};
+  InplaceVec<ImageState, MAX_IMAGE_ASPECTS> states = {};    // 1 for each aspect
 };
 
 struct ImageView
@@ -285,11 +285,14 @@ struct ImageView
 
 struct DescriptorSetLayout
 {
-  gpu::DescriptorBindingInfo bindings[gpu::MAX_DESCRIPTOR_SET_BINDINGS] = {};
-  VkDescriptorSetLayout      vk_layout                    = nullptr;
-  u32                        sizing[NUM_DESCRIPTOR_TYPES] = {};
-  u32                        num_bindings                 = 0;
-  u32                        num_variable_length          = 0;
+  VkDescriptorSetLayout vk_layout = nullptr;
+
+  InplaceVec<gpu::DescriptorBindingInfo, gpu::MAX_DESCRIPTOR_SET_BINDINGS>
+    bindings = {};
+
+  Array<u32, NUM_DESCRIPTOR_TYPES> sizing = {};
+
+  u32 num_variable_length = 0;
 };
 
 /// used to track stateful resource access
@@ -300,21 +303,26 @@ struct DescriptorBinding
 {
   union
   {
-    void **   sync_resources = nullptr;
-    Image **  images;
-    Buffer ** buffers;
+    Span<void *>   sync_resources = {};
+    Span<Image *>  images;
+    Span<Buffer *> buffers;
   };
 
-  u32                 count = 0;
-  gpu::DescriptorType type  = gpu::DescriptorType::Sampler;
+  gpu::DescriptorType type = gpu::DescriptorType::Sampler;
+
+  usize count() const
+  {
+    return sync_resources.size();
+  }
 };
 
 struct DescriptorSet
 {
-  VkDescriptorSet   vk_set  = nullptr;
-  VkDescriptorPool  vk_pool = nullptr;
-  DescriptorBinding bindings[gpu::MAX_DESCRIPTOR_SET_BINDINGS]{};
-  u32               num_bindings = 0;
+  VkDescriptorSet vk_set = nullptr;
+
+  VkDescriptorPool vk_pool = nullptr;
+
+  InplaceVec<DescriptorBinding, gpu::MAX_DESCRIPTOR_SET_BINDINGS> bindings = {};
 
   /// @brief get the scratch buffer layout to use to update the maximually-sized binding
   static constexpr Layout scratch_layout(Span<DescriptorBinding const> bindings)
@@ -330,12 +338,12 @@ struct DescriptorSet
         case gpu::DescriptorType::StorageBuffer:
         case gpu::DescriptorType::UniformBuffer:
           scratch =
-            scratch.unioned(layout_of<VkDescriptorBufferInfo>.array(b.count));
+            scratch.unioned(layout_of<VkDescriptorBufferInfo>.array(b.count()));
           break;
 
         case gpu::DescriptorType::StorageTexelBuffer:
         case gpu::DescriptorType::UniformTexelBuffer:
-          scratch = scratch.unioned(layout_of<VkBufferView>.array(b.count));
+          scratch = scratch.unioned(layout_of<VkBufferView>.array(b.count()));
           break;
 
         case gpu::DescriptorType::SampledImage:
@@ -344,7 +352,7 @@ struct DescriptorSet
         case gpu::DescriptorType::InputAttachment:
         case gpu::DescriptorType::Sampler:
           scratch =
-            scratch.unioned(layout_of<VkDescriptorImageInfo>.array(b.count));
+            scratch.unioned(layout_of<VkDescriptorImageInfo>.array(b.count()));
           break;
         default:
           break;
@@ -374,7 +382,7 @@ struct DescriptorSet
         case gpu::DescriptorType::CombinedImageSampler:
         case gpu::DescriptorType::StorageImage:
         case gpu::DescriptorType::InputAttachment:
-          count += b.count;
+          count += b.count();
           break;
         case gpu::DescriptorType::Sampler:
           break;
@@ -396,34 +404,45 @@ struct DescriptorSet
 
 struct ComputePipeline
 {
-  VkPipeline       vk_pipeline         = nullptr;
-  VkPipelineLayout vk_layout           = nullptr;
-  u32              push_constants_size = 0;
-  u32              num_sets            = 0;
+  VkPipeline vk_pipeline = nullptr;
+
+  VkPipelineLayout vk_layout = nullptr;
+
+  u32 push_constants_size = 0;
+
+  u32 num_sets = 0;
 };
 
 struct GraphicsPipeline
 {
-  VkPipeline       vk_pipeline                                     = nullptr;
-  VkPipelineLayout vk_layout                                       = nullptr;
-  u32              push_constants_size                             = 0;
-  u32              num_sets                                        = 0;
-  gpu::Format      color_fmts[gpu::MAX_PIPELINE_COLOR_ATTACHMENTS] = {};
-  gpu::Format      depth_fmts[1]                                   = {};
-  gpu::Format      stencil_fmts[1]                                 = {};
-  u32              num_colors                                      = 0;
-  u32              num_depths                                      = 0;
-  u32              num_stencils                                    = 0;
+  VkPipeline vk_pipeline = nullptr;
+
+  VkPipelineLayout vk_layout = nullptr;
+
+  u32 push_constants_size = 0;
+
+  u32 num_sets = 0;
+
+  InplaceVec<gpu::Format, gpu::MAX_PIPELINE_COLOR_ATTACHMENTS> color_fmts = {};
+
+  Option<gpu::Format> depth_fmt = none;
+
+  Option<gpu::Format> stencil_fmt = none;
+
   gpu::SampleCount sample_count = gpu::SampleCount::C1;
 };
 
 struct Instance final : gpu::Instance
 {
-  AllocatorRef             allocator          = {};
-  InstanceTable            vk_table           = {};
-  VkInstance               vk_instance        = nullptr;
+  AllocatorRef allocator = {};
+
+  InstanceTable vk_table = {};
+
+  VkInstance vk_instance = nullptr;
+
   VkDebugUtilsMessengerEXT vk_debug_messenger = nullptr;
-  bool                     validation_enabled = false;
+
+  bool validation_enabled = false;
 
   explicit Instance() = default;
 
@@ -447,9 +466,12 @@ struct Instance final : gpu::Instance
 
 struct PhysicalDevice
 {
-  VkPhysicalDevice                 vk_phy_dev           = nullptr;
-  VkPhysicalDeviceFeatures         vk_features          = {};
-  VkPhysicalDeviceProperties       vk_properties        = {};
+  VkPhysicalDevice vk_phy_dev = nullptr;
+
+  VkPhysicalDeviceFeatures vk_features = {};
+
+  VkPhysicalDeviceProperties vk_properties = {};
+
   VkPhysicalDeviceMemoryProperties vk_memory_properties = {};
 };
 
@@ -462,22 +484,35 @@ struct PhysicalDevice
 /// because the surface requested a zero sized image extent
 struct Swapchain
 {
-  gpu::SwapchainInfo  info            = {};
-  bool                is_out_of_date  = true;
-  bool                is_optimal      = false;
-  bool                is_zero_sized   = false;
-  gpu::SurfaceFormat  format          = {};
-  gpu::ImageUsage     usage           = gpu::ImageUsage::None;
-  gpu::PresentMode    present_mode    = gpu::PresentMode::Immediate;
-  Vec2U               extent          = {};
+  gpu::SwapchainInfo info = {};
+
+  bool is_out_of_date = true;
+
+  bool is_optimal = false;
+
+  bool is_zero_sized = false;
+
+  gpu::SurfaceFormat format = {};
+
+  gpu::ImageUsage usage = gpu::ImageUsage::None;
+
+  gpu::PresentMode present_mode = gpu::PresentMode::Immediate;
+
+  Vec2U extent = {};
+
   gpu::CompositeAlpha composite_alpha = gpu::CompositeAlpha::None;
-  Image               image_impls[gpu::MAX_SWAPCHAIN_IMAGES] = {};
-  gpu::Image          images[gpu::MAX_SWAPCHAIN_IMAGES]      = {};
-  VkImage             vk_images[gpu::MAX_SWAPCHAIN_IMAGES]   = {};
-  u32                 num_images                             = 0;
-  u32                 current_image                          = 0;
-  VkSwapchainKHR      vk_swapchain                           = nullptr;
-  VkSurfaceKHR        vk_surface                             = nullptr;
+
+  InplaceVec<Image, gpu::MAX_SWAPCHAIN_IMAGES> image_impls = {};
+
+  InplaceVec<gpu::Image, gpu::MAX_SWAPCHAIN_IMAGES> images = {};
+
+  InplaceVec<VkImage, gpu::MAX_SWAPCHAIN_IMAGES> vk_images = {};
+
+  u32 current_image = 0;
+
+  VkSwapchainKHR vk_swapchain = nullptr;
+
+  VkSurfaceKHR vk_surface = nullptr;
 };
 
 enum class CommandEncoderState : u16
@@ -491,10 +526,8 @@ enum class CommandEncoderState : u16
 
 struct CmdBindDescriptorSets
 {
-  DescriptorSet ** sets                = nullptr;
-  u32              count               = 0;
-  u32 *            dynamic_offsets     = nullptr;
-  u32              num_dynamic_offsets = 0;
+  PinVec<DescriptorSet *> sets            = {};
+  PinVec<u32>             dynamic_offsets = {};
 };
 
 struct CmdBindGraphicsPipeline
@@ -504,8 +537,7 @@ struct CmdBindGraphicsPipeline
 
 struct CmdPushConstants
 {
-  u8 * data = nullptr;
-  u32  size = 0;
+  PinVec<u8> constant = {};
 };
 
 // can be split up into subcommands, this alone takes 112 bytes
@@ -569,36 +601,45 @@ using Command =
 struct RenderPassContext
 {
   RectU render_area = {};
-  u32   num_layers  = 0;
-  gpu::RenderingAttachment
-    color_attachments[gpu::MAX_PIPELINE_COLOR_ATTACHMENTS]            = {};
-  gpu::RenderingAttachment depth_attachment[1]                        = {};
-  gpu::RenderingAttachment stencil_attachment[1]                      = {};
-  u32                      num_color_attachments                      = 0;
-  u32                      num_depth_attachments                      = 0;
-  u32                      num_stencil_attachments                    = 0;
-  ArenaPool                arg_pool                                   = {};
-  ArenaPool                command_pool                               = {};
-  Vec<Command>             commands                                   = {};
-  Buffer *                 vertex_buffers[gpu::MAX_VERTEX_ATTRIBUTES] = {};
-  u32                      num_vertex_buffers                         = 0;
-  Buffer *                 index_buffer                               = nullptr;
-  gpu::IndexType           index_type          = gpu::IndexType::Uint16;
-  u64                      index_buffer_offset = 0;
-  GraphicsPipeline *       pipeline            = nullptr;
-  bool                     has_state           = false;
+
+  u32 num_layers = 0;
+
+  InplaceVec<gpu::RenderingAttachment, gpu::MAX_PIPELINE_COLOR_ATTACHMENTS>
+    color_attachments = {};
+
+  Option<gpu::RenderingAttachment> depth_attachment = none;
+
+  Option<gpu::RenderingAttachment> stencil_attachment = none;
+
+  ArenaPool arg_pool = {};
+
+  ArenaPool command_pool = {};
+
+  Vec<Command> commands = {};
+
+  InplaceVec<Buffer *, gpu::MAX_VERTEX_ATTRIBUTES> vertex_buffers = {};
+
+  Buffer * index_buffer = nullptr;
+
+  gpu::IndexType index_type = gpu::IndexType::Uint16;
+
+  u64 index_buffer_offset = 0;
+
+  GraphicsPipeline * pipeline = nullptr;
+
+  bool has_state = false;
 
   void clear()
   {
-    render_area             = {};
-    num_layers              = 0;
-    num_color_attachments   = 0;
-    num_depth_attachments   = 0;
-    num_stencil_attachments = 0;
+    render_area = {};
+    num_layers  = 0;
+    color_attachments.clear();
+    depth_attachment   = none;
+    stencil_attachment = none;
     commands.reset();
     command_pool.reclaim();
     arg_pool.reclaim();
-    num_vertex_buffers  = 0;
+    vertex_buffers.clear();
     index_buffer        = nullptr;
     index_buffer_offset = 0;
     pipeline            = nullptr;
@@ -608,13 +649,12 @@ struct RenderPassContext
 
 struct ComputePassContext
 {
-  DescriptorSet *   sets[gpu::MAX_PIPELINE_DESCRIPTOR_SETS] = {};
-  u32               num_sets                                = 0;
-  ComputePipeline * pipeline                                = nullptr;
+  InplaceVec<DescriptorSet *, gpu::MAX_PIPELINE_DESCRIPTOR_SETS> sets = {};
+  ComputePipeline * pipeline                                          = nullptr;
 
   void clear()
   {
-    num_sets = 0;
+    sets.clear();
     pipeline = nullptr;
   }
 };
@@ -784,16 +824,29 @@ struct CommandEncoder final : gpu::CommandEncoder
 
 struct FrameContext
 {
-  gpu::FrameId          tail_frame                          = 0;
-  gpu::FrameId          current_frame                       = 0;
-  u32                   ring_index                          = 0;
-  u32                   buffering                           = 0;
-  CommandEncoder        encs[gpu::MAX_FRAME_BUFFERING]      = {};
-  gpu::CommandEncoder * encs_impl[gpu::MAX_FRAME_BUFFERING] = {};
-  VkSemaphore           acquire_s[gpu::MAX_FRAME_BUFFERING] = {};
-  VkFence               submit_f[gpu::MAX_FRAME_BUFFERING]  = {};
-  VkSemaphore           submit_s[gpu::MAX_FRAME_BUFFERING]  = {};
-  Swapchain *           swapchain                           = nullptr;
+  gpu::FrameId tail_frame = 0;
+
+  gpu::FrameId current_frame = 0;
+
+  u32 ring_index = 0;
+
+  InplaceVec<CommandEncoder, gpu::MAX_FRAME_BUFFERING> encoders = {};
+
+  InplaceVec<gpu::CommandEncoder *, gpu::MAX_FRAME_BUFFERING> encoders_impl =
+    {};
+
+  InplaceVec<VkSemaphore, gpu::MAX_FRAME_BUFFERING> acquire_semaphores = {};
+
+  InplaceVec<VkFence, gpu::MAX_FRAME_BUFFERING> submit_fences = {};
+
+  InplaceVec<VkSemaphore, gpu::MAX_FRAME_BUFFERING> submit_semaphores = {};
+
+  Swapchain * swapchain = nullptr;
+
+  u32 buffering() const
+  {
+    return encoders.size();
+  }
 };
 
 struct Device final : gpu::Device

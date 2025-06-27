@@ -1050,8 +1050,8 @@ struct GraphicsPipelineInfo
   ShaderStageInfo                 vertex_shader          = {};
   ShaderStageInfo                 fragment_shader        = {};
   Span<Format const>              color_formats          = {};
-  Span<Format const>              depth_format           = {};
-  Span<Format const>              stencil_format         = {};
+  Option<Format>                  depth_format           = none;
+  Option<Format>                  stencil_format         = none;
   Span<VertexInputBinding const>  vertex_input_bindings  = {};
   Span<VertexAttribute const>     vertex_attributes      = {};
   u32                             push_constants_size    = 0;
@@ -1130,9 +1130,9 @@ struct ImageResolve
 /// x, y, z, w => R, G, B, A
 union Color
 {
-  Vec4U uint32 = {0, 0, 0, 0};
-  Vec4I int32;
-  Vec4  float32;
+  Vec4U u32 = {0, 0, 0, 0};
+  Vec4I i32;
+  Vec4  f32;
 };
 
 struct DepthStencil
@@ -1225,8 +1225,8 @@ struct RenderingInfo
   RectU                           render_area        = {};
   u32                             num_layers         = 0;
   Span<RenderingAttachment const> color_attachments  = {};
-  Span<RenderingAttachment const> depth_attachment   = {};
-  Span<RenderingAttachment const> stencil_attachment = {};
+  Option<RenderingAttachment>     depth_attachment   = none;
+  Option<RenderingAttachment>     stencil_attachment = none;
 };
 
 /// to execute tasks at end of frame. use the tail frame index.
@@ -1319,11 +1319,15 @@ struct CommandEncoder
 
 struct FrameContext
 {
-  u32                          buffering  = 0;
   FrameId                      tail       = 0;
   FrameId                      current    = 0;
   Span<CommandEncoder * const> encoders   = {};
   u32                          ring_index = 0;
+
+  u32 buffering() const
+  {
+    return size32(encoders);
+  }
 };
 
 struct Device
