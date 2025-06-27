@@ -1638,7 +1638,7 @@ Result<gpu::Device *, Status>
   dev->queue_family  = selected_queue_family;
   dev->vk_queue      = vk_queue;
   dev->vma_allocator = vma_allocator;
-  dev->frame_ctx     = FrameContext{.buffering = 0};
+  dev->frame_ctx     = FrameContext{};
 
   defer dev_{[&] {
     if (dev != nullptr)
@@ -1961,13 +1961,15 @@ Result<gpu::Image, Status> Device::create_image(gpu::ImageInfo const & info)
                             2 :
                             1;
 
+  InplaceVec<ImageState, MAX_IMAGE_ASPECTS> states;
+  states.resize(num_aspects).unwrap();
+
   new (image) Image{.info                = info,
                     .is_swapchain_image  = false,
                     .vk_image            = vk_image,
                     .vma_allocation      = vma_allocation,
                     .vma_allocation_info = vma_allocation_info,
-                    .states              = {},
-                    .num_aspects         = num_aspects};
+                    .states              = states};
 
   return Ok{(gpu::Image) image};
 }
@@ -2110,10 +2112,9 @@ Result<gpu::Shader, Status> Device::create_shader(gpu::ShaderInfo const & info)
 Result<gpu::DescriptorSetLayout, Status> Device::create_descriptor_set_layout(
   gpu::DescriptorSetLayoutInfo const & info)
 {
-  u32 const num_bindings                 = size32(info.bindings);
-  u32       num_descriptors              = 0;
-  u32       num_variable_length          = 0;
-  u32       sizing[NUM_DESCRIPTOR_TYPES] = {};
+  u32                              num_descriptors     = 0;
+  u32                              num_variable_length = 0;
+  Array<u32, NUM_DESCRIPTOR_TYPES> sizing              = {};
 
   for (gpu::DescriptorBindingInfo const & info : info.bindings)
   {
@@ -2127,8 +2128,8 @@ Result<gpu::DescriptorSetLayout, Status> Device::create_descriptor_set_layout(
   u32 num_dynamic_uniform_buffers =
     sizing[(u32) gpu::DescriptorType::DynamicUniformBuffer];
 
-  CHECK(num_bindings > 0, "");
-  CHECK(num_bindings <= gpu::MAX_DESCRIPTOR_SET_BINDINGS, "");
+  CHECK(info.bindings.size() > 0, "");
+  CHECK(info.bindings.size() <= gpu::MAX_DESCRIPTOR_SET_BINDINGS, "");
   CHECK(num_dynamic_storage_buffers <=
           gpu::MAX_PIPELINE_DYNAMIC_STORAGE_BUFFERS,
         "");
@@ -2141,33 +2142,34 @@ Result<gpu::DescriptorSetLayout, Status> Device::create_descriptor_set_layout(
           (num_dynamic_storage_buffers > 0 || num_dynamic_uniform_buffers > 0)),
         "");
 
-  for (u32 i = 0; i < num_bindings; i++)
+  for (auto [i, binding] : enumerate<u32>(info.bindings))
   {
-    CHECK(info.bindings[i].count > 0, "");
-    CHECK(info.bindings[i].count <= gpu::MAX_BINDING_DESCRIPTORS, "");
-    CHECK(!(info.bindings[i].is_variable_length &&
-            (i != (info.bindings.size() - 1))),
+    CHECK(binding.count > 0, "");
+    CHECK(binding.count <= gpu::MAX_BINDING_DESCRIPTORS, "");
+    CHECK(!(binding.is_variable_length && (i != (info.bindings.size() - 1))),
           "");
   }
 
-  VkDescriptorSetLayoutBinding vk_bindings[gpu::MAX_DESCRIPTOR_SET_BINDINGS];
-  VkDescriptorBindingFlagsEXT
-    vk_binding_flags[gpu::MAX_DESCRIPTOR_SET_BINDINGS];
+  InplaceVec<VkDescriptorSetLayoutBinding, gpu::MAX_DESCRIPTOR_SET_BINDINGS>
+    vk_bindings;
+  InplaceVec<VkDescriptorBindingFlagsEXT, gpu::MAX_DESCRIPTOR_SET_BINDINGS>
+    vk_binding_flags;
 
-  for (u32 i = 0; i < num_bindings; i++)
+  for (auto [i, binding] : enumerate<u32>(info.bindings))
   {
-    gpu::DescriptorBindingInfo const & binding = info.bindings[i];
-    VkShaderStageFlags                 stage_flags =
+    VkShaderStageFlags stage_flags =
       (VkShaderStageFlags) (binding.type ==
                                 gpu::DescriptorType::InputAttachment ?
                               VK_SHADER_STAGE_FRAGMENT_BIT :
                               VK_SHADER_STAGE_ALL);
-    vk_bindings[i] = VkDescriptorSetLayoutBinding{
-      .binding            = i,
-      .descriptorType     = (VkDescriptorType) binding.type,
-      .descriptorCount    = binding.count,
-      .stageFlags         = stage_flags,
-      .pImmutableSamplers = nullptr};
+    vk_bindings
+      .push(VkDescriptorSetLayoutBinding{.binding = i,
+                                         .descriptorType =
+                                           (VkDescriptorType) binding.type,
+                                         .descriptorCount    = binding.count,
+                                         .stageFlags         = stage_flags,
+                                         .pImmutableSamplers = nullptr})
+      .unwrap();
 
     VkDescriptorBindingFlagsEXT const vk_flags =
       VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT_EXT |
@@ -2175,22 +2177,22 @@ Result<gpu::DescriptorSetLayout, Status> Device::create_descriptor_set_layout(
       (binding.is_variable_length ?
          VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT :
          0);
-    vk_binding_flags[i] = vk_flags;
+    vk_binding_flags.push(vk_flags).unwrap();
   }
 
   VkDescriptorSetLayoutBindingFlagsCreateInfoEXT vk_binding_flags_create_info{
     .sType =
       VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO_EXT,
     .pNext         = nullptr,
-    .bindingCount  = size32(info.bindings),
-    .pBindingFlags = vk_binding_flags};
+    .bindingCount  = size32(vk_binding_flags),
+    .pBindingFlags = vk_binding_flags.data()};
 
   VkDescriptorSetLayoutCreateInfo create_info{
     .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
     .pNext = &vk_binding_flags_create_info,
     .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT_EXT,
-    .bindingCount = num_bindings,
-    .pBindings    = vk_bindings};
+    .bindingCount = size32(vk_bindings),
+    .pBindings    = vk_bindings.data()};
 
   VkDescriptorSetLayout vk_layout;
   VkResult result = vk_table.CreateDescriptorSetLayout(vk_dev, &create_info,
@@ -2217,12 +2219,15 @@ Result<gpu::DescriptorSetLayout, Status> Device::create_descriptor_set_layout(
     return Err{Status::OutOfHostMemory};
   }
 
+  InplaceVec<gpu::DescriptorBindingInfo, gpu::MAX_DESCRIPTOR_SET_BINDINGS>
+    bindings;
+  bindings.extend(info.bindings).unwrap();
+
   new (layout) DescriptorSetLayout{.vk_layout           = vk_layout,
-                                   .num_bindings        = num_bindings,
+                                   .bindings            = bindings,
+                                   .sizing              = sizing,
                                    .num_variable_length = num_variable_length};
 
-  mem::copy(info.bindings, layout->bindings);
-  mem::copy(Span{sizing, NUM_DESCRIPTOR_TYPES}, layout->sizing);
   vk_layout = nullptr;
 
   return Ok{(gpu::DescriptorSetLayout) layout};
@@ -2234,59 +2239,57 @@ Result<gpu::DescriptorSet, Status>
   DescriptorSetLayout * const layout = (DescriptorSetLayout *) info.layout;
   CHECK(info.variable_lengths.size() == layout->num_variable_length, "");
 
-  u32 const num_bindings = layout->num_bindings;
-
   {
-    u32 vla_idx = 0;
-    for (u32 i = 0; i < num_bindings; i++)
+    // variablie length binding index
+    u32 vlb_idx = 0;
+    for (gpu::DescriptorBindingInfo const & binding : layout->bindings)
     {
-      if (layout->bindings[i].is_variable_length)
+      if (binding.is_variable_length)
       {
-        CHECK(info.variable_lengths[vla_idx] <= layout->bindings[i].count, "");
-        CHECK(info.variable_lengths[vla_idx] > 0, "");
-        vla_idx++;
+        CHECK(info.variable_lengths[vlb_idx] <= binding.count, "");
+        CHECK(info.variable_lengths[vlb_idx] > 0, "");
+        vlb_idx++;
       }
     }
   }
 
-  u32 bindings_sizes[gpu::MAX_DESCRIPTOR_SET_BINDINGS] = {};
+  InplaceVec<u32, gpu::MAX_DESCRIPTOR_SET_BINDINGS> bindings_sizes;
 
-  u32 type_count[NUM_DESCRIPTOR_TYPES] = {};
+  Array<u32, NUM_DESCRIPTOR_TYPES> type_count;
 
   {
-    u32 vla_idx = 0;
-    for (u32 i = 0; i < num_bindings; i++)
+    u32 vlb_idx = 0;
+    for (gpu::DescriptorBindingInfo const & binding : layout->bindings)
     {
-      gpu::DescriptorBindingInfo const & binding = layout->bindings[i];
-      u32                                count   = 0;
+      u32 count = 0;
       if (!binding.is_variable_length)
       {
         count = binding.count;
       }
       else
       {
-        count = info.variable_lengths[vla_idx];
-        vla_idx++;
+        count = info.variable_lengths[vlb_idx];
+        vlb_idx++;
       }
 
       type_count[(u32) binding.type] += count;
-      bindings_sizes[i] = count;
+      bindings_sizes.push(count).unwrap();
     }
   }
 
-  VkDescriptorPoolSize pool_sizes[NUM_DESCRIPTOR_TYPES];
-  u32                  num_pool_sizes = 0;
+  InplaceVec<VkDescriptorPoolSize, NUM_DESCRIPTOR_TYPES> pool_sizes;
 
-  for (u32 i = 0; i < NUM_DESCRIPTOR_TYPES; i++)
+  for (auto [i, count] : enumerate<u32>(type_count))
   {
     if (type_count[i] == 0)
     {
       continue;
     }
 
-    pool_sizes[num_pool_sizes] = VkDescriptorPoolSize{
-      .type = (VkDescriptorType) i, .descriptorCount = type_count[i]};
-    num_pool_sizes++;
+    pool_sizes
+      .push(VkDescriptorPoolSize{.type            = (VkDescriptorType) i,
+                                 .descriptorCount = type_count[i]})
+      .unwrap();
   }
 
   VkDescriptorPoolCreateInfo create_info{
@@ -2295,8 +2298,8 @@ Result<gpu::DescriptorSet, Status>
     .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT |
              VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
     .maxSets       = 1,
-    .poolSizeCount = num_pool_sizes,
-    .pPoolSizes    = pool_sizes};
+    .poolSizeCount = size32(pool_sizes),
+    .pPoolSizes    = pool_sizes.data()};
 
   VkDescriptorPool vk_pool;
   VkResult         result =
@@ -2343,16 +2346,19 @@ Result<gpu::DescriptorSet, Status>
   set_resource_name(info.label, vk_pool, VK_OBJECT_TYPE_DESCRIPTOR_POOL,
                     VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_POOL_EXT);
 
-  DescriptorBinding bindings[gpu::MAX_DESCRIPTOR_SET_BINDINGS] = {};
+  InplaceVec<DescriptorBinding, gpu::MAX_DESCRIPTOR_SET_BINDINGS> bindings;
 
-  for (u32 i = 0; i < num_bindings; i++)
+  for (auto [size, info] : zip(bindings_sizes, layout->bindings))
   {
-    bindings[i] = DescriptorBinding{.sync_resources = nullptr,
-                                    .count          = bindings_sizes[i],
-                                    .type           = layout->bindings[i].type};
+    bindings
+      .push(DescriptorBinding{
+        .sync_resources{nullptr, size}, // temporarily null
+        .type = info.type
+    })
+      .unwrap();
   }
 
-  Flex const   flex        = DescriptorSet::flex(Span{bindings, num_bindings});
+  Flex const   flex        = DescriptorSet::flex(bindings);
   Layout const flex_layout = flex.layout();
 
   u8 * head;
@@ -2364,19 +2370,17 @@ Result<gpu::DescriptorSet, Status>
 
   auto [set, sync_resources, scratch] = flex.unpack(head);
 
-  DescriptorSet * p_set = new (set.data()) DescriptorSet{
-    .vk_set = vk_set, .vk_pool = vk_pool, .num_bindings = num_bindings};
-
-  mem::copy(Span{bindings, num_bindings}, p_set->bindings);
+  DescriptorSet * p_set = new (set.data())
+    DescriptorSet{.vk_set = vk_set, .vk_pool = vk_pool, .bindings = bindings};
 
   {
-    // assing storage to the sync resources pointers
+    // assign storage to the sync resources pointers
     void ** iter = sync_resources.data();
 
-    for (u32 i = 0; i < num_bindings; i++)
+    for (auto & binding : p_set->bindings)
     {
-      p_set->bindings[i].sync_resources = iter;
-      iter += p_set->bindings[i].count;
+      binding.sync_resources.data_ = iter;
+      iter += binding.count();
     }
   }
 
@@ -2413,9 +2417,8 @@ Result<gpu::PipelineCache, Status>
 Result<gpu::ComputePipeline, Status>
   Device::create_compute_pipeline(gpu::ComputePipelineInfo const & info)
 {
-  u32 const num_descriptor_sets = size32(info.descriptor_set_layouts);
-
-  CHECK(num_descriptor_sets <= gpu::MAX_PIPELINE_DESCRIPTOR_SETS, "");
+  CHECK(info.descriptor_set_layouts.size() <= gpu::MAX_PIPELINE_DESCRIPTOR_SETS,
+        "");
   CHECK(info.push_constants_size <= gpu::MAX_PUSH_CONSTANTS_SIZE, "");
   CHECK(is_aligned(4U, info.push_constants_size), "");
   CHECK(info.compute_shader.entry_point.size() > 0 &&
@@ -2423,12 +2426,13 @@ Result<gpu::ComputePipeline, Status>
         "");
   CHECK(info.compute_shader.shader != nullptr, "");
 
-  VkDescriptorSetLayout
-    vk_descriptor_set_layouts[gpu::MAX_PIPELINE_DESCRIPTOR_SETS];
-  for (u32 i = 0; i < num_descriptor_sets; i++)
+  InplaceVec<VkDescriptorSetLayout, gpu::MAX_PIPELINE_DESCRIPTOR_SETS>
+    vk_descriptor_set_layouts;
+
+  for (auto layout : info.descriptor_set_layouts)
   {
-    vk_descriptor_set_layouts[i] =
-      ((DescriptorSetLayout *) info.descriptor_set_layouts[i])->vk_layout;
+    vk_descriptor_set_layouts.push(((DescriptorSetLayout *) layout)->vk_layout)
+      .unwrap();
   }
 
   VkSpecializationInfo vk_specialization{
@@ -2459,8 +2463,8 @@ Result<gpu::ComputePipeline, Status>
     .sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
     .pNext                  = nullptr,
     .flags                  = 0,
-    .setLayoutCount         = num_descriptor_sets,
-    .pSetLayouts            = vk_descriptor_set_layouts,
+    .setLayoutCount         = size32(vk_descriptor_set_layouts),
+    .pSetLayouts            = vk_descriptor_set_layouts.data(),
     .pushConstantRangeCount = info.push_constants_size == 0 ? 0U : 1U,
     .pPushConstantRanges =
       info.push_constants_size == 0 ? nullptr : &push_constants_range};
@@ -2518,34 +2522,27 @@ Result<gpu::ComputePipeline, Status>
 Result<gpu::GraphicsPipeline, Status>
   Device::create_graphics_pipeline(gpu::GraphicsPipelineInfo const & info)
 {
-  u32 const num_descriptor_sets = size32(info.descriptor_set_layouts);
-  u32 const num_input_bindings  = size32(info.vertex_input_bindings);
-  u32 const num_attributes      = size32(info.vertex_attributes);
-  u32 const num_blend_color_attachments =
-    size32(info.color_blend_state.attachments);
-  u32 const num_colors   = size32(info.color_formats);
-  u32 const num_depths   = size32(info.depth_format);
-  u32 const num_stencils = size32(info.stencil_format);
-
   CHECK(!(info.rasterization_state.polygon_mode != gpu::PolygonMode::Fill &&
           !phy_dev.vk_features.fillModeNonSolid),
         "");
-  CHECK(num_descriptor_sets <= gpu::MAX_PIPELINE_DESCRIPTOR_SETS, "");
+  CHECK(info.descriptor_set_layouts.size() <= gpu::MAX_PIPELINE_DESCRIPTOR_SETS,
+        "");
   CHECK(info.push_constants_size <= gpu::MAX_PUSH_CONSTANTS_SIZE, "");
   CHECK(is_aligned(4U, info.push_constants_size), "");
   CHECK(!info.vertex_shader.entry_point.is_empty(), "");
   CHECK(!info.fragment_shader.entry_point.is_empty(), "");
-  CHECK(num_attributes <= gpu::MAX_VERTEX_ATTRIBUTES, "");
-  CHECK(num_colors <= gpu::MAX_PIPELINE_COLOR_ATTACHMENTS, "");
-  CHECK(num_depths <= 1, "");
-  CHECK(num_stencils <= 1, "");
+  CHECK(info.vertex_attributes.size() <= gpu::MAX_VERTEX_ATTRIBUTES, "");
+  CHECK(info.color_blend_state.attachments.size() <=
+          gpu::MAX_PIPELINE_COLOR_ATTACHMENTS,
+        "");
 
-  VkDescriptorSetLayout
-    vk_descriptor_set_layouts[gpu::MAX_PIPELINE_DESCRIPTOR_SETS];
-  for (u32 i = 0; i < num_descriptor_sets; i++)
+  InplaceVec<VkDescriptorSetLayout, gpu::MAX_PIPELINE_DESCRIPTOR_SETS>
+    vk_descriptor_set_layouts;
+
+  for (auto layout : info.descriptor_set_layouts)
   {
-    vk_descriptor_set_layouts[i] =
-      ((DescriptorSetLayout *) info.descriptor_set_layouts[i])->vk_layout;
+    vk_descriptor_set_layouts.push(((DescriptorSetLayout *) layout)->vk_layout)
+      .unwrap();
   }
 
   VkSpecializationInfo vk_vs_specialization{
@@ -2592,8 +2589,8 @@ Result<gpu::GraphicsPipeline, Status>
     .sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
     .pNext                  = nullptr,
     .flags                  = 0,
-    .setLayoutCount         = num_descriptor_sets,
-    .pSetLayouts            = vk_descriptor_set_layouts,
+    .setLayoutCount         = size32(vk_descriptor_set_layouts),
+    .pSetLayouts            = vk_descriptor_set_layouts.data(),
     .pushConstantRangeCount = info.push_constants_size == 0 ? 0U : 1U,
     .pPushConstantRanges =
       info.push_constants_size == 0 ? nullptr : &push_constants_range};
@@ -2607,36 +2604,41 @@ Result<gpu::GraphicsPipeline, Status>
     return Err{(Status) result};
   }
 
-  VkVertexInputBindingDescription input_bindings[gpu::MAX_VERTEX_ATTRIBUTES];
-  for (u32 ibinding = 0; ibinding < num_input_bindings; ibinding++)
+  InplaceVec<VkVertexInputBindingDescription, gpu::MAX_VERTEX_ATTRIBUTES>
+    input_bindings;
+
+  for (auto binding : info.vertex_input_bindings)
   {
-    gpu::VertexInputBinding const & binding =
-      info.vertex_input_bindings[ibinding];
-    input_bindings[ibinding] = VkVertexInputBindingDescription{
-      .binding   = binding.binding,
-      .stride    = binding.stride,
-      .inputRate = (VkVertexInputRate) binding.input_rate};
+    input_bindings
+      .push(VkVertexInputBindingDescription{
+        .binding   = binding.binding,
+        .stride    = binding.stride,
+        .inputRate = (VkVertexInputRate) binding.input_rate})
+      .unwrap();
   }
 
-  VkVertexInputAttributeDescription attributes[gpu::MAX_VERTEX_ATTRIBUTES];
-  for (u32 iattribute = 0; iattribute < num_attributes; iattribute++)
+  InplaceVec<VkVertexInputAttributeDescription, gpu::MAX_VERTEX_ATTRIBUTES>
+    attributes;
+
+  for (auto attribute : info.vertex_attributes)
   {
-    gpu::VertexAttribute const & attribute = info.vertex_attributes[iattribute];
-    attributes[iattribute] =
-      VkVertexInputAttributeDescription{.location = attribute.location,
-                                        .binding  = attribute.binding,
-                                        .format   = (VkFormat) attribute.format,
-                                        .offset   = attribute.offset};
+    attributes
+      .push(
+        VkVertexInputAttributeDescription{.location = attribute.location,
+                                          .binding  = attribute.binding,
+                                          .format = (VkFormat) attribute.format,
+                                          .offset = attribute.offset})
+      .unwrap();
   }
 
   VkPipelineVertexInputStateCreateInfo vertex_input_state{
     .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
     .pNext = nullptr,
     .flags = 0,
-    .vertexBindingDescriptionCount   = num_input_bindings,
-    .pVertexBindingDescriptions      = input_bindings,
-    .vertexAttributeDescriptionCount = num_attributes,
-    .pVertexAttributeDescriptions    = attributes};
+    .vertexBindingDescriptionCount   = size32(input_bindings),
+    .pVertexBindingDescriptions      = input_bindings.data(),
+    .vertexAttributeDescriptionCount = size32(attributes),
+    .pVertexAttributeDescriptions    = attributes.data()};
 
   VkPipelineInputAssemblyStateCreateInfo input_assembly_state{
     .sType    = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
@@ -2726,22 +2728,23 @@ Result<gpu::GraphicsPipeline, Status>
     .maxDepthBounds = info.depth_stencil_state.max_depth_bounds
   };
 
-  VkPipelineColorBlendAttachmentState
-    attachment_states[gpu::MAX_PIPELINE_COLOR_ATTACHMENTS];
+  InplaceVec<VkPipelineColorBlendAttachmentState,
+             gpu::MAX_PIPELINE_COLOR_ATTACHMENTS>
+    attachment_states;
 
-  for (u32 i = 0; i < num_blend_color_attachments; i++)
+  for (auto state : info.color_blend_state.attachments)
   {
-    gpu::ColorBlendAttachmentState const & state =
-      info.color_blend_state.attachments[i];
-    attachment_states[i] = VkPipelineColorBlendAttachmentState{
-      .blendEnable         = (VkBool32) state.blend_enable,
-      .srcColorBlendFactor = (VkBlendFactor) state.src_color_blend_factor,
-      .dstColorBlendFactor = (VkBlendFactor) state.dst_color_blend_factor,
-      .colorBlendOp        = (VkBlendOp) state.color_blend_op,
-      .srcAlphaBlendFactor = (VkBlendFactor) state.src_alpha_blend_factor,
-      .dstAlphaBlendFactor = (VkBlendFactor) state.dst_alpha_blend_factor,
-      .alphaBlendOp        = (VkBlendOp) state.alpha_blend_op,
-      .colorWriteMask      = (VkColorComponentFlags) state.color_write_mask};
+    attachment_states
+      .push(VkPipelineColorBlendAttachmentState{
+        .blendEnable         = (VkBool32) state.blend_enable,
+        .srcColorBlendFactor = (VkBlendFactor) state.src_color_blend_factor,
+        .dstColorBlendFactor = (VkBlendFactor) state.dst_color_blend_factor,
+        .colorBlendOp        = (VkBlendOp) state.color_blend_op,
+        .srcAlphaBlendFactor = (VkBlendFactor) state.src_alpha_blend_factor,
+        .dstAlphaBlendFactor = (VkBlendFactor) state.dst_alpha_blend_factor,
+        .alphaBlendOp        = (VkBlendOp) state.alpha_blend_op,
+        .colorWriteMask      = (VkColorComponentFlags) state.color_write_mask})
+      .unwrap();
   }
 
   VkPipelineColorBlendStateCreateInfo color_blend_state{
@@ -2750,8 +2753,8 @@ Result<gpu::GraphicsPipeline, Status>
     .flags           = 0,
     .logicOpEnable   = (VkBool32) info.color_blend_state.logic_op_enable,
     .logicOp         = (VkLogicOp) info.color_blend_state.logic_op,
-    .attachmentCount = num_blend_color_attachments,
-    .pAttachments    = attachment_states,
+    .attachmentCount = size32(attachment_states),
+    .pAttachments    = attachment_states.data(),
     .blendConstants  = {info.color_blend_state.blend_constant.x,
                         info.color_blend_state.blend_constant.y,
                         info.color_blend_state.blend_constant.z,
@@ -2778,29 +2781,27 @@ Result<gpu::GraphicsPipeline, Status>
     .sType             = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
     .pNext             = nullptr,
     .flags             = 0,
-    .dynamicStateCount = (u32) size(dynamic_states),
+    .dynamicStateCount = size32(dynamic_states),
     .pDynamicStates    = dynamic_states};
 
-  VkFormat color_formats[gpu::MAX_PIPELINE_COLOR_ATTACHMENTS];
+  InplaceVec<VkFormat, gpu::MAX_PIPELINE_COLOR_ATTACHMENTS> color_formats;
 
-  for (u32 i = 0; i < info.color_formats.size(); i++)
+  for (auto fmt : info.color_formats)
   {
-    color_formats[i] = (VkFormat) info.color_formats[i];
+    color_formats.push((VkFormat) fmt).unwrap();
   }
 
   VkFormat depth_format =
-    (VkFormat) ((num_depths == 0) ? gpu::Format::Undefined :
-                                    info.depth_format[0]);
+    (VkFormat) info.depth_format.unwrap_or(gpu::Format::Undefined);
   VkFormat stencil_format =
-    (VkFormat) ((num_stencils == 0) ? gpu::Format::Undefined :
-                                      info.stencil_format[0]);
+    (VkFormat) info.stencil_format.unwrap_or(gpu::Format::Undefined);
 
   VkPipelineRenderingCreateInfoKHR rendering_info{
     .sType    = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR,
     .pNext    = nullptr,
     .viewMask = 0,
-    .colorAttachmentCount    = size32(info.color_formats),
-    .pColorAttachmentFormats = color_formats,
+    .colorAttachmentCount    = size32(color_formats),
+    .pColorAttachmentFormats = color_formats.data(),
     .depthAttachmentFormat   = depth_format,
     .stencilAttachmentFormat = stencil_format};
 
@@ -2854,14 +2855,11 @@ Result<gpu::GraphicsPipeline, Status>
                      .vk_layout           = vk_layout,
                      .push_constants_size = info.push_constants_size,
                      .num_sets            = size32(info.descriptor_set_layouts),
-                     .num_colors          = num_colors,
-                     .num_depths          = num_depths,
-                     .num_stencils        = num_stencils,
+                     .depth_fmt           = info.depth_format,
+                     .stencil_fmt         = info.stencil_format,
                      .sample_count = info.rasterization_state.sample_count};
 
-  mem::copy(info.color_formats, pipeline->color_fmts);
-  mem::copy(info.depth_format, pipeline->depth_fmts);
-  mem::copy(info.stencil_format, pipeline->stencil_fmts);
+  pipeline->color_fmts.extend(info.color_formats).unwrap();
 
   return Ok{(gpu::GraphicsPipeline) pipeline};
 }
@@ -2914,7 +2912,9 @@ VkResult Device::recreate_swapchain(Swapchain * swapchain)
   swapchain->present_mode    = gpu::PresentMode::Immediate;
   swapchain->extent          = Vec2U{};
   swapchain->composite_alpha = gpu::CompositeAlpha::None;
-  swapchain->num_images      = 0;
+  swapchain->image_impls     = {};
+  swapchain->images          = {};
+  swapchain->vk_images       = {};
   swapchain->current_image   = 0;
   swapchain->vk_swapchain    = nullptr;
 
@@ -2989,16 +2989,21 @@ VkResult Device::recreate_swapchain(Swapchain * swapchain)
 
   CHECK(result == VK_SUCCESS, "");
 
-  CHECK(num_images <= gpu::MAX_SWAPCHAIN_IMAGES, "");
+  swapchain->vk_images.resize(num_images).unwrap();
+  swapchain->image_impls.resize(num_images).unwrap();
+  swapchain->images.resize(num_images).unwrap();
 
   result = vk_table.GetSwapchainImagesKHR(vk_dev, new_vk_swapchain, &num_images,
-                                          swapchain->vk_images);
+                                          swapchain->vk_images.data());
 
   CHECK(result == VK_SUCCESS, "");
 
-  for (u32 i = 0; i < num_images; i++)
+  for (auto [vk, impl, img] :
+       zip(swapchain->vk_images, swapchain->image_impls, swapchain->images))
   {
-    swapchain->image_impls[i] = Image{
+    InplaceVec<ImageState, MAX_IMAGE_ASPECTS> states;
+    states.resize(1).unwrap();    // 1 color aspect
+    impl = Image{
       .info =
         gpu::ImageInfo{.type    = gpu::ImageType::Type2D,
                        .format  = swapchain->info.format.format,
@@ -3008,13 +3013,12 @@ VkResult Device::recreate_swapchain(Swapchain * swapchain)
                        .mip_levels   = 1,
                        .array_layers = 1},
       .is_swapchain_image  = true,
-      .vk_image            = swapchain->vk_images[i],
+      .vk_image            = vk,
       .vma_allocation      = nullptr,
       .vma_allocation_info = {},
-      .states              = {},
-      .num_aspects         = 1
+      .states              = states
     };
-    swapchain->images[i] = (gpu::Image) (swapchain->image_impls + i);
+    img = (gpu::Image) &impl;
   }
 
   set_resource_name(swapchain->info.label, new_vk_swapchain,
@@ -3036,7 +3040,6 @@ VkResult Device::recreate_swapchain(Swapchain * swapchain)
   swapchain->extent.x        = vk_extent.width;
   swapchain->extent.y        = vk_extent.height;
   swapchain->composite_alpha = swapchain->info.composite_alpha;
-  swapchain->num_images      = num_images;
   swapchain->current_image   = 0;
   swapchain->vk_swapchain    = new_vk_swapchain;
   new_vk_swapchain           = nullptr;
@@ -3117,46 +3120,47 @@ Status Device::init_frame_context(u32 buffering)
   ctx.current_frame  = 0;
   ctx.ring_index     = 0;
   ctx.tail_frame     = 0;
-  u32 num_encs       = 0;
-  u32 num_acquire_s  = 0;
-  u32 num_submit_f   = 0;
-  u32 num_submit_s   = 0;
 
-  defer encs_{[&] {
-    for (u32 i = num_encs; i-- > 0;)
+  bool success = false;
+
+  defer _{[&] {
+    if (!success)
     {
-      uninit(ctx.encs + i);
+      for (auto & enc : ctx.encoders.view().rev())
+      {
+        uninit(&enc);
+      }
+      ctx.encoders.clear();
+      ctx.encoders_impl.clear();
+
+      for (auto & sem : ctx.acquire_semaphores.view().rev())
+      {
+        vk_table.DestroySemaphore(vk_dev, sem, nullptr);
+      }
+      ctx.acquire_semaphores.clear();
+
+      for (auto & fence : ctx.submit_fences.view().rev())
+      {
+        vk_table.DestroyFence(vk_dev, fence, nullptr);
+      }
+      ctx.submit_fences.clear();
+
+      for (auto & sem : ctx.submit_semaphores.view().rev())
+      {
+        vk_table.DestroySemaphore(vk_dev, sem, nullptr);
+      }
+      ctx.submit_semaphores.clear();
     }
   }};
 
-  defer acquire_s_{[&] {
-    for (u32 i = num_acquire_s; i-- > 0;)
-    {
-      vk_table.DestroySemaphore(vk_dev, ctx.acquire_s[i], nullptr);
-    }
-  }};
-
-  defer submit_f_{[&] {
-    for (u32 i = num_submit_f; i-- > 0;)
-    {
-      vk_table.DestroyFence(vk_dev, ctx.submit_f[i], nullptr);
-    }
-  }};
-
-  defer submit_s_{[&] {
-    for (u32 i = num_submit_s; i-- > 0;)
-    {
-      vk_table.DestroySemaphore(vk_dev, ctx.submit_s[i], nullptr);
-    }
-  }};
-
-  for (; num_encs < buffering; num_encs++)
+  for (auto i : range(buffering))
   {
-    Status status = init_command_encoder(ctx.encs + num_encs);
+    Status status = init_command_encoder(ctx.encoders.data() + i);
     if (status != Status::Success)
     {
       return status;
     }
+    ctx.encoders.extend_uninit(1).unwrap();
   }
 
   VkSemaphoreCreateInfo sem_info{.sType =
@@ -3164,16 +3168,17 @@ Status Device::init_frame_context(u32 buffering)
                                  .pNext = nullptr,
                                  .flags = 0};
 
-  for (; num_acquire_s < buffering; num_acquire_s++)
+  for (auto i : range(buffering))
   {
-    VkResult result = vk_table.CreateSemaphore(vk_dev, &sem_info, nullptr,
-                                               ctx.acquire_s + num_acquire_s);
+    VkResult result = vk_table.CreateSemaphore(
+      vk_dev, &sem_info, nullptr, ctx.acquire_semaphores.data() + i);
     if (result != VK_SUCCESS)
     {
       return (Status) result;
     }
-    set_resource_name("Frame Acquire Semaphore"_str,
-                      ctx.acquire_s[num_acquire_s], VK_OBJECT_TYPE_SEMAPHORE,
+    ctx.acquire_semaphores.extend_uninit(1).unwrap();
+    set_resource_name("Frame Acquire Semaphore"_str, ctx.acquire_semaphores[i],
+                      VK_OBJECT_TYPE_SEMAPHORE,
                       VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT);
   }
 
@@ -3181,66 +3186,65 @@ Status Device::init_frame_context(u32 buffering)
                                .pNext = nullptr,
                                .flags = VK_FENCE_CREATE_SIGNALED_BIT};
 
-  for (; num_submit_f < buffering; num_submit_f++)
+  for (auto i : range(buffering))
   {
     VkResult result = vk_table.CreateFence(vk_dev, &fence_info, nullptr,
-                                           ctx.submit_f + num_submit_f);
+                                           ctx.submit_fences.data() + i);
     if (result != VK_SUCCESS)
     {
       return (Status) result;
     }
-
-    set_resource_name("Frame Submit Fence"_str, ctx.submit_f[num_submit_f],
+    ctx.submit_fences.extend_uninit(1).unwrap();
+    set_resource_name("Frame Submit Fence"_str, ctx.submit_fences[i],
                       VK_OBJECT_TYPE_FENCE,
                       VK_DEBUG_REPORT_OBJECT_TYPE_FENCE_EXT);
   }
 
-  for (; num_submit_s < buffering; num_submit_s++)
+  for (auto i : range(buffering))
   {
-    VkResult result = vk_table.CreateSemaphore(vk_dev, &sem_info, nullptr,
-                                               ctx.submit_s + num_submit_s);
+    VkResult result = vk_table.CreateSemaphore(
+      vk_dev, &sem_info, nullptr, ctx.submit_semaphores.data() + i);
     if (result != VK_SUCCESS)
     {
       return (Status) result;
     }
-    set_resource_name("Frame Submit Semaphore"_str, ctx.submit_s[num_submit_s],
+    ctx.submit_semaphores.extend_uninit(1).unwrap();
+    set_resource_name("Frame Submit Semaphore"_str, ctx.submit_semaphores[i],
                       VK_OBJECT_TYPE_SEMAPHORE,
                       VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT);
   }
 
-  num_encs      = 0;
-  num_acquire_s = 0;
-  num_submit_f  = 0;
-  num_submit_s  = 0;
+  success = true;
 
   // self-referential
-  for (u32 i = 0; i < buffering; i++)
+  for (auto & enc : ctx.encoders)
   {
-    ctx.encs_impl[i] = ctx.encs + i;
+    ctx.encoders_impl.push(&enc).unwrap();
   }
-
-  ctx.buffering = buffering;
 
   return Status::Success;
 }
 
 void Device::uninit()
 {
-  for (u32 i = frame_ctx.buffering; i-- > 0;)
+  for (auto & enc : frame_ctx.encoders.view().rev())
   {
-    uninit(frame_ctx.encs + i);
+    uninit(&enc);
   }
-  for (u32 i = frame_ctx.buffering; i-- > 0;)
+
+  for (VkSemaphore sem : frame_ctx.acquire_semaphores.view().rev())
   {
-    vk_table.DestroySemaphore(vk_dev, frame_ctx.acquire_s[i], nullptr);
+    vk_table.DestroySemaphore(vk_dev, sem, nullptr);
   }
-  for (u32 i = frame_ctx.buffering; i-- > 0;)
+
+  for (VkFence fence : frame_ctx.submit_fences.view().rev())
   {
-    vk_table.DestroyFence(vk_dev, frame_ctx.submit_f[i], nullptr);
+    vk_table.DestroyFence(vk_dev, fence, nullptr);
   }
-  for (u32 i = frame_ctx.buffering; i-- > 0;)
+
+  for (VkSemaphore sem : frame_ctx.submit_semaphores.view().rev())
   {
-    vk_table.DestroySemaphore(vk_dev, frame_ctx.submit_s[i], nullptr);
+    vk_table.DestroySemaphore(vk_dev, sem, nullptr);
   }
 }
 
@@ -3269,7 +3273,6 @@ Result<gpu::Swapchain, Status>
                             .image_impls     = {},
                             .images          = {},
                             .vk_images       = {},
-                            .num_images      = 0,
                             .current_image   = 0,
                             .vk_swapchain    = nullptr,
                             .vk_surface      = (VkSurfaceKHR) surface};
@@ -3427,8 +3430,7 @@ void Device::uninit(gpu::DescriptorSet set_)
 
   u8 * head = (u8 *) set;
 
-  Layout layout =
-    DescriptorSet::flex({set->bindings, set->num_bindings}).layout();
+  Layout layout = DescriptorSet::flex(set->bindings).layout();
 
   allocator->dealloc(layout, head);
 }
@@ -3495,13 +3497,10 @@ void Device::uninit(gpu::StatisticsQuery query_)
 
 gpu::FrameContext Device::get_frame_context()
 {
-  return gpu::FrameContext{
-    .buffering  = frame_ctx.buffering,
-    .tail       = frame_ctx.tail_frame,
-    .current    = frame_ctx.current_frame,
-    .encoders   = Span{frame_ctx.encs_impl, frame_ctx.buffering},
-    .ring_index = frame_ctx.ring_index
-  };
+  return gpu::FrameContext{.tail       = frame_ctx.tail_frame,
+                           .current    = frame_ctx.current_frame,
+                           .encoders   = frame_ctx.encoders_impl,
+                           .ring_index = frame_ctx.ring_index};
 }
 
 Result<void *, Status> Device::map_buffer_memory(gpu::Buffer buffer_)
@@ -3641,11 +3640,11 @@ void Device::unbind_descriptor_set(gpu::DescriptorSet set_, u32 binding_idx,
                                    Slice32 elements)
 {
   DescriptorSet * const set = (DescriptorSet *) set_;
-  CHECK(binding_idx < set->num_bindings, "");
+  CHECK(binding_idx < set->bindings.size(), "");
 
   DescriptorBinding & binding = set->bindings[binding_idx];
 
-  elements = elements(binding.count);
+  elements = elements(binding.count());
 
   for (u32 i = elements.offset; i < elements.span; i++)
   {
@@ -3663,11 +3662,11 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
 
   DescriptorSet * const set = (DescriptorSet *) update.set;
 
-  CHECK(update.binding < set->num_bindings, "");
+  CHECK(update.binding < set->bindings.size(), "");
   DescriptorBinding & binding = set->bindings[update.binding];
-  CHECK(update.element < binding.count, "");
+  CHECK(update.element < binding.count(), "");
 
-  Flex const flex = DescriptorSet::flex({set->bindings, set->num_bindings});
+  Flex const flex                          = DescriptorSet::flex(set->bindings);
   auto [set_span, resources_span, scratch] = flex.unpack(set);
 
   (void) set_span;
@@ -4096,11 +4095,9 @@ Result<gpu::SwapchainState, Status>
 {
   Swapchain * const swapchain = (Swapchain *) swapchain_;
 
-  gpu::SwapchainState state{
-    .extent = swapchain->extent,
-    .format = swapchain->info.format,
-    .images = Span{swapchain->images, swapchain->num_images}
-  };
+  gpu::SwapchainState state{.extent = swapchain->extent,
+                            .format = swapchain->info.format,
+                            .images = swapchain->images};
 
   if (swapchain->is_zero_sized)
   {
@@ -4129,8 +4126,8 @@ Result<Void, Status> Device::begin_frame(gpu::Swapchain swapchain_)
 {
   FrameContext &    ctx          = frame_ctx;
   Swapchain * const swapchain    = (Swapchain *) swapchain_;
-  VkFence           submit_fence = ctx.submit_f[ctx.ring_index];
-  CommandEncoder &  enc          = ctx.encs[ctx.ring_index];
+  VkFence           submit_fence = ctx.submit_fences[ctx.ring_index];
+  CommandEncoder &  enc          = ctx.encoders[ctx.ring_index];
 
   CHECK(!enc.is_recording(), "");
 
@@ -4161,8 +4158,8 @@ Result<Void, Status> Device::begin_frame(gpu::Swapchain swapchain_)
     {
       u32 next_image;
       result = vk_table.AcquireNextImageKHR(
-        vk_dev, swapchain->vk_swapchain, U64_MAX, ctx.acquire_s[ctx.ring_index],
-        nullptr, &next_image);
+        vk_dev, swapchain->vk_swapchain, U64_MAX,
+        ctx.acquire_semaphores[ctx.ring_index], nullptr, &next_image);
 
       if (result == VK_SUBOPTIMAL_KHR)
       {
@@ -4196,13 +4193,13 @@ Result<Void, Status> Device::begin_frame(gpu::Swapchain swapchain_)
 
 Result<Void, Status> Device::submit_frame(gpu::Swapchain swapchain_)
 {
-  FrameContext &        ctx               = frame_ctx;
-  Swapchain * const     swapchain         = (Swapchain *) swapchain_;
-  VkFence const         submit_fence      = ctx.submit_f[ctx.ring_index];
-  CommandEncoder &      enc               = ctx.encs[ctx.ring_index];
-  VkCommandBuffer const command_buffer    = enc.vk_command_buffer;
-  VkSemaphore const     submit_semaphore  = ctx.submit_s[ctx.ring_index];
-  VkSemaphore const     acquire_semaphore = ctx.acquire_s[ctx.ring_index];
+  FrameContext &        ctx            = frame_ctx;
+  Swapchain * const     swapchain      = (Swapchain *) swapchain_;
+  VkFence const         submit_fence   = ctx.submit_fences[ctx.ring_index];
+  CommandEncoder &      enc            = ctx.encoders[ctx.ring_index];
+  VkCommandBuffer const command_buffer = enc.vk_command_buffer;
+  VkSemaphore const submit_semaphore   = ctx.submit_semaphores[ctx.ring_index];
+  VkSemaphore const acquire_semaphore  = ctx.acquire_semaphores[ctx.ring_index];
   bool const was_acquired = swapchain != nullptr && !swapchain->is_zero_sized;
   bool const can_present = swapchain != nullptr && !swapchain->is_out_of_date &&
                            !swapchain->is_zero_sized;
@@ -4247,8 +4244,8 @@ Result<Void, Status> Device::submit_frame(gpu::Swapchain swapchain_)
   // commands could have been executed.
   ctx.current_frame++;
   ctx.tail_frame =
-    max(ctx.current_frame, (gpu::FrameId) ctx.buffering) - ctx.buffering;
-  ctx.ring_index = (ctx.ring_index + 1) % ctx.buffering;
+    max(ctx.current_frame, (gpu::FrameId) ctx.buffering()) - ctx.buffering();
+  ctx.ring_index = (ctx.ring_index + 1) % ctx.buffering();
 
   if (can_present)
   {
@@ -5025,14 +5022,10 @@ void validate_attachment(gpu::RenderingAttachment const & info,
 void CommandEncoder::begin_rendering(gpu::RenderingInfo const & info)
 {
   ENCODE_PRELUDE();
-  u32 const num_color_attachments   = size32(info.color_attachments);
-  u32 const num_depth_attachments   = size32(info.depth_attachment);
-  u32 const num_stencil_attachments = size32(info.stencil_attachment);
 
   CHECK(!is_in_pass(), "");
-  CHECK(num_color_attachments <= gpu::MAX_PIPELINE_COLOR_ATTACHMENTS, "");
-  CHECK(num_depth_attachments <= 1, "");
-  CHECK(num_stencil_attachments <= 1, "");
+  CHECK(info.color_attachments.size() <= gpu::MAX_PIPELINE_COLOR_ATTACHMENTS,
+        "");
   CHECK(info.render_area.extent.x > 0, "");
   CHECK(info.render_area.extent.y > 0, "");
   CHECK(info.num_layers > 0, "");
@@ -5043,28 +5036,23 @@ void CommandEncoder::begin_rendering(gpu::RenderingInfo const & info)
                         gpu::ImageUsage::ColorAttachment);
   }
 
-  for (gpu::RenderingAttachment const & attachment : info.depth_attachment)
-  {
-    validate_attachment(attachment, gpu::ImageAspects::Depth,
+  info.depth_attachment.match([](auto & depth) {
+    validate_attachment(depth, gpu::ImageAspects::Depth,
                         gpu::ImageUsage::DepthStencilAttachment);
-  }
+  });
 
-  for (gpu::RenderingAttachment const & attachment : info.stencil_attachment)
-  {
-    validate_attachment(attachment, gpu::ImageAspects::Stencil,
+  info.stencil_attachment.match([](auto & stencil) {
+    validate_attachment(stencil, gpu::ImageAspects::Stencil,
                         gpu::ImageUsage::DepthStencilAttachment);
-  }
+  });
 
   clear_context();
-  mem::copy(info.color_attachments, render_ctx.color_attachments);
-  mem::copy(info.depth_attachment, render_ctx.depth_attachment);
-  mem::copy(info.stencil_attachment, render_ctx.stencil_attachment);
-  state                              = CommandEncoderState::RenderPass;
-  render_ctx.render_area             = info.render_area;
-  render_ctx.num_layers              = info.num_layers;
-  render_ctx.num_color_attachments   = num_color_attachments;
-  render_ctx.num_depth_attachments   = num_depth_attachments;
-  render_ctx.num_stencil_attachments = num_stencil_attachments;
+  render_ctx.color_attachments.extend(info.color_attachments).unwrap();
+  render_ctx.depth_attachment   = info.depth_attachment;
+  render_ctx.stencil_attachment = info.stencil_attachment;
+  state                         = CommandEncoderState::RenderPass;
+  render_ctx.render_area        = info.render_area;
+  render_ctx.num_layers         = info.num_layers;
 }
 
 constexpr VkAccessFlags
@@ -5122,13 +5110,14 @@ void CommandEncoder::end_rendering()
 
   CHECK(is_in_render_pass(), "");
 
+  // synchronization pass: bindings
   for (Command const & cmd : render_ctx.commands)
   {
     cmd.match(
       [&](CmdBindDescriptorSets const & c) {
-        for (u32 i = 0; i < c.count; i++)
+        for (auto set : c.sets)
         {
-          access_graphics_bindings(*c.sets[i]);
+          access_graphics_bindings(*set);
         }
       },
       [&](CmdBindGraphicsPipeline const &) {}, [&](CmdPushConstants const &) {},
@@ -5152,11 +5141,11 @@ void CommandEncoder::end_rendering()
       });
   }
 
+  // synchronization pass: attachments
   {
-    VkRenderingAttachmentInfoKHR
-      vk_color_attachments[gpu::MAX_PIPELINE_COLOR_ATTACHMENTS];
-    VkRenderingAttachmentInfoKHR vk_depth_attachment[1];
-    VkRenderingAttachmentInfoKHR vk_stencil_attachment[1];
+    InplaceVec<VkRenderingAttachmentInfoKHR,
+               gpu::MAX_PIPELINE_COLOR_ATTACHMENTS>
+      vk_color_attachments{};
 
     constexpr VkPipelineStageFlags RESOLVE_STAGE =
       VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -5172,17 +5161,17 @@ void CommandEncoder::end_rendering()
     constexpr VkImageLayout RESOLVE_STENCIL_LAYOUT =
       VK_IMAGE_LAYOUT_STENCIL_ATTACHMENT_OPTIMAL_KHR;
 
-    for (u32 i = 0; i < ctx.num_color_attachments; i++)
+    for (auto const & attachment : ctx.color_attachments)
     {
-      gpu::RenderingAttachment const & attachment = ctx.color_attachments[i];
       VkAccessFlags        access     = color_attachment_access(attachment);
       VkImageView          vk_view    = nullptr;
       VkImageView          vk_resolve = nullptr;
       VkPipelineStageFlags stages =
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
       VkImageLayout layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-      VkClearValue  clear_value;
-      std::memcpy(&clear_value, &attachment.clear, sizeof(VkClearValue));
+      VkClearValue  clear_value{.color{
+         .uint32{attachment.clear.color.u32.x, attachment.clear.color.u32.y,
+                attachment.clear.color.u32.z, attachment.clear.color.u32.w}}};
 
       if (attachment.resolve_mode != gpu::ResolveModes::None)
       {
@@ -5207,22 +5196,25 @@ void CommandEncoder::end_rendering()
                             gpu::ImageAspects::Color, COLOR_ASPECT_IDX);
       }
 
-      vk_color_attachments[i] = VkRenderingAttachmentInfoKHR{
-        .sType              = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR,
-        .pNext              = nullptr,
-        .imageView          = vk_view,
-        .imageLayout        = layout,
-        .resolveMode        = (VkResolveModeFlagBits) attachment.resolve_mode,
-        .resolveImageView   = vk_resolve,
-        .resolveImageLayout = RESOLVE_COLOR_LAYOUT,
-        .loadOp             = (VkAttachmentLoadOp) attachment.load_op,
-        .storeOp            = (VkAttachmentStoreOp) attachment.store_op,
-        .clearValue         = clear_value};
+      vk_color_attachments
+        .push(VkRenderingAttachmentInfoKHR{
+          .sType              = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR,
+          .pNext              = nullptr,
+          .imageView          = vk_view,
+          .imageLayout        = layout,
+          .resolveMode        = (VkResolveModeFlagBits) attachment.resolve_mode,
+          .resolveImageView   = vk_resolve,
+          .resolveImageLayout = RESOLVE_COLOR_LAYOUT,
+          .loadOp             = (VkAttachmentLoadOp) attachment.load_op,
+          .storeOp            = (VkAttachmentStoreOp) attachment.store_op,
+          .clearValue         = clear_value})
+        .unwrap();
     }
 
-    for (u32 i = 0; i < ctx.num_depth_attachments; i++)
-    {
-      gpu::RenderingAttachment const & attachment = ctx.depth_attachment[i];
+    auto vk_depth_attachment = ctx.depth_attachment.map([&](auto & attachment) {
+      // [ ] if the same attachments were used in a previous pass beginRendering call, and it preserves the attachments, we don't need to issue another barrier
+      // [ ] this doesn't handle the case where both are depth and stencil, the layout for example will always be depth read only optimal instead of depth attachment optimal?
+      // [ ] used across multiple encoders at once? would need to merge states?
       VkAccessFlags        access     = depth_attachment_access(attachment);
       VkImageView          vk_view    = nullptr;
       VkImageView          vk_resolve = nullptr;
@@ -5239,15 +5231,15 @@ void CommandEncoder::end_rendering()
         stages |= VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
       }
 
+      // [ ] resolve mode is incorrect for this and stencil
       if (attachment.resolve_mode != gpu::ResolveModes::None)
       {
         access |= RESOLVE_SRC_ACCESS;
         stages |= RESOLVE_STAGE;
       }
 
-      VkClearValue clear_value;
-
-      std::memcpy(&clear_value, &attachment.clear, sizeof(VkClearValue));
+      VkClearValue clear_value{
+        .depthStencil{.depth = attachment.clear.depth_stencil.depth}};
 
       if (attachment.view != nullptr)
       {
@@ -5266,7 +5258,7 @@ void CommandEncoder::end_rendering()
                             gpu::ImageAspects::Depth, DEPTH_ASPECT_IDX);
       }
 
-      vk_depth_attachment[i] = VkRenderingAttachmentInfoKHR{
+      return VkRenderingAttachmentInfoKHR{
         .sType              = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR,
         .pNext              = nullptr,
         .imageView          = vk_view,
@@ -5277,66 +5269,67 @@ void CommandEncoder::end_rendering()
         .loadOp             = (VkAttachmentLoadOp) attachment.load_op,
         .storeOp            = (VkAttachmentStoreOp) attachment.store_op,
         .clearValue         = clear_value};
-    }
+    });
 
-    for (u32 i = 0; i < ctx.num_stencil_attachments; i++)
-    {
-      gpu::RenderingAttachment const & attachment = ctx.stencil_attachment[i];
-      VkAccessFlags        access     = stencil_attachment_access(attachment);
-      VkImageView          vk_view    = nullptr;
-      VkImageView          vk_resolve = nullptr;
-      VkImageLayout        layout     = has_write_access(access) ?
-                                          VK_IMAGE_LAYOUT_STENCIL_ATTACHMENT_OPTIMAL_KHR :
-                                          VK_IMAGE_LAYOUT_STENCIL_READ_ONLY_OPTIMAL_KHR;
-      VkPipelineStageFlags stages     = 0;
-      if (has_read_access(access))
-      {
-        stages |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-      }
-      if (has_write_access(access))
-      {
-        stages |= VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-      }
+    // [ ] this will issue two barriers for attachment in both depth and stencil
+    // [ ] need to use pass_id and command encoder id to know when it is being accessed
+    auto vk_stencil_attachment =
+      ctx.stencil_attachment.map([&](auto & attachment) {
+        VkAccessFlags access     = stencil_attachment_access(attachment);
+        VkImageView   vk_view    = nullptr;
+        VkImageView   vk_resolve = nullptr;
+        VkImageLayout layout =
+          has_write_access(access) ?
+            VK_IMAGE_LAYOUT_STENCIL_ATTACHMENT_OPTIMAL_KHR :
+            VK_IMAGE_LAYOUT_STENCIL_READ_ONLY_OPTIMAL_KHR;
+        VkPipelineStageFlags stages = 0;
+        if (has_read_access(access))
+        {
+          stages |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+        }
+        if (has_write_access(access))
+        {
+          stages |= VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+        }
 
-      if (attachment.resolve_mode != gpu::ResolveModes::None)
-      {
-        access |= RESOLVE_SRC_ACCESS;
-        stages |= RESOLVE_STAGE;
-      }
-
-      VkClearValue clear_value;
-
-      std::memcpy(&clear_value, &attachment.clear, sizeof(VkClearValue));
-
-      if (attachment.view != nullptr)
-      {
-        ImageView * view    = (ImageView *) attachment.view;
-        ImageView * resolve = (ImageView *) attachment.resolve;
-        vk_view             = view->vk_view;
         if (attachment.resolve_mode != gpu::ResolveModes::None)
         {
-          vk_resolve = resolve->vk_view;
-          access_image_aspect(*IMAGE_FROM_VIEW(resolve), RESOLVE_STAGE,
-                              RESOLVE_DST_ACCESS, RESOLVE_STENCIL_LAYOUT,
+          access |= RESOLVE_SRC_ACCESS;
+          stages |= RESOLVE_STAGE;
+        }
+
+        VkClearValue clear_value{
+          .depthStencil{.stencil = attachment.clear.depth_stencil.stencil}};
+
+        if (attachment.view != nullptr)
+        {
+          ImageView * view    = (ImageView *) attachment.view;
+          ImageView * resolve = (ImageView *) attachment.resolve;
+          vk_view             = view->vk_view;
+          if (attachment.resolve_mode != gpu::ResolveModes::None)
+          {
+            vk_resolve = resolve->vk_view;
+            access_image_aspect(*IMAGE_FROM_VIEW(resolve), RESOLVE_STAGE,
+                                RESOLVE_DST_ACCESS, RESOLVE_STENCIL_LAYOUT,
+                                gpu::ImageAspects::Stencil, STENCIL_ASPECT_IDX);
+          }
+
+          access_image_aspect(*IMAGE_FROM_VIEW(view), stages, access, layout,
                               gpu::ImageAspects::Stencil, STENCIL_ASPECT_IDX);
         }
 
-        access_image_aspect(*IMAGE_FROM_VIEW(view), stages, access, layout,
-                            gpu::ImageAspects::Stencil, STENCIL_ASPECT_IDX);
-      }
-
-      vk_stencil_attachment[i] = VkRenderingAttachmentInfoKHR{
-        .sType              = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR,
-        .pNext              = nullptr,
-        .imageView          = vk_view,
-        .imageLayout        = layout,
-        .resolveMode        = (VkResolveModeFlagBits) attachment.resolve_mode,
-        .resolveImageView   = vk_resolve,
-        .resolveImageLayout = RESOLVE_STENCIL_LAYOUT,
-        .loadOp             = (VkAttachmentLoadOp) attachment.load_op,
-        .storeOp            = (VkAttachmentStoreOp) attachment.store_op,
-        .clearValue         = clear_value};
-    }
+        return VkRenderingAttachmentInfoKHR{
+          .sType              = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR,
+          .pNext              = nullptr,
+          .imageView          = vk_view,
+          .imageLayout        = layout,
+          .resolveMode        = (VkResolveModeFlagBits) attachment.resolve_mode,
+          .resolveImageView   = vk_resolve,
+          .resolveImageLayout = RESOLVE_STENCIL_LAYOUT,
+          .loadOp             = (VkAttachmentLoadOp) attachment.load_op,
+          .storeOp            = (VkAttachmentStoreOp) attachment.store_op,
+          .clearValue         = clear_value};
+      });
 
     VkRenderingInfoKHR begin_info{
       .sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR,
@@ -5349,12 +5342,10 @@ void CommandEncoder::end_rendering()
                                       .height = ctx.render_area.extent.y}},
       .layerCount           = ctx.num_layers,
       .viewMask             = 0,
-      .colorAttachmentCount = ctx.num_color_attachments,
-      .pColorAttachments    = vk_color_attachments,
-      .pDepthAttachment =
-        (ctx.num_depth_attachments == 0) ? nullptr : vk_depth_attachment,
-      .pStencilAttachment =
-        (ctx.num_stencil_attachments == 0) ? nullptr : vk_stencil_attachment
+      .colorAttachmentCount = size32(vk_color_attachments),
+      .pColorAttachments    = vk_color_attachments.data(),
+      .pDepthAttachment     = vk_depth_attachment.as_ptr().unwrap_or(nullptr),
+      .pStencilAttachment = vk_stencil_attachment.as_ptr().unwrap_or(nullptr)
     };
 
     t->CmdBeginRenderingKHR(vk_command_buffer, &begin_info);
@@ -5366,16 +5357,17 @@ void CommandEncoder::end_rendering()
   {
     cmd.match(
       [&](CmdBindDescriptorSets const & c) {
-        VkDescriptorSet vk_sets[gpu::MAX_PIPELINE_DESCRIPTOR_SETS];
-        for (u32 i = 0; i < c.count; i++)
+        InplaceVec<VkDescriptorSet, gpu::MAX_PIPELINE_DESCRIPTOR_SETS> vk_sets;
+
+        for (auto & set : c.sets)
         {
-          vk_sets[i] = c.sets[i]->vk_set;
+          vk_sets.push(set->vk_set).unwrap();
         }
 
-        t->CmdBindDescriptorSets(vk_command_buffer,
-                                 VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                 pipeline->vk_layout, 0, c.count, vk_sets,
-                                 c.num_dynamic_offsets, c.dynamic_offsets);
+        t->CmdBindDescriptorSets(
+          vk_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+          pipeline->vk_layout, 0, size32(vk_sets), vk_sets.data(),
+          size32(c.dynamic_offsets), c.dynamic_offsets.data());
       },
       [&](CmdBindGraphicsPipeline const & c) {
         pipeline = c.pipeline;
@@ -5383,8 +5375,9 @@ void CommandEncoder::end_rendering()
                            pipeline->vk_pipeline);
       },
       [&](CmdPushConstants const & c) {
-        t->CmdPushConstants(vk_command_buffer, pipeline->vk_layout,
-                            VK_SHADER_STAGE_ALL, 0, c.size, c.data);
+        t->CmdPushConstants(
+          vk_command_buffer, pipeline->vk_layout, VK_SHADER_STAGE_ALL, 0,
+          size32(c.constant.view().as_u8()), c.constant.view().as_u8().data());
       },
       [&](CmdSetGraphicsState const & c) {
         gpu::GraphicsState const & s = c.state;
@@ -5490,50 +5483,40 @@ void CommandEncoder::bind_compute_pipeline(gpu::ComputePipeline pipeline)
 
 void CommandEncoder::validate_render_pass_compatible(
   gpu::GraphicsPipeline pipeline_)
-
 {
   RenderPassContext const & ctx      = render_ctx;
   GraphicsPipeline *        pipeline = (GraphicsPipeline *) pipeline_;
 
-  CHECK(pipeline->num_colors == ctx.num_color_attachments, "");
-  CHECK(pipeline->num_depths >= ctx.num_depth_attachments, "");
-  CHECK(pipeline->num_stencils >= ctx.num_stencil_attachments, "");
+  CHECK(pipeline->color_fmts.size() == ctx.color_attachments.size(), "");
+  CHECK(!(pipeline->depth_fmt.is_none() && ctx.depth_attachment.is_some()), "");
+  CHECK(!(pipeline->stencil_fmt.is_none() && ctx.depth_attachment.is_some()),
+        "");
 
-  for (u32 i = 0; i < pipeline->num_colors; i++)
+  for (auto [pipeline_fmt, attachment] :
+       zip(pipeline->color_fmts, ctx.color_attachments))
   {
-    if (pipeline->color_fmts[i] != gpu::Format::Undefined)
+    if (pipeline_fmt != gpu::Format::Undefined)
     {
-      CHECK(ctx.color_attachments[i].view != nullptr, "");
-      CHECK(pipeline->color_fmts[i] ==
-              IMAGE_FROM_VIEW(ctx.color_attachments[i].view)->info.format,
-            "");
+      CHECK(attachment.view != nullptr, "");
+      CHECK(pipeline_fmt == IMAGE_FROM_VIEW(attachment.view)->info.format, "");
       CHECK(pipeline->sample_count ==
-              IMAGE_FROM_VIEW(ctx.color_attachments[i].view)->info.sample_count,
+              IMAGE_FROM_VIEW(attachment.view)->info.sample_count,
             "");
     }
   }
 
-  for (u32 i = 0; i < ctx.num_depth_attachments; i++)
-  {
-    if (pipeline->depth_fmts[i] != gpu::Format::Undefined)
-    {
-      CHECK(ctx.depth_attachment[i].view != nullptr, "");
-      CHECK(pipeline->depth_fmts[i] ==
-              IMAGE_FROM_VIEW(ctx.depth_attachment[i].view)->info.format,
-            "");
-    }
-  }
+  ctx.depth_attachment.match([&](auto & attachment) {
+    CHECK(attachment.view != nullptr, "");
+    CHECK(pipeline->depth_fmt == IMAGE_FROM_VIEW(attachment.view)->info.format,
+          "");
+  });
 
-  for (u32 i = 0; i < ctx.num_stencil_attachments; i++)
-  {
-    if (pipeline->stencil_fmts[i] != gpu::Format::Undefined)
-    {
-      CHECK(ctx.stencil_attachment[i].view != nullptr, "");
-      CHECK(pipeline->stencil_fmts[i] ==
-              IMAGE_FROM_VIEW(ctx.stencil_attachment[i].view)->info.format,
-            "");
-    }
-  }
+  ctx.stencil_attachment.match([&](auto & attachment) {
+    CHECK(attachment.view != nullptr, "");
+    CHECK(pipeline->stencil_fmt ==
+            IMAGE_FROM_VIEW(attachment.view)->info.format,
+          "");
+  });
 }
 
 void CommandEncoder::access_buffer(Buffer & buffer, VkPipelineStageFlags stages,
@@ -5606,19 +5589,17 @@ void CommandEncoder::access_image_all_aspects(Image &              image,
 
 void CommandEncoder::access_compute_bindings(DescriptorSet const & set)
 {
-  for (u32 ibinding = 0; ibinding < set.num_bindings; ibinding++)
+  for (auto binding : set.bindings)
   {
-    DescriptorBinding const & binding = set.bindings[ibinding];
     switch (binding.type)
     {
       case gpu::DescriptorType::CombinedImageSampler:
       case gpu::DescriptorType::SampledImage:
-        for (u32 i = 0; i < binding.count; i++)
+        for (Image * img : binding.images)
         {
-          if (binding.images[i] != nullptr)
+          if (img != nullptr)
           {
-            access_image_all_aspects(*binding.images[i],
-                                     VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            access_image_all_aspects(*img, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                      VK_ACCESS_SHADER_READ_BIT,
                                      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
           }
@@ -5626,14 +5607,14 @@ void CommandEncoder::access_compute_bindings(DescriptorSet const & set)
         break;
 
       case gpu::DescriptorType::StorageImage:
-        for (u32 i = 0; i < binding.count; i++)
+        for (Image * img : binding.images)
         {
-          if (binding.images[i] != nullptr)
+          if (img != nullptr)
           {
-            access_image_all_aspects(
-              *binding.images[i], VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-              VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-              VK_IMAGE_LAYOUT_GENERAL);
+            access_image_all_aspects(*img, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                     VK_ACCESS_SHADER_READ_BIT |
+                                       VK_ACCESS_SHADER_WRITE_BIT,
+                                     VK_IMAGE_LAYOUT_GENERAL);
           }
         }
         break;
@@ -5641,12 +5622,11 @@ void CommandEncoder::access_compute_bindings(DescriptorSet const & set)
       case gpu::DescriptorType::UniformBuffer:
       case gpu::DescriptorType::DynamicUniformBuffer:
       case gpu::DescriptorType::UniformTexelBuffer:
-        for (u32 i = 0; i < binding.count; i++)
+        for (Buffer * buffer : binding.buffers)
         {
-          if (binding.buffers[i] != nullptr)
+          if (buffer != nullptr)
           {
-            access_buffer(*binding.buffers[i],
-                          VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            access_buffer(*buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                           VK_ACCESS_SHADER_READ_BIT);
           }
         }
@@ -5655,13 +5635,13 @@ void CommandEncoder::access_compute_bindings(DescriptorSet const & set)
       case gpu::DescriptorType::StorageBuffer:
       case gpu::DescriptorType::DynamicStorageBuffer:
       case gpu::DescriptorType::StorageTexelBuffer:
-        for (u32 i = 0; i < binding.count; i++)
+        for (Buffer * buffer : binding.buffers)
         {
-          if (binding.buffers[i] != nullptr)
+          if (buffer != nullptr)
           {
-            access_buffer(
-              *binding.buffers[i], VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-              VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
+            access_buffer(*buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                          VK_ACCESS_SHADER_READ_BIT |
+                            VK_ACCESS_SHADER_WRITE_BIT);
           }
         }
         break;
@@ -5677,19 +5657,18 @@ void CommandEncoder::access_compute_bindings(DescriptorSet const & set)
 
 void CommandEncoder::access_graphics_bindings(DescriptorSet const & set)
 {
-  for (u32 ibinding = 0; ibinding < set.num_bindings; ibinding++)
+  for (auto const & binding : set.bindings)
   {
-    DescriptorBinding const & binding = set.bindings[ibinding];
     switch (binding.type)
     {
       case gpu::DescriptorType::CombinedImageSampler:
       case gpu::DescriptorType::SampledImage:
       case gpu::DescriptorType::InputAttachment:
-        for (u32 i = 0; i < binding.count; i++)
+        for (Image * img : binding.images)
         {
-          if (binding.images[i] != nullptr)
+          if (img != nullptr)
           {
-            access_image_all_aspects(*binding.images[i],
+            access_image_all_aspects(*img,
                                      VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
                                        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                                      VK_ACCESS_SHADER_READ_BIT,
@@ -5701,11 +5680,11 @@ void CommandEncoder::access_graphics_bindings(DescriptorSet const & set)
       case gpu::DescriptorType::UniformTexelBuffer:
       case gpu::DescriptorType::UniformBuffer:
       case gpu::DescriptorType::DynamicUniformBuffer:
-        for (u32 i = 0; i < binding.count; i++)
+        for (Buffer * buffer : binding.buffers)
         {
-          if (binding.buffers[i] != nullptr)
+          if (buffer != nullptr)
           {
-            access_buffer(*binding.buffers[i],
+            access_buffer(*buffer,
                           VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
                             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                           VK_ACCESS_SHADER_READ_BIT);
@@ -5715,11 +5694,11 @@ void CommandEncoder::access_graphics_bindings(DescriptorSet const & set)
 
         // only readonly storage images are supported
       case gpu::DescriptorType::StorageImage:
-        for (u32 i = 0; i < binding.count; i++)
+        for (Image * img : binding.images)
         {
-          if (binding.images[i] != nullptr)
+          if (img != nullptr)
           {
-            access_image_all_aspects(*binding.images[i],
+            access_image_all_aspects(*img,
                                      VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
                                        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                                      VK_ACCESS_SHADER_READ_BIT,
@@ -5732,11 +5711,11 @@ void CommandEncoder::access_graphics_bindings(DescriptorSet const & set)
       case gpu::DescriptorType::StorageTexelBuffer:
       case gpu::DescriptorType::StorageBuffer:
       case gpu::DescriptorType::DynamicStorageBuffer:
-        for (u32 i = 0; i < binding.count; i++)
+        for (Buffer * buffer : binding.buffers)
         {
-          if (binding.buffers[i] != nullptr)
+          if (buffer != nullptr)
           {
-            access_buffer(*binding.buffers[i],
+            access_buffer(*buffer,
                           VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
                             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                           VK_ACCESS_SHADER_READ_BIT);
@@ -5774,13 +5753,11 @@ void CommandEncoder::bind_descriptor_sets(
   Span<u32 const>                dynamic_offsets)
 {
   ENCODE_PRELUDE();
-  u32 const num_sets            = size32(descriptor_sets);
-  u32 const num_dynamic_offsets = size32(dynamic_offsets);
 
   CHECK(is_in_pass(), "");
-  CHECK(num_sets <= gpu::MAX_PIPELINE_DESCRIPTOR_SETS, "");
-  CHECK(num_dynamic_offsets <= (gpu::MAX_PIPELINE_DYNAMIC_STORAGE_BUFFERS +
-                                gpu::MAX_PIPELINE_DYNAMIC_UNIFORM_BUFFERS),
+  CHECK(size32(descriptor_sets) <= gpu::MAX_PIPELINE_DESCRIPTOR_SETS, "");
+  CHECK(size32(dynamic_offsets) <= (gpu::MAX_PIPELINE_DYNAMIC_STORAGE_BUFFERS +
+                                    gpu::MAX_PIPELINE_DYNAMIC_UNIFORM_BUFFERS),
         "");
 
   for (u32 offset : dynamic_offsets)
@@ -5791,46 +5768,42 @@ void CommandEncoder::bind_descriptor_sets(
   if (is_in_compute_pass())
   {
     CHECK(compute_ctx.pipeline != nullptr, "");
-    CHECK(compute_ctx.pipeline->num_sets == num_sets, "");
-    VkDescriptorSet vk_sets[gpu::MAX_PIPELINE_DESCRIPTOR_SETS];
-    for (u32 i = 0; i < num_sets; i++)
+    CHECK(compute_ctx.pipeline->num_sets == descriptor_sets.size(), "");
+
+    compute_ctx.sets.clear();
+    for (auto set : descriptor_sets)
     {
-      compute_ctx.sets[i] = (DescriptorSet *) descriptor_sets[i];
+      compute_ctx.sets.push((DescriptorSet *) set).unwrap();
     }
-    compute_ctx.num_sets = num_sets;
+
+    InplaceVec<VkDescriptorSet, gpu::MAX_PIPELINE_DESCRIPTOR_SETS> vk_sets;
+    for (auto & set : descriptor_sets)
+    {
+      vk_sets.push(((DescriptorSet *) set)->vk_set).unwrap();
+    }
 
     dev->vk_table.CmdBindDescriptorSets(
       vk_command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-      compute_ctx.pipeline->vk_layout, 0, num_sets, vk_sets,
-      num_dynamic_offsets, dynamic_offsets.data());
+      compute_ctx.pipeline->vk_layout, 0, size32(vk_sets), vk_sets.data(),
+      size32(dynamic_offsets), dynamic_offsets.data());
   }
   else if (is_in_render_pass())
   {
     CHECK(render_ctx.pipeline != nullptr, "");
-    CHECK(render_ctx.pipeline->num_sets == num_sets, "");
-    DescriptorSet ** sets;
-    if (!render_ctx.arg_pool.nalloc(num_sets, sets))
+    CHECK(render_ctx.pipeline->num_sets == descriptor_sets.size(), "");
+
+    auto sets =
+      PinVec<DescriptorSet *>::make(size(descriptor_sets), render_ctx.arg_pool)
+        .unwrap();
+    auto offsets =
+      PinVec<u32>::make(size(dynamic_offsets), render_ctx.arg_pool).unwrap();
+
+    sets.extend(descriptor_sets.reinterpret<DescriptorSet * const>()).unwrap();
+    offsets.extend(dynamic_offsets).unwrap();
+
+    if (!render_ctx.commands.push(CmdBindDescriptorSets{
+          .sets = std::move(sets), .dynamic_offsets = std::move(offsets)}))
     {
-      status = Status::OutOfHostMemory;
-      return;
-    }
-    u32 * offsets;
-    if (!render_ctx.arg_pool.nalloc(num_dynamic_offsets, offsets))
-    {
-      render_ctx.arg_pool.ndealloc(num_sets, sets);
-      status = Status::OutOfHostMemory;
-      return;
-    }
-    mem::copy(descriptor_sets, (gpu::DescriptorSet *) sets);
-    mem::copy(dynamic_offsets, offsets);
-    if (!render_ctx.commands.push(
-          CmdBindDescriptorSets{.sets                = sets,
-                                .count               = num_sets,
-                                .dynamic_offsets     = offsets,
-                                .num_dynamic_offsets = num_dynamic_offsets}))
-    {
-      render_ctx.arg_pool.ndealloc(num_dynamic_offsets, offsets);
-      render_ctx.arg_pool.ndealloc(num_sets, sets);
       status = Status::OutOfHostMemory;
       return;
     }
@@ -5855,13 +5828,16 @@ void CommandEncoder::push_constants(Span<u8 const> push_constants_data)
   }
   else if (is_in_render_pass())
   {
+    // [ ] are the commands destroyed correctly?
     CHECK(render_ctx.pipeline != nullptr, "");
     CHECK(push_constants_size == render_ctx.pipeline->push_constants_size, "");
-    u8 * data;
-    CHECK(render_ctx.arg_pool.nalloc(push_constants_size, data), "");
-    mem::copy(push_constants_data, data);
+
+    auto constant =
+      PinVec<u8>::make(push_constants_size, render_ctx.arg_pool).unwrap();
+    constant.extend(push_constants_data).unwrap();
+
     if (!render_ctx.commands.push(
-          CmdPushConstants{.data = data, .size = push_constants_size}))
+          CmdPushConstants{.constant = std::move(constant)}))
     {
       status = Status::OutOfHostMemory;
       return;
@@ -5888,9 +5864,9 @@ void CommandEncoder::dispatch(u32 group_count_x, u32 group_count_y,
           dev->phy_dev.vk_properties.limits.maxComputeWorkGroupCount[2],
         "");
 
-  for (u32 i = 0; i < ctx.num_sets; i++)
+  for (auto set : ctx.sets)
   {
-    access_compute_bindings(*ctx.sets[i]);
+    access_compute_bindings(*set);
   }
 
   dev->vk_table.CmdDispatch(vk_command_buffer, group_count_x, group_count_y,
@@ -5910,9 +5886,9 @@ void CommandEncoder::dispatch_indirect(gpu::Buffer buffer_, u64 offset)
                                sizeof(gpu::DispatchCommand), 4),
         "");
 
-  for (u32 i = 0; i < ctx.num_sets; i++)
+  for (auto set : ctx.sets)
   {
-    access_compute_bindings(*ctx.sets[i]);
+    access_compute_bindings(*set);
   }
 
   dev->vk_table.CmdDispatchIndirect(vk_command_buffer, buffer->vk_buffer,
