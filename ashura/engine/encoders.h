@@ -10,14 +10,20 @@
 namespace ash
 {
 
-// [ ] should passes be passed on to the framegraph pass?
-struct PassInfo
-{
-  PassBundle & passes;
-};
-
 struct BlurEncoder
 {
+  struct Item
+  {
+    Framebuffer         framebuffer;
+    Option<PassStencil> stencil;
+    bool                upsample;
+    RectU               scissor;
+    gpu::Viewport       viewport;
+    gpu::DescriptorSet  samplers;
+    gpu::DescriptorSet  textures;
+    shader::blur::Blur  blur;
+  };
+
   Framebuffer framebuffer_;
 
   Option<PassStencil> stencil_;
@@ -34,21 +40,17 @@ struct BlurEncoder
 
   Vec<shader::blur::Blur> blurs_;
 
-  explicit BlurEncoder(AllocatorRef allocator, Framebuffer const & framebuffer,
-                       Option<PassStencil> stencil, bool upsample,
-                       RectU scissor, gpu::Viewport const & viewport,
-                       gpu::DescriptorSet samplers, gpu::DescriptorSet textures,
-                       shader::blur::Blur const & blur) :
-    framebuffer_{framebuffer},
-    stencil_{stencil},
-    upsample_{upsample},
-    scissor_{scissor},
-    viewport_{viewport},
-    samplers_{samplers},
-    textures_{textures},
+  explicit BlurEncoder(AllocatorRef allocator, Item const & item) :
+    framebuffer_{item.framebuffer},
+    stencil_{item.stencil},
+    upsample_{item.upsample},
+    scissor_{item.scissor},
+    viewport_{item.viewport},
+    samplers_{item.samplers},
+    textures_{item.textures},
     blurs_{allocator}
   {
-    blurs_.push(blur).unwrap();
+    blurs_.push(item.blur).unwrap();
   }
 
   BlurEncoder(BlurEncoder const &)             = delete;
@@ -57,19 +59,19 @@ struct BlurEncoder
   BlurEncoder & operator=(BlurEncoder &&)      = default;
   ~BlurEncoder()                               = default;
 
-  void pass(FrameGraph & frame_graph, PassInfo const & info) const
+  void pass(FrameGraph & frame_graph, PassBundle & passes) const
   {
     auto blurs   = blurs_.view();
     auto i_blurs = frame_graph.push_ssbo(blurs);
 
     frame_graph.add_pass(
       upsample_ ? "Blur.Upsample"_str : "Blur.Downsample"_str,
-      [info, framebuffer = framebuffer_, stencil = this->stencil_,
+      [&passes, framebuffer = framebuffer_, stencil = this->stencil_,
        upsample = this->upsample_, scissor = this->scissor_,
        viewport = this->viewport_, samplers = this->samplers_,
        textures = this->textures_, num_instances = size32(blurs),
        i_blurs](FrameGraph & frame_graph, gpu::CommandEncoder & enc) {
-        auto blurs = frame_graph.get_struct_buffer(i_blurs);
+        auto blurs = frame_graph.get(i_blurs);
 
         BlurPassParams params{
           .framebuffer = framebuffer,
@@ -79,17 +81,11 @@ struct BlurEncoder
           .samplers    = samplers,
           .textures    = textures,
           .blurs       = blurs,
-          .instances   = Slice32{0, num_instances}
+          .instances   = Slice32{0, num_instances},
+          .upsample    = upsample
         };
 
-        if (upsample)
-        {
-          info.passes.blur->upsample(enc, params);
-        }
-        else
-        {
-          info.passes.blur->downsample(enc, params);
-        }
+        passes.blur->encode(enc, params);
       });
   }
 };
