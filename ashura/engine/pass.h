@@ -59,4 +59,9 @@ struct PassStencil
   gpu::StencilState back  = {};
 };
 
+enum class ShaderVariantId : u32
+{
+  Base = 0
+};
+
 }    // namespace ash

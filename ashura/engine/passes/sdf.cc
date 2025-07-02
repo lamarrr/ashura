@@ -81,7 +81,7 @@ gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader)
                                           .specialization_constants_data = {}},
     .color_formats          = {&sys->gpu.color_format_, 1},
     .depth_format           = {},
-    .stencil_format         = {&sys->gpu.depth_stencil_format_, 1},
+    .stencil_format         = sys->gpu.depth_stencil_format_,
     .vertex_input_bindings  = {},
     .vertex_attributes      = {},
     .push_constants_size    = 0,
@@ -98,30 +98,29 @@ gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader)
 
 void SdfPass::acquire()
 {
-  pipeline_ = create_pipeline("Base"_str,
-                              sys->shader.get("SDF.Base"_str).unwrap().shader);
+  auto id =
+    add_variant("Base"_str, sys->shader.get("SDF.Base"_str).unwrap().shader);
+  CHECK(id == ShaderVariantId::Base, "");
 }
 
-void SdfPass::add_variant(Str label, gpu::Shader shader)
+ShaderVariantId SdfPass::add_variant(Str label, gpu::Shader shader)
 {
   auto pipeline = create_pipeline(label, shader);
-  bool exists;
-  variants_.push(label, pipeline, &exists, false).unwrap();
-  CHECK(!exists, "");
+  auto id       = variants_.push(Tuple{label, pipeline}).unwrap();
+  return (ShaderVariantId) id;
 }
 
-void SdfPass::remove_variant(Str label)
+void SdfPass::remove_variant(ShaderVariantId id)
 {
-  auto pipeline = variants_.get(label);
-  variants_.erase(label);
-  sys->gpu.release(pipeline);
+  auto pipeline = variants_[(usize) id].v0;
+  variants_.erase((usize) id);
+  sys->gpu.release(pipeline.v1);
 }
 
 void SdfPass::encode(gpu::CommandEncoder & e, SdfPassParams const & params,
-                     Str variant)
+                     ShaderVariantId variant)
 {
   InplaceVec<gpu::RenderingAttachment, 1> color;
-  InplaceVec<gpu::RenderingAttachment, 1> stencil;
 
   params.framebuffer.color_msaa.match(
     [&](ColorMsaaTexture const & tex) {
@@ -146,16 +145,14 @@ void SdfPass::encode(gpu::CommandEncoder & e, SdfPassParams const & params,
         .unwrap();
     });
 
-  params.stencil.match([&](PassStencil const &) {
-    stencil
-      .push(gpu::RenderingAttachment{
-        .view         = params.framebuffer.depth_stencil.stencil_view,
-        .resolve      = nullptr,
-        .resolve_mode = gpu::ResolveModes::None,
-        .load_op      = gpu::LoadOp::Load,
-        .store_op     = gpu::StoreOp::None,
-        .clear        = {}})
-      .unwrap();
+  auto stencil = params.stencil.map([&](PassStencil const &) {
+    return gpu::RenderingAttachment{
+      .view         = params.framebuffer.depth_stencil.stencil_view,
+      .resolve      = nullptr,
+      .resolve_mode = gpu::ResolveModes::None,
+      .load_op      = gpu::LoadOp::Load,
+      .store_op     = gpu::StoreOp::None,
+      .clear        = {}};
   });
 
   gpu::RenderingInfo info{
@@ -165,11 +162,10 @@ void SdfPass::encode(gpu::CommandEncoder & e, SdfPassParams const & params,
     .depth_attachment   = {},
     .stencil_attachment = stencil};
 
-  auto variant_pipeline =
-    variant.is_empty() ? pipeline_ : variants_.get(variant);
+  auto pipeline = variants_[(usize) variant].v0.v1;
 
   e.begin_rendering(info);
-  e.bind_graphics_pipeline(variant_pipeline);
+  e.bind_graphics_pipeline(pipeline);
   e.set_graphics_state(gpu::GraphicsState{
     .scissor             = params.scissor,
     .viewport            = params.viewport,
@@ -198,10 +194,9 @@ void SdfPass::encode(gpu::CommandEncoder & e, SdfPassParams const & params,
 
 void SdfPass::release()
 {
-  sys->gpu.device_->uninit(pipeline_);
-  for (auto [_, pipeline] : variants_)
+  for (auto [v] : variants_)
   {
-    sys->gpu.device_->uninit(pipeline);
+    sys->gpu.device_->uninit(v.v1);
   }
 }
 

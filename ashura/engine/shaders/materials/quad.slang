@@ -24,7 +24,8 @@ interface Material
 
 struct FlatMaterial : Material
 {
-  f32x4     colors[2];
+  f32x4     top;
+  f32x4     bottom;
   f32x2     gradient_rotor;    // (cos(theta), sin(theta))
   f32x2     uv0;
   f32x2     uv1;
@@ -40,7 +41,7 @@ struct FlatMaterial : Material
     var   tex       = textures[NonUniformResourceIndex(texture)];
     f32x4 tex_color = tex.Sample(smp, tex_uv);
     f32   t     = dot(gradient_rotor, info.rel_pos.xy) + gradient_center + 0.5;
-    f32x4 color = lerp(colors[0], colors[1], clamp(t, 0.0, 1.0));
+    f32x4 color = lerp(top, bottom, clamp(t, 0.0, 1.0));
     return color * tex_color;
   }
 };

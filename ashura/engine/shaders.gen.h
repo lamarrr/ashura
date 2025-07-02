@@ -44,7 +44,8 @@ namespace quad
 
 struct FlatMaterial
 {
-  alignas(16) f32x4 colors[2];
+  alignas(16) f32x4 top;
+  alignas(16) f32x4 bottom;
   alignas(8) f32x2 gradient_rotor;
   alignas(8) f32x2 uv0;
   alignas(8) f32x2 uv1;

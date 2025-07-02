@@ -25,8 +25,6 @@ struct QuadPassParams
 
 struct QuadPass final : Pass
 {
-  gpu::GraphicsPipeline pipeline_ = nullptr;
-
   SparseVec<Vec<Tuple<Str, gpu::GraphicsPipeline>>> variants_;
 
   QuadPass(AllocatorRef);
@@ -45,8 +43,6 @@ struct QuadPass final : Pass
   virtual void release() override;
 
   ShaderVariantId add_variant(Str label, gpu::Shader shader);
-
-  void remove_variant(Str label);
 
   void remove_variant(ShaderVariantId id);
 

@@ -18,6 +18,7 @@ struct BlurPassParams
   gpu::DescriptorSet  textures    = nullptr;
   StructBufferSpan    blurs       = {};
   Slice32             instances   = {};
+  bool                upsample    = false;
 };
 
 struct BlurPass final : Pass
@@ -41,9 +42,7 @@ struct BlurPass final : Pass
 
   virtual void release() override;
 
-  void upsample(gpu::CommandEncoder & encoder, BlurPassParams const & params);
-
-  void downsample(gpu::CommandEncoder & encoder, BlurPassParams const & params);
+  void encode(gpu::CommandEncoder & encoder, BlurPassParams const & params);
 };
 
 }    // namespace ash

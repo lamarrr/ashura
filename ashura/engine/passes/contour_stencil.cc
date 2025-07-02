@@ -59,7 +59,7 @@ void ContourStencilPass::acquire()
                                           .specialization_constants_data = {}},
     .color_formats          = {},
     .depth_format           = {},
-    .stencil_format         = {&sys->gpu.depth_stencil_format_, 1},
+    .stencil_format         = sys->gpu.depth_stencil_format_,
     .vertex_input_bindings  = {},
     .vertex_attributes      = {},
     .push_constants_size    = 0,
@@ -78,15 +78,13 @@ void ContourStencilPass::acquire()
 void ContourStencilPass::encode(gpu::CommandEncoder &            e,
                                 ContourStencilPassParams const & params)
 {
-  InplaceVec<gpu::RenderingAttachment, 1> stencil;
-  stencil
-    .push(gpu::RenderingAttachment{.view         = params.stencil.stencil_view,
-                                   .resolve      = nullptr,
-                                   .resolve_mode = gpu::ResolveModes::None,
-                                   .load_op      = gpu::LoadOp::Load,
-                                   .store_op     = gpu::StoreOp::Store,
-                                   .clear        = {}})
-    .unwrap();
+  auto stencil =
+    gpu::RenderingAttachment{.view         = params.stencil.stencil_view,
+                             .resolve      = nullptr,
+                             .resolve_mode = gpu::ResolveModes::None,
+                             .load_op      = gpu::LoadOp::Load,
+                             .store_op     = gpu::StoreOp::Store,
+                             .clear        = {}};
 
   gpu::RenderingInfo info{.render_area{.extent = params.stencil.extent().xy()},
                           .num_layers         = 1,

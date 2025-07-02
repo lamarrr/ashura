@@ -53,8 +53,6 @@ struct PBRPass final : Pass
 
   ShaderVariantId add_variant(Str label, gpu::Shader shader);
 
-  void remove_variant(Str label);
-
   void remove_variant(ShaderVariantId id);
 
   ShaderVariantId get_variant_id(Str label);

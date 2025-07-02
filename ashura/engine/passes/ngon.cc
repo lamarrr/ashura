@@ -79,7 +79,7 @@ gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader)
                                           .specialization_constants_data = {}},
     .color_formats          = {&sys->gpu.color_format_, 1},
     .depth_format           = {},
-    .stencil_format         = {&sys->gpu.depth_stencil_format_, 1},
+    .stencil_format         = sys->gpu.depth_stencil_format_,
     .vertex_input_bindings  = {},
     .vertex_attributes      = {},
     .push_constants_size    = 0,
@@ -94,36 +94,35 @@ gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader)
   return sys->gpu.device_->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
-NgonPass::NgonPass(AllocatorRef allocator) : variants_{allocator}
+NgonPass::NgonPass(AllocatorRef allocator) : pipelines_{allocator}
 {
 }
 
 void NgonPass::acquire()
 {
-  pipeline_ =
-    create_pipeline("Base", sys->shader.get("Ngon.Base"_str).unwrap().shader);
+  auto id =
+    add_variant("Base"_str, sys->shader.get("Ngon.Base"_str).unwrap().shader);
+  CHECK(id == ShaderVariantId::Base, "");
 }
 
-void NgonPass::add_variant(Str label, gpu::Shader shader)
+ShaderVariantId NgonPass::add_variant(Str label, gpu::Shader shader)
 {
   auto pipeline = create_pipeline(label, shader);
-  bool exists;
-  variants_.push(label, pipeline, &exists, false).unwrap();
-  CHECK(!exists, "");
+  auto id       = pipelines_.push(Tuple{label, pipeline}).unwrap();
+  return (ShaderVariantId) id;
 }
 
-void NgonPass::remove_variant(Str label)
+void NgonPass::remove_variant(ShaderVariantId id)
 {
-  auto pipeline = variants_.get(label);
-  variants_.erase(label);
-  sys->gpu.release(pipeline);
+  auto pipeline = pipelines_[(usize) id];
+  pipelines_.erase((usize) id);
+  sys->gpu.release(pipeline.v0.v1);
 }
 
 void NgonPass::encode(gpu::CommandEncoder & e, NgonPassParams const & params,
-                      Str variant)
+                      ShaderVariantId variant)
 {
   InplaceVec<gpu::RenderingAttachment, 1> color;
-  InplaceVec<gpu::RenderingAttachment, 1> stencil;
 
   params.framebuffer.color_msaa.match(
     [&](ColorMsaaTexture const & tex) {
@@ -148,16 +147,14 @@ void NgonPass::encode(gpu::CommandEncoder & e, NgonPassParams const & params,
         .unwrap();
     });
 
-  params.stencil.match([&](PassStencil const &) {
-    stencil
-      .push(gpu::RenderingAttachment{
-        .view         = params.framebuffer.depth_stencil.stencil_view,
-        .resolve      = nullptr,
-        .resolve_mode = gpu::ResolveModes::None,
-        .load_op      = gpu::LoadOp::Load,
-        .store_op     = gpu::StoreOp::None,
-        .clear        = {}})
-      .unwrap();
+  auto stencil = params.stencil.map([&](PassStencil const &) {
+    return gpu::RenderingAttachment{
+      .view         = params.framebuffer.depth_stencil.stencil_view,
+      .resolve      = nullptr,
+      .resolve_mode = gpu::ResolveModes::None,
+      .load_op      = gpu::LoadOp::Load,
+      .store_op     = gpu::StoreOp::None,
+      .clear        = {}};
   });
 
   gpu::RenderingInfo info{
@@ -169,10 +166,9 @@ void NgonPass::encode(gpu::CommandEncoder & e, NgonPassParams const & params,
 
   e.begin_rendering(info);
 
-  auto variant_pipeline =
-    variant.is_empty() ? pipeline_ : variants_.get(variant);
+  auto pipeline = pipelines_[(usize) variant].v0.v1;
 
-  e.bind_graphics_pipeline(variant_pipeline);
+  e.bind_graphics_pipeline(pipeline);
   e.bind_descriptor_sets(span({
                            params.samplers,                           //
                            params.textures,                           //
@@ -210,10 +206,9 @@ void NgonPass::encode(gpu::CommandEncoder & e, NgonPassParams const & params,
 
 void NgonPass::release()
 {
-  sys->gpu.device_->uninit(pipeline_);
-  for (auto [_, pipeline] : variants_)
+  for (auto [v] : pipelines_)
   {
-    sys->gpu.device_->uninit(pipeline);
+    sys->gpu.device_->uninit(v.v1);
   }
 }
 

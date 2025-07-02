@@ -822,6 +822,55 @@ using Slice16 = CoreSlice<u16>;
 using Slice32 = CoreSlice<u32>;
 using Slice64 = CoreSlice<u64>;
 
+/// @brief Iterator Model. Iterators are only required to
+/// produce values, they are not required to provide
+/// references to the values
+template <typename T>
+concept Iter = requires (T it) {
+  {
+    // value producer
+    *it
+  };
+  {
+    // in-place (pre-fix) advancement
+    ++it
+  };
+};
+
+/// @brief Range Model. Ranges are read-only by default.
+template <typename R>
+concept Range = requires (R r) {
+  {
+    // can get an iterator to its beginning element
+    begin(r)
+  } -> Iter;
+  {
+    // returns boolean when asked if it has ended
+    !(begin(r) != end(r))
+  };
+};
+
+template <typename T>
+concept OutIter = Iter<T>;
+
+template <typename T>
+concept OutRange = Range<T>;
+
+template <typename Iter>
+concept SizedIter = requires (Iter iter) {
+  { static_cast<usize>(iter.size()) };
+};
+
+template <typename Iter>
+concept BoundedSizeIter = requires (Iter iter) {
+  { static_cast<usize>(iter.max_size()) };
+};
+
+template <typename Iter, typename T>
+concept IterOf = requires (Iter iter) {
+  { static_cast<T>(*iter) };
+};
+
 struct IterEnd
 {
 };
@@ -834,8 +883,8 @@ struct [[nodiscard]] SpanIter
   using Type = T;
   using Ref  = T &;
 
-  T * iter_ = nullptr;
-  T * end_  = nullptr;
+  T *       iter_ = nullptr;
+  T const * end_  = nullptr;
 
   constexpr SpanIter & operator++()
   {
@@ -851,6 +900,68 @@ struct [[nodiscard]] SpanIter
   constexpr bool operator!=(IterEnd) const
   {
     return iter_ != end_;
+  }
+
+  constexpr usize size() const
+  {
+    return static_cast<usize>(end_ - iter_);
+  }
+};
+
+template <typename T>
+struct [[nodiscard]] RevSpanIter
+{
+  using Type = T;
+  using Ref  = T &;
+
+  T *       iter_  = nullptr;
+  T const * begin_ = nullptr;
+
+  constexpr RevSpanIter & operator++()
+  {
+    --iter_;
+    return *this;
+  }
+
+  constexpr T & operator*() const
+  {
+    return *(iter_ - 1);
+  }
+
+  constexpr bool operator!=(IterEnd) const
+  {
+    return iter_ != begin_;
+  }
+
+  constexpr usize size() const
+  {
+    return static_cast<usize>(iter_ - begin_);
+  }
+};
+
+template <typename Iter>
+struct IterView
+{
+  Iter iter_;
+
+  constexpr auto begin() const
+  {
+    return iter_;
+  }
+
+  constexpr auto end() const
+  {
+    return IterEnd{};
+  }
+
+  constexpr auto size() const requires (SizedIter<Iter>)
+  {
+    return iter_.size();
+  }
+
+  constexpr auto max_size() const requires (BoundedSizeIter<Iter>)
+  {
+    return iter_.max_size();
   }
 };
 
@@ -979,40 +1090,6 @@ constexpr auto is_empty(T && a) -> decltype(a.is_empty())
   return a.is_empty();
 }
 
-/// @brief Iterator Model. Iterators are only required to
-/// produce values, they are not required to provide
-/// references to the values
-template <typename T>
-concept Iter = requires (T it) {
-  {
-    // value producer
-    *it
-  };
-  {
-    // in-place (pre-fix) advancement
-    ++it
-  };
-};
-
-/// @brief Range Model. Ranges are read-only by default.
-template <typename R>
-concept Range = requires (R r) {
-  {
-    // can get an iterator to its beginning element
-    begin(r)
-  } -> Iter;
-  {
-    // returns boolean when asked if it has ended
-    !(begin(r) != end(r))
-  };
-};
-
-template <typename T>
-concept OutIter = Iter<T>;
-
-template <typename T>
-concept OutRange = Range<T>;
-
 template <typename U, typename T>
 concept SpanCompatible = Convertible<U (*)[], T (*)[]>;
 
@@ -1033,9 +1110,11 @@ concept SpanCompatibleContainer =
 template <typename T>
 struct [[nodiscard]] Span
 {
-  using Type = T;
-  using Repr = T;
-  using Iter = SpanIter<T>;
+  using Type    = T;
+  using Repr    = T;
+  using Iter    = SpanIter<T>;
+  using RevIter = RevSpanIter<T>;
+  using Rev     = IterView<RevIter>;
 
   T *   data_ = nullptr;
   usize size_ = 0;
@@ -1101,7 +1180,7 @@ struct [[nodiscard]] Span
     return size() == 0;
   }
 
-  constexpr Iter begin() const
+  constexpr auto begin() const
   {
     return Iter{.iter_ = pbegin(), .end_ = pend()};
   }
@@ -1109,6 +1188,13 @@ struct [[nodiscard]] Span
   constexpr auto end() const
   {
     return IterEnd{};
+  }
+
+  constexpr auto rev() const
+  {
+    return Rev{
+      .iter_ = RevIter{.iter_ = pend(), .begin_ = pbegin()}
+    };
   }
 
   constexpr T * pbegin() const
@@ -1470,7 +1556,7 @@ struct BitSpan
   using Repr = R;
   using Iter = BitSpanIter<R>;
 
-  R *   storage_ = 0;
+  R *   storage_ = nullptr;
   usize size_    = 0;
 
   constexpr BitSpan() = default;
@@ -1654,24 +1740,44 @@ struct Array
     return sizeof(T) * size();
   }
 
-  constexpr T * begin()
+  constexpr T const * pbegin() const
   {
     return data();
   }
 
-  constexpr T const * begin() const
+  constexpr T const * pend() const
+  {
+    return data() + size();
+  }
+
+  constexpr T * pbegin()
   {
     return data();
   }
 
-  constexpr T * end()
+  constexpr T * pend()
   {
     return data() + size();
   }
 
-  constexpr T const * end() const
+  constexpr auto begin()
   {
-    return data() + size();
+    return Iter{.iter_ = pbegin(), .end_ = pend()};
+  }
+
+  constexpr auto begin() const
+  {
+    return ConstIter{.iter_ = pbegin(), .end_ = pend()};
+  }
+
+  constexpr auto end()
+  {
+    return IterEnd{};
+  }
+
+  constexpr auto end() const
+  {
+    return IterEnd{};
   }
 
   constexpr T & first()
@@ -1730,12 +1836,12 @@ struct Array
     return data();
   }
 
-  constexpr ConstView view() const
+  constexpr auto view() const
   {
     return ConstView{data(), size()};
   }
 
-  constexpr View view()
+  constexpr auto view()
   {
     return View{data(), size()};
   }
@@ -1782,24 +1888,44 @@ struct Array<T, 0>
     return sizeof(T) * size();
   }
 
-  constexpr T * begin()
+  constexpr T const * pbegin() const
   {
     return data();
   }
 
-  constexpr T const * begin() const
+  constexpr T const * pend() const
+  {
+    return data() + size();
+  }
+
+  constexpr T * pbegin()
   {
     return data();
   }
 
-  constexpr T * end()
+  constexpr T * pend()
   {
     return data() + size();
   }
 
-  constexpr T const * end() const
+  constexpr auto begin()
   {
-    return data() + size();
+    return Iter{.iter_ = pbegin(), .end_ = pend()};
+  }
+
+  constexpr auto begin() const
+  {
+    return ConstIter{.iter_ = pbegin(), .end_ = pend()};
+  }
+
+  constexpr auto end()
+  {
+    return IterEnd{};
+  }
+
+  constexpr auto end() const
+  {
+    return IterEnd{};
   }
 
   constexpr T & first() requires (SIZE > 1)
@@ -1858,12 +1984,12 @@ struct Array<T, 0>
     return data();
   }
 
-  constexpr ConstView view() const
+  constexpr auto view() const
   {
     return ConstView{data(), size()};
   }
 
-  constexpr View view()
+  constexpr auto view()
   {
     return View{data(), size()};
   }

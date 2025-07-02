@@ -8,21 +8,6 @@
 namespace ash
 {
 
-template <typename Iter>
-concept SizedIter = requires (Iter iter) {
-  { static_cast<usize>(iter.size()) };
-};
-
-template <typename Iter>
-concept BoundedSizeIter = requires (Iter iter) {
-  { static_cast<usize>(iter.max_size()) };
-};
-
-template <typename Iter, typename T>
-concept IterOf = requires (Iter iter) {
-  { static_cast<T>(*iter) };
-};
-
 template <typename I>
 struct IndexIter
 {

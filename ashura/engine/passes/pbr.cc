@@ -78,8 +78,8 @@ gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader,
                                           .specialization_constants      = {},
                                           .specialization_constants_data = {}},
     .color_formats          = {&sys->gpu.color_format_, 1},
-    .depth_format           = {&sys->gpu.depth_stencil_format_, 1},
-    .stencil_format         = {&sys->gpu.depth_stencil_format_, 1},
+    .depth_format           = sys->gpu.depth_stencil_format_,
+    .stencil_format         = sys->gpu.depth_stencil_format_,
     .vertex_input_bindings  = {},
     .vertex_attributes      = {},
     .push_constants_size    = 0,
@@ -109,33 +109,32 @@ PBRPass::PBRPass(AllocatorRef allocator) : variants_{allocator}
 
 void PBRPass::acquire()
 {
-  pipeline_ = create_pipeline("Base"_str,
-                              sys->shader.get("PBR.Base"_str).unwrap().shader);
+  auto id =
+    add_variant("Base"_str, sys->shader.get("PBR.Base"_str).unwrap().shader);
+  CHECK(id == ShaderVariantId::Base, "");
 }
 
-void PBRPass::add_variant(Str label, gpu::Shader shader)
+ShaderVariantId PBRPass::add_variant(Str label, gpu::Shader shader)
 {
   auto pipeline = create_pipeline(label, shader);
-  bool exists;
-  variants_.push(label, pipeline, &exists, false).unwrap();
-  CHECK(!exists, "");
+  auto id = (ShaderVariantId) variants_.push(Tuple{label, pipeline}).unwrap();
+  CHECK(id == ShaderVariantId::Base, "");
+  return id;
 }
 
-void PBRPass::remove_variant(Str label)
+void PBRPass::remove_variant(ShaderVariantId id)
 {
-  auto pipeline = variants_.get(label);
-  variants_.erase(label);
+  auto pipeline = variants_[(usize) id].v0.v1;
   sys->gpu.release(pipeline.fill);
   sys->gpu.release(pipeline.line);
   sys->gpu.release(pipeline.point);
+  variants_.erase((usize) id);
 }
 
 void PBRPass::encode(gpu::CommandEncoder & e, PBRPassParams const & params,
-                     Str variant)
+                     ShaderVariantId variant)
 {
   InplaceVec<gpu::RenderingAttachment, 1> color;
-  InplaceVec<gpu::RenderingAttachment, 1> depth;
-  InplaceVec<gpu::RenderingAttachment, 1> stencil;
 
   params.framebuffer.color_msaa.match(
     [&](ColorMsaaTexture const & tex) {
@@ -160,26 +159,22 @@ void PBRPass::encode(gpu::CommandEncoder & e, PBRPassParams const & params,
         .unwrap();
     });
 
-  depth
-    .push(
-      gpu::RenderingAttachment{.view    = params.framebuffer.depth_stencil.view,
-                               .resolve = nullptr,
-                               .resolve_mode = gpu::ResolveModes::None,
-                               .load_op      = gpu::LoadOp::Load,
-                               .store_op     = gpu::StoreOp::Store,
-                               .clear        = {}})
-    .unwrap();
+  auto depth =
+    gpu::RenderingAttachment{.view    = params.framebuffer.depth_stencil.view,
+                             .resolve = nullptr,
+                             .resolve_mode = gpu::ResolveModes::None,
+                             .load_op      = gpu::LoadOp::Load,
+                             .store_op     = gpu::StoreOp::Store,
+                             .clear        = {}};
 
-  params.stencil.match([&](PassStencil const &) {
-    stencil
-      .push(gpu::RenderingAttachment{
-        .view         = params.framebuffer.depth_stencil.stencil_view,
-        .resolve      = nullptr,
-        .resolve_mode = gpu::ResolveModes::None,
-        .load_op      = gpu::LoadOp::Load,
-        .store_op     = gpu::StoreOp::None,
-        .clear        = {}})
-      .unwrap();
+  auto stencil = params.stencil.map([&](PassStencil const &) {
+    return gpu::RenderingAttachment{
+      .view         = params.framebuffer.depth_stencil.stencil_view,
+      .resolve      = nullptr,
+      .resolve_mode = gpu::ResolveModes::None,
+      .load_op      = gpu::LoadOp::Load,
+      .store_op     = gpu::StoreOp::None,
+      .clear        = {}};
   });
 
   gpu::RenderingInfo info{
@@ -191,21 +186,20 @@ void PBRPass::encode(gpu::CommandEncoder & e, PBRPassParams const & params,
 
   e.begin_rendering(info);
 
-  auto variant_pipeline =
-    variant.is_empty() ? pipeline_ : variants_.get(variant);
+  auto pipelines = variants_[(usize) variant].v0.v1;
 
-  gpu::GraphicsPipeline pipeline = variant_pipeline.fill;
+  gpu::GraphicsPipeline pipeline = pipelines.fill;
 
   switch (params.polygon_mode)
   {
     case gpu::PolygonMode::Fill:
-      pipeline = variant_pipeline.fill;
+      pipeline = pipelines.fill;
       break;
     case gpu::PolygonMode::Line:
-      pipeline = variant_pipeline.line;
+      pipeline = pipelines.line;
       break;
     case gpu::PolygonMode::Point:
-      pipeline = variant_pipeline.point;
+      pipeline = pipelines.point;
       break;
   }
 
@@ -248,14 +242,11 @@ void PBRPass::encode(gpu::CommandEncoder & e, PBRPassParams const & params,
 
 void PBRPass::release()
 {
-  sys->gpu.device_->uninit(pipeline_.fill);
-  sys->gpu.device_->uninit(pipeline_.line);
-  sys->gpu.device_->uninit(pipeline_.point);
-  for (auto [_, pipeline] : variants_)
+  for (auto [v] : variants_)
   {
-    sys->gpu.device_->uninit(pipeline.fill);
-    sys->gpu.device_->uninit(pipeline.line);
-    sys->gpu.device_->uninit(pipeline.point);
+    sys->gpu.device_->uninit(v.v1.fill);
+    sys->gpu.device_->uninit(v.v1.line);
+    sys->gpu.device_->uninit(v.v1.point);
   }
 }
 

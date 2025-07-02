@@ -11,6 +11,7 @@ namespace ui
 {
 
 // [ ] segmentation
+// [ ] measure function
 /// @brief An infinitely scrollable List of elements.
 struct List : View
 {

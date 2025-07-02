@@ -7,6 +7,7 @@
 #include "ashura/gpu/gpu.h"
 #include "ashura/std/allocator.h"
 #include "ashura/std/allocators.h"
+#include "ashura/std/range.h"
 #include "ashura/std/vec.h"
 #include "vk_mem_alloc.h"
 #include "vulkan/vk_enum_string_helper.h"
@@ -236,16 +237,44 @@ enum class AccessSequence : u8
   ReadAfterWrite = 3
 };
 
-struct BufferState
+struct DescriptorSet;
+
+struct Binder
 {
-  BufferAccess   access[2] = {};
-  AccessSequence sequence  = AccessSequence::None;
+  DescriptorSet * set     = nullptr;
+  u32             binding = 0;
+  u32             element = 0;
 };
 
-struct ImageState
+constexpr u32 MAX_SUBRESOURCE_BINDERS = 8;
+
+void remove_binder(InplaceVec<Binder, MAX_SUBRESOURCE_BINDERS> & binders,
+                   DescriptorSet *                               set)
 {
-  ImageAccess    access[2] = {};
-  AccessSequence sequence  = AccessSequence::None;
+  auto old = binders;
+  binders.clear();
+  for (auto const & binder : old)
+  {
+    if (binder.set == set)
+    {
+      continue;
+    }
+    binders.push(binder).unwrap();
+  }
+}
+
+struct BufferState
+{
+  BufferAccess                                access[2] = {};
+  AccessSequence                              sequence  = AccessSequence::None;
+  InplaceVec<Binder, MAX_SUBRESOURCE_BINDERS> binders   = {};
+};
+
+struct ImageAspectState
+{
+  ImageAccess                                 access[2] = {};
+  AccessSequence                              sequence  = AccessSequence::None;
+  InplaceVec<Binder, MAX_SUBRESOURCE_BINDERS> binders   = {};
 };
 
 struct Buffer
@@ -262,6 +291,7 @@ struct BufferView
   VkBufferView        vk_view = nullptr;
 };
 
+inline constexpr u32 MAIN_ASPECT_IDX    = 0;
 inline constexpr u32 COLOR_ASPECT_IDX   = 0;
 inline constexpr u32 DEPTH_ASPECT_IDX   = 0;
 inline constexpr u32 STENCIL_ASPECT_IDX = 1;
@@ -269,12 +299,12 @@ inline constexpr u32 MAX_IMAGE_ASPECTS  = 2;
 
 struct Image
 {
-  gpu::ImageInfo                            info                = {};
-  bool                                      is_swapchain_image  = false;
-  VkImage                                   vk_image            = nullptr;
-  VmaAllocation                             vma_allocation      = nullptr;
-  VmaAllocationInfo                         vma_allocation_info = {};
-  InplaceVec<ImageState, MAX_IMAGE_ASPECTS> states = {};    // 1 for each aspect
+  gpu::ImageInfo                                  info                = {};
+  bool                                            is_swapchain_image  = false;
+  VkImage                                         vk_image            = nullptr;
+  VmaAllocation                                   vma_allocation      = nullptr;
+  VmaAllocationInfo                               vma_allocation_info = {};
+  InplaceVec<ImageAspectState, MAX_IMAGE_ASPECTS> aspect_states       = {};
 };
 
 struct ImageView
@@ -295,24 +325,55 @@ struct DescriptorSetLayout
   u32 num_variable_length = 0;
 };
 
+using SyncResources = Enum<None, Vec<Image *>, Vec<Buffer *>>;
+
 /// used to track stateful resource access
 /// @param images only valid if `type` is a descriptor type that access images
 /// @param param buffers: only valid if `type` is a descriptor type that access
 /// buffers
 struct DescriptorBinding
 {
-  union
-  {
-    Span<void *>   sync_resources = {};
-    Span<Image *>  images;
-    Span<Buffer *> buffers;
-  };
+  SyncResources       sync_resources = none;
+  gpu::DescriptorType type            = gpu::DescriptorType::Sampler;
+  u32                 size            = 0;
 
-  gpu::DescriptorType type = gpu::DescriptorType::Sampler;
-
-  usize count() const
+  void update(Buffer * next, Binder binder)
   {
-    return sync_resources.size();
+    Buffer *& current = sync_resources[v2][binder.element];
+
+    // remove old binder
+    if (current != nullptr)
+    {
+      auto loc = find(current->state.binders.view(), binder, obj::byte_eq)
+                   .as_slice_of(current->state.binders.view());
+      if (!loc.is_empty())
+      {
+        current->state.binders.erase(loc);
+      }
+    }
+
+    // update binder
+    current = next;
+    current->state.binders.push(binder).unwrap();
+  }
+
+  void update(Image * next, u32 state, Binder binder)
+  {
+    Image *& current = sync_resources[v1][binder.element];
+
+    if (current != nullptr)
+    {
+      auto loc =
+        find(current->aspect_states[state].binders.view(), binder, obj::byte_eq)
+          .as_slice_of(current->aspect_states[state].binders.view());
+      if (!loc.is_empty())
+      {
+        current->aspect_states[state].binders.erase(loc);
+      }
+    }
+
+    current = next;
+    current->aspect_states[state].binders.push(binder).unwrap();
   }
 };
 
@@ -323,83 +384,6 @@ struct DescriptorSet
   VkDescriptorPool vk_pool = nullptr;
 
   InplaceVec<DescriptorBinding, gpu::MAX_DESCRIPTOR_SET_BINDINGS> bindings = {};
-
-  /// @brief get the scratch buffer layout to use to update the maximually-sized binding
-  static constexpr Layout scratch_layout(Span<DescriptorBinding const> bindings)
-  {
-    Layout scratch{.alignment = MAX_STANDARD_ALIGNMENT, .size = 0};
-
-    for (auto const & b : bindings)
-    {
-      switch (b.type)
-      {
-        case gpu::DescriptorType::DynamicStorageBuffer:
-        case gpu::DescriptorType::DynamicUniformBuffer:
-        case gpu::DescriptorType::StorageBuffer:
-        case gpu::DescriptorType::UniformBuffer:
-          scratch =
-            scratch.unioned(layout_of<VkDescriptorBufferInfo>.array(b.count()));
-          break;
-
-        case gpu::DescriptorType::StorageTexelBuffer:
-        case gpu::DescriptorType::UniformTexelBuffer:
-          scratch = scratch.unioned(layout_of<VkBufferView>.array(b.count()));
-          break;
-
-        case gpu::DescriptorType::SampledImage:
-        case gpu::DescriptorType::CombinedImageSampler:
-        case gpu::DescriptorType::StorageImage:
-        case gpu::DescriptorType::InputAttachment:
-        case gpu::DescriptorType::Sampler:
-          scratch =
-            scratch.unioned(layout_of<VkDescriptorImageInfo>.array(b.count()));
-          break;
-        default:
-          break;
-      }
-    }
-
-    return scratch;
-  }
-
-  /// @brief get the scratch buffer layout to use to update the maximually-sized binding
-  static constexpr Layout
-    sync_resources_layout(Span<DescriptorBinding const> bindings)
-  {
-    usize count = 0;
-
-    for (auto const & b : bindings)
-    {
-      switch (b.type)
-      {
-        case gpu::DescriptorType::DynamicStorageBuffer:
-        case gpu::DescriptorType::DynamicUniformBuffer:
-        case gpu::DescriptorType::StorageBuffer:
-        case gpu::DescriptorType::UniformBuffer:
-        case gpu::DescriptorType::StorageTexelBuffer:
-        case gpu::DescriptorType::UniformTexelBuffer:
-        case gpu::DescriptorType::SampledImage:
-        case gpu::DescriptorType::CombinedImageSampler:
-        case gpu::DescriptorType::StorageImage:
-        case gpu::DescriptorType::InputAttachment:
-          count += b.count();
-          break;
-        case gpu::DescriptorType::Sampler:
-          break;
-        default:
-          break;
-      }
-    }
-
-    return layout_of<void *>.array(count);
-  }
-
-  static constexpr Flex<DescriptorSet, void *, u8>
-    flex(Span<DescriptorBinding const> bindings)
-  {
-    return {layout_of<DescriptorSet>, sync_resources_layout(bindings),
-            scratch_layout(bindings)};
-  }
 };
 
 struct ComputePipeline
@@ -861,6 +845,7 @@ struct Device final : gpu::Device
   VkQueue            vk_queue      = nullptr;
   VmaAllocator       vma_allocator = nullptr;
   FrameContext       frame_ctx     = {};
+  Vec<u8>            scratch       = {};
 
   void set_resource_name(Str label, void const * resource, VkObjectType type,
                          VkDebugReportObjectTypeEXT debug_type);
@@ -974,9 +959,6 @@ struct Device final : gpu::Device
   virtual Result<Void, Status>
     merge_pipeline_cache(gpu::PipelineCache             dst,
                          Span<gpu::PipelineCache const> srcs) override;
-
-  virtual void unbind_descriptor_set(gpu::DescriptorSet set, u32 binding,
-                                     Slice32 elements) override;
 
   virtual void
     update_descriptor_set(gpu::DescriptorSetUpdate const & update) override;

@@ -540,7 +540,7 @@ inline bool sync_buffer_state(BufferState & state, BufferAccess request,
 // perform reads
 //
 // if their scopes don't line-up, they won't observe the effects same
-inline bool sync_image_state(ImageState & state, ImageAccess request,
+inline bool sync_image_state(ImageAspectState & state, ImageAccess request,
                              VkImageMemoryBarrier & barrier,
                              VkPipelineStageFlags & src_stages,
                              VkPipelineStageFlags & dst_stages)
@@ -1639,6 +1639,7 @@ Result<gpu::Device *, Status>
   dev->vk_queue      = vk_queue;
   dev->vma_allocator = vma_allocator;
   dev->frame_ctx     = FrameContext{};
+  dev->scratch       = Vec<u8>{allocator};
 
   defer dev_{[&] {
     if (dev != nullptr)
@@ -1961,7 +1962,7 @@ Result<gpu::Image, Status> Device::create_image(gpu::ImageInfo const & info)
                             2 :
                             1;
 
-  InplaceVec<ImageState, MAX_IMAGE_ASPECTS> states;
+  InplaceVec<ImageAspectState, MAX_IMAGE_ASPECTS> states;
   states.resize(num_aspects).unwrap();
 
   new (image) Image{.info                = info,
@@ -1969,7 +1970,7 @@ Result<gpu::Image, Status> Device::create_image(gpu::ImageInfo const & info)
                     .vk_image            = vk_image,
                     .vma_allocation      = vma_allocation,
                     .vma_allocation_info = vma_allocation_info,
-                    .states              = states};
+                    .aspect_states       = states};
 
   return Ok{(gpu::Image) image};
 }
@@ -2352,42 +2353,60 @@ Result<gpu::DescriptorSet, Status>
   {
     bindings
       .push(DescriptorBinding{
-        .sync_resources{nullptr, size}, // temporarily null
-        .type = info.type
-    })
+        .sync_resources = none, .type = info.type, .size = size})
       .unwrap();
   }
 
-  Flex const   flex        = DescriptorSet::flex(bindings);
-  Layout const flex_layout = flex.layout();
-
-  u8 * head;
-
-  if (!allocator->zalloc(flex_layout, head))
+  for (auto & binding : bindings)
   {
-    return Err{Status::OutOfHostMemory};
-  }
-
-  auto [set, sync_resources, scratch] = flex.unpack(head);
-
-  DescriptorSet * p_set = new (set.data())
-    DescriptorSet{.vk_set = vk_set, .vk_pool = vk_pool, .bindings = bindings};
-
-  {
-    // assign storage to the sync resources pointers
-    void ** iter = sync_resources.data();
-
-    for (auto & binding : p_set->bindings)
+    switch (binding.type)
     {
-      binding.sync_resources.data_ = iter;
-      iter += binding.count();
+      case gpu::DescriptorType::DynamicStorageBuffer:
+      case gpu::DescriptorType::DynamicUniformBuffer:
+      case gpu::DescriptorType::StorageBuffer:
+      case gpu::DescriptorType::UniformBuffer:
+      case gpu::DescriptorType::StorageTexelBuffer:
+      case gpu::DescriptorType::UniformTexelBuffer:
+      {
+        auto resources = Vec<Buffer *>::make(binding.size, allocator).unwrap();
+        resources.resize(binding.size).unwrap();
+        binding.sync_resources = std::move(resources);
+      }
+      break;
+
+      case gpu::DescriptorType::SampledImage:
+      case gpu::DescriptorType::CombinedImageSampler:
+      case gpu::DescriptorType::StorageImage:
+      case gpu::DescriptorType::InputAttachment:
+      {
+        auto resources = Vec<Image *>::make(binding.size, allocator).unwrap();
+        resources.resize(binding.size).unwrap();
+        binding.sync_resources = std::move(resources);
+      }
+      break;
+
+      case gpu::DescriptorType::Sampler:
+        break;
+
+      default:
+        break;
     }
   }
+
+  DescriptorSet * set;
+
+  if (!allocator->nalloc(1, set))
+  {
+    return Err{(gpu::Status) result};
+  }
+
+  new (set) DescriptorSet{
+    .vk_set = vk_set, .vk_pool = vk_pool, .bindings = std::move(bindings)};
 
   vk_pool = nullptr;
   vk_set  = nullptr;
 
-  return Ok{(gpu::DescriptorSet) p_set};
+  return Ok{(gpu::DescriptorSet) set};
 }
 
 Result<gpu::PipelineCache, Status>
@@ -3001,7 +3020,7 @@ VkResult Device::recreate_swapchain(Swapchain * swapchain)
   for (auto [vk, impl, img] :
        zip(swapchain->vk_images, swapchain->image_impls, swapchain->images))
   {
-    InplaceVec<ImageState, MAX_IMAGE_ASPECTS> states;
+    InplaceVec<ImageAspectState, MAX_IMAGE_ASPECTS> states;
     states.resize(1).unwrap();    // 1 color aspect
     impl = Image{
       .info =
@@ -3016,7 +3035,7 @@ VkResult Device::recreate_swapchain(Swapchain * swapchain)
       .vk_image            = vk,
       .vma_allocation      = nullptr,
       .vma_allocation_info = {},
-      .states              = states
+      .aspect_states       = states
     };
     img = (gpu::Image) &impl;
   }
@@ -3349,7 +3368,14 @@ void Device::uninit(gpu::Buffer buffer_)
     return;
   }
 
+  for (auto binder : buffer->state.binders)
+  {
+    binder.set->bindings[binder.binding].sync_resources[v2][binder.element] =
+      nullptr;
+  }
+
   vmaDestroyBuffer(vma_allocator, buffer->vk_buffer, buffer->vma_allocation);
+  buffer->~Buffer();
   allocator->ndealloc(1, buffer);
 }
 
@@ -3363,6 +3389,7 @@ void Device::uninit(gpu::BufferView buffer_view_)
   }
 
   vk_table.DestroyBufferView(vk_dev, buffer_view->vk_view, nullptr);
+  buffer_view->~BufferView();
   allocator->ndealloc(1, buffer_view);
 }
 
@@ -3377,7 +3404,17 @@ void Device::uninit(gpu::Image image_)
 
   CHECK(!image->is_swapchain_image, "");
 
+  for (auto & state : image->aspect_states)
+  {
+    for (auto binder : state.binders)
+    {
+      binder.set->bindings[binder.binding].sync_resources[v1][binder.element] =
+        nullptr;
+    }
+  }
+
   vmaDestroyImage(vma_allocator, image->vk_image, image->vma_allocation);
+  image->~Image();
   allocator->ndealloc(1, image);
 }
 
@@ -3391,6 +3428,7 @@ void Device::uninit(gpu::ImageView image_view_)
   }
 
   vk_table.DestroyImageView(vk_dev, image_view->vk_view, nullptr);
+  image_view->~ImageView();
   allocator->ndealloc(1, image_view);
 }
 
@@ -3414,6 +3452,7 @@ void Device::uninit(gpu::DescriptorSetLayout layout_)
   }
 
   vk_table.DestroyDescriptorSetLayout(vk_dev, layout->vk_layout, nullptr);
+  layout->~DescriptorSetLayout();
   allocator->ndealloc(1, layout);
 }
 
@@ -3426,13 +3465,32 @@ void Device::uninit(gpu::DescriptorSet set_)
     return;
   }
 
+  for (auto & binding : set->bindings)
+  {
+    binding.sync_resources.match(
+      [&](None) {},
+      [&](Span<Image *> images) {
+        for (Image * img : images)
+        {
+          for (auto & state : img->aspect_states)
+          {
+            remove_binder(state.binders, set);
+          }
+        }
+        allocator->ndealloc(images.size(), images.data());
+      },
+      [&](Span<Buffer *> buffers) {
+        for (Buffer * buffer : buffers)
+        {
+          remove_binder(buffer->state.binders, set);
+        }
+        allocator->ndealloc(buffers.size(), buffers.data());
+      });
+  }
+
   vk_table.DestroyDescriptorPool(vk_dev, set->vk_pool, nullptr);
-
-  u8 * head = (u8 *) set;
-
-  Layout layout = DescriptorSet::flex(set->bindings).layout();
-
-  allocator->dealloc(layout, head);
+  set->~DescriptorSet();
+  allocator->ndealloc(1, set);
 }
 
 void Device::uninit(gpu::PipelineCache cache_)
@@ -3451,6 +3509,7 @@ void Device::uninit(gpu::ComputePipeline pipeline_)
 
   vk_table.DestroyPipeline(vk_dev, pipeline->vk_pipeline, nullptr);
   vk_table.DestroyPipelineLayout(vk_dev, pipeline->vk_layout, nullptr);
+  pipeline->~ComputePipeline();
   allocator->ndealloc(1, pipeline);
 }
 
@@ -3465,6 +3524,7 @@ void Device::uninit(gpu::GraphicsPipeline pipeline_)
 
   vk_table.DestroyPipeline(vk_dev, pipeline->vk_pipeline, nullptr);
   vk_table.DestroyPipelineLayout(vk_dev, pipeline->vk_layout, nullptr);
+  pipeline->~GraphicsPipeline();
   allocator->ndealloc(1, pipeline);
 }
 
@@ -3478,6 +3538,7 @@ void Device::uninit(gpu::Swapchain swapchain_)
   }
 
   vk_table.DestroySwapchainKHR(vk_dev, swapchain->vk_swapchain, nullptr);
+  swapchain->~Swapchain();
   allocator->ndealloc(1, swapchain);
 }
 
@@ -3636,22 +3697,6 @@ Result<Void, Status>
   return Ok{Void{}};
 }
 
-void Device::unbind_descriptor_set(gpu::DescriptorSet set_, u32 binding_idx,
-                                   Slice32 elements)
-{
-  DescriptorSet * const set = (DescriptorSet *) set_;
-  CHECK(binding_idx < set->bindings.size(), "");
-
-  DescriptorBinding & binding = set->bindings[binding_idx];
-
-  elements = elements(binding.count());
-
-  for (u32 i = elements.offset; i < elements.span; i++)
-  {
-    binding.sync_resources[i] = nullptr;
-  }
-}
-
 void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
 {
   if (update.buffers.is_empty() && update.texel_buffers.is_empty() &&
@@ -3664,13 +3709,7 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
 
   CHECK(update.binding < set->bindings.size(), "");
   DescriptorBinding & binding = set->bindings[update.binding];
-  CHECK(update.element < binding.count(), "");
-
-  Flex const flex                          = DescriptorSet::flex(set->bindings);
-  auto [set_span, resources_span, scratch] = flex.unpack(set);
-
-  (void) set_span;
-  (void) resources_span;
+  CHECK(update.element < binding.size, "");
 
   switch (binding.type)
   {
@@ -3772,6 +3811,12 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
   VkDescriptorBufferInfo * pBufferInfo      = nullptr;
   VkBufferView *           pTexelBufferView = nullptr;
   u32                      count            = 0;
+
+  scratch
+    .resize(max(sizeof(VkDescriptorBufferInfo), sizeof(VkDescriptorImageInfo),
+                sizeof(VkBufferView)) *
+            binding.size)
+    .unwrap();
 
   switch (binding.type)
   {
@@ -3886,6 +3931,8 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
       CHECK_UNREACHABLE();
   }
 
+  scratch.clear();
+
   VkWriteDescriptorSet vk_write{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                                 .pNext = nullptr,
                                 .dstSet          = set->vk_set,
@@ -3908,8 +3955,10 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
     case gpu::DescriptorType::UniformBuffer:
       for (u32 i = 0; i < update.buffers.size(); i++)
       {
-        binding.buffers[update.element + i] =
-          (Buffer *) update.buffers[i].buffer;
+        Buffer * const buffer = (Buffer *) update.buffers[i].buffer;
+        binding.update(buffer, Binder{.set     = set,
+                                      .binding = update.binding,
+                                      .element = update.element + i});
       }
       break;
 
@@ -3917,23 +3966,32 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
     case gpu::DescriptorType::UniformTexelBuffer:
       for (u32 i = 0; i < update.texel_buffers.size(); i++)
       {
-        BufferView * view = (BufferView *) update.texel_buffers[i];
-        binding.buffers[update.element + i] =
-          (view == nullptr) ? nullptr : (Buffer *) view->info.buffer;
+        BufferView const * view = (BufferView *) update.texel_buffers[i];
+        binding.update(view == nullptr ? nullptr : BUFFER_FROM_VIEW(view),
+                       Binder{.set     = set,
+                              .binding = update.binding,
+                              .element = update.element + i});
       }
       break;
 
     case gpu::DescriptorType::Sampler:
       break;
+
     case gpu::DescriptorType::SampledImage:
     case gpu::DescriptorType::CombinedImageSampler:
     case gpu::DescriptorType::StorageImage:
     case gpu::DescriptorType::InputAttachment:
       for (u32 i = 0; i < update.images.size(); i++)
       {
-        ImageView * view = (ImageView *) update.images[i].image_view;
-        binding.images[update.element + i] =
-          (view == nullptr) ? nullptr : (Image *) view->info.image;
+        ImageView const * view = (ImageView *) update.images[i].image_view;
+        auto const aspect = (view->info.aspects == gpu::ImageAspects::Stencil) ?
+                              STENCIL_ASPECT_IDX :
+                              MAIN_ASPECT_IDX;
+        binding.update(view == nullptr ? nullptr : IMAGE_FROM_VIEW(view),
+                       aspect,
+                       Binder{.set     = set,
+                              .binding = update.binding,
+                              .element = update.element + i});
       }
       break;
 
@@ -5149,15 +5207,27 @@ void CommandEncoder::end_rendering()
 
     constexpr VkPipelineStageFlags RESOLVE_STAGE =
       VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    constexpr VkAccessFlags RESOLVE_SRC_ACCESS =
+
+    constexpr VkAccessFlags RESOLVE_COLOR_SRC_ACCESS =
       VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
-    constexpr VkAccessFlags RESOLVE_DST_ACCESS =
+
+    constexpr VkAccessFlags RESOLVE_COLOR_DST_ACCESS =
       VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
       VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+    constexpr VkAccessFlags RESOLVE_DEPTH_STENCIL_SRC_ACCESS =
+      VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+    constexpr VkAccessFlags RESOLVE_DEPTH_STENCIL_DST_ACCESS =
+      VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
+      VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
     constexpr VkImageLayout RESOLVE_COLOR_LAYOUT =
       VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
     constexpr VkImageLayout RESOLVE_DEPTH_LAYOUT =
       VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL_KHR;
+
     constexpr VkImageLayout RESOLVE_STENCIL_LAYOUT =
       VK_IMAGE_LAYOUT_STENCIL_ATTACHMENT_OPTIMAL_KHR;
 
@@ -5175,25 +5245,26 @@ void CommandEncoder::end_rendering()
 
       if (attachment.resolve_mode != gpu::ResolveModes::None)
       {
-        access |= RESOLVE_SRC_ACCESS;
+        access |= RESOLVE_COLOR_SRC_ACCESS;
         stages |= RESOLVE_STAGE;
       }
 
       if (attachment.view != nullptr)
       {
-        ImageView * view    = (ImageView *) attachment.view;
-        ImageView * resolve = (ImageView *) attachment.resolve;
-        vk_view             = view->vk_view;
-        if (attachment.resolve_mode != gpu::ResolveModes::None)
-        {
-          vk_resolve = resolve->vk_view;
-          access_image_aspect(*IMAGE_FROM_VIEW(resolve), RESOLVE_STAGE,
-                              RESOLVE_DST_ACCESS, RESOLVE_COLOR_LAYOUT,
-                              gpu::ImageAspects::Color, COLOR_ASPECT_IDX);
-        }
+        ImageView * view = (ImageView *) attachment.view;
+        vk_view          = view->vk_view;
 
         access_image_aspect(*IMAGE_FROM_VIEW(view), stages, access, layout,
                             gpu::ImageAspects::Color, COLOR_ASPECT_IDX);
+
+        if (attachment.resolve_mode != gpu::ResolveModes::None)
+        {
+          ImageView * resolve = (ImageView *) attachment.resolve;
+          vk_resolve          = resolve->vk_view;
+          access_image_aspect(*IMAGE_FROM_VIEW(resolve), RESOLVE_STAGE,
+                              RESOLVE_COLOR_DST_ACCESS, RESOLVE_COLOR_LAYOUT,
+                              gpu::ImageAspects::Color, COLOR_ASPECT_IDX);
+        }
       }
 
       vk_color_attachments
@@ -5212,9 +5283,6 @@ void CommandEncoder::end_rendering()
     }
 
     auto vk_depth_attachment = ctx.depth_attachment.map([&](auto & attachment) {
-      // [ ] if the same attachments were used in a previous pass beginRendering call, and it preserves the attachments, we don't need to issue another barrier
-      // [ ] this doesn't handle the case where both are depth and stencil, the layout for example will always be depth read only optimal instead of depth attachment optimal?
-      // [ ] used across multiple encoders at once? would need to merge states?
       VkAccessFlags        access     = depth_attachment_access(attachment);
       VkImageView          vk_view    = nullptr;
       VkImageView          vk_resolve = nullptr;
@@ -5231,10 +5299,9 @@ void CommandEncoder::end_rendering()
         stages |= VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
       }
 
-      // [ ] resolve mode is incorrect for this and stencil
       if (attachment.resolve_mode != gpu::ResolveModes::None)
       {
-        access |= RESOLVE_SRC_ACCESS;
+        access |= RESOLVE_DEPTH_STENCIL_SRC_ACCESS;
         stages |= RESOLVE_STAGE;
       }
 
@@ -5243,19 +5310,21 @@ void CommandEncoder::end_rendering()
 
       if (attachment.view != nullptr)
       {
-        ImageView * view    = (ImageView *) attachment.view;
-        ImageView * resolve = (ImageView *) attachment.resolve;
-        vk_view             = view->vk_view;
-        if (attachment.resolve_mode != gpu::ResolveModes::None)
-        {
-          vk_resolve = resolve->vk_view;
-          access_image_aspect(*IMAGE_FROM_VIEW(resolve), RESOLVE_STAGE,
-                              RESOLVE_DST_ACCESS, RESOLVE_DEPTH_LAYOUT,
-                              gpu::ImageAspects::Depth, DEPTH_ASPECT_IDX);
-        }
+        ImageView * view = (ImageView *) attachment.view;
+        vk_view          = view->vk_view;
 
         access_image_aspect(*IMAGE_FROM_VIEW(view), stages, access, layout,
                             gpu::ImageAspects::Depth, DEPTH_ASPECT_IDX);
+
+        if (attachment.resolve_mode != gpu::ResolveModes::None)
+        {
+          ImageView * resolve = (ImageView *) attachment.resolve;
+          vk_resolve          = resolve->vk_view;
+          access_image_aspect(*IMAGE_FROM_VIEW(resolve), RESOLVE_STAGE,
+                              RESOLVE_DEPTH_STENCIL_DST_ACCESS,
+                              RESOLVE_DEPTH_LAYOUT, gpu::ImageAspects::Depth,
+                              DEPTH_ASPECT_IDX);
+        }
       }
 
       return VkRenderingAttachmentInfoKHR{
@@ -5271,8 +5340,6 @@ void CommandEncoder::end_rendering()
         .clearValue         = clear_value};
     });
 
-    // [ ] this will issue two barriers for attachment in both depth and stencil
-    // [ ] need to use pass_id and command encoder id to know when it is being accessed
     auto vk_stencil_attachment =
       ctx.stencil_attachment.map([&](auto & attachment) {
         VkAccessFlags access     = stencil_attachment_access(attachment);
@@ -5294,7 +5361,7 @@ void CommandEncoder::end_rendering()
 
         if (attachment.resolve_mode != gpu::ResolveModes::None)
         {
-          access |= RESOLVE_SRC_ACCESS;
+          access |= RESOLVE_DEPTH_STENCIL_SRC_ACCESS;
           stages |= RESOLVE_STAGE;
         }
 
@@ -5303,19 +5370,21 @@ void CommandEncoder::end_rendering()
 
         if (attachment.view != nullptr)
         {
-          ImageView * view    = (ImageView *) attachment.view;
-          ImageView * resolve = (ImageView *) attachment.resolve;
-          vk_view             = view->vk_view;
-          if (attachment.resolve_mode != gpu::ResolveModes::None)
-          {
-            vk_resolve = resolve->vk_view;
-            access_image_aspect(*IMAGE_FROM_VIEW(resolve), RESOLVE_STAGE,
-                                RESOLVE_DST_ACCESS, RESOLVE_STENCIL_LAYOUT,
-                                gpu::ImageAspects::Stencil, STENCIL_ASPECT_IDX);
-          }
+          ImageView * view = (ImageView *) attachment.view;
+          vk_view          = view->vk_view;
 
           access_image_aspect(*IMAGE_FROM_VIEW(view), stages, access, layout,
                               gpu::ImageAspects::Stencil, STENCIL_ASPECT_IDX);
+
+          if (attachment.resolve_mode != gpu::ResolveModes::None)
+          {
+            ImageView * resolve = (ImageView *) attachment.resolve;
+            vk_resolve          = resolve->vk_view;
+            access_image_aspect(*IMAGE_FROM_VIEW(resolve), RESOLVE_STAGE,
+                                RESOLVE_DEPTH_STENCIL_DST_ACCESS,
+                                RESOLVE_STENCIL_LAYOUT,
+                                gpu::ImageAspects::Stencil, STENCIL_ASPECT_IDX);
+          }
         }
 
         return VkRenderingAttachmentInfoKHR{
@@ -5549,7 +5618,7 @@ void CommandEncoder::access_image_aspect(
   VkPipelineStageFlags src_stages;
   VkPipelineStageFlags dst_stages;
   if (sync_image_state(
-        image.states[aspect_index],
+        image.aspect_states[aspect_index],
         ImageAccess{.stages = stages, .access = access, .layout = layout},
         barrier, src_stages, dst_stages))
   {
@@ -5595,7 +5664,7 @@ void CommandEncoder::access_compute_bindings(DescriptorSet const & set)
     {
       case gpu::DescriptorType::CombinedImageSampler:
       case gpu::DescriptorType::SampledImage:
-        for (Image * img : binding.images)
+        for (Image * img : binding.sync_resources[v1])
         {
           if (img != nullptr)
           {
@@ -5607,7 +5676,7 @@ void CommandEncoder::access_compute_bindings(DescriptorSet const & set)
         break;
 
       case gpu::DescriptorType::StorageImage:
-        for (Image * img : binding.images)
+        for (Image * img : binding.sync_resources[v1])
         {
           if (img != nullptr)
           {
@@ -5622,7 +5691,7 @@ void CommandEncoder::access_compute_bindings(DescriptorSet const & set)
       case gpu::DescriptorType::UniformBuffer:
       case gpu::DescriptorType::DynamicUniformBuffer:
       case gpu::DescriptorType::UniformTexelBuffer:
-        for (Buffer * buffer : binding.buffers)
+        for (Buffer * buffer : binding.sync_resources[v2])
         {
           if (buffer != nullptr)
           {
@@ -5635,7 +5704,7 @@ void CommandEncoder::access_compute_bindings(DescriptorSet const & set)
       case gpu::DescriptorType::StorageBuffer:
       case gpu::DescriptorType::DynamicStorageBuffer:
       case gpu::DescriptorType::StorageTexelBuffer:
-        for (Buffer * buffer : binding.buffers)
+        for (Buffer * buffer : binding.sync_resources[v2])
         {
           if (buffer != nullptr)
           {
@@ -5664,7 +5733,7 @@ void CommandEncoder::access_graphics_bindings(DescriptorSet const & set)
       case gpu::DescriptorType::CombinedImageSampler:
       case gpu::DescriptorType::SampledImage:
       case gpu::DescriptorType::InputAttachment:
-        for (Image * img : binding.images)
+        for (Image * img : binding.sync_resources[v1])
         {
           if (img != nullptr)
           {
@@ -5680,7 +5749,7 @@ void CommandEncoder::access_graphics_bindings(DescriptorSet const & set)
       case gpu::DescriptorType::UniformTexelBuffer:
       case gpu::DescriptorType::UniformBuffer:
       case gpu::DescriptorType::DynamicUniformBuffer:
-        for (Buffer * buffer : binding.buffers)
+        for (Buffer * buffer : binding.sync_resources[v2])
         {
           if (buffer != nullptr)
           {
@@ -5694,7 +5763,7 @@ void CommandEncoder::access_graphics_bindings(DescriptorSet const & set)
 
         // only readonly storage images are supported
       case gpu::DescriptorType::StorageImage:
-        for (Image * img : binding.images)
+        for (Image * img : binding.sync_resources[v1])
         {
           if (img != nullptr)
           {
@@ -5711,7 +5780,7 @@ void CommandEncoder::access_graphics_bindings(DescriptorSet const & set)
       case gpu::DescriptorType::StorageTexelBuffer:
       case gpu::DescriptorType::StorageBuffer:
       case gpu::DescriptorType::DynamicStorageBuffer:
-        for (Buffer * buffer : binding.buffers)
+        for (Buffer * buffer : binding.sync_resources[v2])
         {
           if (buffer != nullptr)
           {

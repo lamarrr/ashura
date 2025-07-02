@@ -2,6 +2,9 @@
 #pragma once
 
 #include "ashura/engine/view.h"
+#include "ashura/engine/views/button.h"
+#include "ashura/engine/views/flex.h"
+#include "ashura/engine/views/input.h"
 #include "ashura/std/types.h"
 
 namespace ash

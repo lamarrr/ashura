@@ -82,8 +82,8 @@ gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader)
                                           .specialization_constants      = {},
                                           .specialization_constants_data = {}},
     .color_formats          = {&sys->gpu.color_format_, 1},
-    .depth_format           = {&sys->gpu.depth_stencil_format_, 1},
-    .stencil_format         = {&sys->gpu.depth_stencil_format_, 1},
+    .depth_format           = {},
+    .stencil_format         = sys->gpu.depth_stencil_format_,
     .vertex_input_bindings  = {},
     .vertex_attributes      = {},
     .push_constants_size    = 0,
@@ -112,11 +112,9 @@ void BlurPass::release()
   sys->gpu.device_->uninit(upsample_pipeline_);
 }
 
-void sample(BlurPass & b, gpu::CommandEncoder & e,
-            BlurPassParams const & params, bool upsample)
+void BlurPass::encode(gpu::CommandEncoder & e, BlurPassParams const & params)
 {
   InplaceVec<gpu::RenderingAttachment, 1> color;
-  InplaceVec<gpu::RenderingAttachment, 1> stencil;
 
   color
     .push(gpu::RenderingAttachment{.view    = params.framebuffer.color.view,
@@ -127,16 +125,14 @@ void sample(BlurPass & b, gpu::CommandEncoder & e,
                                    .clear        = {}})
     .unwrap();
 
-  params.stencil.match([&](PassStencil const &) {
-    stencil
-      .push(gpu::RenderingAttachment{
-        .view         = params.framebuffer.depth_stencil.stencil_view,
-        .resolve      = nullptr,
-        .resolve_mode = gpu::ResolveModes::None,
-        .load_op      = gpu::LoadOp::Load,
-        .store_op     = gpu::StoreOp::None,
-        .clear        = {}})
-      .unwrap();
+  auto stencil = params.stencil.map([&](PassStencil const &) {
+    return gpu::RenderingAttachment{
+      .view         = params.framebuffer.depth_stencil.stencil_view,
+      .resolve      = nullptr,
+      .resolve_mode = gpu::ResolveModes::None,
+      .load_op      = gpu::LoadOp::Load,
+      .store_op     = gpu::StoreOp::None,
+      .clear        = {}};
   });
 
   e.begin_rendering(gpu::RenderingInfo{
@@ -147,8 +143,8 @@ void sample(BlurPass & b, gpu::CommandEncoder & e,
     .stencil_attachment = stencil
   });
 
-  e.bind_graphics_pipeline(upsample ? b.upsample_pipeline_ :
-                                      b.downsample_pipeline_);
+  e.bind_graphics_pipeline(params.upsample ? upsample_pipeline_ :
+                                             downsample_pipeline_);
   e.set_graphics_state(gpu::GraphicsState{
     .scissor             = params.scissor,
     .viewport            = params.viewport,
@@ -167,18 +163,6 @@ void sample(BlurPass & b, gpu::CommandEncoder & e,
                          }));
   e.draw(4, params.instances.span, 0, params.instances.offset);
   e.end_rendering();
-}
-
-void BlurPass::upsample(gpu::CommandEncoder &  encoder,
-                        BlurPassParams const & params)
-{
-  sample(*this, encoder, params, true);
-}
-
-void BlurPass::downsample(gpu::CommandEncoder &  encoder,
-                          BlurPassParams const & params)
-{
-  sample(*this, encoder, params, false);
 }
 
 }    // namespace ash

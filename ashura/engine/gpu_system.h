@@ -427,7 +427,7 @@ struct FrameGraph
 
   StructBufferId push_ssbo(Span<u8 const> data);
 
-  ShaderBufferSpan get_struct_buffer(StructBufferId id);
+  ShaderBufferSpan get(StructBufferId id);
 
   template <typename T>
   BufferId push_buffer(Span<T> data)
@@ -437,12 +437,12 @@ struct FrameGraph
 
   BufferId push_buffer(Span<u8 const> data);
 
-  Span<u8 const> get_buffer(BufferId id);
+  Span<u8 const> get(BufferId id);
 
   template <typename T>
-  Span<T const> get_buffer(BufferId id)
+  Span<T const> get(BufferId id)
   {
-    return get_buffer(id).reinterpret<T>();
+    return get(id).reinterpret<T>();
   }
 
   void add_pass(Pass pass);

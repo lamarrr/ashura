@@ -1,6 +1,8 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 
+#include "ashura/engine/render_text.h"
+#include "ashura/engine/text_compositor.h"
 #include "ashura/engine/view.h"
 #include "ashura/std/types.h"
 

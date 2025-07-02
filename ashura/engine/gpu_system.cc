@@ -314,7 +314,7 @@ StructBufferId FrameGraph::push_ssbo(Span<u8 const> data)
   return StructBufferId{(u32) idx};
 }
 
-ShaderBufferSpan FrameGraph::get_struct_buffer(StructBufferId id)
+ShaderBufferSpan FrameGraph::get(StructBufferId id)
 {
   CHECK(uploaded_, "");
   Slice32 slice = sb_entries_.get((usize) id);
@@ -336,7 +336,7 @@ BufferId FrameGraph::push_buffer(Span<u8 const> data)
   return BufferId{(u32) idx};
 }
 
-Span<u8 const> FrameGraph::get_buffer(BufferId id)
+Span<u8 const> FrameGraph::get(BufferId id)
 {
   CHECK(uploaded_, "");
   Slice32 slice = buff_entries_.get((usize) id);

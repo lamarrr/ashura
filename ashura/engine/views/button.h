@@ -2,6 +2,7 @@
 #pragma once
 
 #include "ashura/engine/view.h"
+#include "ashura/engine/views/text.h"
 #include "ashura/std/types.h"
 
 namespace ash
