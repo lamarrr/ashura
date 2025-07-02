@@ -1423,10 +1423,6 @@ struct Device
   virtual Result<Void, Status>
     merge_pipeline_cache(PipelineCache dst, Span<PipelineCache const> srcs) = 0;
 
-  /// @brief remove descriptor set element binding from the synchronization list
-  virtual void unbind_descriptor_set(DescriptorSet set, u32 binding,
-                                     Slice32 elements) = 0;
-
   virtual void update_descriptor_set(DescriptorSetUpdate const & update) = 0;
 
   virtual Result<Void, Status> wait_idle() = 0;
