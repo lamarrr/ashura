@@ -701,7 +701,6 @@ inline constexpr LayerStack LAYERS;
 // [ ] Message-oriented architecture, fn-state hook for message querying + message queue? or just hashmap. state hook can modify0
 // [ ] fn-style and state hooks for renderers?
 
-
 /// @brief Base view class.
 /// Views are plain visual elements that define spatial relationships,
 /// visual state changes, and forward events to other subsystems.

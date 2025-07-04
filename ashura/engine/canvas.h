@@ -184,14 +184,6 @@ struct Canvas
   using Encoder = Enum<None, SdfEncoder, QuadEncoder, NgonEncoder,
                        ContourStencilEncoder, PassFn>;
 
-  // [ ] contour stencil & rendering pass encoders?
-  // [ ] custom encoders?
-  struct CustomData
-  {
-    Str    label = {};
-    PassFn task{};
-  };
-
   InplaceVec<ColorTexture, 4> color_textures_;
 
   InplaceVec<Option<ColorMsaaTexture>, 4> msaa_color_textures_;
@@ -446,7 +438,6 @@ struct Canvas
   Canvas & contour_stencil_(u32 stencil, u32 write_mask,
                             Contour2D const & contour);
 
-  // [ ] layer info
   Canvas & contour(ShapeInfo const & shape, Contour2D const & contour);
 
   Canvas & text(Span<TextLayer const> layers, Span<ShapeInfo const> shapes,
