@@ -334,8 +334,8 @@ using SyncResources = Enum<None, Vec<Image *>, Vec<Buffer *>>;
 struct DescriptorBinding
 {
   SyncResources       sync_resources = none;
-  gpu::DescriptorType type            = gpu::DescriptorType::Sampler;
-  u32                 size            = 0;
+  gpu::DescriptorType type           = gpu::DescriptorType::Sampler;
+  u32                 size           = 0;
 
   void update(Buffer * next, Binder binder)
   {
