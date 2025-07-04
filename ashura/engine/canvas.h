@@ -177,37 +177,30 @@ struct PassBundle;
 
 struct Canvas
 {
-  typedef Fn<void(CanvasPassInfo const &)> PassFnRef;
+  typedef Fn<void(FrameGraph &, PassBundle &)> PassFnRef;
 
   typedef Dyn<PassFnRef> PassFn;
 
-  // [ ] contour stencil & rendering pass?
-  enum class BatchType : u8
-  {
-    None    = 0,
-    Pass    = 1,
-    Sdf     = 2,
-    Ngon    = 3,
-    Blur    = 4,
-    Contour = 5
-  };
+  using Encoder = Enum<None, SdfEncoder, QuadEncoder, NgonEncoder,
+                       ContourStencilEncoder, PassFn>;
 
-  struct Batch
-  {
-    BatchType type       = BatchType::None;
-    Slice32   items      = {};
-    hash64    batch_hash = 0;
-  };
-
+  // [ ] contour stencil & rendering pass encoders?
+  // [ ] custom encoders?
   struct CustomData
   {
     Str    label = {};
     PassFn task{};
   };
 
-  u32 num_targets_;
+  InplaceVec<ColorTexture, 4> color_textures_;
 
-  u32 num_masks_;
+  InplaceVec<Option<ColorMsaaTexture>, 4> msaa_color_textures_;
+
+  InplaceVec<DepthStencilTexture, 4> depth_stencil_textures_;
+
+  u32 target_;
+
+  Option<Tuple<u32, PassStencil>> stencil_;
 
   /// @brief the viewport of the framebuffer this canvas will be targetting
   /// this is in the Framebuffer coordinates (Physical px coordinates)
@@ -237,33 +230,25 @@ struct Canvas
 
   Affine4 viewport_to_fb_;
 
-  impl::BlurCanvas blur_;
+  Affine4 world_to_fb_;
 
-  impl::NgonCanvas<> ngon_;
+  Encoder encoder_;
 
-  impl::SdfCanvas<> sdf_;
+  ref<FrameGraph> frame_graph_;
 
-  impl::CompositeSdfCanvas<> composited_sdf_;
-
-  impl::ContourCanvas<> contour_;
-
-  impl::SdfCanvas<shader::sdf::NoiseMaterial> noise_;
-
-  Vec<Pass> passes_;
-
-  Vec<Batch> batches_;
+  ref<PassBundle> passes_;
 
   // declared last so it would release allocated memory after all operations
   // are done executing
   ArenaPool frame_arena_;
 
-  u32 target_;
-
-  Option<u32> stencil_;
-
-  explicit Canvas(AllocatorRef allocator) :
-    num_layers_{0},
-    num_masks_{0},
+  explicit Canvas(AllocatorRef allocator, FrameGraph & frame_graph,
+                  PassBundle & passes) :
+    color_textures_{},
+    msaa_color_textures_{},
+    depth_stencil_textures_{},
+    target_{0},
+    stencil_{none},
     viewport_{},
     extent_{},
     framebuffer_extent_{},
@@ -273,15 +258,11 @@ struct Canvas
     world_to_ndc_{Affine4::IDENTITY},
     ndc_to_viewport_{Affine4::IDENTITY},
     viewport_to_fb_{Affine4::IDENTITY},
-    rrect_params_{allocator},
-    ngon_{allocator},
-    blurs_{allocator},
-    passes_{allocator},
-    contour_{allocator},
-    batches_{allocator},
-    frame_arena_{allocator},
-    mask_{none},
-    layer_{0}
+    world_to_fb_{Affine4::IDENTITY},
+    encoder_{none},
+    frame_graph_{frame_graph},
+    passes_{passes},
+    frame_arena_{allocator}
   {
   }
 
@@ -291,15 +272,127 @@ struct Canvas
   Canvas & operator=(Canvas &&)      = default;
   ~Canvas()                          = default;
 
-  Canvas & begin_recording(u32 num_layers, u32 num_masks,
-                           gpu::Viewport const & viewport, Vec2 extent,
-                           Vec2U framebuffer_extent);
+  Canvas &
+    begin_recording(FrameGraph & frame_graph, PassBundle & passes,
+                    Span<ColorTexture const>             color_textures,
+                    Span<Option<ColorMsaaTexture> const> msaa_color_textures,
+                    Span<DepthStencilTexture const>      depth_stencil_textures,
+                    gpu::Viewport const & viewport, Vec2 extent,
+                    Vec2U framebuffer_extent);
 
   Canvas & end_recording();
 
   Canvas & reset();
 
   RectU clip_to_scissor(CRect const & clip) const;
+
+  u32 num_targets() const;
+
+  Canvas & clear_target();
+
+  Canvas & set_target(u32 target);
+
+  u32 target() const;
+
+  u32 num_stencils() const;
+
+  u32 num_stencil_bits() const;
+
+  Canvas & clear_stencil();
+
+  Canvas & set_stencil(Option<Tuple<u32, PassStencil>> stencil);
+
+  Option<Tuple<u32, PassStencil>> stencil() const;
+
+  void flush_encoder_();
+
+  template <typename Shape, typename Material>
+  Canvas & push_sdf_(SdfEncoder::Item<Shape, Material> const & item)
+  {
+    // [ ] refactor
+    encoder_.match([&](None) { encoder_ = SdfEncoder(frame_arena_, item); },
+                   [&](SdfEncoder & enc) {
+                     if (!enc.push(item))
+                     {
+                       flush_encoder_();
+                       encoder_ = SdfEncoder(frame_arena_, item);
+                     }
+                   },
+                   [&](QuadEncoder &) {
+                     flush_encoder_();
+                     encoder_ = SdfEncoder(frame_arena_, item);
+                   },
+                   [&](NgonEncoder &) {
+                     flush_encoder_();
+                     encoder_ = SdfEncoder(frame_arena_, item);
+                   },
+                   [&](ContourStencilEncoder &) {
+                     flush_encoder_();
+                     encoder_ = SdfEncoder(frame_arena_, item);
+                   },
+                   [&](PassFn &) {
+                     flush_encoder_();
+                     encoder_ = SdfEncoder(frame_arena_, item);
+                   });
+
+    return *this;
+  }
+
+  template <typename Material>
+  Canvas & push_ngon_(NgonEncoder::Item<Material> const & item)
+  {
+    encoder_.match([&](None) { encoder_ = NgonEncoder(frame_arena_, item); },
+                   [&](SdfEncoder &) {
+                     flush_encoder_();
+                     encoder_ = NgonEncoder(frame_arena_, item);
+                   },
+                   [&](QuadEncoder &) {
+                     flush_encoder_();
+                     encoder_ = NgonEncoder(frame_arena_, item);
+                   },
+                   [&](NgonEncoder & enc) {
+                     if (!enc.push(item))
+                     {
+                       flush_encoder_();
+                       encoder_ = NgonEncoder(frame_arena_, item);
+                     }
+                   },
+                   [&](ContourStencilEncoder &) {
+                     flush_encoder_();
+                     encoder_ = NgonEncoder(frame_arena_, item);
+                   },
+                   [&](PassFn &) {
+                     flush_encoder_();
+                     encoder_ = NgonEncoder(frame_arena_, item);
+                   });
+
+    return *this;
+  }
+
+  Canvas & sdf_shape_(ShapeInfo const & info, shader::sdf::ShapeType shape);
+
+  Canvas & ngon_shape_(ShapeInfo const & info, Span<f32x2 const> vertices,
+                       Span<u32 const> indices);
+
+  /// @brief register a custom canvas pass to be executed in the render thread
+  template <Callable<FrameGraph &, PassBundle &> Lambda>
+  Canvas & pass(Lambda task)
+  {
+    flush_encoder_();
+    // relocate lambda to heap
+    Dyn<Lambda *> lambda =
+      dyn(frame_arena_, static_cast<Lambda &&>(task)).unwrap();
+    // allocator is noop-ed but destructor still runs when the dynamic object is
+    // uninitialized. the memory is freed by at the end of the frame anyway so
+    // no need to free it
+    lambda.allocator_ = noop_allocator;
+
+    auto f = PassFnRef(lambda.get());
+
+    encoder_ = transmute(std::move(lambda), f);
+
+    return *this;
+  }
 
   /// @brief render a circle
   Canvas & circle(ShapeInfo const & info);
@@ -310,13 +403,13 @@ struct Canvas
   /// @brief render a rounded rectangle
   Canvas & rrect(ShapeInfo const & info);
 
-  /// @brief render a beveled rectangle
-  Canvas & brect(ShapeInfo const & info);
-
   /// @brief render a squircle (triangulation based)
   /// @param num_segments an upper bound on the number of segments to
   /// @param elasticity elasticity of the squircle [0, 1]
   Canvas & squircle(ShapeInfo const & info);
+
+  /// @brief render a beveled rectangle
+  Canvas & bevel_rect(ShapeInfo const & info);
 
   /// @brief draw a nine-sliced image
   Canvas & nine_slice(ShapeInfo const & info, NineSlice const & slice);
@@ -335,43 +428,7 @@ struct Canvas
   /// @param area region in the canvas to apply the blur to
   Canvas & blur(ShapeInfo const & info);
 
-  Canvas & pass_(Pass pass);
-
-  /// @brief register a custom canvas pass to be executed in the render thread
-  template <typename Lambda>
-  Canvas & pass(Str label, Lambda task)
-  {
-    // relocate lambda to heap
-    Dyn<Lambda *> lambda =
-      dyn(frame_arena_, static_cast<Lambda &&>(task)).unwrap();
-    // allocator is noop-ed but destructor still runs when the dynamic object is
-    // uninitialized. the memory is freed by at the end of the frame anyway so
-    // no need to free it
-    lambda.allocator_ = noop_allocator;
-
-    auto f = PassFnRef(lambda.get());
-
-    return pass_(Pass{.label = label, .task = transmute(std::move(lambda), f)});
-  }
-
-  u32 num_targets() const;
-
-  Canvas & clear_target(u32 target);
-
-  Canvas & set_target(u32 target);
-
-  u32 target() const;
-
-  u32 num_stencils() const;
-
-  Canvas & clear_stencil();
-
-  Canvas & set_stencil(Option<u32> stencil);
-
-  Option<u32> stencil() const;
-
   // [ ] how to go from paths to masks; how to curve around bezier curves
-
   // [ ] dashed-line single pass shader?: will need uv-transforms
   // [ ] bezier line renderer + line renderer : cap + opacity + blending
   // [ ] fill path renderer
@@ -379,17 +436,18 @@ struct Canvas
   // [ ] convex tesselation is free and doesn't need fill rules
   // [ ] for concave; use stencil then cover
   // [ ] batch multiple contour stencil passes so we can perform them in a single write, different write masks. rect-allocation?
-
   // [ ] masks for blur shape
   // [ ] render to layer
   // [ ] with_mask()?
   // [ ] quad pass with custom shaders
-
-  Canvas & contour_stencil(u32 mask, u32 write_mask, Contour2D const & contour);
-
+  // [ ] ngon stencil
   // [ ] draw line
 
-  Canvas & contour();
+  Canvas & contour_stencil_(u32 stencil, u32 write_mask,
+                            Contour2D const & contour);
+
+  // [ ] layer info
+  Canvas & contour(ShapeInfo const & shape, Contour2D const & contour);
 
   Canvas & text(Span<TextLayer const> layers, Span<ShapeInfo const> shapes,
                 Span<TextRenderInfo const> infos, Span<usize const> sorted);

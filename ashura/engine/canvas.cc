@@ -1,6 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/engine/canvas.h"
 #include "ashura/engine/font.h"
+#include "ashura/engine/systems.h"
 #include "ashura/std/math.h"
 
 namespace ash
@@ -396,36 +397,25 @@ void path::triangulate_convex(Vec<u16> & idx, u16 first_vertex,
   ::ash::triangulate_convex(idx, first_vertex, num_vertices);
 }
 
-Canvas & Canvas::reset()
-{
-  rrect_params_.reset();
-  ngon_.params.reset();
-  ngon_.vertices.reset();
-  ngon_.indices.reset();
-  ngon_.index_counts.reset();
-  blurs_.reset();
-  passes_.reset();
-  batches_.reset();
-  frame_arena_.reclaim();
-
-  return *this;
-}
-
-Canvas & Canvas::begin_recording(u32 num_layers, u32 num_masks,
-                                 gpu::Viewport const & new_viewport,
-                                 Vec2 new_extent, Vec2U new_framebuffer_extent)
+Canvas & Canvas::begin_recording(
+  FrameGraph & frame_graph, PassBundle & passes,
+  Span<ColorTexture const>             color_textures,
+  Span<Option<ColorMsaaTexture> const> msaa_color_textures,
+  Span<DepthStencilTexture const>      depth_stencil_textures,
+  gpu::Viewport const & viewport, Vec2 extent, Vec2U framebuffer_extent)
 {
   reset();
 
-  CHECK(num_layers >= 3, "");
-  CHECK(num_masks >= 2, "");
+  CHECK(color_textures.size() >= 3, "");
+  CHECK(msaa_color_textures.size() >= 3, "");
+  CHECK(depth_stencil_textures.size() >= 2, "");
 
-  num_layers_          = num_layers;
-  num_masks_           = num_masks;
-  viewport_            = new_viewport;
-  extent_              = new_extent;
-  framebuffer_extent_  = new_framebuffer_extent;
-  framebuffer_uv_base_ = 1 / as_vec2(new_framebuffer_extent);
+  frame_graph_         = frame_graph;
+  passes_              = passes;
+  viewport_            = viewport;
+  extent_              = extent;
+  framebuffer_extent_  = framebuffer_extent;
+  framebuffer_uv_base_ = 1 / as_vec2(framebuffer_extent);
 
   if (extent_.x == 0 | extent_.y == 0)
   {
@@ -436,7 +426,7 @@ Canvas & Canvas::begin_recording(u32 num_layers, u32 num_masks,
     aspect_ratio_ = extent_.x / extent_.y;
   }
 
-  virtual_scale_ = viewport_.extent.x / new_extent.x;
+  virtual_scale_ = viewport_.extent.x / extent.x;
 
   // (-0.5w, +0.5w) (-0.5w, +0.5h) -> (-1, +1), (-1, +1)
   world_to_ndc_ = scale3d(vec3(2 / extent_, 1));
@@ -454,6 +444,38 @@ Canvas & Canvas::begin_recording(u32 num_layers, u32 num_masks,
     // 0, viewport-space extent -> 0, framebuffer-space extent
     scale3d(vec3(Vec2::splat(virtual_scale_), 1.0F));
 
+  world_to_fb_ = viewport_to_fb_ * ndc_to_viewport_ * world_to_ndc_;
+
+  target_  = 0;
+  stencil_ = none;
+
+  return *this;
+}
+
+Canvas & Canvas::end_recording()
+{
+  return *this;
+}
+
+Canvas & Canvas::reset()
+{
+  color_textures_.reset();
+  msaa_color_textures_.reset();
+  depth_stencil_textures_.reset();
+  target_              = 0;
+  stencil_             = none;
+  viewport_            = {};
+  extent_              = {};
+  framebuffer_extent_  = {};
+  framebuffer_uv_base_ = {};
+  aspect_ratio_        = 1;
+  virtual_scale_       = 1;
+  world_to_ndc_        = Affine4::IDENTITY;
+  ndc_to_viewport_     = Affine4::IDENTITY;
+  viewport_to_fb_      = Affine4::IDENTITY;
+  world_to_fb_         = Affine4::IDENTITY;
+  encoder_             = none;
+  frame_arena_.reclaim();
   return *this;
 }
 
@@ -474,77 +496,50 @@ RectU Canvas::clip_to_scissor(CRect const & clip) const
     clamp_vec(as_vec2u(scissor_f.end()), Vec2U::splat(0), framebuffer_extent_));
 }
 
-static inline void add_rrect(Canvas & c, RRectShaderParam const & param,
-                             CRect const & clip)
+u32 Canvas::num_targets() const
 {
-  auto const index = size32(c.rrect_params_);
-  c.rrect_params_.push(param).unwrap();
-
-  if (c.batches_.is_empty() ||
-      c.batches_.last().type != Canvas::BatchType::RRect ||
-      c.batches_.last().clip != clip)
-  {
-    c.batches_
-      .push(Canvas::Batch{
-        .type = Canvas::BatchType::RRect, .run{index, 1},
-           .clip = clip
-    })
-      .unwrap();
-    return;
-  }
-
-  c.batches_.last().run.span++;
+  return size32(color_textures_);
 }
 
-static inline void add_squircle(Canvas & c, SquircleShaderParam const & param,
-                                CRect const & clip)
+Canvas & Canvas::clear_target()
 {
-  auto const index = size32(c.squircle_params_);
-  c.squircle_params_.push(param).unwrap();
-
-  if (c.batches_.is_empty() ||
-      c.batches_.last().type != Canvas::BatchType::Squircle ||
-      c.batches_.last().clip != clip)
-  {
-    c.batches_
-      .push(Canvas::Batch{
-        .type = Canvas::BatchType::Squircle, .run{index, 1},
-           .clip = clip
-    })
-      .unwrap();
-    return;
-  }
-
-  c.batches_.last().run.span++;
-}
-
-static inline void add_ngon(Canvas & c, NgonShaderParam const & param,
-                            CRect const & clip, u32 num_indices)
-{
-  auto const index = size32(c.ngon_.params);
-  c.ngon_.index_counts.push(num_indices).unwrap();
-  c.ngon_.params.push(param).unwrap();
-
-  if (c.batches_.is_empty() ||
-      c.batches_.last().type != Canvas::BatchType::Ngon ||
-      c.batches_.last().clip != clip)
-  {
-    c.batches_
-      .push(Canvas::Batch{
-        .type = Canvas::BatchType::Ngon,
-        .run{.offset = index, .span = 1},
-        .clip = clip
-    })
-      .unwrap();
-    return;
-  }
-
-  c.batches_.last().run.span++;
-}
-
-Canvas & Canvas::end_recording()
-{
+  // [ ] impl
   return *this;
+}
+
+Canvas & Canvas::set_target(u32 target)
+{
+  CHECK(target < num_targets(), "");
+  target_ = target;
+  return *this;
+}
+
+u32 Canvas::target() const
+{
+  return target_;
+}
+
+u32 Canvas::num_stencils() const
+{
+  return size32(depth_stencil_textures_);
+}
+
+Canvas & Canvas::clear_stencil()
+{
+  // [ ] impl
+  return *this;
+}
+
+Canvas & Canvas::set_stencil(Option<Tuple<u32, PassStencil>> stencil)
+{
+  stencil.match([&](auto s) { CHECK(s.v0 < num_stencils(), ""); });
+  stencil_ = stencil;
+  return *this;
+}
+
+Option<Tuple<u32, PassStencil>> Canvas::stencil() const
+{
+  return stencil_;
 }
 
 constexpr Mat4 object_to_world(Mat4 const & transform, CRect const & area)
@@ -553,136 +548,143 @@ constexpr Mat4 object_to_world(Mat4 const & transform, CRect const & area)
          scale3d(vec3(area.extent, 1));
 }
 
-Canvas & Canvas::circle(ShapeInfo const & info)
+Canvas & Canvas::circle(ShapeInfo const & info_)
 {
-  f32 const inv_y = 1 / info.area.extent.y;
-  add_rrect(*this,
-            RRectShaderParam{
-              .transform = object_to_world(info.transform, info.area),
-              .tint  = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
-              .radii = {1, 1, 1, 1},
-              .uv    = {info.uv[0], info.uv[1]},
-              .tiling       = info.tiling,
-              .aspect_ratio = info.area.extent.x * inv_y,
-              .stroke       = info.stroke,
-              .thickness    = info.thickness.x * inv_y,
-              .feathering   = info.feathering * inv_y,
-              .sampler      = info.sampler,
-              .albedo       = info.texture
-  },
-            info.clip);
+  auto info          = info_;
+  info.area.extent.x = max(info.area.extent.x, info.area.extent.y);
+  info.radii         = Vec4::splat(info.area.extent.x * 0.5F);
+  return sdf_shape_(info, shader::sdf::ShapeType::RRect);
+}
+
+Canvas & Canvas::rect(ShapeInfo const & info_)
+{
+  auto info  = info_;
+  info.radii = Vec4::splat(0);
+  return sdf_shape_(info, shader::sdf::ShapeType::RRect);
+}
+
+Canvas & Canvas::sdf_shape_(ShapeInfo const &      info,
+                            shader::sdf::ShapeType shape_tyoe)
+{
+  auto const framebuffer = Framebuffer{
+    .color      = color_textures_[target_],
+    .color_msaa = msaa_color_textures_[target_],
+    .depth_stencil =
+      stencil_.map([&](auto s) { return depth_stencil_textures_[s.v0]; })
+        .unwrap_or()};
+
+  auto const stencil     = stencil_.map([](auto s) { return s.v1; });
+  auto const bbox_extent = info.area.extent + info.feather * 2;
+  auto const bbox        = CRect{info.area.center, bbox_extent};
+
+  // [ ] switching to noise shader
+  auto const shape = shader::sdf::Shape{.radii            = info.radii,
+                                        .half_bbox_extent = bbox_extent * 0.5F,
+                                        .half_extent = info.area.extent * 0.5F,
+                                        .feather     = info.feather,
+                                        .shade_type  = info.shade_type,
+                                        .type        = shape_tyoe};
+
+  auto const material = shader::sdf::FlatMaterial{
+    .tint       = shader::quad::FlatMaterial{.top             = info.tint.top_,
+                                             .bottom          = info.tint.bottom_,
+                                             .gradient_rotor  = info.tint.rotor_,
+                                             .uv0             = info.uv[0],
+                                             .uv1             = info.uv[1],
+                                             .gradient_center = info.tint.center_,
+                                             .sampler         = info.sampler,
+                                             .texture         = info.texture},
+    .sampler_id = SamplerId::LinearBlack,
+    .map_id     = TextureId::Base
+  };
+
+  auto const item =
+    SdfEncoder::Item<shader::sdf::Shape, shader::sdf::FlatMaterial>{
+      .framebuffer    = framebuffer,
+      .stencil        = stencil,
+      .scissor        = clip_to_scissor(info.clip),
+      .viewport       = viewport_,
+      .samplers       = sys->gpu.samplers_,
+      .textures       = sys->gpu.textures_,
+      .world_to_ndc   = world_to_ndc_,
+      .shape          = shape,
+      .transform      = object_to_world(info.transform, bbox),
+      .material       = material,
+      .shader_variant = ShaderVariantId::Base};
+
+  push_sdf_(item);
 
   return *this;
 }
 
-Canvas & Canvas::rect(ShapeInfo const & info)
+Canvas & Canvas::ngon_shape_(ShapeInfo const & info, Span<f32x2 const> vertices,
+                             Span<u32 const> indices)
 {
-  f32 const inv_y = 1 / info.area.extent.y;
-  add_rrect(*this,
-            RRectShaderParam{
-              .transform = object_to_world(info.transform, info.area),
-              .tint  = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
-              .radii = {0, 0, 0, 0},
-              .uv    = {info.uv[0], info.uv[1]},
-              .tiling       = info.tiling,
-              .aspect_ratio = info.area.extent.x * inv_y,
-              .stroke       = info.stroke,
-              .thickness    = info.thickness.x * inv_y,
-              .feathering   = info.feathering * inv_y,
-              .sampler      = info.sampler,
-              .albedo       = info.texture
-  },
-            info.clip);
-  return *this;
+  auto const framebuffer = Framebuffer{
+    .color      = color_textures_[target_],
+    .color_msaa = msaa_color_textures_[target_],
+    .depth_stencil =
+      stencil_.map([&](auto s) { return depth_stencil_textures_[s.v0]; })
+        .unwrap_or()};
+
+  auto const stencil = stencil_.map([](auto s) { return s.v1; });
+
+  auto const material =
+    shader::ngon::FlatMaterial{.top             = info.tint.top_,
+                               .bottom          = info.tint.bottom_,
+                               .gradient_rotor  = info.tint.rotor_,
+                               .uv0             = info.uv[0],
+                               .uv1             = info.uv[1],
+                               .gradient_center = info.tint.center_,
+                               .sampler         = info.sampler,
+                               .texture         = info.texture};
+
+  NgonEncoder::Item<shader::ngon::FlatMaterial> item{
+    .framebuffer    = framebuffer,
+    .stencil        = stencil,
+    .scissor        = clip_to_scissor(info.clip),
+    .viewport       = viewport_,
+    .samplers       = sys->gpu.samplers_,
+    .textures       = sys->gpu.textures_,
+    .world_to_ndc   = world_to_ndc_,
+    .transform      = object_to_world(info.transform, info.area),
+    .vertices       = vertices,
+    .indices        = indices,
+    .material       = material,
+    .shader_variant = ShaderVariantId::Base};
+
+  return push_ngon_(item);
 }
 
-Canvas & Canvas::rrect(ShapeInfo const & info)
+Canvas & Canvas::rrect(ShapeInfo const & info_)
 {
-  f32 const inv_y = 1 / info.area.extent.y;
-  f32 const max_radius =
-    0.5F * min(info.area.extent.x, info.area.extent.y) * inv_y;
-  Vec4 r = info.corner_radii * inv_y;
+  auto       info       = info_;
+  auto const max_radius = 0.5F * min(info.area.extent.x, info.area.extent.y);
+  info.radii.x          = min(info.radii.x, max_radius);
+  info.radii.y          = min(info.radii.y, max_radius);
+  info.radii.z          = min(info.radii.z, max_radius);
+  info.radii.w          = min(info.radii.w, max_radius);
 
-  r.x = min(r.x, max_radius);
-  r.y = min(r.y, max_radius);
-  r.z = min(r.z, max_radius);
-  r.w = min(r.w, max_radius);
-
-  // [ ] account for feathering and thickness
-  // [ ] remove alpha in shader and use stroke instead
-
-  add_rrect(*this,
-            RRectShaderParam{
-              .transform = object_to_world(info.transform, info.area),
-              .tint  = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
-              .radii = r,
-              .uv    = {info.uv[0], info.uv[1]},
-              .tiling       = info.tiling,
-              .aspect_ratio = info.area.extent.x * inv_y,
-              .stroke       = info.stroke,
-              .thickness    = info.thickness.x * inv_y,
-              .feathering   = info.feathering * inv_y,
-              .sampler      = info.sampler,
-              .albedo       = info.texture
-  },
-            info.clip);
-  return *this;
+  return sdf_shape_(info, shader::sdf::ShapeType::RRect);
 }
 
-Canvas & Canvas::brect(ShapeInfo const & info)
+Canvas & Canvas::squircle(ShapeInfo const & info_)
 {
-  auto const first_vertex = size32(ngon_.vertices);
-  auto const first_index  = size32(ngon_.indices);
+  auto       info       = info_;
+  auto const max_radius = 0.5F * min(info.area.extent.x, info.area.extent.y);
+  info.radii.x          = min(info.radii.x, max_radius);
 
-  path::brect(ngon_.vertices, Vec2::splat(1), Vec2::splat(0),
-              info.corner_radii);
-
-  auto const num_vertices = size32(ngon_.vertices) - first_vertex;
-
-  path::triangulate_convex(ngon_.indices, first_vertex, num_vertices);
-
-  auto const num_indices = size32(ngon_.indices) - first_index;
-
-  add_ngon(*this,
-           NgonShaderParam{
-             .transform = object_to_world(info.transform, info.area),
-             .tint   = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
-             .uv     = {info.uv[0], info.uv[1]},
-             .tiling = info.tiling,
-             .sampler      = info.sampler,
-             .albedo       = info.texture,
-             .first_index  = first_index,
-             .first_vertex = first_vertex
-  },
-           info.clip, num_indices);
-
-  return *this;
+  return sdf_shape_(info, shader::sdf::ShapeType::Squircle);
 }
 
-Canvas & Canvas::squircle(ShapeInfo const & info)
+Canvas & Canvas::bevel_rect(ShapeInfo const & info)
 {
-  f32 const width = max(info.area.extent.x, info.area.extent.y);
-  f32 const inv_y = 1 / width;
+  Vec<f32x2> vertices{frame_arena_};
+  Vec<u32>   indices{frame_arena_};
 
-  add_squircle(
-    *this,
-    SquircleShaderParam{
-      .transform  = object_to_world(info.transform,
-                                    CRect{info.area.center, Vec2::splat(width)}
-                                    ),
-      .tint       = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
-      .uv         = {info.uv[0], info.uv[1]},
-      .degree     = info.corner_radii.x,
-      .tiling     = info.tiling,
-      .stroke     = info.stroke,
-      .thickness  = info.thickness.x * inv_y,
-      .feathering = info.feathering * inv_y,
-      .sampler    = info.sampler,
-      .albedo     = info.texture
-  },
-    info.clip);
-
-  return *this;
+  path::brect(vertices, info.area.extent, info.area.center, info.radii);
+  path::triangulate_convex(indices, 0, vertices.size());
+  return ngon_shape_(info, vertices, indices);
 }
 
 Canvas & Canvas::nine_slice(ShapeInfo const & info, NineSlice const & slice)
@@ -698,63 +700,21 @@ Canvas & Canvas::triangles(ShapeInfo const & info, Span<Vec2 const> points)
     return *this;
   }
 
-  auto const first_index  = size32(ngon_.indices);
-  auto const first_vertex = size32(ngon_.vertices);
+  Vec<u32> indices{frame_arena_};
+  path::triangles(0, points.size(), indices);
 
-  ngon_.vertices.extend(points).unwrap();
-  path::triangles(first_vertex, size32(points), ngon_.indices);
-
-  auto const num_indices = size32(ngon_.vertices) - first_vertex;
-
-  add_ngon(*this,
-           NgonShaderParam{
-             .transform = object_to_world(info.transform, info.area),
-             .tint   = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
-             .uv     = {info.uv[0], info.uv[1]},
-             .tiling = info.tiling,
-             .sampler      = info.sampler,
-             .albedo       = info.texture,
-             .first_index  = first_index,
-             .first_vertex = first_vertex
-  },
-           info.clip, num_indices);
-
-  return *this;
+  return triangles(info, points, indices);
 }
 
 Canvas & Canvas::triangles(ShapeInfo const & info, Span<Vec2 const> points,
-                           Span<u32 const> idx)
+                           Span<u32 const> indices)
 {
   if (points.size() < 3)
   {
     return *this;
   }
 
-  auto const first_index  = size32(ngon_.indices);
-  auto const first_vertex = size32(ngon_.vertices);
-
-  ngon_.vertices.extend(points).unwrap();
-  ngon_.indices.extend(idx).unwrap();
-
-  for (auto & v : ngon_.indices.view().slice(first_index))
-  {
-    v += first_vertex;
-  }
-
-  add_ngon(*this,
-           NgonShaderParam{
-             .transform = object_to_world(info.transform, info.area),
-             .tint   = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
-             .uv     = {info.uv[0], info.uv[1]},
-             .tiling = info.tiling,
-             .sampler      = info.sampler,
-             .albedo       = info.texture,
-             .first_index  = first_index,
-             .first_vertex = first_vertex
-  },
-           info.clip, size32(idx));
-
-  return *this;
+  return ngon_shape_(info, points, indices);
 }
 
 Canvas & Canvas::line(ShapeInfo const & info, Span<Vec2 const> points)
@@ -764,69 +724,28 @@ Canvas & Canvas::line(ShapeInfo const & info, Span<Vec2 const> points)
     return *this;
   }
 
-  auto const first_index  = size32(ngon_.indices);
-  auto const first_vertex = size32(ngon_.vertices);
-  path::triangulate_stroke(points, ngon_.vertices, ngon_.indices,
-                           info.thickness.x / info.area.extent.y);
+  Vec<f32x2> vertices{frame_arena_};
+  Vec<u32>   indices{frame_arena_};
 
-  auto const num_indices = size32(ngon_.indices) - first_index;
-
-  add_ngon(*this,
-           NgonShaderParam{
-             .transform = object_to_world(info.transform, info.area),
-             .tint   = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
-             .uv     = {info.uv[0], info.uv[1]},
-             .tiling = info.tiling,
-             .sampler      = info.sampler,
-             .albedo       = info.texture,
-             .first_index  = first_index,
-             .first_vertex = first_vertex
-  },
-           info.clip, num_indices);
-
-  return *this;
+  path::triangulate_stroke(points, vertices, indices, info.feather * 2);
+  return ngon_shape_(info, vertices, indices);
 }
 
-Canvas & Canvas::blur(ShapeInfo const & info)
+Canvas & Canvas::blur(ShapeInfo const & info_)
 {
-  auto const index = size32(blurs_);
-
+  auto info            = info_;
+  auto max_radius      = 0.5F * min(info.area.extent.x, info.area.extent.y);
+  info.radii.x         = min(info.radii.x, max_radius);
+  info.radii.y         = min(info.radii.y, max_radius);
+  info.radii.z         = min(info.radii.z, max_radius);
+  info.radii.w         = min(info.radii.w, max_radius);
   auto const world_xfm = object_to_world(info.transform, info.area);
-
-  auto const fb_xfm =
-    viewport_to_fb_ * ndc_to_viewport_ * world_to_ndc_ * world_xfm;
-
-  auto const tl = transform(fb_xfm, Vec3{-0.5, -0.5, 0.0}).xy();
-  auto const tr = transform(fb_xfm, Vec3{0.5, -0.5, 0.0}).xy();
-  auto const bl = transform(fb_xfm, Vec3{-0.5, 0.5, 0.0}).xy();
-  auto const br = transform(fb_xfm, Vec3{0.5, 0.5, 0.0}).xy();
-
-  auto const bounding = CRect::bounding(tl, tr, bl, br);
-
-  auto const uv_scale = 1 / as_vec2(framebuffer_extent_);
-  auto const uv0      = tl * uv_scale;
-  auto const uv1      = br * uv_scale;
-
-  auto const to_brightness = [](Vec4 tint) {
-    return vec4(Vec3::splat((tint.x + tint.y + tint.z) * (1 / 3.0F)), 1.0F);
-  };
-
-  auto const inv_y = 1 / info.area.extent.y;
-
-  RRectShaderParam rrect{
-    .transform = world_xfm,
-    .tint{to_brightness(info.tint[0]), to_brightness(info.tint[1]),
-          to_brightness(info.tint[2]), to_brightness(info.tint[3])},
-    .radii = info.corner_radii * inv_y,
-    .uv{uv0, uv1},
-    .tiling       = 1,
-    .aspect_ratio = info.area.extent.x * inv_y,
-    .stroke       = info.stroke,
-    .thickness    = 0 * inv_y,
-    .feathering   = info.feathering * inv_y,
-    .sampler      = SamplerId::LinearClamped,
-    .albedo       = TextureId::Base
-  };
+  auto const fb_xfm    = world_to_fb_ * world_xfm;
+  auto const tl        = transform(fb_xfm, Vec3{-0.5, -0.5, 0.0}).xy();
+  auto const tr        = transform(fb_xfm, Vec3{0.5, -0.5, 0.0}).xy();
+  auto const bl        = transform(fb_xfm, Vec3{-0.5, 0.5, 0.0}).xy();
+  auto const br        = transform(fb_xfm, Vec3{0.5, 0.5, 0.0}).xy();
+  auto const bounding  = CRect::bounding(tl, tr, bl, br);
 
   auto const area =
     RectU::range(
@@ -834,86 +753,231 @@ Canvas & Canvas::blur(ShapeInfo const & info)
       as_vec2u(clamp_vec(bounding.end(), Vec2::splat(0), MAX_CLIP.extent)))
       .clamp_to_extent(framebuffer_extent_);
 
-  auto const spread_radius =
-    as_vec2u(clamp_vec(info.thickness * virtual_scale_, Vec2::splat(0),
-                       Vec2::splat(MAX_CLIP_DISTANCE)));
+  auto spread_radius = as_vec2u(
+    Vec2::splat(clamp(info.feather * virtual_scale_, 0.0F, MAX_CLIP_DISTANCE)));
 
-  blurs_
-    .push(Blur{.rrect = rrect, .area = area, .spread_radius = spread_radius})
-    .unwrap();
+  if (!area.is_visible() || !spread_radius.is_visible())
+  {
+    return *this;
+  }
 
-  batches_
-    .push(Batch{
-      .type = BatchType::Blur, .run{index, 1},
-         .clip = info.clip
-  })
-    .unwrap();
+  static constexpr u32 MAX_SPREAD_RADIUS = 16;
+  static constexpr u32 MAX_PASSES        = 16;
+
+  spread_radius =
+    clamp_vec(spread_radius, Vec2U::splat(1U), Vec2U::splat(MAX_SPREAD_RADIUS));
+
+  auto const major_spread_radius = max(spread_radius.x, spread_radius.y);
+  auto const padding      = Vec2U::splat(max(major_spread_radius + 8, 16U));
+  auto const padded_begin = sat_sub(area.begin(), padding);
+  auto const padded_end   = sat_add(area.end(), padding);
+  auto const padded_area =
+    RectU::range(padded_begin, padded_end).clamp_to_extent(framebuffer_extent_);
+  auto const num_passes = clamp(major_spread_radius, 1U, MAX_PASSES);
+
+  if (!padded_area.is_visible() || num_passes == 0)
+  {
+    return *this;
+  }
+
+  auto const main_fb      = color_textures_[0];
+  auto const scratch_fb0  = color_textures_[1];
+  auto const scratch_fb1  = color_textures_[2];
+  auto const pass_stencil = stencil_.map([](auto s) { return s.v1; });
+  auto const stencil_tex =
+    stencil_.map([&](auto s) { return depth_stencil_textures_[s.v0]; })
+      .unwrap_or();
+
+  pass([info, main_fb, scratch_fb0, scratch_fb1, padded_area, num_passes,
+        spread_radius, area, viewport = this->viewport_,
+        scissor      = clip_to_scissor(info.clip),
+        world_to_ndc = this->world_to_ndc_, pass_stencil,
+        stencil_tex](FrameGraph & fg, PassBundle & passes) {
+    fg.add_pass(
+      "Blur.TextureCopy"_str, [main_fb, scratch_fb0, scratch_fb1, padded_area](
+                                FrameGraph &, gpu::CommandEncoder & enc) {
+        // copy to scratch texture 0 & 1. This is to prevent texture-spilling when ping-ponging between the two textures
+        enc.blit_image(
+          main_fb.image, scratch_fb0.image,
+          span({
+            gpu::ImageBlit{.src_layers{.aspects   = gpu::ImageAspects::Color,
+                                       .mip_level = 0,
+                                       .first_array_layer = 0,
+                                       .num_array_layers  = 1},
+                           .src_area = as_boxu(padded_area),
+                           .dst_layers{.aspects   = gpu::ImageAspects::Color,
+                                       .mip_level = 0,
+                                       .first_array_layer = 0,
+                                       .num_array_layers  = 1},
+                           .dst_area = as_boxu(padded_area)}
+        }),
+          gpu::Filter::Linear);
+
+        // NOTE: we can avoid a second copy operation if the padded area is same as the blur area,
+        // which will happen if we are blurring the entire texture.
+        enc.blit_image(
+          main_fb.image, scratch_fb1.image,
+          span({
+            gpu::ImageBlit{.src_layers{.aspects   = gpu::ImageAspects::Color,
+                                       .mip_level = 0,
+                                       .first_array_layer = 0,
+                                       .num_array_layers  = 1},
+                           .src_area = as_boxu(padded_area),
+                           .dst_layers{.aspects   = gpu::ImageAspects::Color,
+                                       .mip_level = 0,
+                                       .first_array_layer = 0,
+                                       .num_array_layers  = 1},
+                           .dst_area = as_boxu(padded_area)}
+        }),
+          gpu::Filter::Linear);
+      });
+
+    ColorTexture const textures[2] = {scratch_fb0, scratch_fb1};
+
+    usize src = 0;
+    usize dst = 1;
+
+    // downsample pass
+    for (usize i = 1; i <= num_passes; i++)
+    {
+      src                = (src + 1) & 1;
+      dst                = (src + 1) & 1;
+      auto const src_tex = textures[src];
+      auto const dst_tex = textures[dst];
+      auto const spread =
+        clamp_vec(Vec2U::splat(i), Vec2U::splat(1U), spread_radius);
+      auto const base = 1 / as_vec2(src_tex.extent().xy());
+      auto const blur = shader::blur::Blur{.uv0 = as_vec2(area.begin()) * base,
+                                           .uv1 = as_vec2(area.end()) * base,
+                                           .radius  = as_vec2(spread) * base,
+                                           .sampler = SamplerId::LinearClamped,
+                                           .tex     = src_tex.texture_id};
+
+      auto const blur_id = fg.push_ssbo(span({blur}));
+
+      fg.add_pass("Blur.Downsample"_str,
+                  [blur_id, &passes, src_tex, dst_tex, padded_area,
+                   viewport](FrameGraph & fg, gpu::CommandEncoder & enc) {
+                    auto blur = fg.get(blur_id);
+
+                    passes.blur->encode(
+                      enc, BlurPassParams{
+                             .framebuffer = Framebuffer{.color      = dst_tex,
+                                                        .color_msaa = {},
+                                                        .depth_stencil = {}},
+                             .stencil     = none,
+                             .scissor     = padded_area,
+                             .viewport    = viewport,
+                             .samplers    = sys->gpu.samplers_,
+                             .textures    = src_tex.texture,
+                             .blurs       = blur,
+                             .instances   = {0, 1},
+                             .upsample    = false
+                    });
+                  });
+    }
+
+    // upsample pass
+    for (usize i = num_passes; i != 0; i--)
+    {
+      src                = (src + 1) & 1;
+      dst                = (src + 1) & 1;
+      auto const src_tex = textures[src];
+      auto const dst_tex = textures[dst];
+      auto const spread =
+        clamp_vec(Vec2U::splat(i), Vec2U::splat(1U), spread_radius);
+      auto const base = 1 / as_vec2(src_tex.extent().xy());
+      auto const blur = shader::blur::Blur{.uv0 = as_vec2(area.begin()) * base,
+                                           .uv1 = as_vec2(area.end()) * base,
+                                           .radius  = as_vec2(spread) * base,
+                                           .sampler = SamplerId::LinearClamped,
+                                           .tex     = src_tex.texture_id};
+
+      auto const blur_id = fg.push_ssbo(span({blur}));
+
+      fg.add_pass("Blur.Upsample"_str,
+                  [blur_id, &passes, src_tex, dst_tex, padded_area,
+                   viewport](FrameGraph & fg, gpu::CommandEncoder & enc) {
+                    auto blur = fg.get(blur_id);
+
+                    passes.blur->encode(
+                      enc, BlurPassParams{
+                             .framebuffer = Framebuffer{.color      = dst_tex,
+                                                        .color_msaa = {},
+                                                        .depth_stencil = {}},
+                             .stencil     = none,
+                             .scissor     = padded_area,
+                             .viewport    = viewport,
+                             .samplers    = sys->gpu.samplers_,
+                             .textures    = src_tex.texture,
+                             .blurs       = blur,
+                             .instances   = {0, 1},
+                             .upsample    = true
+                    });
+                  });
+    }
+
+    // the last output was to scratch 1
+    CHECK(dst == 1, "");
+
+    // final pass: draw from scratch 1 to main, use stencil if any
+    // [ ] how will layering work with this?; tint
+    // [ ] we can apply tint in another pass
+
+    {
+      auto const src_tex  = textures[dst];
+      auto const base     = 1 / as_vec2(src_tex.extent().xy());
+      auto const material = shader::sdf::FlatMaterial{
+        .tint       = shader::quad::FlatMaterial{.top            = info.tint.top_,
+                                                 .bottom         = info.tint.bottom_,
+                                                 .gradient_rotor = info.tint.rotor_,
+                                                 .uv0 = as_vec2(area.begin()) * base,
+                                                 .uv1 = as_vec2(area.end()) * base,
+                                                 .gradient_center = info.tint.center_,
+                                                 .sampler = SamplerId::LinearClamped,
+                                                 .texture = src_tex.texture_id},
+        .sampler_id = SamplerId::LinearClamped,
+        .map_id     = TextureId::Base
+      };
+
+      auto const shape =
+        shader::sdf::Shape{.radii            = info.radii,
+                           .half_bbox_extent = info.area.extent * 0.5F,
+                           .half_extent      = info.area.extent * 0.5F,
+                           .feather          = 0,
+                           .shade_type       = ShadeType::Flood,
+                           .type             = shader::sdf::ShapeType::RRect};
+
+      // [ ] msaa? is it handled in other encoders? no!
+      auto const item =
+        SdfEncoder::Item<shader::sdf::Shape, shader::sdf::FlatMaterial>{
+          .framebuffer    = {.color         = main_fb,
+                             .color_msaa    = {},
+                             .depth_stencil = stencil_tex},
+          .stencil        = pass_stencil,
+          .scissor        = scissor,
+          .viewport       = viewport,
+          .samplers       = sys->gpu.samplers_,
+          .textures       = src_tex.texture,
+          .world_to_ndc   = world_to_ndc,
+          .shape          = shape,
+          .transform      = info.transform,
+          .material       = material,
+          .shader_variant = ShaderVariantId::Base
+      };
+
+      // [ ] change allocator
+      auto const encoder = SdfEncoder{default_allocator, item};
+
+      encoder.pass(fg, passes);
+    }
+  });
 
   return *this;
 }
 
-Canvas & Canvas::pass_(Pass pass)
-{
-  auto const index = size32(passes_);
-
-  passes_.push(std::move(pass)).unwrap();
-
-  batches_
-    .push(Batch{
-      .type = BatchType::Pass,
-      .run{index, 1},
-  })
-    .unwrap();
-
-  return *this;
-}
-
-u32 Canvas::num_layers() const
-{
-  return num_layers_;
-}
-
-Canvas & Canvas::clear_layer()
-{
-  // [ ] impl
-  return *this;
-}
-
-Canvas & Canvas::set_layer(u32 layer)
-{
-  CHECK(layer < num_layers_, "");
-  return *this;
-}
-
-u32 Canvas::layer() const
-{
-  return layer_;
-}
-
-u32 Canvas::num_masks() const
-{
-  return num_masks_;
-}
-
-Canvas & Canvas::clear_mask()
-{
-  // [ ] impl
-  return *this;
-}
-
-Canvas & Canvas::set_mask(Option<u32> mask)
-{
-  mask.match([&](u32 i) { CHECK(i < num_masks_, ""); });
-  mask_ = mask;
-  return *this;
-}
-
-Option<u32> Canvas::mask() const
-{
-  return mask_;
-}
-
-Canvas & Canvas::contour_mask(u32 mask, u32 write_mask, Contour2DView contour)
+Canvas & Canvas::contour_stencil_(u32 stencil, u32 write_mask,
+                                  Contour2D const & contour)
 {
   // [ ] copy contour
 
@@ -963,149 +1027,4 @@ Canvas & Canvas::text(Span<TextLayer const> layers,
   return *this;
 }
 
-BlurPass::Config BlurPass::config(BlurPassParams const & params)
-{
-  auto const spread_radius = clamp_vec(params.spread_radius, Vec2U::splat(1U),
-                                       Vec2U::splat(MAX_SPREAD_RADIUS));
-
-  auto const major_spread_radius = max(spread_radius.x, spread_radius.y);
-
-  auto const padding = Vec2U::splat(max(major_spread_radius + 8, 16U));
-
-  auto const padded_begin = sat_sub(params.area.begin(), padding);
-  auto const padded_end   = sat_add(params.area.end(), padding);
-
-  auto const padded_area = RectU::range(padded_begin, padded_end)
-                             .clamp_to_extent(params.framebuffer.extent().xy());
-
-  auto const num_passes = clamp(major_spread_radius, 1U, MAX_PASSES);
-
-  return {.spread_radius       = spread_radius,
-          .major_spread_radius = major_spread_radius,
-          .padding             = padding,
-          .padded_area         = padded_area,
-          .num_passes          = num_passes};
-}
-
-Option<ColorTextureResult> BlurPass::encode(gpu::CommandEncoder &  e,
-                                            BlurPassParams const & params)
-{
-  /*
-
-struct BlurConfig
-  {
-    Vec2U spread_radius       = {};
-    u32   major_spread_radius = {};
-    Vec2U padding             = {};
-    RectU padded_area         = {};
-    u32   num_passes          = 0;
-  };
-
-  static constexpr u32 MAX_SPREAD_RADIUS = 16;
-  static constexpr u32 MAX_PASSES        = 16;
-
-struct BlurRenderParam
-{
-  RRectShaderParam rrect         = {};
-  RectU         area          = {};
-  Vec2U         spread_radius = {};
-  RectU         scissor       = {};
-  gpu::Viewport viewport      = {};
-  Mat4          world_to_ndc  = {};
-};
-
-struct BlurRenderer
-{
-  static void render(FrameGraph & graph, Framebuffer const & fb,
-                     Span<ColorTexture const>, Span<DepthStencilTexture const>,
-                     PassBundle const & passes, BlurRenderParam const & param);
-};
-
-*/
-
-  /*
-  auto const scale            = 1 / as_vec2(src_extent);
-  auto const uv_spread_radius = as_vec2(spread_radius) * scale;
-  auto const uv0              = as_vec2(src_area.begin()) * scale;
-  auto const uv1              = as_vec2(src_area.end()) * scale;
-  */
-  if (!(params.area.is_visible() && params.spread_radius.is_visible()))
-  {
-    return none;
-  }
-
-  auto cfg = config(params);
-
-  if (!cfg.padded_area.is_visible() || cfg.num_passes == 0)
-  {
-    return none;
-  }
-
-  e.blit_image(params.framebuffer.color.image, sys->gpu.scratch_color_[0].image,
-               span({
-                 gpu::ImageBlit{.src_layers{.aspects = gpu::ImageAspects::Color,
-                                            .mip_level         = 0,
-                                            .first_array_layer = 0,
-                                            .num_array_layers  = 1},
-                                .src_area = as_boxu(cfg.padded_area),
-                                .dst_layers{.aspects = gpu::ImageAspects::Color,
-                                            .mip_level         = 0,
-                                            .first_array_layer = 0,
-                                            .num_array_layers  = 1},
-                                .dst_area = as_boxu(cfg.padded_area)}
-  }),
-               gpu::Filter::Linear);
-
-  // NOTE: we can avoid a second copy operation if the padded area is same as the blur area,
-  // which will happen if we are blurring the entire texture.
-  e.blit_image(params.framebuffer.color.image, sys->gpu.scratch_color_[1].image,
-               span({
-                 gpu::ImageBlit{.src_layers{.aspects = gpu::ImageAspects::Color,
-                                            .mip_level         = 0,
-                                            .first_array_layer = 0,
-                                            .num_array_layers  = 1},
-                                .src_area = as_boxu(cfg.padded_area),
-                                .dst_layers{.aspects = gpu::ImageAspects::Color,
-                                            .mip_level         = 0,
-                                            .first_array_layer = 0,
-                                            .num_array_layers  = 1},
-                                .dst_area = as_boxu(cfg.padded_area)}
-  }),
-               gpu::Filter::Linear);
-
-  ColorTexture const * const fbs[2] = {&sys->gpu.scratch_color_[0],
-                                       &sys->gpu.scratch_color_[1]};
-
-  u32 src = 0;
-  u32 dst = 1;
-
-  // downsample pass
-  for (u32 i = 1; i <= cfg.num_passes; i++)
-  {
-    src = (src + 1) & 1;
-    dst = (src + 1) & 1;
-    auto const spread_radius =
-      clamp_vec(Vec2U::splat(i), Vec2U::splat(1U), cfg.spread_radius);
-    sample(*this, e, spread_radius, fbs[src]->texture, fbs[src]->texture_id,
-           fbs[src]->extent().xy(), params.area, fbs[dst]->view, params.area,
-           false);
-  }
-
-  // upsample pass
-  for (u32 i = cfg.num_passes; i != 0; i--)
-  {
-    src = (src + 1) & 1;
-    dst = (src + 1) & 1;
-    auto const spread_radius =
-      clamp_vec(Vec2U::splat(i), Vec2U::splat(1U), cfg.spread_radius);
-    sample(*this, e, spread_radius, fbs[src]->texture, fbs[src]->texture_id,
-           fbs[src]->extent().xy(), params.area, fbs[dst]->view, params.area,
-           true);
-  }
-
-  // the last output was to scratch 1
-  CHECK(dst == 1, "");
-
-  return ColorTextureResult{.color = *fbs[dst], .rect = params.area};
-}
 }    // namespace ash

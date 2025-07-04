@@ -447,7 +447,7 @@ struct FrameGraph
 
   void add_pass(Pass pass);
 
-  template <typename Lambda>
+  template <Callable<FrameGraph &, gpu::CommandEncoder &> Lambda>
   void add_pass(Str label, Lambda && task)
   {
     // relocate lambda to heap
@@ -463,7 +463,7 @@ struct FrameGraph
       Pass{.label = label, .encoder = transmute(std::move(lambda), f)});
   }
 
-  template <typename Lambda>
+  template <Callable<> Lambda>
   void add_task(Lambda && task)
   {
     auto lambda       = dyn(arena_, static_cast<Lambda &&>(task)).unwrap();
@@ -473,7 +473,7 @@ struct FrameGraph
     tasks_.push(transmute(std::move(lambda), f)).unwrap();
   }
 
-  template <typename Encoder>
+  template <Callable<gpu::CommandEncoder &, gpu::Buffer, Slice64> Encoder>
   void upload(Span<u8 const> buffer, Encoder && encoder)
   {
     CHECK(!uploaded_, "");

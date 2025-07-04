@@ -141,19 +141,19 @@ struct NgonEncoder
         auto materials    = frame_graph.get(i_materials);
         auto index_counts = frame_graph.get<u32>(i_index_counts);
 
-        NgonPassParams params{.framebuffer    = framebuffer,
-                              .stencil        = stencil,
-                              .scissor        = scissor,
-                              .viewport       = viewport,
-                              .samplers       = samplers,
-                              .textures       = textures,
-                              .world_to_ndc   = world_to_ndc,
-                              .transforms     = transforms,
-                              .vertices       = vertices,
-                              .indices        = indices,
-                              .materials      = materials,
-                              .first_instance = 0,
-                              .index_counts   = index_counts};
+        auto params = NgonPassParams{.framebuffer    = framebuffer,
+                                     .stencil        = stencil,
+                                     .scissor        = scissor,
+                                     .viewport       = viewport,
+                                     .samplers       = samplers,
+                                     .textures       = textures,
+                                     .world_to_ndc   = world_to_ndc,
+                                     .transforms     = transforms,
+                                     .vertices       = vertices,
+                                     .indices        = indices,
+                                     .materials      = materials,
+                                     .first_instance = 0,
+                                     .index_counts   = index_counts};
 
         passes.ngon->encode(enc, params, shader_variant);
       });
@@ -279,7 +279,7 @@ struct SdfEncoder
         auto transforms   = frame_graph.get(i_transforms);
         auto materials    = frame_graph.get(i_materials);
 
-        SdfPassParams params{
+        auto params = SdfPassParams{
           .framebuffer  = framebuffer,
           .stencil      = stencil,
           .scissor      = scissor,
@@ -422,7 +422,7 @@ struct ContourStencilEncoder
         auto triangle_offsets = frame_graph.get(i_triangle_offsets);
         auto triangle_counts  = frame_graph.get<u32>(i_triangle_counts);
 
-        ContourStencilPassParams params{
+        auto params = ContourStencilPassParams{
           .stencil          = framebuffer.depth_stencil,
           .write_mask       = write_mask,
           .scissor          = scissor,
@@ -560,7 +560,7 @@ struct QuadEncoder
         auto transforms   = frame_graph.get(i_transforms);
         auto materials    = frame_graph.get(i_materials);
 
-        QuadPassParams params{
+        auto params = QuadPassParams{
           .framebuffer  = framebuffer,
           .stencil      = stencil,
           .scissor      = scissor,
@@ -676,19 +676,19 @@ struct PbrEncoder
         auto material = frame_graph.get(i_material);
         auto lights   = frame_graph.get(i_lights);
 
-        PBRPassParams params{.framebuffer  = framebuffer,
-                             .stencil      = stencil,
-                             .scissor      = scissor,
-                             .viewport     = viewport,
-                             .polygon_mode = polygon_mode,
-                             .samplers     = samplers,
-                             .textures     = textures,
-                             .vertices     = vertices,
-                             .indices      = indices,
-                             .world        = world,
-                             .material     = material,
-                             .lights       = lights,
-                             .num_indices  = num_indices};
+        auto params = PBRPassParams{.framebuffer  = framebuffer,
+                                    .stencil      = stencil,
+                                    .scissor      = scissor,
+                                    .viewport     = viewport,
+                                    .polygon_mode = polygon_mode,
+                                    .samplers     = samplers,
+                                    .textures     = textures,
+                                    .vertices     = vertices,
+                                    .indices      = indices,
+                                    .world        = world,
+                                    .material     = material,
+                                    .lights       = lights,
+                                    .num_indices  = num_indices};
 
         passes.pbr->encode(enc, params, shader_variant);
       });
