@@ -3457,4 +3457,19 @@ constexpr Affine3 translate_scale_inv2d(Affine3 const & t)
   };
 }
 
+// [ ] implement for shader?
+inline Vec3 refract(Vec3 v, Vec3 n, f32 r)
+{
+  f32 dot = ash::dot(v, n);
+  f32 d   = 1.0F - r * r * (1.0F - dot * dot);
+
+  if (d >= 0.0F)
+  {
+    d = ash::sqrt(d);
+    return r * v - (r * dot + d) * n;
+  }
+
+  return Vec3::splat(0);
+}
+
 }    // namespace ash
