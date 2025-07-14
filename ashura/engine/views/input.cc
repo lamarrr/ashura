@@ -196,7 +196,7 @@ ui::State Input::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
   };
 }
 
-Layout Input::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
+Layout Input::fit(f32x2 allocated, Span<f32x2 const>, Span<f32x2>)
 {
   content_.layout(allocated.x);
   stub_.layout(allocated.x);
@@ -225,7 +225,7 @@ void Input::render(Canvas & canvas, RenderInfo const & info)
   }
 }
 
-Cursor Input::cursor(Vec2, Vec2)
+Cursor Input::cursor(f32x2, f32x2)
 {
   return Cursor::Text;
 }

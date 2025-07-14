@@ -51,19 +51,19 @@ Slider & Slider::track_size(f32 size)
   return *this;
 }
 
-Slider & Slider::thumb_color(Vec4U8 c)
+Slider & Slider::thumb_color(u8x4 c)
 {
   style_.thumb_color = c;
   return *this;
 }
 
-Slider & Slider::thumb_hovered_color(Vec4U8 c)
+Slider & Slider::thumb_hovered_color(u8x4 c)
 {
   style_.thumb_hovered_color = c;
   return *this;
 }
 
-Slider & Slider::thumb_dragging_color(Vec4U8 c)
+Slider & Slider::thumb_dragging_color(u8x4 c)
 {
   style_.thumb_dragging_color = c;
   return *this;
@@ -75,7 +75,7 @@ Slider & Slider::thumb_corner_radii(CornerRadii const & c)
   return *this;
 }
 
-Slider & Slider::track_color(Vec4U8 c)
+Slider & Slider::track_color(u8x4 c)
 {
   style_.track_color = c;
   return *this;
@@ -133,7 +133,7 @@ ui::State Slider::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
                    .focusable = !state_.disabled};
 }
 
-Layout Slider::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
+Layout Slider::fit(f32x2 allocated, Span<f32x2 const>, Span<f32x2>)
 {
   return {.extent = style_.frame(allocated)};
 }
@@ -143,7 +143,7 @@ void Slider::render(Canvas & canvas, RenderInfo const & info)
   u32 const main_axis  = (style_.axis == Axis::X) ? 0 : 1;
   u32 const cross_axis = (style_.axis == Axis::Y) ? 0 : 1;
 
-  Vec4U8 thumb_color;
+  u8x4 thumb_color;
 
   if (state_.dragging)
   {
@@ -179,7 +179,7 @@ void Slider::render(Canvas & canvas, RenderInfo const & info)
 
   thumb_rect.center[main_axis]  = thumb_center;
   thumb_rect.center[cross_axis] = info.canvas_region.center[cross_axis];
-  thumb_rect.extent             = Vec2::splat(style_.thumb_size);
+  thumb_rect.extent             = f32x2::splat(style_.thumb_size);
 
   CRect track_rect;
 
@@ -187,11 +187,11 @@ void Slider::render(Canvas & canvas, RenderInfo const & info)
   track_rect.extent[main_axis]  = thumb_end - thumb_begin;
   track_rect.extent[cross_axis] = style_.track_size;
 
-  Vec2 coverage_begin;
+  f32x2 coverage_begin;
   coverage_begin[main_axis]  = thumb_begin;
   coverage_begin[cross_axis] = track_rect.begin()[cross_axis];
 
-  Vec2 coverage_end;
+  f32x2 coverage_end;
   coverage_end[main_axis]  = thumb_center;
   coverage_end[cross_axis] = track_rect.end()[cross_axis];
 
@@ -211,7 +211,7 @@ void Slider::render(Canvas & canvas, RenderInfo const & info)
             .tint         = thumb_color});
 }
 
-Cursor Slider::cursor(Vec2, Vec2)
+Cursor Slider::cursor(f32x2, f32x2)
 {
   return state_.disabled ? Cursor::Default : Cursor::Pointer;
 }

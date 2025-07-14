@@ -19,7 +19,7 @@ struct WindowImpl
   SDL_WindowID                                  id        = 0;
   SparseVec<Vec<Fn<void(WindowEvent const &)>>> listeners = {};
   gpu::Instance *                               instance  = nullptr;
-  Fn<WindowRegion(Vec2U)> hit_test = [](Vec2U) { return WindowRegion::Normal; };
+  Fn<WindowRegion(u32x2)> hit_test = [](u32x2) { return WindowRegion::Normal; };
 
   WindowImpl(AllocatorRef allocator, SDL_Window * window, gpu::Surface surface,
              SDL_WindowID id, gpu::Instance & instance) :
@@ -232,10 +232,10 @@ struct WindowSystemImpl : WindowSystem
     CHECK_SDL(SDL_MinimizeWindow(psdl(window)));
   }
 
-  virtual void set_extent(Window window, Vec2U extent) override
+  virtual void set_extent(Window window, u32x2 extent) override
   {
-    CHECK_SDL(SDL_SetWindowSize(psdl(window), static_cast<i32>(extent.x),
-                                static_cast<i32>(extent.y)));
+    CHECK_SDL(SDL_SetWindowSize(psdl(window), static_cast<i32>(extent.x()),
+                                static_cast<i32>(extent.y())));
   }
 
   virtual void center(Window window) override
@@ -244,56 +244,56 @@ struct WindowSystemImpl : WindowSystem
                                     SDL_WINDOWPOS_CENTERED));
   }
 
-  virtual Vec2U get_extent(Window window) override
+  virtual u32x2 get_extent(Window window) override
   {
     i32 width, height;
     CHECK_SDL(SDL_GetWindowSize(psdl(window), &width, &height));
-    return Vec2U{static_cast<u32>(width), static_cast<u32>(height)};
+    return u32x2{static_cast<u32>(width), static_cast<u32>(height)};
   }
 
-  virtual Vec2U get_surface_extent(Window window) override
+  virtual u32x2 get_surface_extent(Window window) override
   {
     i32 width, height;
     CHECK_SDL(SDL_GetWindowSizeInPixels(psdl(window), &width, &height));
-    return Vec2U{static_cast<u32>(width), static_cast<u32>(height)};
+    return u32x2{static_cast<u32>(width), static_cast<u32>(height)};
   }
 
-  virtual void set_position(Window window, Vec2I pos) override
+  virtual void set_position(Window window, i32x2 pos) override
   {
-    CHECK_SDL(SDL_SetWindowPosition(psdl(window), pos.x, pos.y));
+    CHECK_SDL(SDL_SetWindowPosition(psdl(window), pos.x(), pos.y()));
   }
 
-  virtual Vec2I get_position(Window window) override
+  virtual i32x2 get_position(Window window) override
   {
     i32 x, y;
     CHECK_SDL(SDL_GetWindowPosition(psdl(window), &x, &y));
-    return Vec2I{x, y};
+    return i32x2{x, y};
   }
 
-  virtual void set_min_extent(Window window, Vec2U min) override
+  virtual void set_min_extent(Window window, u32x2 min) override
   {
-    CHECK_SDL(SDL_SetWindowMinimumSize(psdl(window), static_cast<i32>(min.x),
-                                       static_cast<i32>(min.y)));
+    CHECK_SDL(SDL_SetWindowMinimumSize(psdl(window), static_cast<i32>(min.x()),
+                                       static_cast<i32>(min.y())));
   }
 
-  virtual Vec2U get_min_extent(Window window) override
+  virtual u32x2 get_min_extent(Window window) override
   {
     i32 width, height;
     CHECK_SDL(SDL_GetWindowMinimumSize(psdl(window), &width, &height));
-    return Vec2U{static_cast<u32>(width), static_cast<u32>(height)};
+    return u32x2{static_cast<u32>(width), static_cast<u32>(height)};
   }
 
-  virtual void set_max_extent(Window window, Vec2U max) override
+  virtual void set_max_extent(Window window, u32x2 max) override
   {
-    CHECK_SDL(SDL_SetWindowMaximumSize(psdl(window), static_cast<i32>(max.x),
-                                       static_cast<i32>(max.y)));
+    CHECK_SDL(SDL_SetWindowMaximumSize(psdl(window), static_cast<i32>(max.x()),
+                                       static_cast<i32>(max.y())));
   }
 
-  virtual Vec2U get_max_extent(Window window) override
+  virtual u32x2 get_max_extent(Window window) override
   {
     i32 width, height;
     CHECK_SDL(SDL_GetWindowMaximumSize(psdl(window), &width, &height));
-    return Vec2U{static_cast<u32>(width), static_cast<u32>(height)};
+    return u32x2{static_cast<u32>(width), static_cast<u32>(height)};
   }
 
   virtual void set_icon(Window window, ImageSpan<u8 const, 4> image,
@@ -314,8 +314,8 @@ struct WindowSystemImpl : WindowSystem
     }
 
     SDL_Surface * icon = SDL_CreateSurfaceFrom(
-      static_cast<i32>(image.extent.x), static_cast<i32>(image.extent.y), fmt,
-      (void *) image.channels.data(), static_cast<i32>(image.pitch()));
+      static_cast<i32>(image.extent.x()), static_cast<i32>(image.extent.y()),
+      fmt, (void *) image.channels.data(), static_cast<i32>(image.pitch()));
     CHECK_SDL(icon != nullptr);
     CHECK_SDL(SDL_SetWindowIcon(psdl(window), icon));
     SDL_DestroySurface(icon);
@@ -399,7 +399,7 @@ struct WindowSystemImpl : WindowSystem
                                         void * data)
   {
     WindowImpl * win    = (WindowImpl *) data;
-    WindowRegion region = win->hit_test(Vec2U{(u32) area->x, (u32) area->y});
+    WindowRegion region = win->hit_test(u32x2{(u32) area->x, (u32) area->y});
     switch (region)
     {
       case WindowRegion::Normal:
@@ -428,7 +428,7 @@ struct WindowSystemImpl : WindowSystem
   }
 
   virtual Result<> set_hit_test(Window                  window,
-                                Fn<WindowRegion(Vec2U)> hit) override
+                                Fn<WindowRegion(u32x2)> hit) override
   {
     WindowImpl * pwin = (WindowImpl *) window;
     pwin->hit_test    = hit;
@@ -1296,11 +1296,11 @@ struct WindowSystemImpl : WindowSystem
     return {(KeyModifiers) sdl_mod, (Window) impl};
   }
 
-  virtual Tuple<MouseButtons, Vec2, Window> get_mouse_state() override
+  virtual Tuple<MouseButtons, f32x2, Window> get_mouse_state() override
   {
-    Vec2 pos{};
+    f32x2 pos{};
 
-    SDL_MouseButtonFlags const flags = SDL_GetMouseState(&pos.x, &pos.y);
+    SDL_MouseButtonFlags const flags = SDL_GetMouseState(&pos.x(), &pos.y());
 
     MouseButtons state = MouseButtons::None;
 
@@ -1425,10 +1425,10 @@ struct WindowSystemImpl : WindowSystem
                                    i32 cursor_position) override
   {
     WindowImpl *   w = (WindowImpl *) window;
-    SDL_Rect const sdl_rect{.x = (i32) rect.offset.x,
-                            .y = (i32) rect.offset.y,
-                            .w = (i32) rect.extent.x,
-                            .h = (i32) rect.extent.y};
+    SDL_Rect const sdl_rect{.x = (i32) rect.offset.x(),
+                            .y = (i32) rect.offset.y(),
+                            .w = (i32) rect.extent.x(),
+                            .h = (i32) rect.extent.y()};
 
     CHECK_SDL(SDL_SetTextInputArea(w->win, &sdl_rect, cursor_position));
   }

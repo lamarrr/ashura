@@ -283,8 +283,8 @@ void RenderText::layout(f32 max_width)
   hash_ = HASH_CLEAN;
 }
 
-void RenderText::render(TextRenderer renderer, Vec2 center, f32 align_width,
-                        Mat4 const & transform, CRect const & clip,
+void RenderText::render(TextRenderer renderer, f32x2 center, f32 align_width,
+                        f32x4x4 const & transform, CRect const & clip,
                         AllocatorRef allocator)
 {
   layout_.render(renderer, {.area{.center = center}, .transform = transform},
@@ -292,12 +292,12 @@ void RenderText::render(TextRenderer renderer, Vec2 center, f32 align_width,
                  allocator);
 }
 
-Tuple<isize, CaretAlignment> RenderText::hit(Vec2 center, f32 align_width,
-                                             Mat4 const & transform,
-                                             Vec2         transformed_pos) const
+Tuple<isize, CaretAlignment> RenderText::hit(f32x2 center, f32 align_width,
+                                             f32x4x4 const & transform,
+                                             f32x2 transformed_pos) const
 {
-  auto const inv_xfm   = inverse(transform);
-  auto const pos       = (inv_xfm * vec4(transformed_pos, 0, 1)).xy();
+  auto const inv_xfm = inverse(transform);
+  auto const pos     = ash::transform(inv_xfm, transformed_pos.append(0)).xy();
   auto const local_pos = pos - center;
   return layout_.hit(block(), block_style(align_width), local_pos);
 }

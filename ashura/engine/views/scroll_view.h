@@ -120,15 +120,15 @@ struct ScrollBar : View
 
     Axis axis = Axis::X;
 
-    Vec4U8 thumb_color = theme.inactive;
+    u8x4 thumb_color = theme.inactive;
 
-    Vec4U8 thumb_hovered_color = theme.primary_variant;
+    u8x4 thumb_hovered_color = theme.primary_variant;
 
-    Vec4U8 thumb_dragging_color = theme.primary;
+    u8x4 thumb_dragging_color = theme.primary;
 
     CornerRadii thumb_corner_radii = CornerRadii::all(2);
 
-    Vec4U8 track_color = theme.inactive.with_w(128);
+    u8x4 track_color = theme.inactive.with_w(128);
 
     CornerRadii track_corner_radii = CornerRadii::all(2);
 
@@ -151,15 +151,15 @@ struct ScrollBar : View
 
   ScrollBar & disable(bool d);
 
-  ScrollBar & thumb_color(Vec4U8 color);
+  ScrollBar & thumb_color(u8x4 color);
 
-  ScrollBar & thumb_hovered_color(Vec4U8 color);
+  ScrollBar & thumb_hovered_color(u8x4 color);
 
-  ScrollBar & thumb_dragging_color(Vec4U8 color);
+  ScrollBar & thumb_dragging_color(u8x4 color);
 
   ScrollBar & thumb_corner_radii(CornerRadii const & c);
 
-  ScrollBar & track_color(Vec4U8 color);
+  ScrollBar & track_color(u8x4 color);
 
   ScrollBar & track_corner_radii(CornerRadii const & c);
 
@@ -168,8 +168,8 @@ struct ScrollBar : View
   virtual ui::State tick(Ctx const & ctx, Events const & events,
                          Fn<void(View &)> build) override;
 
-  virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
-                     Span<Vec2> centers) override;
+  virtual Layout fit(f32x2 allocated, Span<f32x2 const> sizes,
+                     Span<f32x2> centers) override;
 
   virtual void render(Canvas & canvas, RenderInfo const & info) override;
 };
@@ -198,10 +198,10 @@ struct ScrollContent : View
   virtual ui::State tick(Ctx const & ctx, Events const & events,
                          Fn<void(View &)> build) override;
 
-  virtual void size(Vec2 allocated, Span<Vec2> sizes) override;
+  virtual void size(f32x2 allocated, Span<f32x2> sizes) override;
 
-  virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
-                     Span<Vec2> centers) override;
+  virtual Layout fit(f32x2 allocated, Span<f32x2 const> sizes,
+                     Span<f32x2> centers) override;
 };
 
 // [ ] all views need to handle their zooms
@@ -209,10 +209,10 @@ struct ScrollPort : View
 {
   struct State
   {
-    Vec2 content_extent = {};
-    Vec2 visible_extent = {};
-    Vec2 zoom           = {1, 1};
-    Vec2 center         = {0, 0};
+    f32x2 content_extent = {};
+    f32x2 visible_extent = {};
+    f32x2 zoom           = {1, 1};
+    f32x2 center         = {0, 0};
   } state_;
 
   struct Style
@@ -234,10 +234,10 @@ struct ScrollPort : View
   virtual ui::State tick(Ctx const & ctx, Events const & events,
                          Fn<void(View &)> build) override;
 
-  virtual void size(Vec2 allocated, Span<Vec2> sizes) override;
+  virtual void size(f32x2 allocated, Span<f32x2> sizes) override;
 
-  virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
-                     Span<Vec2> centers) override;
+  virtual Layout fit(f32x2 allocated, Span<f32x2 const> sizes,
+                     Span<f32x2> centers) override;
 };
 
 // [ ] frame: for content and for view
@@ -262,15 +262,15 @@ struct ScrollView : View
 
   ScrollView & item(View & view);
 
-  ScrollView & thumb_color(Vec4U8 color);
+  ScrollView & thumb_color(u8x4 color);
 
-  ScrollView & thumb_hovered_color(Vec4U8 color);
+  ScrollView & thumb_hovered_color(u8x4 color);
 
-  ScrollView & thumb_dragging_color(Vec4U8 color);
+  ScrollView & thumb_dragging_color(u8x4 color);
 
   ScrollView & thumb_corner_radii(CornerRadii const & c);
 
-  ScrollView & track_color(Vec4U8 color);
+  ScrollView & track_color(u8x4 color);
 
   ScrollView & track_corner_radii(CornerRadii const & c);
 
@@ -285,10 +285,10 @@ struct ScrollView : View
   virtual ui::State tick(Ctx const & ctx, Events const & events,
                          Fn<void(View &)> build) override;
 
-  virtual void size(Vec2 allocated, Span<Vec2> sizes) override;
+  virtual void size(f32x2 allocated, Span<f32x2> sizes) override;
 
-  virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
-                     Span<Vec2> centers) override;
+  virtual Layout fit(f32x2 allocated, Span<f32x2 const> sizes,
+                     Span<f32x2> centers) override;
 
   virtual i32 layer(i32 allocated, Span<i32> children) override;
 };

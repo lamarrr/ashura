@@ -228,22 +228,22 @@ CaretPlacement TextLayout::get_caret_placement(usize caret) const
 
 Tuple<isize, CaretAlignment> TextLayout::hit(TextBlock const &      block,
                                              TextBlockStyle const & style,
-                                             Vec2                   pos) const
+                                             f32x2                  pos) const
 {
   CHECK(laid_out, "");
 
-  Vec2 const block_extent{max(extent.x, style.align_width), extent.y};
-  Vec2 const half_block_extent = 0.5F * block_extent;
-  f32        ln_top            = -half_block_extent.y;
-  f32        last_ln_bottom    = half_block_extent.y;
-  isize      ln                = 0;
+  f32x2 const block_extent{max(extent.x(), style.align_width), extent.y()};
+  f32x2 const half_block_extent = 0.5F * block_extent;
+  f32         ln_top            = -half_block_extent.y();
+  f32         last_ln_bottom    = half_block_extent.y();
+  isize       ln                = 0;
 
   // separated vertical and horizontal hit test
-  if (pos.y < ln_top)
+  if (pos.y() < ln_top)
   {
     ln = ISIZE_MIN;
   }
-  else if (pos.y > last_ln_bottom)
+  else if (pos.y() > last_ln_bottom)
   {
     ln = ISIZE_MAX;
   }
@@ -252,7 +252,7 @@ Tuple<isize, CaretAlignment> TextLayout::hit(TextBlock const &      block,
     for (auto [i, line] : enumerate(lines))
     {
       auto line_bottom = ln_top + line.metrics.height;
-      if (pos.y <= line_bottom)
+      if (pos.y() <= line_bottom)
       {
         ln = (isize) i;
         break;
@@ -282,11 +282,11 @@ Tuple<isize, CaretAlignment> TextLayout::hit(TextBlock const &      block,
   auto const   direction = line.metrics.direction();
   f32 const    alignment =
     style.alignment * ((direction == TextDirection::LeftToRight) ? 1 : -1);
-  f32 cursor = space_align(block_extent.x, line.metrics.width, alignment) -
+  f32 cursor = space_align(block_extent.x(), line.metrics.width, alignment) -
                line.metrics.width * 0.5F;
 
   // left of line
-  if (pos.x < cursor)
+  if (pos.x() < cursor)
   {
     switch (direction)
     {
@@ -315,7 +315,7 @@ Tuple<isize, CaretAlignment> TextLayout::hit(TextBlock const &      block,
     auto const   metrics     = run.metrics.resolve(font_height);
     auto const   direction   = run.direction();
     bool const   intersects =
-      pos.x >= cursor && pos.x <= (cursor + metrics.advance);
+      pos.x() >= cursor && pos.x() <= (cursor + metrics.advance);
     f32        glyph_cursor = cursor;
     auto const run_width =
       metrics.advance +
@@ -330,7 +330,7 @@ Tuple<isize, CaretAlignment> TextLayout::hit(TextBlock const &      block,
     {
       f32 const  advance = au_to_px(sh.advance, font_height);
       bool const intersects =
-        pos.x >= glyph_cursor && pos.x <= (glyph_cursor + advance);
+        pos.x() >= glyph_cursor && pos.x() <= (glyph_cursor + advance);
 
       if (intersects)
       {
@@ -338,7 +338,7 @@ Tuple<isize, CaretAlignment> TextLayout::hit(TextBlock const &      block,
 
         if (direction == TextDirection::LeftToRight)
         {
-          if (pos.x <= (glyph_cursor + 0.5F * advance))
+          if (pos.x() <= (glyph_cursor + 0.5F * advance))
           {
             codepoint = sh.cluster;
           }
@@ -349,7 +349,7 @@ Tuple<isize, CaretAlignment> TextLayout::hit(TextBlock const &      block,
         }
         else
         {
-          if (pos.x <= (glyph_cursor + 0.5F * advance))
+          if (pos.x() <= (glyph_cursor + 0.5F * advance))
           {
             codepoint = sh.cluster + 1;
           }
@@ -436,8 +436,8 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
   CHECK(style.runs.size() == block.runs.size(), "");
   CHECK(style.runs.size() == block.fonts.size(), "");
 
-  auto const block_width = max(extent.x, style.align_width);
-  Vec2 const block_extent{block_width, extent.y};
+  auto const  block_width = max(extent.x(), style.align_width);
+  f32x2 const block_extent{block_width, extent.y()};
 
   char scratch[512];
 
@@ -460,12 +460,12 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
     infos.push(i).unwrap();
   };
 
-  f32 ln_top = -(0.5F * block_extent.y);
+  f32 ln_top = -(0.5F * block_extent.y());
 
   push(
     ShapeInfo{
       .area{.center = info.area.center, .extent = block_extent},
-      .transform = info.transform * translate3d(Vec3::splat(0)),
+      .transform = info.transform * translate3d(f32x3::splat(0)),
       .clip      = clip
   },
     TextLayer::Block, TextRenderInfo{});
@@ -479,10 +479,10 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
     // flip the alignment axis direction if it is an RTL line
     auto const alignment =
       style.alignment * ((direction == TextDirection::LeftToRight) ? 1 : -1);
-    Vec2 const ln_extent{ln.metrics.width, ln.metrics.height};
-    Vec2 const ln_center{space_align(block_width, ln_extent.x, alignment),
-                         ln_top + 0.5F * ln_extent.y};
-    auto       cursor = ln_center.x - 0.5F * ln_extent.x;
+    f32x2 const ln_extent{ln.metrics.width, ln.metrics.height};
+    f32x2 const ln_center{space_align(block_width, ln_extent.x(), alignment),
+                          ln_top + 0.5F * ln_extent.y()};
+    auto        cursor = ln_center.x() - 0.5F * ln_extent.x();
 
     CRect const ln_rect{
       .center = ln_center, .extent{ln.metrics.width, ln.metrics.height}
@@ -561,9 +561,9 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
 
         if (!run_style.background.is_transparent())
         {
-          Vec2 const extent{run_width, metrics.height()};
-          Vec2 const center{cursor + extent.x * 0.5F,
-                            baseline - metrics.ascent + extent.y * 0.5F};
+          f32x2 const extent{run_width, metrics.height()};
+          f32x2 const center{cursor + extent.x() * 0.5F,
+                             baseline - metrics.ascent + extent.y() * 0.5F};
 
           push(
             {
@@ -586,8 +586,8 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
 
           if (run_highlight_span == HighlightSpan::Full)
           {
-            Vec2 const extent{run_width, metrics.height()};
-            Vec2 const center = Vec2{cursor, ln_top} + 0.5F * extent;
+            f32x2 const extent{run_width, metrics.height()};
+            f32x2 const center = f32x2{cursor, ln_top} + 0.5F * extent;
 
             push(
               {
@@ -606,10 +606,10 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
 
         if (run_style.strikethrough_thickness != 0)
         {
-          Vec2 const extent{run_width, block.font_scale *
-                                         run_style.strikethrough_thickness};
-          Vec2 const center =
-            Vec2{cursor, baseline - metrics.ascent * 0.5F} + extent * 0.5F;
+          f32x2 const extent{run_width, block.font_scale *
+                                          run_style.strikethrough_thickness};
+          f32x2 const center =
+            f32x2{cursor, baseline - metrics.ascent * 0.5F} + extent * 0.5F;
 
           push(
             {
@@ -626,11 +626,11 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
 
         if (run_style.underline_thickness != 0)
         {
-          Vec2 const extent{run_width,
-                            block.font_scale * run_style.underline_thickness};
-          Vec2 const center =
-            Vec2{cursor,
-                 baseline + block.font_scale * run_style.underline_offset} +
+          f32x2 const extent{run_width,
+                             block.font_scale * run_style.underline_thickness};
+          f32x2 const center =
+            f32x2{cursor,
+                  baseline + block.font_scale * run_style.underline_offset} +
             extent * 0.5F;
 
           push(
@@ -651,10 +651,10 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
           auto const           iglyph = run.glyphs.offset + i;
           GlyphMetrics const & m      = font.glyphs[sh.glyph];
           AtlasGlyph const &   agl    = atlas.glyphs[sh.glyph];
-          Vec2 const           extent = au_to_px(m.extent, font_height);
-          Vec2 const           center = Vec2{glyph_cursor, baseline} +
-                              au_to_px(m.bearing, font_height) +
-                              au_to_px(sh.offset, font_height) + 0.5F * extent;
+          f32x2 const          extent = au_to_px(m.extent, font_height);
+          f32x2 const          center = f32x2{glyph_cursor, baseline} +
+                               au_to_px(m.bearing, font_height) +
+                               au_to_px(sh.offset, font_height) + 0.5F * extent;
           auto const advance = au_to_px(sh.advance, font_height);
 
           // before and after carets
@@ -663,8 +663,8 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
 
           if (run_style.has_shadow())
           {
-            Vec2 const shadow_extent = extent * run_style.shadow_scale;
-            Vec2 const shadow_center =
+            f32x2 const shadow_extent = extent * run_style.shadow_scale;
+            f32x2 const shadow_center =
               center + block.font_scale * run_style.shadow_offset;
 
             push(
@@ -719,8 +719,8 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
             {
               if (p.glyph == iglyph)
               {
-                Vec2 extent{style.caret.thickness, ln.metrics.height};
-                Vec2 center;
+                f32x2 extent{style.caret.thickness, ln.metrics.height};
+                f32x2 center;
 
                 if ((direction == TextDirection::LeftToRight && p.after) ||
                     (direction == TextDirection::RightToLeft && !p.after))
@@ -757,8 +757,8 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
 
             if (glyph_highlight_span != HighlightSpan::None)
             {
-              Vec2 const extent{advance, metrics.height()};
-              Vec2 const center = Vec2{glyph_cursor, ln_top} + 0.5F * extent;
+              f32x2 const extent{advance, metrics.height()};
+              f32x2 const center = f32x2{glyph_cursor, ln_top} + 0.5F * extent;
 
               push(
                 {

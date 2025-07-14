@@ -129,8 +129,8 @@ struct RenderText
   /// @param align_width the width to align the text to
   /// @param clip the canvas-space clip rectangle
   /// @param zoom the zoom to apply to the text
-  void render(TextRenderer renderer, Vec2 center, f32 align_width,
-              Mat4 const & transform, CRect const & clip = MAX_CLIP,
+  void render(TextRenderer renderer, f32x2 center, f32 align_width,
+              f32x4x4 const & transform, CRect const & clip = MAX_CLIP,
               AllocatorRef allocator = default_allocator);
 
   /// @brief Perform hit test on the laid-out text
@@ -139,9 +139,9 @@ struct RenderText
   /// @param zoom the zoom that was applied to the text
   /// @param pos the canvas-space text position to hit
   /// @returns .v0: caret index, .v1: caret location
-  Tuple<isize, CaretAlignment> hit(Vec2 center, f32 align_width,
-                                   Mat4 const & transform,
-                                   Vec2         transformed_pos) const;
+  Tuple<isize, CaretAlignment> hit(f32x2 center, f32 align_width,
+                                   f32x4x4 const & transform,
+                                   f32x2           transformed_pos) const;
 };
 
 }    // namespace ash

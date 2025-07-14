@@ -38,15 +38,15 @@ struct Slider : View
 
     f32 track_size = 4;
 
-    Vec4U8 thumb_color = theme.primary;
+    u8x4 thumb_color = theme.primary;
 
-    Vec4U8 thumb_hovered_color = theme.primary;
+    u8x4 thumb_hovered_color = theme.primary;
 
-    Vec4U8 thumb_dragging_color = theme.primary_variant;
+    u8x4 thumb_dragging_color = theme.primary_variant;
 
     CornerRadii thumb_corner_radii = CornerRadii::all(1'000);
 
-    Vec4U8 track_color = theme.inactive;
+    u8x4 track_color = theme.inactive;
 
     CornerRadii track_corner_radii = CornerRadii::all(2.5);
 
@@ -79,15 +79,15 @@ struct Slider : View
 
   Slider & track_size(f32 size);
 
-  Slider & thumb_color(Vec4U8 color);
+  Slider & thumb_color(u8x4 color);
 
-  Slider & thumb_hovered_color(Vec4U8 color);
+  Slider & thumb_hovered_color(u8x4 color);
 
-  Slider & thumb_dragging_color(Vec4U8 color);
+  Slider & thumb_dragging_color(u8x4 color);
 
   Slider & thumb_corner_radii(CornerRadii const & color);
 
-  Slider & track_color(Vec4U8 color);
+  Slider & track_color(u8x4 color);
 
   Slider & track_corner_radii(CornerRadii const & radii);
 
@@ -96,12 +96,12 @@ struct Slider : View
   virtual ui::State tick(Ctx const & ctx, Events const & events,
                          Fn<void(View &)> build) override;
 
-  virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
-                     Span<Vec2> centers) override;
+  virtual Layout fit(f32x2 allocated, Span<f32x2 const> sizes,
+                     Span<f32x2> centers) override;
 
   virtual void render(Canvas & canvas, RenderInfo const & info) override;
 
-  virtual Cursor cursor(Vec2 extent, Vec2 position) override;
+  virtual Cursor cursor(f32x2 extent, f32x2 position) override;
 };
 
 }    // namespace ui

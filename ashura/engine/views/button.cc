@@ -14,19 +14,19 @@ Button & Button::disable(bool d)
   return *this;
 }
 
-Button & Button::color(Vec4U8 c)
+Button & Button::color(u8x4 c)
 {
   style_.color = c;
   return *this;
 }
 
-Button & Button::hovered_color(Vec4U8 c)
+Button & Button::hovered_color(u8x4 c)
 {
   style_.hovered_color = c;
   return *this;
 }
 
-Button & Button::disabled_color(Vec4U8 c)
+Button & Button::disabled_color(u8x4 c)
 {
   style_.disabled_color = c;
   return *this;
@@ -110,7 +110,7 @@ ui::State Button::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
                    .focusable = !state_.disabled};
 }
 
-void Button::size(Vec2 allocated, Span<Vec2> sizes)
+void Button::size(f32x2 allocated, Span<f32x2> sizes)
 {
   auto const frame = style_.frame(allocated);
   auto       size  = frame - style_.padding.axes();
@@ -120,10 +120,10 @@ void Button::size(Vec2 allocated, Span<Vec2> sizes)
   fill(sizes, size);
 }
 
-Layout Button::fit(Vec2, Span<Vec2 const> sizes, Span<Vec2> centers)
+Layout Button::fit(f32x2, Span<f32x2 const> sizes, Span<f32x2> centers)
 {
-  fill(centers, Vec2{0, 0});
-  auto size   = sizes.is_empty() ? Vec2{0, 0} : sizes[0];
+  fill(centers, f32x2{0, 0});
+  auto size   = sizes.is_empty() ? f32x2{0, 0} : sizes[0];
   auto padded = size + style_.padding.axes();
 
   if (style_.shape == ButtonShape::Squircle)
@@ -136,7 +136,7 @@ Layout Button::fit(Vec2, Span<Vec2 const> sizes, Span<Vec2> centers)
 
 void Button::render(Canvas & canvas, RenderInfo const & info)
 {
-  Vec4U8 tint;
+  u8x4 tint;
 
   if (state_.disabled)
   {
@@ -157,7 +157,7 @@ void Button::render(Canvas & canvas, RenderInfo const & info)
       canvas.rrect({.area         = info.canvas_region,
                     .corner_radii = style_.corner_radii,
                     .stroke       = style_.stroke,
-                    .thickness    = Vec2::splat(style_.thickness),
+                    .thickness    = f32x2::splat(style_.thickness),
                     .tint         = tint,
                     .clip         = info.clip});
       break;
@@ -165,7 +165,7 @@ void Button::render(Canvas & canvas, RenderInfo const & info)
       canvas.squircle({.area         = info.canvas_region,
                        .corner_radii = style_.corner_radii,
                        .stroke       = style_.stroke,
-                       .thickness    = Vec2::splat(style_.thickness),
+                       .thickness    = f32x2::splat(style_.thickness),
                        .tint         = tint,
                        .clip         = info.clip});
       break;
@@ -173,7 +173,7 @@ void Button::render(Canvas & canvas, RenderInfo const & info)
       canvas.brect({.area         = info.canvas_region,
                     .corner_radii = style_.corner_radii,
                     .stroke       = style_.stroke,
-                    .thickness    = Vec2::splat(style_.thickness),
+                    .thickness    = f32x2::splat(style_.thickness),
                     .tint         = tint,
                     .clip         = info.clip});
       break;
@@ -182,7 +182,7 @@ void Button::render(Canvas & canvas, RenderInfo const & info)
   }
 }
 
-Cursor Button::cursor(Vec2, Vec2)
+Cursor Button::cursor(f32x2, f32x2)
 {
   return state_.disabled ? Cursor::Default : Cursor::Pointer;
 }
@@ -224,19 +224,19 @@ TextButton & TextButton::text(Str8 t)
   return *this;
 }
 
-TextButton & TextButton::color(Vec4U8 c)
+TextButton & TextButton::color(u8x4 c)
 {
   Button::color(c);
   return *this;
 }
 
-TextButton & TextButton::hovered_color(Vec4U8 c)
+TextButton & TextButton::hovered_color(u8x4 c)
 {
   Button::color(c);
   return *this;
 }
 
-TextButton & TextButton::disabled_color(Vec4U8 c)
+TextButton & TextButton::disabled_color(u8x4 c)
 {
   Button::color(c);
   return *this;

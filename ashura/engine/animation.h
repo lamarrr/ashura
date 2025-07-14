@@ -34,25 +34,24 @@ struct Tween
     return lerp((f32) low, (f32) high, t);
   }
 
-  constexpr Vec2 operator()(Vec2 const & low, Vec2 const & high, f32 t) const
+  constexpr f32x2 operator()(f32x2 const & low, f32x2 const & high, f32 t) const
   {
-    return lerp(low, high, Vec2::splat(t));
+    return lerp(low, high, f32x2::splat(t));
   }
 
-  constexpr Vec3 operator()(Vec3 const & low, Vec3 const & high, f32 t) const
+  constexpr f32x3 operator()(f32x3 const & low, f32x3 const & high, f32 t) const
   {
-    return lerp(low, high, Vec3::splat(t));
+    return lerp(low, high, f32x3::splat(t));
   }
 
-  constexpr Vec4 operator()(Vec4 const & low, Vec4 const & high, f32 t) const
+  constexpr f32x4 operator()(f32x4 const & low, f32x4 const & high, f32 t) const
   {
-    return lerp(low, high, Vec4::splat(t));
+    return lerp(low, high, f32x4::splat(t));
   }
 
-  constexpr Vec4U8 operator()(Vec4U8 const & low, Vec4U8 const & high,
-                              f32 t) const
+  constexpr u8x4 operator()(u8x4 const & low, u8x4 const & high, f32 t) const
   {
-    return as_vec4u8(lerp(as_vec4(low), as_vec4(high), Vec4::splat(t)));
+    return lerp(low.to<f32>(), high.to<f32>(), f32x4::splat(t)).to<u8>();
   }
 };
 

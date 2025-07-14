@@ -39,14 +39,14 @@ struct ComboItem : View
   virtual ui::State tick(Ctx const & ctx, Events const & events,
                          Fn<void(View &)> build) override;
 
-  virtual void size(Vec2 allocated, Span<Vec2> sizes) override;
+  virtual void size(f32x2 allocated, Span<f32x2> sizes) override;
 
-  virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
-                     Span<Vec2> centers) override;
+  virtual Layout fit(f32x2 allocated, Span<f32x2 const> sizes,
+                     Span<f32x2> centers) override;
 
   virtual void render(Canvas & canvas, RenderInfo const & info) override;
 
-  virtual Cursor cursor(Vec2 extent, Vec2 position) override;
+  virtual Cursor cursor(f32x2 extent, f32x2 position) override;
 };
 
 struct TextComboItem : ComboItem
@@ -59,11 +59,11 @@ struct TextComboItem : ComboItem
 
     f32 alignment = ALIGNMENT_LEFT;
 
-    Vec4U8 color = theme.surface_variant;
+    u8x4 color = theme.surface_variant;
 
-    Vec4U8 hover_color = theme.primary_variant;
+    u8x4 hover_color = theme.primary_variant;
 
-    Vec4U8 selected_color = theme.primary;
+    u8x4 selected_color = theme.primary;
 
     f32 stroke = 0;
 
@@ -100,11 +100,11 @@ struct TextComboItem : ComboItem
 
   TextComboItem & align(f32 alignment);
 
-  TextComboItem & color(Vec4U8 color);
+  TextComboItem & color(u8x4 color);
 
-  TextComboItem & hover_color(Vec4U8 color);
+  TextComboItem & hover_color(u8x4 color);
 
-  TextComboItem & selected_color(Vec4U8 color);
+  TextComboItem & selected_color(u8x4 color);
 
   TextComboItem & stroke(f32 stroke);
 
@@ -115,10 +115,10 @@ struct TextComboItem : ComboItem
   virtual ui::State tick(Ctx const & ctx, Events const & events,
                          Fn<void(View &)> build) override;
 
-  virtual void size(Vec2 allocated, Span<Vec2> sizes) override;
+  virtual void size(f32x2 allocated, Span<f32x2> sizes) override;
 
-  virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
-                     Span<Vec2> centers) override;
+  virtual Layout fit(f32x2 allocated, Span<f32x2 const> sizes,
+                     Span<f32x2> centers) override;
 
   virtual void render(Canvas & canvas, RenderInfo const & info) override;
 };
@@ -136,7 +136,7 @@ struct Combo : Flex
   {
     CornerRadii corner_radii = CornerRadii::all(2);
 
-    Vec4U8 color = theme.surface;
+    u8x4 color = theme.surface;
 
     f32 stroke = 0;
 
@@ -175,7 +175,7 @@ struct Combo : Flex
 
   Combo & disable(bool disable);
 
-  Combo & color(Vec4U8 color);
+  Combo & color(u8x4 color);
 
   Combo & corner_radii(CornerRadii radii);
 

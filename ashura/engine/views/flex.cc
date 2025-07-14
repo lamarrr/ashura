@@ -69,19 +69,19 @@ ui::State Flex::tick(Ctx const &, Events const &, Fn<void(View &)> build)
   return ui::State{};
 }
 
-void Flex::size(Vec2 allocated, Span<Vec2> sizes)
+void Flex::size(f32x2 allocated, Span<f32x2> sizes)
 {
   auto const frame = style_.frame(allocated);
   fill(sizes, style_.item_frame(frame));
 }
 
-Layout Flex::fit(Vec2 allocated, Span<Vec2 const> sizes, Span<Vec2> centers)
+Layout Flex::fit(f32x2 allocated, Span<f32x2 const> sizes, Span<f32x2> centers)
 {
   auto const n            = sizes.size();
   auto const frame        = style_.frame(allocated);
   u32 const  main_axis    = (style_.axis == Axis::X) ? 0 : 1;
   u32 const  cross_axis   = (style_.axis == Axis::X) ? 1 : 0;
-  Vec2       span         = {};
+  f32x2      span         = {};
   f32        cross_cursor = 0;
 
   for (usize i = 0; i < n;)

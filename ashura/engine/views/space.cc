@@ -14,7 +14,7 @@ Space & Space::frame(Frame frame)
   return *this;
 }
 
-Layout Space::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
+Layout Space::fit(f32x2 allocated, Span<f32x2 const>, Span<f32x2>)
 {
   return Layout{.extent = style_.frame(allocated)};
 }

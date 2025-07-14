@@ -119,9 +119,9 @@ struct ScalarDragBox : View
 
     CornerRadii corner_radii = CornerRadii::all(2);
 
-    Vec4U8 color = theme.inactive;
+    u8x4 color = theme.inactive;
 
-    Vec4U8 thumb_color = theme.inactive;
+    u8x4 thumb_color = theme.inactive;
 
     f32 stroke = 1.0F;
 
@@ -159,14 +159,14 @@ struct ScalarDragBox : View
   virtual ui::State tick(Ctx const & ctx, Events const & events,
                          Fn<void(View &)> build) override;
 
-  virtual void size(Vec2 allocated, Span<Vec2> sizes) override;
+  virtual void size(f32x2 allocated, Span<f32x2> sizes) override;
 
-  virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
-                     Span<Vec2> centers) override;
+  virtual Layout fit(f32x2 allocated, Span<f32x2 const> sizes,
+                     Span<f32x2> centers) override;
 
   virtual void render(Canvas & canvas, RenderInfo const & info) override;
 
-  virtual Cursor cursor(Vec2 extent, Vec2 offset) override;
+  virtual Cursor cursor(f32x2 extent, f32x2 offset) override;
 };
 
 // [ ] spacing / margin

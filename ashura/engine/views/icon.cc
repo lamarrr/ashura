@@ -45,7 +45,7 @@ ui::State Icon::tick(Ctx const &, Events const &, Fn<void(View &)>)
   return ui::State{.hidden = state_.hidden};
 }
 
-Layout Icon::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
+Layout Icon::fit(f32x2 allocated, Span<f32x2 const>, Span<f32x2>)
 {
   text_.layout(allocated.x);
   return Layout{.extent = text_.get_layout().extent};

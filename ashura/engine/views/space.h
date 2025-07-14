@@ -26,8 +26,8 @@ struct Space : View
 
   Space & frame(Frame frame);
 
-  virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
-                     Span<Vec2> centers) override;
+  virtual Layout fit(f32x2 allocated, Span<f32x2 const> sizes,
+                     Span<f32x2> centers) override;
 };
 
 }    // namespace ui

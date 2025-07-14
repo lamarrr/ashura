@@ -102,7 +102,7 @@ ui::State ScalarDragBox::tick(Ctx const & ctx, Events const & events,
                    .focusable = !state_.disabled};
 }
 
-void ScalarDragBox::size(Vec2 allocated, Span<Vec2> sizes)
+void ScalarDragBox::size(f32x2 allocated, Span<f32x2> sizes)
 {
   auto child = style_.frame(allocated) - style_.padding.axes();
   child.x    = max(child.x, 0.0F);
@@ -110,14 +110,14 @@ void ScalarDragBox::size(Vec2 allocated, Span<Vec2> sizes)
   fill(sizes, child);
 }
 
-Layout ScalarDragBox::fit(Vec2 allocated, Span<Vec2 const> sizes,
-                          Span<Vec2> centers)
+Layout ScalarDragBox::fit(f32x2 allocated, Span<f32x2 const> sizes,
+                          Span<f32x2> centers)
 {
   auto frame  = style_.frame(allocated);
   auto padded = sizes[0] + style_.padding.axes();
   frame.x     = max(frame.x, padded.x);
   frame.y     = max(frame.y, padded.y);
-  fill(centers, Vec2{0, 0});
+  fill(centers, f32x2{0, 0});
 
   return {.extent = frame};
 }
@@ -127,7 +127,7 @@ void ScalarDragBox::render(Canvas & canvas, RenderInfo const & info)
   canvas.rrect({.area         = info.canvas_region,
                 .corner_radii = style_.corner_radii,
                 .stroke       = style_.stroke,
-                .thickness    = Vec2::splat(style_.thickness),
+                .thickness    = f32x2::splat(style_.thickness),
                 .tint         = style_.color,
                 .clip         = info.clip});
 
@@ -138,7 +138,7 @@ void ScalarDragBox::render(Canvas & canvas, RenderInfo const & info)
       [&](I32Info & v) { return v.uninterp(state_.scalar[v1]); });
 
     CRect const thumb_rect = CRect::from_offset(
-      info.canvas_region.begin(), info.canvas_region.extent * Vec2{t, 1});
+      info.canvas_region.begin(), info.canvas_region.extent * f32x2{t, 1});
 
     canvas.rrect({.area         = thumb_rect,
                   .corner_radii = style_.corner_radii,
@@ -147,7 +147,7 @@ void ScalarDragBox::render(Canvas & canvas, RenderInfo const & info)
   }
 }
 
-Cursor ScalarDragBox::cursor(Vec2, Vec2)
+Cursor ScalarDragBox::cursor(f32x2, f32x2)
 {
   return state_.disabled ? Cursor::Default : Cursor::EWResize;
 }

@@ -299,7 +299,7 @@ ui::State Text::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
   return ui::State{.draggable = state_.copyable};
 }
 
-Layout Text::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
+Layout Text::fit(f32x2 allocated, Span<f32x2 const>, Span<f32x2>)
 {
   text_.layout(allocated.x);
   return {.extent = text_.layout_.extent};
@@ -312,7 +312,7 @@ void Text::render(Canvas & canvas, RenderInfo const & info)
                transform2d_to_3d(info.canvas_transform), info.clip);
 }
 
-Cursor Text::cursor(Vec2, Vec2)
+Cursor Text::cursor(f32x2, f32x2)
 {
   return state_.copyable ? Cursor::Text : Cursor::Default;
 }

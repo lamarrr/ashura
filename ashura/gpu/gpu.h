@@ -749,10 +749,10 @@ struct MemoryRange
 /// If either extent.x or extent.y are negative the axis is inverted.
 struct Viewport
 {
-  Vec2 offset    = {};
-  Vec2 extent    = {};
-  f32  min_depth = 0;
-  f32  max_depth = 0;
+  f32x2 offset    = {};
+  f32x2 extent    = {};
+  f32   min_depth = 0;
+  f32   max_depth = 0;
 };
 
 struct StencilState
@@ -823,7 +823,7 @@ struct ImageInfo
   Format       format       = Format::Undefined;
   ImageUsage   usage        = ImageUsage::None;
   ImageAspects aspects      = ImageAspects::None;
-  Vec3U        extent       = {};
+  u32x3        extent       = {};
   u32          mip_levels   = 0;
   u32          array_layers = 0;
   SampleCount  sample_count = SampleCount::None;
@@ -1010,7 +1010,7 @@ struct ColorBlendState
   bool                                  logic_op_enable = false;
   LogicOp                               logic_op        = LogicOp::Clear;
   Span<ColorBlendAttachmentState const> attachments     = {};
-  Vec4                                  blend_constant  = {};
+  f32x4                                 blend_constant  = {};
 };
 
 struct RasterizationState
@@ -1030,7 +1030,7 @@ struct GraphicsState
 {
   RectU        scissor                  = {};
   Viewport     viewport                 = {};
-  Vec4         blend_constant           = {};
+  f32x4        blend_constant           = {};
   bool         stencil_test_enable      = false;
   StencilState front_face_stencil       = {};
   StencilState back_face_stencil        = {};
@@ -1108,7 +1108,7 @@ struct ImageCopy
   ImageSubresourceLayers src_layers = {};
   BoxU                   src_area   = {};
   ImageSubresourceLayers dst_layers = {};
-  Vec3U                  dst_offset = {};
+  u32x3                  dst_offset = {};
 };
 
 struct ImageBlit
@@ -1124,15 +1124,15 @@ struct ImageResolve
   ImageSubresourceLayers src_layers = {};
   BoxU                   src_area   = {};
   ImageSubresourceLayers dst_layers = {};
-  Vec3U                  dst_offset = {};
+  u32x3                  dst_offset = {};
 };
 
 /// x, y, z, w => R, G, B, A
 union Color
 {
-  Vec4U u32 = {0, 0, 0, 0};
-  Vec4I i32;
-  Vec4  f32;
+  u32x4 u32 = {0, 0, 0, 0};
+  i32x4 i32;
+  f32x4 f32;
 };
 
 struct DepthStencil
@@ -1160,7 +1160,7 @@ struct SwapchainInfo
   ImageUsage     usage               = ImageUsage::None;
   u32            preferred_buffering = 0;
   PresentMode    present_mode        = PresentMode::Immediate;
-  Vec2U          preferred_extent    = {};
+  u32x2          preferred_extent    = {};
   CompositeAlpha composite_alpha     = CompositeAlpha::None;
 };
 
@@ -1171,7 +1171,7 @@ struct SwapchainInfo
 /// storing pointers to its data members.
 struct SwapchainState
 {
-  Vec2U             extent        = {};
+  u32x2             extent        = {};
   SurfaceFormat     format        = {};
   Span<Image const> images        = {};
   Option<u32>       current_image = none;
@@ -1243,7 +1243,7 @@ struct CommandEncoder
 
   virtual void end_statistics(StatisticsQuery query, u32 index) = 0;
 
-  virtual void begin_debug_marker(Str region_name, Vec4 color) = 0;
+  virtual void begin_debug_marker(Str region_name, f32x4 color) = 0;
 
   virtual void end_debug_marker() = 0;
 

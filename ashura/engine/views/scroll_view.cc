@@ -42,19 +42,19 @@ ScrollBar & ScrollBar::disable(bool d)
   return *this;
 }
 
-ScrollBar & ScrollBar::thumb_color(Vec4U8 color)
+ScrollBar & ScrollBar::thumb_color(u8x4 color)
 {
   style_.thumb_color = color;
   return *this;
 }
 
-ScrollBar & ScrollBar::thumb_hovered_color(Vec4U8 color)
+ScrollBar & ScrollBar::thumb_hovered_color(u8x4 color)
 {
   style_.thumb_hovered_color = color;
   return *this;
 }
 
-ScrollBar & ScrollBar::thumb_dragging_color(Vec4U8 color)
+ScrollBar & ScrollBar::thumb_dragging_color(u8x4 color)
 {
   style_.thumb_dragging_color = color;
   return *this;
@@ -66,7 +66,7 @@ ScrollBar & ScrollBar::thumb_corner_radii(CornerRadii const & c)
   return *this;
 }
 
-ScrollBar & ScrollBar::track_color(Vec4U8 color)
+ScrollBar & ScrollBar::track_color(u8x4 color)
 {
   style_.track_color = color;
   return *this;
@@ -138,12 +138,12 @@ ui::State ScrollBar::tick(Ctx const & ctx, Events const & events,
                    .focusable = !state_.disabled};
 }
 
-Layout ScrollBar::fit(Vec2, Span<Vec2 const>, Span<Vec2>)
+Layout ScrollBar::fit(f32x2, Span<f32x2 const>, Span<f32x2>)
 {
   u32 const main_axis  = (style_.axis == Axis::X) ? 0 : 1;
   u32 const cross_axis = (style_.axis == Axis::X) ? 1 : 0;
 
-  Vec2 size;
+  f32x2 size;
 
   size[main_axis]  = state_.scroll.track_extent();
   size[cross_axis] = style_.thickness;
@@ -174,8 +174,8 @@ void ScrollBar::render(Canvas & canvas, RenderInfo const & info)
   thumb_rect.extent[main_axis]  = thumb_extent;
   thumb_rect.extent[cross_axis] = info.canvas_region.extent[cross_axis];
 
-  Vec4U8 thumb_color;
-  Vec4U8 track_color = style_.track_color;
+  u8x4 thumb_color;
+  u8x4 track_color = style_.track_color;
 
   if (state_.dragging)
   {
@@ -220,14 +220,14 @@ ui::State ScrollContent::tick(Ctx const &, Events const &,
   return ui::State{};
 }
 
-void ScrollContent::size(Vec2 allocated, Span<Vec2> sizes)
+void ScrollContent::size(f32x2 allocated, Span<f32x2> sizes)
 {
   sizes[0] = style_.frame(allocated);
 }
 
-Layout ScrollContent::fit(Vec2, Span<Vec2 const> sizes, Span<Vec2> centers)
+Layout ScrollContent::fit(f32x2, Span<f32x2 const> sizes, Span<f32x2> centers)
 {
-  centers[0] = Vec2::splat(0);
+  centers[0] = f32x2::splat(0);
   return {.extent = sizes[0]};
 }
 
@@ -247,15 +247,15 @@ ui::State ScrollPort::tick(Ctx const &, Events const &, Fn<void(View &)> build)
   return ui::State{.viewport = true};
 }
 
-void ScrollPort::size(Vec2 allocated, Span<Vec2> sizes)
+void ScrollPort::size(f32x2 allocated, Span<f32x2> sizes)
 {
   fill(sizes, allocated);
 }
 
-Layout ScrollPort::fit(Vec2 allocated, Span<Vec2 const> sizes,
-                       Span<Vec2> centers)
+Layout ScrollPort::fit(f32x2 allocated, Span<f32x2 const> sizes,
+                       Span<f32x2> centers)
 {
-  centers[0]                = Vec2::splat(0);
+  centers[0]                = f32x2::splat(0);
   auto const content_extent = sizes[0];
   auto const visible_extent = style_.frame(allocated);
 
@@ -287,21 +287,21 @@ ScrollView & ScrollView::item(View & v)
   return *this;
 }
 
-ScrollView & ScrollView::thumb_color(Vec4U8 c)
+ScrollView & ScrollView::thumb_color(u8x4 c)
 {
   x_bar_.thumb_color(c);
   y_bar_.thumb_color(c);
   return *this;
 }
 
-ScrollView & ScrollView::thumb_hovered_color(Vec4U8 c)
+ScrollView & ScrollView::thumb_hovered_color(u8x4 c)
 {
   x_bar_.thumb_hovered_color(c);
   y_bar_.thumb_hovered_color(c);
   return *this;
 }
 
-ScrollView & ScrollView::thumb_dragging_color(Vec4U8 c)
+ScrollView & ScrollView::thumb_dragging_color(u8x4 c)
 {
   x_bar_.thumb_dragging_color(c);
   y_bar_.thumb_dragging_color(c);
@@ -315,7 +315,7 @@ ScrollView & ScrollView::thumb_corner_radii(CornerRadii const & c)
   return *this;
 }
 
-ScrollView & ScrollView::track_color(Vec4U8 c)
+ScrollView & ScrollView::track_color(u8x4 c)
 {
   x_bar_.track_color(c);
   y_bar_.track_color(c);
@@ -387,8 +387,8 @@ ui::State ScrollView::tick(Ctx const &, Events const & events,
   }
 
   // [ ] remove
-  port_.state_.center = Vec2{0, -700} + Vec2{x_bar_.state_.scroll.center(),
-                                             y_bar_.state_.scroll.center()};
+  port_.state_.center = f32x2{0, -700} + f32x2{x_bar_.state_.scroll.center(),
+                                               y_bar_.state_.scroll.center()};
 
   build(x_bar_);
   build(y_bar_);
@@ -398,13 +398,13 @@ ui::State ScrollView::tick(Ctx const &, Events const & events,
                      !(x_bar_.state_.disabled && y_bar_.state_.disabled)};
 }
 
-void ScrollView::size(Vec2 allocated, Span<Vec2> sizes)
+void ScrollView::size(f32x2 allocated, Span<f32x2> sizes)
 {
   // [ ] the barsd will have invalid extents
   fill(sizes, allocated);
 }
 
-Layout ScrollView::fit(Vec2, Span<Vec2 const> sizes, Span<Vec2> centers)
+Layout ScrollView::fit(f32x2, Span<f32x2 const> sizes, Span<f32x2> centers)
 {
   centers[0] =
     space_align(port_.state_.visible_extent, sizes[0], ALIGNMENT_BOTTOM_LEFT);

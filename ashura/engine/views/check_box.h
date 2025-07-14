@@ -26,9 +26,9 @@ struct CheckBox : View
 
   struct Style
   {
-    Vec4U8 box_color = theme.inactive;
+    u8x4 box_color = theme.inactive;
 
-    Vec4U8 box_hovered_color = theme.active;
+    u8x4 box_hovered_color = theme.active;
 
     f32 stroke = 1;
 
@@ -71,9 +71,9 @@ struct CheckBox : View
 
   CheckBox & disable(bool disable);
 
-  CheckBox & box_color(Vec4U8 color);
+  CheckBox & box_color(u8x4 color);
 
-  CheckBox & box_hovered_color(Vec4U8 color);
+  CheckBox & box_hovered_color(u8x4 color);
 
   CheckBox & stroke(f32 stroke);
 
@@ -86,14 +86,14 @@ struct CheckBox : View
   virtual ui::State tick(Ctx const & ctx, Events const & events,
                          Fn<void(View &)> build) override;
 
-  virtual void size(Vec2 allocated, Span<Vec2> sizes) override;
+  virtual void size(f32x2 allocated, Span<f32x2> sizes) override;
 
-  virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
-                     Span<Vec2> centers) override;
+  virtual Layout fit(f32x2 allocated, Span<f32x2 const> sizes,
+                     Span<f32x2> centers) override;
 
   virtual void render(Canvas & canvas, RenderInfo const & info) override;
 
-  virtual Cursor cursor(Vec2 extent, Vec2 position) override;
+  virtual Cursor cursor(f32x2 extent, f32x2 position) override;
 };
 
 }    // namespace ui

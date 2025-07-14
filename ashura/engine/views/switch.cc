@@ -41,31 +41,31 @@ Switch & Switch::toggle()
   return *this;
 }
 
-Switch & Switch::on_color(Vec4U8 c)
+Switch & Switch::on_color(u8x4 c)
 {
   style_.on_color = c;
   return *this;
 }
 
-Switch & Switch::on_hovered_color(Vec4U8 c)
+Switch & Switch::on_hovered_color(u8x4 c)
 {
   style_.on_hovered_color = c;
   return *this;
 }
 
-Switch & Switch::off_color(Vec4U8 c)
+Switch & Switch::off_color(u8x4 c)
 {
   style_.off_color = c;
   return *this;
 }
 
-Switch & Switch::off_hovered_color(Vec4U8 c)
+Switch & Switch::off_hovered_color(u8x4 c)
 {
   style_.off_hovered_color = c;
   return *this;
 }
 
-Switch & Switch::track_color(Vec4U8 c)
+Switch & Switch::track_color(u8x4 c)
 {
   style_.track_color = c;
   return *this;
@@ -99,7 +99,7 @@ ui::State Switch::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
                    .focusable = !state_.disabled};
 }
 
-Layout Switch::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
+Layout Switch::fit(f32x2 allocated, Span<f32x2 const>, Span<f32x2>)
 {
   return {.extent = style_.frame(allocated)};
 }
@@ -108,13 +108,13 @@ void Switch::render(Canvas & canvas, RenderInfo const & info)
 {
   auto thumb_extent = info.canvas_region.extent;
   thumb_extent.x *= 0.5F;
-  Vec2 const alignment{state_.value ? ALIGNMENT_RIGHT : ALIGNMENT_LEFT,
-                       ALIGNMENT_CENTER};
+  f32x2 const alignment{state_.value ? ALIGNMENT_RIGHT : ALIGNMENT_LEFT,
+                        ALIGNMENT_CENTER};
   auto const thumb_center =
     info.canvas_region.center +
     space_align(info.canvas_region.extent, thumb_extent, alignment);
 
-  Vec4U8 thumb_color;
+  u8x4 thumb_color;
   if (state_.hovered)
   {
     thumb_color =
@@ -138,7 +138,7 @@ void Switch::render(Canvas & canvas, RenderInfo const & info)
             .clip         = info.clip});
 }
 
-Cursor Switch::cursor(Vec2, Vec2)
+Cursor Switch::cursor(f32x2, f32x2)
 {
   return state_.disabled ? Cursor::Default : Cursor::Pointer;
 }

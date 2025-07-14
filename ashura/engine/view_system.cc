@@ -174,7 +174,7 @@ void System::focus_order()
   }
 }
 
-void System::layout(Vec2 viewport_extent)
+void System::layout(f32x2 viewport_extent)
 {
   ScopeTrace trace;
 
@@ -193,7 +193,7 @@ void System::layout(Vec2 viewport_extent)
     view->size(extent, extents.view().slice(children));
   }
 
-  centers[0] = Vec2::splat(0);
+  centers[0] = f32x2::splat(0);
 
   // fit parent views along the finalized sizes of the child views and
   // assign centers to the children based on their sizes.
@@ -216,7 +216,7 @@ void System::layout(Vec2 viewport_extent)
   for (auto [i, children] : enumerate(nodes.children))
   {
     // viewports don't propagate fixed-position centers to children
-    auto const fc = att.is_viewport[i] ? Vec2::ZERO : fixed_centers[i];
+    auto const fc = att.is_viewport[i] ? f32x2::zero() : fixed_centers[i];
 
     for (auto c = children.begin(); c < children.end(); c++)
     {
@@ -228,8 +228,8 @@ void System::layout(Vec2 viewport_extent)
   }
 
   // recursively apply viewport transforms to child viewports
-  canvas_xfm[0]     = Affine3::IDENTITY;
-  canvas_inv_xfm[0] = Affine3::IDENTITY;
+  canvas_xfm[0]     = affinef32x3::identity();
+  canvas_inv_xfm[0] = affinef32x3::identity();
 
   for (usize i = 0; i < n; i++)
   {
@@ -259,7 +259,7 @@ void System::layout(Vec2 viewport_extent)
   for (usize i = 1; i < n; i++)
   {
     auto const & transform = canvas_xfm[att.viewports[i]];
-    auto const   zoom      = Vec2{transform[0][0], transform[1][1]};
+    auto const   zoom      = f32x2{transform[0][0], transform[1][1]};
     canvas_centers[i]      = ash::transform(transform, fixed_centers[i]);
     canvas_extents[i]      = extents[i] * zoom;
   }
@@ -447,7 +447,7 @@ void System::focus_on(u16 i, bool active, bool grab_focus)
   }
 }
 
-Option<u16> System::hit_test(Vec2 position) const
+Option<u16> System::hit_test(f32x2 position) const
 {
   // find in reverse z-order
   for (auto z = views.size(); z != 0;)
@@ -468,7 +468,7 @@ Option<u16> System::hit_test(Vec2 position) const
   return none;
 }
 
-HitInfo System::get_hit_info(u16 view, Vec2 position) const
+HitInfo System::get_hit_info(u16 view, f32x2 position) const
 {
   auto viewport          = att.viewports[view];
   auto viewport_position = transform(canvas_inv_xfm[viewport], position);
@@ -734,7 +734,7 @@ System::HitState System::point_seq(Ctx const & ctx, Option<u16> prev_tgt)
           .scroll =
             ScrollInfo{.center = viewport_centers[i] +
                                  -1 * scroll_delta *
-                                   as_vec2(ctx.mouse.wheel_translation.v()),
+                                   ctx.mouse.wheel_translation.v().to<f32>(),
                        .zoom = viewport_zooms[i]}
       })
         .unwrap();
@@ -990,7 +990,7 @@ bool System::tick(InputState const & input, View & root, Canvas & canvas,
   event_queue.clear();
   prepare_for(size16(views));
   focus_order();
-  layout(as_vec2(input.window.extent));
+  layout(input.window.extent.to<f32>());
   stack();
   visibility();
   render(canvas);

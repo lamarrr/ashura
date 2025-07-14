@@ -482,7 +482,7 @@ struct Swapchain
 
   gpu::PresentMode present_mode = gpu::PresentMode::Immediate;
 
-  Vec2U extent = {};
+  u32x2 extent = {};
 
   gpu::CompositeAlpha composite_alpha = gpu::CompositeAlpha::None;
 
@@ -727,7 +727,7 @@ struct CommandEncoder final : gpu::CommandEncoder
 
   virtual void end_statistics(gpu::StatisticsQuery query, u32 index) override;
 
-  virtual void begin_debug_marker(Str region_name, Vec4 color) override;
+  virtual void begin_debug_marker(Str region_name, f32x4 color) override;
 
   virtual void end_debug_marker() override;
 

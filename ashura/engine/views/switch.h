@@ -22,15 +22,15 @@ struct Switch : View
 
   struct Style
   {
-    Vec4U8 on_color = theme.primary;
+    u8x4 on_color = theme.primary;
 
-    Vec4U8 on_hovered_color = theme.primary_variant;
+    u8x4 on_hovered_color = theme.primary_variant;
 
-    Vec4U8 off_color = theme.active;
+    u8x4 off_color = theme.active;
 
-    Vec4U8 off_hovered_color = theme.inactive;
+    u8x4 off_hovered_color = theme.inactive;
 
-    Vec4U8 track_color = theme.surface_variant;
+    u8x4 track_color = theme.surface_variant;
 
     f32 track_thickness = 1;
 
@@ -61,15 +61,15 @@ struct Switch : View
 
   Switch & toggle();
 
-  Switch & on_color(Vec4U8 color);
+  Switch & on_color(u8x4 color);
 
-  Switch & on_hovered_color(Vec4U8 color);
+  Switch & on_hovered_color(u8x4 color);
 
-  Switch & off_color(Vec4U8 color);
+  Switch & off_color(u8x4 color);
 
-  Switch & off_hovered_color(Vec4U8 color);
+  Switch & off_hovered_color(u8x4 color);
 
-  Switch & track_color(Vec4U8 color);
+  Switch & track_color(u8x4 color);
 
   Switch & corner_radii(CornerRadii const & radii);
 
@@ -80,12 +80,12 @@ struct Switch : View
   virtual ui::State tick(Ctx const & ctx, Events const & events,
                          Fn<void(View &)> build) override;
 
-  virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
-                     Span<Vec2> centers) override;
+  virtual Layout fit(f32x2 allocated, Span<f32x2 const> sizes,
+                     Span<f32x2> centers) override;
 
   virtual void render(Canvas & canvas, RenderInfo const & info) override;
 
-  virtual Cursor cursor(Vec2 extent, Vec2 position) override;
+  virtual Cursor cursor(f32x2 extent, f32x2 position) override;
 };
 }    // namespace ui
 

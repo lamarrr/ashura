@@ -22,7 +22,7 @@ struct Text : View
   struct Style
   {
     TextHighlightStyle highlight{.color        = theme.highlight,
-                                 .corner_radii = Vec4::splat(0)};
+                                 .corner_radii = f32x4::splat(0)};
   } style_;
 
   RenderText text_;
@@ -67,12 +67,12 @@ struct Text : View
   virtual ui::State tick(Ctx const & ctx, Events const & events,
                          Fn<void(View &)> build) override;
 
-  virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
-                     Span<Vec2> centers) override;
+  virtual Layout fit(f32x2 allocated, Span<f32x2 const> sizes,
+                     Span<f32x2> centers) override;
 
   virtual void render(Canvas & canvas, RenderInfo const & info) override;
 
-  virtual Cursor cursor(Vec2 extent, Vec2 position) override;
+  virtual Cursor cursor(f32x2 extent, f32x2 position) override;
 };
 }    // namespace ui
 

@@ -657,13 +657,13 @@ struct KeyEvent
 
 struct MouseMotionEvent
 {
-  Vec2 position    = {};
-  Vec2 translation = {};
+  f32x2 position    = {};
+  f32x2 translation = {};
 };
 
 struct MouseClickEvent
 {
-  Vec2        position = {};
+  f32x2       position = {};
   u32         clicks   = 0;
   MouseButton button   = MouseButton::Primary;
   KeyAction   action   = KeyAction::Press;
@@ -671,8 +671,8 @@ struct MouseClickEvent
 
 struct MouseWheelEvent
 {
-  Vec2  position    = {};
-  Vec2I translation = {};
+  f32x2 position    = {};
+  i32x2 translation = {};
 };
 
 enum class WindowEventType : u8
@@ -710,7 +710,7 @@ enum class DropEventType : u8
 
 struct DropPositionEvent
 {
-  Vec2 pos{};
+  f32x2 pos{};
 };
 
 struct DropFileEvent
@@ -1082,13 +1082,13 @@ struct MouseState
   Array<u32, NUM_MOUSE_BUTTONS> num_clicks{};
 
   /// @brief the position of the mouse on this frame
-  Option<Vec2> position = none;
+  Option<f32x2> position = none;
 
   /// @brief translation of the mouse on this frame
-  Option<Vec2> translation = none;
+  Option<f32x2> translation = none;
 
   /// @brief translation of the mouse wheel on this frame
-  Option<Vec2I> wheel_translation = none;
+  Option<i32x2> wheel_translation = none;
 
   constexpr bool down(MouseButton btn) const
   {
@@ -1123,10 +1123,10 @@ struct ThemeState
 struct WindowState
 {
   /// @brief extent of the viewport the windows' views are in
-  Vec2U extent = {};
+  u32x2 extent = {};
 
   /// @brief then windows' backing surface extent
-  Vec2U surface_extent = {};
+  u32x2 surface_extent = {};
 
   /// @brief did a window resize happen
   bool resized = true;

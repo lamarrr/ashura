@@ -97,15 +97,15 @@ ui::State List::tick(Ctx const &, Events const & events, Fn<void(View &)> build)
   return ui::State{.scrollable = true, .viewport = true};
 }
 
-void List::size(Vec2 allocated, Span<Vec2> sizes)
+void List::size(f32x2 allocated, Span<f32x2> sizes)
 {
   fill(sizes, style_.item_frame(style_.frame(allocated)));
 }
 
-Layout List::fit(Vec2 allocated, Span<Vec2 const> sizes, Span<Vec2> centers)
+Layout List::fit(f32x2 allocated, Span<f32x2 const> sizes, Span<f32x2> centers)
 {
   auto      frame      = style_.frame(allocated);
-  Vec2      extent     = {};
+  f32x2     extent     = {};
   u32 const axis       = style_.axis == Axis::X ? 0 : 1;
   u32 const cross_axis = style_.axis == Axis::X ? 1 : 0;
 

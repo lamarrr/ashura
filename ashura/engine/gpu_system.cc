@@ -469,10 +469,10 @@ static Option<gpu::Format> select_depth_format(gpu::Device & dev)
 GpuSystem GpuSystem::create(AllocatorRef allocator, gpu::Device & device,
                             Span<u8 const> pipeline_cache_data, bool use_hdr,
                             u32 buffering, gpu::SampleCount sample_count,
-                            Vec2U initial_extent)
+                            u32x2 initial_extent)
 {
   CHECK(buffering <= gpu::MAX_FRAME_BUFFERING, "");
-  CHECK(initial_extent.x > 0 && initial_extent.y > 0, "");
+  CHECK(initial_extent.x() > 0 && initial_extent.y() > 0, "");
 
   gpu::Format color_fmt = gpu::Format::Undefined;
 
@@ -848,7 +848,7 @@ void GpuSystem::shutdown(Vec<u8> & cache)
   idle_reclaim();
 }
 
-static ColorTexture create_color_texture(GpuSystem & gpu, Vec2U new_extent,
+static ColorTexture create_color_texture(GpuSystem & gpu, u32x2 new_extent,
                                          Str prefix, usize index)
 {
   auto label =
@@ -862,12 +862,11 @@ static ColorTexture create_color_texture(GpuSystem & gpu, Vec2U new_extent,
     .usage  = gpu::ImageUsage::ColorAttachment | gpu::ImageUsage::Sampled |
              gpu::ImageUsage::Storage | gpu::ImageUsage::TransferDst |
              gpu::ImageUsage::TransferSrc,
-    .aspects = gpu::ImageAspects::Color,
-    .extent{new_extent.x, new_extent.y, 1},
+    .aspects      = gpu::ImageAspects::Color,
+    .extent       = new_extent.append(1),
     .mip_levels   = 1,
     .array_layers = 1,
-    .sample_count = gpu::SampleCount::C1
-  };
+    .sample_count = gpu::SampleCount::C1};
 
   gpu::Image image = gpu.device_->create_image(info).unwrap();
 
@@ -916,7 +915,7 @@ static ColorTexture create_color_texture(GpuSystem & gpu, Vec2U new_extent,
 }
 
 static Option<ColorMsaaTexture> create_color_msaa_texture(GpuSystem & gpu,
-                                                          Vec2U new_extent,
+                                                          u32x2 new_extent,
                                                           Str   prefix,
                                                           usize index)
 {
@@ -929,18 +928,17 @@ static Option<ColorMsaaTexture> create_color_msaa_texture(GpuSystem & gpu,
                                              prefix, index)
                  .unwrap();
 
-  gpu::ImageInfo info{
-    .label  = label,
-    .type   = gpu::ImageType::Type2D,
-    .format = gpu.color_format_,
-    .usage  = gpu::ImageUsage::ColorAttachment | gpu::ImageUsage::TransferSrc |
-             gpu::ImageUsage::TransferDst,
-    .aspects = gpu::ImageAspects::Color,
-    .extent{new_extent.x, new_extent.y, 1},
-    .mip_levels   = 1,
-    .array_layers = 1,
-    .sample_count = gpu.sample_count_
-  };
+  gpu::ImageInfo info{.label  = label,
+                      .type   = gpu::ImageType::Type2D,
+                      .format = gpu.color_format_,
+                      .usage  = gpu::ImageUsage::ColorAttachment |
+                               gpu::ImageUsage::TransferSrc |
+                               gpu::ImageUsage::TransferDst,
+                      .aspects      = gpu::ImageAspects::Color,
+                      .extent       = new_extent.append(1),
+                      .mip_levels   = 1,
+                      .array_layers = 1,
+                      .sample_count = gpu.sample_count_};
 
   gpu::Image image = gpu.device_->create_image(info).unwrap();
 
@@ -969,7 +967,7 @@ static Option<ColorMsaaTexture> create_color_msaa_texture(GpuSystem & gpu,
 }
 
 static DepthStencilTexture create_depth_texture(GpuSystem & gpu,
-                                                Vec2U new_extent, Str prefix,
+                                                u32x2 new_extent, Str prefix,
                                                 usize index)
 {
   auto label = snformat<gpu::MAX_LABEL_SIZE>(
@@ -983,12 +981,11 @@ static DepthStencilTexture create_depth_texture(GpuSystem & gpu,
     .usage  = gpu::ImageUsage::DepthStencilAttachment |
              gpu::ImageUsage::Sampled | gpu::ImageUsage::TransferDst |
              gpu::ImageUsage::TransferSrc,
-    .aspects = gpu::ImageAspects::Depth | gpu::ImageAspects::Stencil,
-    .extent{new_extent.x, new_extent.y, 1},
+    .aspects      = gpu::ImageAspects::Depth | gpu::ImageAspects::Stencil,
+    .extent       = new_extent.append(1),
     .mip_levels   = 1,
     .array_layers = 1,
-    .sample_count = gpu::SampleCount::C1
-  };
+    .sample_count = gpu::SampleCount::C1};
 
   gpu::Image image = gpu.device_->create_image(info).unwrap();
 
@@ -1079,7 +1076,7 @@ static DepthStencilTexture create_depth_texture(GpuSystem & gpu,
                              .stencil_texture   = stencil_texture};
 }
 
-void GpuSystem::recreate_framebuffers(Vec2U new_extent)
+void GpuSystem::recreate_framebuffers(u32x2 new_extent)
 {
   idle_reclaim();
   release(fb_.color);
@@ -1341,7 +1338,7 @@ void GpuSystem::frame(gpu::Swapchain swapchain)
                            .mip_level         = 0,
                            .first_array_layer = 0,
                            .num_array_layers  = 1},
-                         .dst_area   = {{0, 0, 0}, vec3u(swapchain_state.extent, 1)}}
+                         .dst_area   = {{0, 0, 0}, swapchain_state.extent.append(1)}}
       }),
         gpu::Filter::Linear);
     });

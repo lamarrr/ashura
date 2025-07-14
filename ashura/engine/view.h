@@ -89,14 +89,14 @@ struct Frame
   Size x_{};
   Size y_{};
 
-  constexpr Vec2 operator()(f32 anchor_x, f32 anchor_y) const
+  constexpr f32x2 operator()(f32 anchor_x, f32 anchor_y) const
   {
-    return Vec2{x_(anchor_x), y_(anchor_y)};
+    return f32x2{x_(anchor_x), y_(anchor_y)};
   }
 
-  constexpr Vec2 operator()(Vec2 anchor) const
+  constexpr f32x2 operator()(f32x2 anchor) const
   {
-    return this->operator()(anchor.x, anchor.y);
+    return this->operator()(anchor.x(), anchor.y());
   }
 
   constexpr Frame & abs(f32 x, f32 y)
@@ -106,9 +106,9 @@ struct Frame
     return *this;
   }
 
-  constexpr Frame & abs(Vec2 anchor)
+  constexpr Frame & abs(f32x2 anchor)
   {
-    return abs(anchor.x, anchor.y);
+    return abs(anchor.x(), anchor.y());
   }
 
   constexpr Frame & rel(f32 x, f32 y)
@@ -118,9 +118,9 @@ struct Frame
     return *this;
   }
 
-  constexpr Frame & rel(Vec2 anchor)
+  constexpr Frame & rel(f32x2 anchor)
   {
-    return rel(anchor.x, anchor.y);
+    return rel(anchor.x(), anchor.y());
   }
 
   constexpr Frame & rel_min(f32 x, f32 y)
@@ -130,9 +130,9 @@ struct Frame
     return *this;
   }
 
-  constexpr Frame & rel_min(Vec2 anchor)
+  constexpr Frame & rel_min(f32x2 anchor)
   {
-    return rel_min(anchor.x, anchor.y);
+    return rel_min(anchor.x(), anchor.y());
   }
 
   constexpr Frame & rel_max(f32 x, f32 y)
@@ -142,9 +142,9 @@ struct Frame
     return *this;
   }
 
-  constexpr Frame & rel_max(Vec2 anchor)
+  constexpr Frame & rel_max(f32x2 anchor)
   {
-    return rel_max(anchor.x, anchor.y);
+    return rel_max(anchor.x(), anchor.y());
   }
 
   constexpr Frame & min(f32 x, f32 y)
@@ -154,9 +154,9 @@ struct Frame
     return *this;
   }
 
-  constexpr Frame & min(Vec2 anchor)
+  constexpr Frame & min(f32x2 anchor)
   {
-    return min(anchor.x, anchor.y);
+    return min(anchor.x(), anchor.y());
   }
 
   constexpr Frame & max(f32 x, f32 y)
@@ -166,9 +166,9 @@ struct Frame
     return *this;
   }
 
-  constexpr Frame & max(Vec2 anchor)
+  constexpr Frame & max(f32x2 anchor)
   {
-    return max(anchor.x, anchor.y);
+    return max(anchor.x(), anchor.y());
   }
 
   constexpr Frame & constrain(bool x, bool y)
@@ -208,9 +208,9 @@ struct CornerRadii
     return {r, r, r, r};
   }
 
-  constexpr operator Vec4() const
+  constexpr operator f32x4() const
   {
-    return Vec4{tl, tr, bl, br};
+    return f32x4{tl, tr, bl, br};
   }
 };
 
@@ -233,9 +233,9 @@ struct Padding
     return {r, r, r, r};
   }
 
-  constexpr operator Vec4() const
+  constexpr operator f32x4() const
   {
-    return Vec4{l, t, r, b};
+    return f32x4{l, t, r, b};
   }
 
   constexpr f32 vert() const
@@ -248,9 +248,9 @@ struct Padding
     return t + b;
   }
 
-  constexpr Vec2 axes() const
+  constexpr f32x2 axes() const
   {
-    return Vec2{horz(), vert()};
+    return f32x2{horz(), vert()};
   }
 };
 
@@ -265,18 +265,18 @@ enum class MainAlign : u8
 
 struct ScrollInfo
 {
-  Vec2 center = {};
-  Vec2 zoom   = {1, 1};
+  f32x2 center = {};
+  f32x2 zoom   = {1, 1};
 };
 
 struct HitInfo
 {
   /// @brief viewport-space region of the view that was hit
   /// with (0, 0) as the center of the viewport
-  Vec2 viewport_hit;
+  f32x2 viewport_hit;
 
   /// @brief canvas-space region that was hit
-  Vec2 canvas_hit;
+  f32x2 canvas_hit;
 
   /// @brief the viewport-space region of the view
   CRect viewport_region;
@@ -284,9 +284,9 @@ struct HitInfo
   /// @brief the canvas-space region of the view
   CRect canvas_region;
 
-  Affine3 canvas_transform = Affine3::IDENTITY;
+  affinef32x3 canvas_transform = affinef32x3::identity();
 
-  constexpr Vec2 zoom() const
+  constexpr f32x2 zoom() const
   {
     return canvas_region.extent / viewport_region.extent;
   }
@@ -621,25 +621,25 @@ struct State
 
 struct Theme
 {
-  Vec4U8 background       = {};
-  Vec4U8 surface          = {};
-  Vec4U8 surface_variant  = {};
-  Vec4U8 primary          = {};
-  Vec4U8 primary_variant  = {};
-  Vec4U8 error            = {};
-  Vec4U8 warning          = {};
-  Vec4U8 success          = {};
-  Vec4U8 active           = {};
-  Vec4U8 inactive         = {};
-  Vec4U8 on_background    = {};
-  Vec4U8 on_surface       = {};
-  Vec4U8 on_primary       = {};
-  Vec4U8 on_error         = {};
-  Vec4U8 on_warning       = {};
-  Vec4U8 on_success       = {};
-  Vec4U8 focus            = {};
-  Vec4U8 highlight        = {};
-  Vec4U8 caret            = {};
+  u8x4   background       = {};
+  u8x4   surface          = {};
+  u8x4   surface_variant  = {};
+  u8x4   primary          = {};
+  u8x4   primary_variant  = {};
+  u8x4   error            = {};
+  u8x4   warning          = {};
+  u8x4   success          = {};
+  u8x4   active           = {};
+  u8x4   inactive         = {};
+  u8x4   on_background    = {};
+  u8x4   on_surface       = {};
+  u8x4   on_primary       = {};
+  u8x4   on_error         = {};
+  u8x4   on_warning       = {};
+  u8x4   on_success       = {};
+  u8x4   focus            = {};
+  u8x4   highlight        = {};
+  u8x4   caret            = {};
   f32    head_font_height = {};
   f32    body_font_height = {};
   f32    line_height      = {};
@@ -655,17 +655,17 @@ struct Layout
 {
   /// @brief extent of the view within the parent. if it is a viewport,
   /// this is the visible extent of the viewport within the parent viewport.
-  Vec2 extent = {};
+  f32x2 extent = {};
 
   /// @brief inner extent, if it is a viewport
-  Vec2 viewport_extent = {};
+  f32x2 viewport_extent = {};
 
-  Vec2 viewport_center = {};
+  f32x2 viewport_center = {};
 
-  Vec2 viewport_zoom = {1, 1};
+  f32x2 viewport_zoom = {1, 1};
 
   /// @brief viewport-space re-positioning of the view
-  Option<Vec2> fixed_center = none;
+  Option<f32x2> fixed_center = none;
 };
 
 enum class ViewId : u64
@@ -685,7 +685,7 @@ struct RenderInfo
   CRect clip = MAX_CLIP;
 
   /// @brief displacement and scale transform from the viewports to canvas-space
-  Affine3 canvas_transform = Affine3::IDENTITY;
+  affinef32x3 canvas_transform = affinef32x3::identity();
 };
 
 struct LayerStack
@@ -749,7 +749,7 @@ struct View
   /// @brief distributes the size allocated to it to its child views.
   /// @param allocated the size allocated to this view
   /// @param[out] sizes sizes allocated to the children.
-  constexpr virtual void size(Vec2 allocated, Span<Vec2> sizes)
+  constexpr virtual void size(f32x2 allocated, Span<f32x2> sizes)
   {
     fill(sizes, allocated);
   }
@@ -760,12 +760,12 @@ struct View
   /// @param sizes sizes of the child views
   /// @param[out] centers parent-space centers of the child views
   /// @return this view's fitted extent
-  constexpr virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
-                               Span<Vec2> centers)
+  constexpr virtual Layout fit(f32x2 allocated, Span<f32x2 const> sizes,
+                               Span<f32x2> centers)
   {
     (void) allocated;
     (void) sizes;
-    fill(centers, Vec2{0, 0});
+    fill(centers, f32x2{0, 0});
     return {};
   }
 
@@ -805,7 +805,7 @@ struct View
   /// @param extent layout extent of the view
   /// @param position local-space position of the pointer
   /// @return preferred cursor type
-  constexpr virtual Cursor cursor(Vec2 extent, Vec2 position)
+  constexpr virtual Cursor cursor(f32x2 extent, f32x2 position)
   {
     (void) extent;
     (void) position;

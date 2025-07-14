@@ -18,7 +18,7 @@ Stack & Stack::reverse(bool r)
   return *this;
 }
 
-Stack & Stack::align(Vec2 a)
+Stack & Stack::align(f32x2 a)
 {
   style_.alignment = a;
   return *this;
@@ -65,14 +65,14 @@ ui::State Stack::tick(Ctx const &, Events const &, Fn<void(View &)> build)
   return ui::State{};
 }
 
-void Stack::size(Vec2 allocated, Span<Vec2> sizes)
+void Stack::size(f32x2 allocated, Span<f32x2> sizes)
 {
   fill(sizes, style_.frame(allocated));
 }
 
-Layout Stack::fit(Vec2, Span<Vec2 const> sizes, Span<Vec2> centers)
+Layout Stack::fit(f32x2, Span<f32x2 const> sizes, Span<f32x2> centers)
 {
-  Vec2 span;
+  f32x2 span;
 
   for (auto style : sizes)
   {

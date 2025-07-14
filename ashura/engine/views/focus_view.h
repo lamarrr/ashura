@@ -19,8 +19,8 @@ struct FocusView : View
   virtual ui::State tick(Ctx const & ctx, Events const & events,
                          Fn<void(View &)> build) override;
 
-  virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
-                     Span<Vec2> centers) override;
+  virtual Layout fit(f32x2 allocated, Span<f32x2 const> sizes,
+                     Span<f32x2> centers) override;
 
   // [ ] properly handle fixed-centered, should they be counted as part of the children?
   virtual void render(Canvas & canvas, RenderInfo const & info) override;

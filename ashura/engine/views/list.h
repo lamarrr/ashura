@@ -85,10 +85,10 @@ struct List : View
   virtual ui::State tick(Ctx const & ctx, Events const & events,
                          Fn<void(View &)> build) override;
 
-  virtual void size(Vec2 allocated, Span<Vec2> sizes) override;
+  virtual void size(f32x2 allocated, Span<f32x2> sizes) override;
 
-  virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
-                     Span<Vec2> centers) override;
+  virtual Layout fit(f32x2 allocated, Span<f32x2 const> sizes,
+                     Span<f32x2> centers) override;
 };
 
 }    // namespace ui

@@ -26,19 +26,19 @@ Radio & Radio::thickness(f32 t)
   return *this;
 }
 
-Radio & Radio::color(Vec4U8 c)
+Radio & Radio::color(u8x4 c)
 {
   style_.color = c;
   return *this;
 }
 
-Radio & Radio::inner_color(Vec4U8 c)
+Radio & Radio::inner_color(u8x4 c)
 {
   style_.inner_color = c;
   return *this;
 }
 
-Radio & Radio::inner_hovered_color(Vec4U8 c)
+Radio & Radio::inner_hovered_color(u8x4 c)
 {
   style_.inner_hovered_color = c;
   return *this;
@@ -72,7 +72,7 @@ ui::State Radio::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
                    .focusable = !state_.disabled};
 }
 
-Layout Radio::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
+Layout Radio::fit(f32x2 allocated, Span<f32x2 const>, Span<f32x2>)
 {
   return {.extent = style_.frame(allocated)};
 }
@@ -82,7 +82,7 @@ void Radio::render(Canvas & canvas, RenderInfo const & info)
   canvas.rrect({.area         = info.canvas_region,
                 .corner_radii = style_.corner_radii,
                 .stroke       = 1,
-                .thickness    = Vec2::splat(style_.thickness),
+                .thickness    = f32x2::splat(style_.thickness),
                 .tint         = style_.color,
                 .clip         = info.clip});
 
@@ -101,7 +101,7 @@ void Radio::render(Canvas & canvas, RenderInfo const & info)
   }
 }
 
-Cursor Radio::cursor(Vec2, Vec2)
+Cursor Radio::cursor(f32x2, f32x2)
 {
   return Cursor::Pointer;
 }

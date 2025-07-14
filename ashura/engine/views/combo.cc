@@ -15,11 +15,11 @@ ui::State ComboItem::tick(Ctx const &, Events const &, Fn<void(View &)>)
                    .focusable = !state_.disabled};
 }
 
-void ComboItem::size(Vec2, Span<Vec2>)
+void ComboItem::size(f32x2, Span<f32x2>)
 {
 }
 
-Layout ComboItem::fit(Vec2, Span<Vec2 const>, Span<Vec2>)
+Layout ComboItem::fit(f32x2, Span<f32x2 const>, Span<f32x2>)
 {
   return Layout{};
 }
@@ -28,7 +28,7 @@ void ComboItem::render(Canvas &, RenderInfo const &)
 {
 }
 
-Cursor ComboItem::cursor(Vec2, Vec2)
+Cursor ComboItem::cursor(f32x2, f32x2)
 {
   return Cursor::Pointer;
 }
@@ -65,19 +65,19 @@ TextComboItem & TextComboItem::align(f32 alignment)
   return *this;
 }
 
-TextComboItem & TextComboItem::color(Vec4U8 color)
+TextComboItem & TextComboItem::color(u8x4 color)
 {
   style_.color = color;
   return *this;
 }
 
-TextComboItem & TextComboItem::hover_color(Vec4U8 color)
+TextComboItem & TextComboItem::hover_color(u8x4 color)
 {
   style_.hover_color = color;
   return *this;
 }
 
-TextComboItem & TextComboItem::selected_color(Vec4U8 color)
+TextComboItem & TextComboItem::selected_color(u8x4 color)
 {
   style_.selected_color = color;
   return *this;
@@ -121,7 +121,7 @@ ui::State TextComboItem::tick(Ctx const & ctx, Events const & events,
                    .focusable = !ComboItem::state_.disabled};
 }
 
-void TextComboItem::size(Vec2 allocated, Span<Vec2> sizes)
+void TextComboItem::size(f32x2 allocated, Span<f32x2> sizes)
 {
   auto child_size = style_.frame(allocated) - style_.padding.axes();
   child_size.x    = max(child_size.x, 0.0F);
@@ -129,22 +129,22 @@ void TextComboItem::size(Vec2 allocated, Span<Vec2> sizes)
   sizes[0]        = child_size;
 }
 
-Layout TextComboItem::fit(Vec2 allocated, Span<Vec2 const> sizes,
-                          Span<Vec2> centers)
+Layout TextComboItem::fit(f32x2 allocated, Span<f32x2 const> sizes,
+                          Span<f32x2> centers)
 {
   auto       frame  = style_.frame(allocated);
   auto const padded = sizes[0] + style_.padding.axes();
   frame.x           = max(frame.x, padded.x);
   frame.y           = max(frame.y, padded.y);
 
-  centers[0] = space_align(frame, sizes[0], Vec2{style_.alignment, 0});
+  centers[0] = space_align(frame, sizes[0], f32x2{style_.alignment, 0});
 
   return {.extent = frame};
 }
 
 void TextComboItem::render(Canvas & canvas, RenderInfo const & info)
 {
-  Vec4U8 color;
+  u8x4 color;
   if (ComboItem::state_.selected)
   {
     color = style_.selected_color;
@@ -165,7 +165,7 @@ void TextComboItem::render(Canvas & canvas, RenderInfo const & info)
   canvas.rrect({.area         = info.canvas_region,
                 .corner_radii = style_.corner_radii,
                 .stroke       = style_.stroke,
-                .thickness    = Vec2::splat(style_.thickness),
+                .thickness    = f32x2::splat(style_.thickness),
                 .tint         = color,
                 .clip         = info.clip});
 }
@@ -237,7 +237,7 @@ Combo & Combo::disable(bool d)
   return *this;
 }
 
-Combo & Combo::color(Vec4U8 c)
+Combo & Combo::color(u8x4 c)
 {
   style_.color = c;
   return *this;
@@ -324,7 +324,7 @@ void Combo::render(Canvas & canvas, RenderInfo const & info)
   canvas.rrect({.area         = info.canvas_region,
                 .corner_radii = style_.corner_radii,
                 .stroke       = style_.stroke,
-                .thickness    = Vec2::splat(style_.thickness),
+                .thickness    = f32x2::splat(style_.thickness),
                 .tint         = style_.color,
                 .clip         = info.clip});
 }

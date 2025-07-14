@@ -31,13 +31,13 @@ CheckBox & CheckBox::disable(bool d)
   return *this;
 }
 
-CheckBox & CheckBox::box_color(Vec4U8 c)
+CheckBox & CheckBox::box_color(u8x4 c)
 {
   style_.box_color = c;
   return *this;
 }
 
-CheckBox & CheckBox::box_hovered_color(Vec4U8 c)
+CheckBox & CheckBox::box_hovered_color(u8x4 c)
 {
   style_.box_hovered_color = c;
   return *this;
@@ -86,20 +86,20 @@ ui::State CheckBox::tick(Ctx const & ctx, Events const & events,
                    .focusable = !state_.disabled};
 }
 
-void CheckBox::size(Vec2 allocated, Span<Vec2> sizes)
+void CheckBox::size(f32x2 allocated, Span<f32x2> sizes)
 {
   fill(sizes, allocated);
 }
 
-Layout CheckBox::fit(Vec2, Span<Vec2 const> sizes, Span<Vec2> centers)
+Layout CheckBox::fit(f32x2, Span<f32x2 const> sizes, Span<f32x2> centers)
 {
-  fill(centers, Vec2{});
+  fill(centers, f32x2{});
   return {.extent = style_.frame(sizes[0])};
 }
 
 void CheckBox::render(Canvas & canvas, RenderInfo const & info)
 {
-  Vec4U8 tint;
+  u8x4 tint;
   if (state_.hovered && !state_.held && !state_.disabled)
   {
     tint = style_.box_hovered_color;
@@ -112,12 +112,12 @@ void CheckBox::render(Canvas & canvas, RenderInfo const & info)
   canvas.rrect({.area         = info.canvas_region,
                 .corner_radii = style_.corner_radii,
                 .stroke       = 1,
-                .thickness    = Vec2::splat(style_.thickness),
+                .thickness    = f32x2::splat(style_.thickness),
                 .tint         = tint,
                 .clip         = info.clip});
 }
 
-Cursor CheckBox::cursor(Vec2, Vec2)
+Cursor CheckBox::cursor(f32x2, f32x2)
 {
   return state_.disabled ? Cursor::Default : Cursor::Pointer;
 }

@@ -27,7 +27,7 @@ Result<DecodedImageInfo, ImageLoadErr> decode_webp(Span<u8 const> bytes,
   u32 const pitch       = features.width * (features.has_alpha == 0 ? 3U : 4U);
   gpu::Format const fmt = features.has_alpha == 0 ? gpu::Format::R8G8B8_UNORM :
                                                     gpu::Format::R8G8B8A8_UNORM;
-  Vec2U             extent{(u32) features.width, (u32) features.height};
+  u32x2             extent{(u32) features.width, (u32) features.height};
 
   u64 const buffer_size = pixel_size_bytes(extent, features.has_alpha ? 3 : 4);
 

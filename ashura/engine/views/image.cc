@@ -51,7 +51,7 @@ Image & Image::fit(ImageFit fit)
   return *this;
 }
 
-Image & Image::align(Vec2 a)
+Image & Image::align(f32x2 a)
 {
   style_.alignment = a;
   return *this;
@@ -83,7 +83,7 @@ ui::State Image::tick(Ctx const &, Events const &, Fn<void(View &)>)
   return ui::State{};
 }
 
-Layout Image::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
+Layout Image::fit(f32x2 allocated, Span<f32x2 const>, Span<f32x2>)
 {
   auto const frame = style_.frame(allocated);
 
@@ -95,17 +95,17 @@ Layout Image::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
   return Layout{.extent = with_aspect(frame, style_.aspect_ratio.v())};
 }
 
-static Tuple<Vec2, Vec2, Vec2> fit_image(Vec2 extent, Vec2 region_extent,
-                                         ImageFit fit)
+static Tuple<f32x2, f32x2, f32x2> fit_image(f32x2 extent, f32x2 region_extent,
+                                            ImageFit fit)
 {
   switch (fit)
   {
     case ImageFit::Crop:
     {
-      Vec2 const ar        = {extent.x / extent.y, 1};
-      f32 const  dst_ar    = region_extent.x / region_extent.y;
-      auto const uv_extent = with_aspect(ar, dst_ar) / ar;
-      auto const space     = (1 - uv_extent) * 0.5F;
+      f32x2 const ar        = {extent.x / extent.y, 1};
+      f32 const   dst_ar    = region_extent.x / region_extent.y;
+      auto const  uv_extent = with_aspect(ar, dst_ar) / ar;
+      auto const  space     = (1 - uv_extent) * 0.5F;
       return {region_extent, space, 1 - space};
     }
     case ImageFit::Fit:

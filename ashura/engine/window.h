@@ -35,25 +35,25 @@ struct WindowSystem
 
   virtual void minimize(Window window) = 0;
 
-  virtual void set_extent(Window window, Vec2U extent) = 0;
+  virtual void set_extent(Window window, u32x2 extent) = 0;
 
   virtual void center(Window window) = 0;
 
-  virtual Vec2U get_extent(Window window) = 0;
+  virtual u32x2 get_extent(Window window) = 0;
 
-  virtual Vec2U get_surface_extent(Window window) = 0;
+  virtual u32x2 get_surface_extent(Window window) = 0;
 
-  virtual void set_position(Window window, Vec2I pos) = 0;
+  virtual void set_position(Window window, i32x2 pos) = 0;
 
-  virtual Vec2I get_position(Window window) = 0;
+  virtual i32x2 get_position(Window window) = 0;
 
-  virtual void set_min_extent(Window window, Vec2U min) = 0;
+  virtual void set_min_extent(Window window, u32x2 min) = 0;
 
-  virtual Vec2U get_min_extent(Window window) = 0;
+  virtual u32x2 get_min_extent(Window window) = 0;
 
-  virtual void set_max_extent(Window window, Vec2U max) = 0;
+  virtual void set_max_extent(Window window, u32x2 max) = 0;
 
-  virtual Vec2U get_max_extent(Window window) = 0;
+  virtual u32x2 get_max_extent(Window window) = 0;
 
   virtual void set_icon(Window window, ImageSpan<u8 const, 4> image,
                         gpu::Format format) = 0;
@@ -86,7 +86,7 @@ struct WindowSystem
 
   virtual void unlisten(Window window, u64 listener) = 0;
 
-  virtual Result<> set_hit_test(Window window, Fn<WindowRegion(Vec2U)> hit) = 0;
+  virtual Result<> set_hit_test(Window window, Fn<WindowRegion(u32x2)> hit) = 0;
 
   virtual gpu::Surface get_surface(Window window) = 0;
 
@@ -99,7 +99,7 @@ struct WindowSystem
   virtual Tuple<KeyModifiers, Window>
     get_keyboard_state(BitSpan<u64> scan_state, BitSpan<u64> key_state) = 0;
 
-  virtual Tuple<MouseButtons, Vec2, Window> get_mouse_state() = 0;
+  virtual Tuple<MouseButtons, f32x2, Window> get_mouse_state() = 0;
 
   virtual void set_text_input(Window window, Option<TextInputInfo> info) = 0;
 

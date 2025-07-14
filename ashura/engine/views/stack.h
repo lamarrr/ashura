@@ -16,7 +16,7 @@ struct Stack : View
   {
     bool reverse = false;
 
-    Vec2 alignment = ALIGNMENT_CENTER_CENTER;
+    f32x2 alignment = ALIGNMENT_CENTER_CENTER;
 
     Frame frame = Frame{}.rel(1, 1);
   } style_;
@@ -32,7 +32,7 @@ struct Stack : View
 
   Stack & reverse(bool reverse);
 
-  Stack & align(Vec2 alignment);
+  Stack & align(f32x2 alignment);
 
   Stack & frame(Frame frame);
 
@@ -45,9 +45,10 @@ struct Stack : View
   virtual State tick(Ctx const & ctx, Events const & events,
                      Fn<void(View &)> build) override;
 
-  virtual void size(Vec2 allocated, Span<Vec2> sizes) override;
+  virtual void size(f32x2 allocated, Span<f32x2> sizes) override;
 
-  virtual Layout fit(Vec2, Span<Vec2 const> sizes, Span<Vec2> centers) override;
+  virtual Layout fit(f32x2, Span<f32x2 const> sizes,
+                     Span<f32x2> centers) override;
 
   virtual i32 z_index(i32 allocated, Span<i32> indices) override;
 };

@@ -17,7 +17,7 @@ ui::State FocusView::tick(Ctx const & ctx, Events const &, Fn<void(View &)>)
   return ui::State{};
 }
 
-Layout FocusView::fit(Vec2, Span<Vec2 const>, Span<Vec2>)
+Layout FocusView::fit(f32x2, Span<f32x2 const>, Span<f32x2>)
 {
   return Layout{
     .extent{0.01F, 0.01F},
@@ -31,7 +31,7 @@ void FocusView::render(Canvas & canvas, RenderInfo const & info)
   canvas.rrect(ShapeInfo{
     .area      = canvas_region_,
     .stroke    = 1,
-    .thickness = Vec2::splat(0.5F),
+    .thickness = f32x2::splat(0.5F),
     .tint      = ColorGradient{colors::CYAN},
   });
 }

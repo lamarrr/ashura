@@ -73,7 +73,7 @@ struct [[nodiscard]] ColorTexture
 
   static constexpr TextureId texture_id = TextureId::Base;
 
-  constexpr Vec3U extent() const
+  constexpr u32x3 extent() const
   {
     return info.extent;
   }
@@ -97,7 +97,7 @@ struct [[nodiscard]] ColorMsaaTexture
     return info.sample_count;
   }
 
-  constexpr Vec3U extent() const
+  constexpr u32x3 extent() const
   {
     return info.extent;
   }
@@ -133,7 +133,7 @@ struct [[nodiscard]] DepthStencilTexture
 
   static constexpr TextureId stencil_texture_id = TextureId::Base;
 
-  constexpr Vec3U extent() const
+  constexpr u32x3 extent() const
   {
     return info.extent;
   }
@@ -149,7 +149,7 @@ struct [[nodiscard]] Framebuffer
   /// @brief combined depth and stencil aspect attachment
   DepthStencilTexture depth_stencil = {};
 
-  constexpr Vec3U extent() const
+  constexpr u32x3 extent() const
   {
     return color.extent();
   }
@@ -568,7 +568,7 @@ struct GpuSystem
   static GpuSystem create(AllocatorRef allocator, gpu::Device & device,
                           Span<u8 const> pipeline_cache_data, bool use_hdr,
                           u32 buffering, gpu::SampleCount sample_count,
-                          Vec2U initial_extent);
+                          u32x2 initial_extent);
 
   GpuSystem(
     AllocatorRef allocator, gpu::Device & device, gpu::DeviceProperties props,
@@ -618,7 +618,7 @@ struct GpuSystem
 
   void shutdown(Vec<u8> & cache);
 
-  void recreate_framebuffers(Vec2U new_extent);
+  void recreate_framebuffers(u32x2 new_extent);
 
   gpu::CommandEncoder & encoder();
 

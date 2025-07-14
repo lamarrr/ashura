@@ -25,9 +25,9 @@ constexpr f32 au_to_px(i32 au, f32 base)
   return au * AU_SCALE * base;
 }
 
-constexpr Vec2 au_to_px(Vec2I au, f32 base)
+constexpr f32x2 au_to_px(i32x2 au, f32 base)
 {
-  return Vec2{au_to_px(au.x, base), au_to_px(au.y, base)};
+  return f32x2{au_to_px(au.x(), base), au_to_px(au.y(), base)};
 }
 
 enum class FontLoadErr : u8
@@ -73,9 +73,9 @@ inline void format(fmt::Sink sink, fmt::Spec, FontLoadErr const & err)
 /// @param extent glyph extent
 struct GlyphMetrics
 {
-  Vec2I bearing = {};
+  i32x2 bearing = {};
   i32   advance = 0;
-  Vec2I extent  = {};
+  i32x2 extent  = {};
 };
 
 struct ResolvedFontMetrics
@@ -121,13 +121,13 @@ struct AtlasGlyph
   bool16 has_color = false;
   u16    layer     = 0;
   RectU  area      = {};
-  Vec2   uv[2]     = {};
+  f32x2  uv[2]     = {};
 };
 
 struct CpuFontAtlas
 {
   i32             font_height = 0;
-  Vec2U           extent      = {};
+  u32x2           extent      = {};
   u32             num_layers  = 0;
   Vec<AtlasGlyph> glyphs      = {};
   Vec<u8>         channels    = {};
@@ -144,7 +144,7 @@ struct GpuFontAtlas
   Vec<TextureId>  textures    = {};
   ImageId         image       = ImageId::None;
   i32             font_height = 0;
-  Vec2U           extent      = {};
+  u32x2           extent      = {};
   Vec<AtlasGlyph> glyphs      = {};
 
   constexpr u32 num_layers() const
