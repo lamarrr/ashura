@@ -254,7 +254,7 @@ Result<> FontSystemImpl::rasterize(Font & font_, u32 font_height)
 
   static constexpr u16 GLYPH_PADDING = 1;
 
-  Vec2U max_glyph_extent;
+  u32x2 max_glyph_extent;
 
   for (auto [i, g] : enumerate<u32>(atlas.glyphs))
   {
@@ -264,18 +264,17 @@ Result<> FontSystemImpl::rasterize(Font & font_, u32 font_height)
       continue;
     }
 
-    g.area.extent = Vec2U{font.ft_face->glyph->bitmap.width,
+    g.area.extent = u32x2{font.ft_face->glyph->bitmap.width,
                           font.ft_face->glyph->bitmap.rows};
 
-    max_glyph_extent.x = max(max_glyph_extent.x, g.area.extent.x);
-    max_glyph_extent.y = max(max_glyph_extent.y, g.area.extent.y);
+    max_glyph_extent = max_glyph_extent.max(g.area.extent);
   }
 
-  CHECK(max_glyph_extent.x <= MIN_ATLAS_EXTENT, "");
-  CHECK(max_glyph_extent.y <= MIN_ATLAS_EXTENT, "");
+  CHECK(max_glyph_extent.x() <= MIN_ATLAS_EXTENT, "");
+  CHECK(max_glyph_extent.y() <= MIN_ATLAS_EXTENT, "");
 
-  Vec2U const atlas_extent     = Vec2U::splat(MIN_ATLAS_EXTENT);
-  Vec2 const  inv_atlas_extent = 1 / as_vec2(atlas_extent);
+  u32x2 const atlas_extent     = u32x2::splat(MIN_ATLAS_EXTENT);
+  f32x2 const inv_atlas_extent = 1 / atlas_extent.to<f32>();
 
   u32 num_layers = 0;
   {
@@ -291,21 +290,21 @@ Result<> FontSystemImpl::rasterize(Font & font_, u32 font_height)
     {
       // added padding to avoid texture spilling due to accumulated
       // floating-point uv interpolation errors
-      Vec2U padded_extent{};
+      u32x2 padded_extent{};
 
-      if (ag.area.extent.x != 0 && ag.area.extent.y != 0)
+      if (ag.area.extent.x() != 0 && ag.area.extent.y() != 0)
       {
         padded_extent = ag.area.extent + GLYPH_PADDING * 2;
       }
 
       rect = rect_pack::rect{.id         = i,
-                             .extent     = as_vec2i(padded_extent),
+                             .extent     = padded_extent.to<i32>(),
                              .pos        = {},
                              .was_packed = false};
     }
 
     Vec<rect_pack::Node> nodes{allocator_};
-    u32 const            num_nodes = atlas_extent.x;
+    u32 const            num_nodes = atlas_extent.x();
     nodes.resize_uninit(num_nodes).unwrap();
 
     Span<rect_pack::rect> unpacked = rects;
@@ -314,7 +313,7 @@ Result<> FontSystemImpl::rasterize(Font & font_, u32 font_height)
     {
       // tries to pack all the glyph rects into the provided extent
       rect_pack::Context ctx;
-      rect_pack::init(ctx, as_vec2i(atlas_extent), nodes.data(),
+      rect_pack::init(ctx, atlas_extent.to<i32>(), nodes.data(),
                       (i32) num_nodes);
       rect_pack::pack_rects(ctx, unpacked.data(), (i32) size32(unpacked));
 
@@ -337,23 +336,24 @@ Result<> FontSystemImpl::rasterize(Font & font_, u32 font_height)
     {
       auto & g = atlas.glyphs[r.id];
 
-      if (g.area.extent.x == 0 | g.area.extent.y == 0)
+      if (g.area.extent.x() == 0 | g.area.extent.y() == 0)
       {
-        g.area.offset = Vec2U{};
+        g.area.offset = u32x2{};
       }
       else
       {
         // adjust back to original position from the padded position
-        g.area.offset = as_vec2u(r.pos + GLYPH_PADDING);
+        g.area.offset = (r.pos + GLYPH_PADDING).to<u32>();
       }
 
-      g.uv[0] = as_vec2(g.area.offset) * inv_atlas_extent;
-      g.uv[1] = as_vec2(g.area.end()) * inv_atlas_extent;
+      g.uv[0] = g.area.offset.to<f32>() * inv_atlas_extent;
+      g.uv[1] = g.area.end().to<f32>() * inv_atlas_extent;
     }
   }
 
-  u64 const atlas_layer_size = (u64) atlas_extent.x * (u64) atlas_extent.y * 4;
-  u64 const atlas_size       = atlas_layer_size * num_layers;
+  u64 const atlas_layer_size =
+    (u64) atlas_extent.x() * (u64) atlas_extent.y() * 4;
+  u64 const atlas_size = atlas_layer_size * num_layers;
 
   if (!atlas.channels.resize(atlas_size))
   {
@@ -433,8 +433,8 @@ FontId FontSystemImpl::upload_(Dyn<Font *> font_)
   CpuFontAtlas & atlas = font.cpu_atlas.v();
 
   CHECK(atlas.num_layers > 0, "");
-  CHECK(atlas.extent.x > 0, "");
-  CHECK(atlas.extent.y > 0, "");
+  CHECK(atlas.extent.x() > 0, "");
+  CHECK(atlas.extent.y() > 0, "");
 
   GpuFontAtlas gpu_atlas{.textures{allocator_},
                          .font_height = atlas.font_height,
@@ -464,19 +464,17 @@ FontId FontSystemImpl::upload_(Dyn<Font *> font_)
   ImageInfo image =
     sys->image
       .load_from_memory(font.label.clone().unwrap(),
-                        gpu::ImageInfo{
-                          .label  = font.label,
-                          .type   = gpu::ImageType::Type2D,
-                          .format = format,
-                          .usage  = gpu::ImageUsage::Sampled |
-                                   gpu::ImageUsage::TransferDst |
-                                   gpu::ImageUsage::TransferSrc,
-                          .aspects = gpu::ImageAspects::Color,
-                          .extent{atlas.extent.x, atlas.extent.y, 1},
-                          .mip_levels   = 1,
-                          .array_layers = atlas.num_layers,
-                          .sample_count = gpu::SampleCount::C1
-  },
+                        gpu::ImageInfo{.label  = font.label,
+                                       .type   = gpu::ImageType::Type2D,
+                                       .format = format,
+                                       .usage  = gpu::ImageUsage::Sampled |
+                                                gpu::ImageUsage::TransferDst |
+                                                gpu::ImageUsage::TransferSrc,
+                                       .aspects      = gpu::ImageAspects::Color,
+                                       .extent       = atlas.extent.append(1),
+                                       .mip_levels   = 1,
+                                       .array_layers = atlas.num_layers,
+                                       .sample_count = gpu::SampleCount::C1},
                         view_infos, atlas.channels)
       .unwrap();
 
@@ -1043,7 +1041,7 @@ void FontSystemImpl::layout_text(TextBlock const & block, f32 max_width,
     } while (p < text_size);
   }
 
-  Vec2 extent{};
+  f32x2 extent{};
 
   usize caret_iter = 0;
 
