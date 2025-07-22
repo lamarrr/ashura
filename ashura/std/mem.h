@@ -188,58 +188,65 @@ ASH_FORCE_INLINE void prefetch(T const * src, Access rw, Locality locality)
 }
 
 /// @brief Memory layout of a type
-struct Layout
+template <typename T = usize>
+struct CoreLayout
 {
+  using Type = T;
+
   /// @brief non-zero power-of-2 alignment of the type
-  usize alignment = 1;
+  T alignment = 1;
 
   /// @brief byte-size of the type
-  usize size = 0;
+  T size = 0;
 
   /// @warning must call `aligned()` once done appending
-  constexpr Layout append(Layout const & ext) const
+  constexpr CoreLayout append(CoreLayout const & ext) const
   {
-    return Layout{.alignment = max(alignment, ext.alignment),
-                  .size      = align_offset(ext.alignment, size) + ext.size};
+    return CoreLayout{.alignment = max(alignment, ext.alignment),
+                      .size = align_offset(ext.alignment, size) + ext.size};
   }
 
-  constexpr Layout array(usize n) const
+  constexpr CoreLayout array(T n) const
   {
-    return Layout{.alignment = alignment, .size = size * n};
+    return CoreLayout{.alignment = alignment, .size = size * n};
   }
 
-  constexpr Layout aligned() const
+  constexpr CoreLayout aligned() const
   {
-    return Layout{.alignment = alignment,
-                  .size      = align_offset(alignment, size)};
+    return CoreLayout{.alignment = alignment,
+                      .size      = align_offset(alignment, size)};
   }
 
-  constexpr Layout align_to(usize align) const
+  constexpr CoreLayout align_to(T align) const
   {
-    return Layout{.alignment = align, .size = align_offset(align, size)};
+    return CoreLayout{.alignment = align, .size = align_offset(align, size)};
   }
 
-  constexpr Layout lanes(usize n) const
+  constexpr CoreLayout lanes(T n) const
   {
-    return Layout{.alignment = alignment * n, .size = size * n};
+    return CoreLayout{.alignment = alignment * n, .size = size * n};
   }
 
-  constexpr Layout unioned(Layout const & other) const
+  constexpr CoreLayout unioned(CoreLayout const & other) const
   {
-    return Layout{.alignment = max(alignment, other.alignment),
-                  .size      = max(size, other.size)};
+    return CoreLayout{.alignment = max(alignment, other.alignment),
+                      .size      = max(size, other.size)};
   }
 
-  constexpr Layout with_alignment(usize align)
+  constexpr CoreLayout with_alignment(T align)
   {
-    return Layout{.alignment = align, .size = size};
+    return CoreLayout{.alignment = align, .size = size};
   }
 
-  constexpr Layout with_size(usize size)
+  constexpr CoreLayout with_size(T size)
   {
-    return Layout{.alignment = alignment, .size = size};
+    return CoreLayout{.alignment = alignment, .size = size};
   }
 };
+
+using Layout   = CoreLayout<usize>;
+using Layout32 = CoreLayout<u32>;
+using Layout64 = CoreLayout<u64>;
 
 /// @brief Get the memory layout of a type
 template <typename T>
