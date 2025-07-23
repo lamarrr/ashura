@@ -19,8 +19,35 @@ struct DictEntry
   using Key   = K;
   using Value = V;
 
-  K key{};
-  V value{};
+  Key   key{};
+  Value value{};
+
+  template <typename KeyArg, typename ValueArg>
+  DictEntry(KeyArg && key, ValueArg && value) :
+    key{static_cast<Key &&>(key)},
+    value{static_cast<ValueArg &&>(value)}
+  {
+  }
+};
+
+template <typename K>
+struct DictEntry<K, Void>
+{
+  using Key   = K;
+  using Value = Void const;
+
+  Key                    key{};
+  static constexpr Value value{};
+
+  template <typename KeyArg, typename ValueArg>
+  DictEntry(KeyArg && key, ValueArg &&) : key{static_cast<KeyArg &&>(key)}
+  {
+  }
+
+  template <typename KeyArg>
+  DictEntry(KeyArg && key) : key{static_cast<KeyArg &&>(key)}
+  {
+  }
 };
 
 // [ ] default-hash, default-cmp
@@ -36,11 +63,11 @@ struct DictEntry
 template <typename K, typename V, typename H, typename KCmp, typename D = usize>
 struct [[nodiscard]] Dict
 {
-  using Key      = K;
-  using Value    = V;
+  using Entry    = DictEntry<K, V>;
+  using Key      = typename Entry::Key;
+  using Value    = typename Entry::Value;
   using Hasher   = H;
   using KeyCmp   = KCmp;
-  using Entry    = DictEntry<K, V>;
   using Distance = D;
 
   static constexpr Distance PROBE_SENTINEL = -1;
@@ -77,9 +104,9 @@ struct [[nodiscard]] Dict
       return *this;
     }
 
-    constexpr Entry & operator*() const
+    constexpr auto operator*() const
     {
-      return *probe_;
+      return Tuple<Key const &, Value &>{probe_->key, probe_->value};
     }
 
     constexpr bool operator!=(IterEnd) const
@@ -227,8 +254,8 @@ struct [[nodiscard]] Dict
     return num_probes_;
   }
 
-  [[nodiscard]] constexpr Option<V &> try_get(auto const & key,
-                                              hash64       hash) const
+  [[nodiscard]] constexpr Option<Value &> try_get(auto const & key,
+                                                  hash64       hash) const
   {
     if (num_probes_ == 0 || num_entries_ == 0)
     {
@@ -259,18 +286,18 @@ struct [[nodiscard]] Dict
     return none;
   }
 
-  [[nodiscard]] constexpr Option<V &> try_get(auto const & key) const
+  [[nodiscard]] constexpr Option<Value &> try_get(auto const & key) const
   {
     hash64 const hash = hasher_(key);
     return try_get(key, hash);
   }
 
-  [[nodiscard]] constexpr V & get(auto const & key) const
+  [[nodiscard]] constexpr Value & get(auto const & key) const
   {
     return try_get(key).unwrap();
   }
 
-  [[nodiscard]] constexpr V & operator[](auto const & key) const
+  [[nodiscard]] constexpr Value & operator[](auto const & key) const
   {
     return get(key);
   }
@@ -397,8 +424,10 @@ struct [[nodiscard]] Dict
   /// otherwise the entry is added
   /// @return The inserted or existing value if the insert was successful
   /// without a memory allocation error, otherwise an Err
-  [[nodiscard]] constexpr Result<Tuple<K &, V &>>
-    push(K key, V value, bool * exists = nullptr, bool replace = true)
+  template <typename KeyArg, typename ValueArg>
+  [[nodiscard]] constexpr Result<Tuple<Key const &, Value &>>
+    push(KeyArg && key, ValueArg && value, bool * exists = nullptr,
+         bool replace = true)
   {
     if (exists != nullptr)
     {
@@ -414,7 +443,7 @@ struct [[nodiscard]] Dict
     usize        probe_idx  = hash & (num_probes_ - 1);
     usize        insert_idx = USIZE_MAX;
     Distance     probe_dist = 0;
-    Entry entry{.key{static_cast<K &&>(key)}, .value{static_cast<V &&>(value)}};
+    Entry entry{static_cast<KeyArg &&>(key), static_cast<ValueArg &&>(value)};
 
     while (true)
     {
@@ -440,7 +469,7 @@ struct [[nodiscard]] Dict
         }
         if (replace)
         {
-          dst_probe->value = static_cast<V &&>(entry.value);
+          swap(*dst_probe, entry);
         }
         break;
       }
@@ -462,7 +491,7 @@ struct [[nodiscard]] Dict
     max_probe_dist_ = max(max_probe_dist_, probe_dist);
     Entry * probe   = probes_ + insert_idx;
     return Ok{
-      Tuple<K &, V &>{probe->key, probe->value}
+      Tuple<Key const &, Value &>{probe->key, probe->value}
     };
   }
 
@@ -551,6 +580,9 @@ struct [[nodiscard]] Dict
     return IterEnd{};
   }
 };
+
+template <typename T, typename H, typename KCmp, typename D = usize>
+using Set = Dict<T, Void, H, KCmp, D>;
 
 template <typename K, typename V, typename H, typename KCmp, typename D>
 struct IsTriviallyRelocatable<Dict<K, V, H, KCmp, D>>
