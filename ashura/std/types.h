@@ -15,32 +15,67 @@
 namespace ash
 {
 
-typedef char8_t   c8;
-typedef char16_t  c16;
-typedef char32_t  c32;
-typedef uint8_t   u8;
-typedef uint16_t  u16;
-typedef uint32_t  u32;
-typedef uint64_t  u64;
-typedef int8_t    i8;
-typedef int16_t   i16;
-typedef int32_t   i32;
-typedef int64_t   i64;
+typedef char8_t  c8;
+typedef char16_t c16;
+typedef char32_t c32;
+
+typedef uint8_t  u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
+typedef uint64_t u64;
+
+typedef int8_t  i8;
+typedef int16_t i16;
+typedef int32_t i32;
+typedef int64_t i64;
+
 typedef size_t    usize;
 typedef ptrdiff_t isize;
+
 typedef uintptr_t uptr;
 typedef intptr_t  iptr;
-typedef u8        bool8;
-typedef u16       bool16;
-typedef u32       bool32;
-typedef u64       bool64;
-typedef usize     sbool;
-typedef float     f32;
-typedef double    f64;
-typedef u8        hash8;
-typedef u16       hash16;
-typedef u32       hash32;
-typedef u64       hash64;
+
+typedef u8    bool8;
+typedef u16   bool16;
+typedef u32   bool32;
+typedef u64   bool64;
+typedef usize sbool;
+
+struct f8
+{
+  u8 repr_;
+
+  constexpr f8(float);
+  constexpr f8(f8 const &)             = default;
+  constexpr f8(f8 &&)                  = default;
+  constexpr f8 & operator=(f8 const &) = default;
+  constexpr f8 & operator=(f8 &&)      = default;
+  constexpr ~f8()                      = default;
+};
+
+#if ASH_CFG(COMPILER, GCC) || ASH_CFG(COMPILER, CLANG)
+typedef _Float16 f16;
+#else
+struct f16
+{
+  u16 repr_;
+
+  constexpr f16(float);
+  constexpr f16(f16 const &)             = default;
+  constexpr f16(f16 &&)                  = default;
+  constexpr f16 & operator=(f16 const &) = default;
+  constexpr f16 & operator=(f16 &&)      = default;
+  constexpr ~f16()                       = default;
+};
+#endif
+
+typedef float  f32;
+typedef double f64;
+
+typedef u8  hash8;
+typedef u16 hash16;
+typedef u32 hash32;
+typedef u64 hash64;
 
 /// regular void
 struct Void
@@ -82,6 +117,12 @@ inline constexpr isize ISIZE_MAX = PTRDIFF_MAX;
 
 inline constexpr c32 UTF32_MIN = 0x0000'0000;
 inline constexpr c32 UTF32_MAX = 0x0010'FFFF;
+
+inline constexpr f16 F16_MIN          = -65504.0F;    // -2^16 * (1 - 2^-10)
+inline constexpr f16 F16_MIN_POSITIVE = 0.00006103515625F;    // 2^-10
+inline constexpr f16 F16_MAX          = 65504.0F;    // 2^16 * (1 - 2^-10)
+inline constexpr f16 F16_EPS          = 0.00006103515625F;
+inline constexpr f16 F16_INF          = INFINITY;
 
 inline constexpr f32 F32_MIN          = -FLT_MAX;
 inline constexpr f32 F32_MIN_POSITIVE = FLT_MIN;
@@ -175,6 +216,15 @@ struct NumTraits<i64>
   static constexpr i64  MAX            = I64_MAX;
   static constexpr bool SIGNED         = true;
   static constexpr bool FLOATING_POINT = false;
+};
+
+template <>
+struct NumTraits<f16>
+{
+  static constexpr f16  MIN            = F16_MIN;
+  static constexpr f16  MAX            = F16_MAX;
+  static constexpr bool SIGNED         = true;
+  static constexpr bool FLOATING_POINT = true;
 };
 
 template <>
