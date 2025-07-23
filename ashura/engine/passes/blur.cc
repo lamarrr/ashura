@@ -28,27 +28,27 @@ gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader)
     snformat<gpu::MAX_LABEL_SIZE>("Blur Graphics Pipeline: {}"_str, label)
       .unwrap();
 
-  gpu::RasterizationState raster_state{.depth_clamp_enable = false,
-                                       .polygon_mode = gpu::PolygonMode::Fill,
-                                       .cull_mode    = gpu::CullMode::None,
-                                       .front_face =
-                                         gpu::FrontFace::CounterClockWise,
-                                       .depth_bias_enable          = false,
-                                       .depth_bias_constant_factor = 0,
-                                       .depth_bias_clamp           = 0,
-                                       .depth_bias_slope_factor    = 0,
-                                       .sample_count = gpu::SampleCount::C1};
+  auto raster_state =
+    gpu::RasterizationState{.depth_clamp_enable = false,
+                            .polygon_mode       = gpu::PolygonMode::Fill,
+                            .cull_mode          = gpu::CullMode::None,
+                            .front_face = gpu::FrontFace::CounterClockWise,
+                            .depth_bias_enable          = false,
+                            .depth_bias_constant_factor = 0,
+                            .depth_bias_clamp           = 0,
+                            .depth_bias_slope_factor    = 0,
+                            .sample_count               = gpu::SampleCount::C1};
 
-  gpu::DepthStencilState depth_stencil_state{.depth_test_enable  = false,
-                                             .depth_write_enable = false,
-                                             .depth_compare_op =
-                                               gpu::CompareOp::Never,
-                                             .depth_bounds_test_enable = false,
-                                             .stencil_test_enable      = false,
-                                             .front_stencil            = {},
-                                             .back_stencil             = {},
-                                             .min_depth_bounds         = 0,
-                                             .max_depth_bounds         = 0};
+  auto depth_stencil_state =
+    gpu::DepthStencilState{.depth_test_enable        = false,
+                           .depth_write_enable       = false,
+                           .depth_compare_op         = gpu::CompareOp::Never,
+                           .depth_bounds_test_enable = false,
+                           .stencil_test_enable      = false,
+                           .front_stencil            = {},
+                           .back_stencil             = {},
+                           .min_depth_bounds         = 0,
+                           .max_depth_bounds         = 0};
 
   gpu::ColorBlendAttachmentState attachment_states[] = {
     {.blend_enable           = false,
@@ -61,8 +61,8 @@ gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader)
      .color_write_mask       = gpu::ColorComponents::All}
   };
 
-  gpu::ColorBlendState color_blend_state{.attachments    = attachment_states,
-                                         .blend_constant = {}};
+  auto color_blend_state = gpu::ColorBlendState{
+    .attachments = attachment_states, .blend_constant = {}};
 
   gpu::DescriptorSetLayout set_layouts[] = {
     sys->gpu.samplers_layout_,    // 0: samplers
@@ -70,7 +70,7 @@ gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader)
     sys->gpu.sb_layout_           // 2: blur
   };
 
-  gpu::GraphicsPipelineInfo pipeline_info{
+  auto pipeline_info = gpu::GraphicsPipelineInfo{
     .label         = tagged_label,
     .vertex_shader = gpu::ShaderStageInfo{.shader      = shader,
                                           .entry_point = "vert"_str,
@@ -154,12 +154,12 @@ void BlurPass::encode(gpu::CommandEncoder & e, BlurPassParams const & params)
     .back_face_stencil =
       params.stencil.map([](auto s) { return s.back; }).unwrap_or()});
   e.bind_descriptor_sets(span({
-                           params.samplers,                   //
-                           params.textures,                   //
-                           params.blurs.buffer.descriptor_    //
+                           params.samplers,                   // 0: samplers
+                           params.textures,                   // 1: textures
+                           params.blurs.buffer.descriptor_    // 2: blur
                          }),
                          span({
-                           params.blurs.slice.offset    //
+                           params.blurs.slice.offset    // 2: blur
                          }));
   e.draw(4, params.instances.span, 0, params.instances.offset);
   e.end_rendering();

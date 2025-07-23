@@ -19,27 +19,27 @@ gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader,
     snformat<gpu::MAX_LABEL_SIZE>("PBR Graphics Pipeline: {}"_str, label)
       .unwrap();
 
-  gpu::RasterizationState raster_state{.depth_clamp_enable = false,
-                                       .polygon_mode       = polygon_mode,
-                                       .cull_mode = gpu::CullMode::None,
-                                       .front_face =
-                                         gpu::FrontFace::CounterClockWise,
-                                       .depth_bias_enable          = false,
-                                       .depth_bias_constant_factor = 0,
-                                       .depth_bias_clamp           = 0,
-                                       .depth_bias_slope_factor    = 0,
-                                       .sample_count = sys->gpu.sample_count_};
+  auto raster_state =
+    gpu::RasterizationState{.depth_clamp_enable = false,
+                            .polygon_mode       = polygon_mode,
+                            .cull_mode          = gpu::CullMode::None,
+                            .front_face = gpu::FrontFace::CounterClockWise,
+                            .depth_bias_enable          = false,
+                            .depth_bias_constant_factor = 0,
+                            .depth_bias_clamp           = 0,
+                            .depth_bias_slope_factor    = 0,
+                            .sample_count = sys->gpu.sample_count_};
 
-  gpu::DepthStencilState depth_stencil_state{.depth_test_enable  = false,
-                                             .depth_write_enable = false,
-                                             .depth_compare_op =
-                                               gpu::CompareOp::Greater,
-                                             .depth_bounds_test_enable = false,
-                                             .stencil_test_enable      = false,
-                                             .front_stencil            = {},
-                                             .back_stencil             = {},
-                                             .min_depth_bounds         = 0,
-                                             .max_depth_bounds         = 1};
+  auto depth_stencil_state =
+    gpu::DepthStencilState{.depth_test_enable        = false,
+                           .depth_write_enable       = false,
+                           .depth_compare_op         = gpu::CompareOp::Greater,
+                           .depth_bounds_test_enable = false,
+                           .stencil_test_enable      = false,
+                           .front_stencil            = {},
+                           .back_stencil             = {},
+                           .min_depth_bounds         = 0,
+                           .max_depth_bounds         = 1};
 
   gpu::ColorBlendAttachmentState attachment_states[] = {
     {.blend_enable           = false,
@@ -52,7 +52,7 @@ gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader,
      .color_write_mask       = gpu::ColorComponents::All}
   };
 
-  gpu::ColorBlendState color_blend_state{
+  auto color_blend_state = gpu::ColorBlendState{
     .attachments = attachment_states, .blend_constant = {1, 1, 1, 1}
   };
 
@@ -66,7 +66,7 @@ gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader,
     sys->gpu.sb_layout_           // 6: lights
   };
 
-  gpu::GraphicsPipelineInfo pipeline_info{
+  auto pipeline_info = gpu::GraphicsPipelineInfo{
     .label         = tagged_label,
     .vertex_shader = gpu::ShaderStageInfo{.shader      = shader,
                                           .entry_point = "vert"_str,
@@ -177,18 +177,18 @@ void PBRPass::encode(gpu::CommandEncoder & e, PBRPassParams const & params,
       .clear        = {}};
   });
 
-  gpu::RenderingInfo info{
-    .render_area{.extent = params.framebuffer.extent().xy()},
-    .num_layers         = 1,
-    .color_attachments  = color,
-    .depth_attachment   = depth,
-    .stencil_attachment = stencil};
+  auto info =
+    gpu::RenderingInfo{.render_area{.extent = params.framebuffer.extent().xy()},
+                       .num_layers         = 1,
+                       .color_attachments  = color,
+                       .depth_attachment   = depth,
+                       .stencil_attachment = stencil};
 
   e.begin_rendering(info);
 
   auto pipelines = variants_[(usize) variant].v0.v1;
 
-  gpu::GraphicsPipeline pipeline = pipelines.fill;
+  auto pipeline = pipelines.fill;
 
   switch (params.polygon_mode)
   {
@@ -220,22 +220,23 @@ void PBRPass::encode(gpu::CommandEncoder & e, PBRPassParams const & params,
     .depth_compare_op   = gpu::CompareOp::Less,
     .depth_write_enable = true
   });
-  e.bind_descriptor_sets(span({
-                           params.samplers,                       //
-                           params.textures,                       //
-                           params.vertices.buffer.descriptor_,    //
-                           params.indices.buffer.descriptor_,     //
-                           params.world.buffer.descriptor_,       //
-                           params.material.buffer.descriptor_,    //
-                           params.lights.buffer.descriptor_,      //
-                         }),
-                         span({
-                           params.vertices.slice.offset,    //
-                           params.indices.slice.offset,     //
-                           params.world.slice.offset,       //
-                           params.material.slice.offset,    //
-                           params.lights.slice.offset       //
-                         }));
+  e.bind_descriptor_sets(
+    span({
+      params.samplers,                       // 0: samplers
+      params.textures,                       // 1: textures
+      params.vertices.buffer.descriptor_,    // 2: vertices
+      params.indices.buffer.descriptor_,     // 3: indices
+      params.world.buffer.descriptor_,       // 4: world constantts
+      params.material.buffer.descriptor_,    // 5: materials
+      params.lights.buffer.descriptor_,      // 6: lights
+    }),
+    span({
+      params.vertices.slice.offset,    // 2: vertices
+      params.indices.slice.offset,     // 3: indices
+      params.world.slice.offset,       // 4: world constantts
+      params.material.slice.offset,    // 5: materials
+      params.lights.slice.offset       // 6: lights
+    }));
   e.draw(params.num_indices, 1, 0, 0);
   e.end_rendering();
 }

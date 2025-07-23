@@ -19,27 +19,27 @@ gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader)
     snformat<gpu::MAX_LABEL_SIZE>("Ngon Graphics Pipeline: {}"_str, label)
       .unwrap();
 
-  gpu::RasterizationState raster_state{.depth_clamp_enable = false,
-                                       .polygon_mode = gpu::PolygonMode::Fill,
-                                       .cull_mode    = gpu::CullMode::None,
-                                       .front_face =
-                                         gpu::FrontFace::CounterClockWise,
-                                       .depth_bias_enable          = false,
-                                       .depth_bias_constant_factor = 0,
-                                       .depth_bias_clamp           = 0,
-                                       .depth_bias_slope_factor    = 0,
-                                       .sample_count = sys->gpu.sample_count_};
+  auto raster_state =
+    gpu::RasterizationState{.depth_clamp_enable = false,
+                            .polygon_mode       = gpu::PolygonMode::Fill,
+                            .cull_mode          = gpu::CullMode::None,
+                            .front_face = gpu::FrontFace::CounterClockWise,
+                            .depth_bias_enable          = false,
+                            .depth_bias_constant_factor = 0,
+                            .depth_bias_clamp           = 0,
+                            .depth_bias_slope_factor    = 0,
+                            .sample_count = sys->gpu.sample_count_};
 
-  gpu::DepthStencilState depth_stencil_state{.depth_test_enable  = false,
-                                             .depth_write_enable = false,
-                                             .depth_compare_op =
-                                               gpu::CompareOp::Never,
-                                             .depth_bounds_test_enable = false,
-                                             .stencil_test_enable      = false,
-                                             .front_stencil            = {},
-                                             .back_stencil             = {},
-                                             .min_depth_bounds         = 0,
-                                             .max_depth_bounds         = 0};
+  auto depth_stencil_state =
+    gpu::DepthStencilState{.depth_test_enable        = false,
+                           .depth_write_enable       = false,
+                           .depth_compare_op         = gpu::CompareOp::Never,
+                           .depth_bounds_test_enable = false,
+                           .stencil_test_enable      = false,
+                           .front_stencil            = {},
+                           .back_stencil             = {},
+                           .min_depth_bounds         = 0,
+                           .max_depth_bounds         = 0};
 
   gpu::ColorBlendAttachmentState attachment_states[] = {
     {.blend_enable           = true,
@@ -52,7 +52,7 @@ gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader)
      .color_write_mask       = gpu::ColorComponents::All}
   };
 
-  gpu::ColorBlendState color_blend_state{
+  auto color_blend_state = gpu::ColorBlendState{
     .attachments = attachment_states, .blend_constant = {1, 1, 1, 1}
   };
 
@@ -66,7 +66,7 @@ gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader)
     sys->gpu.sb_layout_           // 6: materials
   };
 
-  gpu::GraphicsPipelineInfo pipeline_info{
+  auto pipeline_info = gpu::GraphicsPipelineInfo{
     .label         = tagged_label,
     .vertex_shader = gpu::ShaderStageInfo{.shader      = shader,
                                           .entry_point = "vert"_str,
@@ -157,12 +157,12 @@ void NgonPass::encode(gpu::CommandEncoder & e, NgonPassParams const & params,
       .clear        = {}};
   });
 
-  gpu::RenderingInfo info{
-    .render_area{.extent = params.framebuffer.extent().xy()},
-    .num_layers         = 1,
-    .color_attachments  = color,
-    .depth_attachment   = {},
-    .stencil_attachment = stencil};
+  auto info =
+    gpu::RenderingInfo{.render_area{.extent = params.framebuffer.extent().xy()},
+                       .num_layers         = 1,
+                       .color_attachments  = color,
+                       .depth_attachment   = {},
+                       .stencil_attachment = stencil};
 
   e.begin_rendering(info);
 
