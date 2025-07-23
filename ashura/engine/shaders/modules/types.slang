@@ -74,5 +74,6 @@ enum class BezierRegions : u32
   None    = 0,
   Inside  = 1,
   Outside = 2,
-  All     = 3
+  Edge    = 4,
+  All     = 7
 };

@@ -16,13 +16,13 @@ struct VertexOutput
 ConstantBuffer<f32x4x4> world_to_ndc;
 
 [[vk::binding(0, 1)]]
-StructuredBuffer<u32> triangle_offsets;
-
-[[vk::binding(0, 2)]]
 StructuredBuffer<f32x4x4> transforms;
 
-[[vk::binding(0, 3)]]
+[[vk::binding(0, 2)]]
 StructuredBuffer<f32x2> vertices;
+
+[[vk::binding(0, 3)]]
+StructuredBuffer<u32> indices;
 
 [[vk::binding(0, 4)]]
 StructuredBuffer<BezierRegions> regions;
@@ -34,16 +34,15 @@ static const f32x2 BARYCENTRIC_COORDS[3] = {
 };
 
 [[shader("vertex")]] VertexOutput vert(u32 instance : SV_InstanceID,
-                                       u32 primitive : SV_PrimitiveID,
                                        u32 vertex : SV_VertexID)
 {
-  var rel_pos         = vertices[vertex];
+  var idx             = indices[vertex];
+  var rel_pos         = vertices[idx];
   var uv              = BARYCENTRIC_COORDS[vertex % 3];
   var world_transform = transforms[instance];
   var world_pos       = mul(world_transform, f32x4(rel_pos, 0, 1));
   var screen_pos      = mul(world_to_ndc, world_pos);
-  var triangle_offset = triangle_offsets[instance];
-  var region          = regions[triangle_offset + primitive];
+  var region          = regions[instance];
   return VertexOutput(screen_pos, uv, region);
 }
 

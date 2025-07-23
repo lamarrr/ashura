@@ -317,7 +317,7 @@ BezierRegions bezier_region(f32x2 texture_coord)
   else
   {
     // Near boundary
-    return BezierRegions::All;
+    return BezierRegions::Edge;
   }
 }
 
