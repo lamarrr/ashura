@@ -24,6 +24,7 @@ typedef struct Buffer_T *              Buffer;
 typedef struct BufferView_T *          BufferView;
 typedef struct Image_T *               Image;
 typedef struct ImageView_T *           ImageView;
+typedef struct MemoryGroup_T *         MemoryGroup;
 typedef struct Sampler_T *             Sampler;
 typedef struct Shader_T *              Shader;
 typedef struct DescriptorSetLayout_T * DescriptorSetLayout;
@@ -725,22 +726,24 @@ enum class ResolveModes : u32
 
 ASH_BIT_ENUM_OPS(ResolveModes)
 
+enum class MemoryType : u8
+{
+  /// the resource is the sole owner
+  Unique = 0,
+  /// the resource's memory is grouped with other resources
+  Group  = 1
+};
+
 using Object =
   Enum<Instance *, Device *, CommandEncoder *, Buffer, BufferView, Image,
-       ImageView, Sampler, Shader, DescriptorSetLayout, DescriptorSet,
-       PipelineCache, ComputePipeline, GraphicsPipeline, TimeStampQuery,
-       StatisticsQuery, Surface, Swapchain>;
+       ImageView, MemoryGroup, Sampler, Shader, DescriptorSetLayout,
+       DescriptorSet, PipelineCache, ComputePipeline, GraphicsPipeline,
+       TimeStampQuery, StatisticsQuery, Surface, Swapchain>;
 
 struct SurfaceFormat
 {
   Format     format      = Format::Undefined;
   ColorSpace color_space = ColorSpace::SRGB_NONLINEAR;
-};
-
-struct MemoryRange
-{
-  u64 offset = 0;
-  u64 size   = 0;
 };
 
 /// @brief Describes the region of the framebuffer the coordinates gotten from the shaders
@@ -798,12 +801,19 @@ struct ImageSubresourceLayers
   u32          num_array_layers  = 0;
 };
 
+struct MemoryGroupInfo
+{
+  Span<Enum<Buffer, Image> const> resources = {};
+  Span<u32 const>                 aliases   = {};
+};
+
 struct BufferInfo
 {
   Str         label       = {};
   u64         size        = 0;
-  bool        host_mapped = false;
   BufferUsage usage       = BufferUsage::None;
+  MemoryType  memory_type = MemoryType::Unique;
+  bool        host_mapped = false;
 };
 
 /// format interpretation of a buffer's contents
@@ -827,6 +837,7 @@ struct ImageInfo
   u32          mip_levels   = 0;
   u32          array_layers = 0;
   SampleCount  sample_count = SampleCount::None;
+  MemoryType   memory_type  = MemoryType::Unique;
 };
 
 /// a sub-resource that specifies mips, aspects, layer, and component mapping of
@@ -1317,6 +1328,95 @@ struct CommandEncoder
                                      u32 stride) = 0;
 };
 
+struct CommandBuffer
+{
+  virtual void commit(CommandEncoder const &) = 0;
+
+  virtual void reset_timestamp_query(TimeStampQuery query, Slice32 range) = 0;
+
+  virtual void reset_statistics_query(StatisticsQuery query, Slice32 range) = 0;
+
+  virtual void write_timestamp(TimeStampQuery query, PipelineStages stage,
+                               u32 index) = 0;
+
+  virtual void begin_statistics(StatisticsQuery query, u32 index) = 0;
+
+  virtual void end_statistics(StatisticsQuery query, u32 index) = 0;
+
+  virtual void begin_debug_marker(Str region_name, f32x4 color) = 0;
+
+  virtual void end_debug_marker() = 0;
+
+  virtual void fill_buffer(Buffer dst, u64 offset, u64 size, u32 data) = 0;
+
+  virtual void copy_buffer(Buffer src, Buffer dst,
+                           Span<BufferCopy const> copies) = 0;
+
+  virtual void update_buffer(Span<u8 const> src, u64 dst_offset,
+                             Buffer dst) = 0;
+
+  virtual void clear_color_image(Image dst, Color value,
+                                 Span<ImageSubresourceRange const> ranges) = 0;
+
+  virtual void
+    clear_depth_stencil_image(Image dst, DepthStencil value,
+                              Span<ImageSubresourceRange const> ranges) = 0;
+
+  virtual void copy_image(Image src, Image dst,
+                          Span<ImageCopy const> copies) = 0;
+
+  virtual void copy_buffer_to_image(Buffer src, Image dst,
+                                    Span<BufferImageCopy const> copies) = 0;
+
+  virtual void blit_image(Image src, Image dst, Span<ImageBlit const> blits,
+                          Filter filter) = 0;
+
+  virtual void resolve_image(Image src, Image dst,
+                             Span<ImageResolve const> resolves) = 0;
+
+  virtual void begin_compute_pass() = 0;
+
+  virtual void end_compute_pass() = 0;
+
+  virtual void begin_rendering(RenderingInfo const & info) = 0;
+
+  virtual void end_rendering() = 0;
+
+  virtual void bind_compute_pipeline(ComputePipeline pipeline) = 0;
+
+  virtual void bind_graphics_pipeline(GraphicsPipeline pipeline) = 0;
+
+  virtual void bind_descriptor_sets(Span<DescriptorSet const> descriptor_sets,
+                                    Span<u32 const> dynamic_offsets) = 0;
+
+  virtual void push_constants(Span<u8 const> push_constants_data) = 0;
+
+  virtual void dispatch(u32 group_count_x, u32 group_count_y,
+                        u32 group_count_z) = 0;
+
+  virtual void dispatch_indirect(Buffer buffer, u64 offset) = 0;
+
+  virtual void set_graphics_state(GraphicsState const & state) = 0;
+
+  virtual void bind_vertex_buffers(Span<Buffer const> vertex_buffers,
+                                   Span<u64 const>    offsets) = 0;
+
+  virtual void bind_index_buffer(Buffer index_buffer, u64 offset,
+                                 IndexType index_type) = 0;
+
+  virtual void draw(u32 vertex_count, u32 instance_count, u32 first_vertex,
+                    u32 first_instance) = 0;
+
+  virtual void draw_indexed(u32 first_index, u32 num_indices, i32 vertex_offset,
+                            u32 first_instance, u32 num_instances) = 0;
+
+  virtual void draw_indirect(Buffer buffer, u64 offset, u32 draw_count,
+                             u32 stride) = 0;
+
+  virtual void draw_indexed_indirect(Buffer buffer, u64 offset, u32 draw_count,
+                                     u32 stride) = 0;
+};
+
 struct FrameContext
 {
   FrameId                      tail       = 0;
@@ -1346,6 +1446,9 @@ struct Device
 
   virtual Result<ImageView, Status>
     create_image_view(ImageViewInfo const & info) = 0;
+
+  virtual Result<MemoryGroup, Status>
+    create_memory_group(MemoryGroupInfo const & info) = 0;
 
   virtual Result<Sampler, Status> create_sampler(SamplerInfo const & info) = 0;
 
@@ -1382,6 +1485,8 @@ struct Device
 
   virtual void uninit(ImageView image_view) = 0;
 
+  virtual void uninit(MemoryGroup memory_group) = 0;
+
   virtual void uninit(Sampler sampler) = 0;
 
   virtual void uninit(Shader shader) = 0;
@@ -1404,15 +1509,13 @@ struct Device
 
   virtual FrameContext get_frame_context() = 0;
 
-  virtual Result<void *, Status> map_buffer_memory(Buffer buffer) = 0;
+  virtual Result<Span<u8>, Status> get_memory_map(Buffer buffer) = 0;
 
-  virtual void unmap_buffer_memory(Buffer buffer) = 0;
+  virtual Result<Void, Status> invalidate_mapped_memory(Buffer  buffer,
+                                                        Slice64 range) = 0;
 
-  virtual Result<Void, Status>
-    invalidate_mapped_buffer_memory(Buffer buffer, MemoryRange range) = 0;
-
-  virtual Result<Void, Status>
-    flush_mapped_buffer_memory(Buffer buffer, MemoryRange range) = 0;
+  virtual Result<Void, Status> flush_mapped_memory(Buffer  buffer,
+                                                   Slice64 range) = 0;
 
   virtual Result<usize, Status>
     get_pipeline_cache_size(PipelineCache cache) = 0;
