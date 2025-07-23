@@ -3,6 +3,7 @@
 #include "ashura/engine/canvas.h"
 #include "ashura/engine/font.h"
 #include "ashura/engine/systems.h"
+#include "ashura/std/range.h"
 
 namespace ash
 {
@@ -433,7 +434,9 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
 {
   // [ ] merge highlight rects
   CHECK(laid_out, "");
-  CHECK(style.runs.size() == block.runs.size(), "");
+  CHECK((style.runs.is_empty() && block.runs.is_empty()) ||
+          ((style.runs.size() + 1) == block.runs.size()),
+        "");
   CHECK(style.runs.size() == block.fonts.size(), "");
 
   auto const  block_width = max(extent.x(), style.align_width);

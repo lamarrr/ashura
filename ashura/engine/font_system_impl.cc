@@ -896,7 +896,7 @@ void FontSystemImpl::layout_text(TextBlock const & block, f32 max_width,
   layout.clear();
 
   auto const text_size = block.text.size();
-  CHECK(block.runs.size() == block.fonts.size(), "");
+  CHECK(block.runs.size() == (block.fonts.size() + 1), "");
   CHECK(!block.runs.is_empty(), "No run styling provided for text");
   CHECK(block.runs.last() >= text_size,
         "Text runs need to span the entire text");
@@ -905,15 +905,14 @@ void FontSystemImpl::layout_text(TextBlock const & block, f32 max_width,
   segments_.resize(text_size).unwrap();
 
   {
-    usize run_start = 0;
-    for (usize irun = 0; irun < block.runs.size(); irun++)
+    for (usize irun = 0; irun < (block.runs.size() - 1); irun++)
     {
-      auto const run_end = min(block.runs[irun], text_size);
+      auto const run_start = min(block.runs[irun], text_size);
+      auto const run_end   = min(block.runs[irun + 1], text_size);
       for (usize i = run_start; i < run_end; i++)
       {
         segments_[i].style = irun;
       }
-      run_start = run_end;
     }
   }
 
@@ -1114,8 +1113,8 @@ void FontSystemImpl::layout_text(TextBlock const & block, f32 max_width,
 
       reorder_line(layout.runs.view().slice(first, i - first));
 
-      extent.x = max(extent.x, width);
-      extent.y += line_height;
+      extent.x() = max(extent.x(), width);
+      extent.y() += line_height;
       caret_iter += num_carets;
     }
 

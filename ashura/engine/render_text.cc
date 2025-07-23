@@ -1,6 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/engine/render_text.h"
 #include "ashura/engine/systems.h"
+#include "ashura/std/range.h"
 
 namespace ash
 {
@@ -15,6 +16,7 @@ RenderText & RenderText::run(TextStyle const & style, FontStyle const & font,
 
   if (runs_.is_empty())
   {
+    runs_.push((usize) 0).unwrap();
     runs_.push(USIZE_MAX).unwrap();
     styles_.push(style).unwrap();
     fonts_.push(font).unwrap();
@@ -34,11 +36,13 @@ RenderText & RenderText::run(TextStyle const & style, FontStyle const & font,
   /// should never happen since there's always a USIZE_MAX run end
   CHECK(!last_run_span.is_empty(), "");
 
-  auto first_run = (usize) (first_run_span.pbegin() - runs_.view().pbegin());
-  auto last_run  = (usize) (last_run_span.pbegin() - runs_.view().pbegin());
+  auto first_run =
+    ((usize) (first_run_span.pbegin() - runs_.view().pbegin())) - 1;
+  auto last_run =
+    ((usize) (last_run_span.pbegin() - runs_.view().pbegin())) - 1;
 
-  auto const first_run_begin = (first_run == 0) ? 0 : runs_[first_run - 1];
-  auto const last_run_end    = runs_[last_run];
+  auto const first_run_begin = runs_[first_run];
+  auto const last_run_end    = runs_[last_run + 1];
 
   /// run merging
 
@@ -48,7 +52,7 @@ RenderText & RenderText::run(TextStyle const & style, FontStyle const & font,
   {
     auto const first_erase = first_run + 1;
     auto const num_erase   = last_run - first_erase;
-    runs_.erase(first_erase, num_erase);
+    runs_.erase(first_erase + 1, num_erase);
     styles_.erase(first_erase, num_erase);
     fonts_.erase(first_erase, num_erase);
     last_run -= num_erase;
@@ -59,7 +63,7 @@ RenderText & RenderText::run(TextStyle const & style, FontStyle const & font,
   {
     auto const first_erase = first_run;
     auto const num_erase   = last_run - first_run;
-    runs_.erase(first_erase, num_erase);
+    runs_.erase(first_erase + 1, num_erase);
     styles_.erase(first_erase, num_erase);
     fonts_.erase(first_erase, num_erase);
     last_run -= num_erase;
@@ -70,7 +74,7 @@ RenderText & RenderText::run(TextStyle const & style, FontStyle const & font,
   {
     auto const first_erase = first_run + 1;
     auto const num_erase   = (last_run + 1) - first_erase;
-    runs_.erase(first_erase, num_erase);
+    runs_.erase(first_erase + 1, num_erase);
     styles_.erase(first_erase, num_erase);
     fonts_.erase(first_erase, num_erase);
     last_run -= num_erase;
@@ -89,26 +93,26 @@ RenderText & RenderText::run(TextStyle const & style, FontStyle const & font,
     if (first_run_begin == first)
     {
       // split with new on left
-      runs_.insert(first_run, end).unwrap();
+      runs_.insert(first_run + 1, end).unwrap();
       styles_.insert(first_run, style).unwrap();
       fonts_.insert(first_run, font).unwrap();
     }
     else if (last_run_end == end)
     {
       // split with new on right
-      runs_[first_run] = first;
-      runs_.insert(first_run + 1, end).unwrap();
+      runs_[first_run + 1] = first;
+      runs_.insert(first_run + 1 + 1, end).unwrap();
       styles_.insert(first_run + 1, style).unwrap();
       fonts_.insert(first_run + 1, font).unwrap();
     }
     else
     {
       // split with new in the middle of the run
-      runs_[first_run] = first;
-      runs_.insert(first_run + 1, end).unwrap();
+      runs_[first_run + 1] = first;
+      runs_.insert(first_run + 1 + 1, end).unwrap();
       styles_.insert(first_run + 1, style).unwrap();
       fonts_.insert(first_run + 1, font).unwrap();
-      runs_.insert(first_run + 2, last_run_end).unwrap();
+      runs_.insert(first_run + 2 + 1, last_run_end).unwrap();
       styles_.insert(first_run + 2, styles_[first_run]).unwrap();
       fonts_.insert(first_run + 2, fonts_[first_run]).unwrap();
     }
