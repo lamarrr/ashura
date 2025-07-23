@@ -822,55 +822,6 @@ using Slice16 = CoreSlice<u16>;
 using Slice32 = CoreSlice<u32>;
 using Slice64 = CoreSlice<u64>;
 
-/// @brief Iterator Model. Iterators are only required to
-/// produce values, they are not required to provide
-/// references to the values
-template <typename T>
-concept Iter = requires (T it) {
-  {
-    // value producer
-    *it
-  };
-  {
-    // in-place (pre-fix) advancement
-    ++it
-  };
-};
-
-/// @brief Range Model. Ranges are read-only by default.
-template <typename R>
-concept Range = requires (R r) {
-  {
-    // can get an iterator to its beginning element
-    begin(r)
-  } -> Iter;
-  {
-    // returns boolean when asked if it has ended
-    !(begin(r) != end(r))
-  };
-};
-
-template <typename T>
-concept OutIter = Iter<T>;
-
-template <typename T>
-concept OutRange = Range<T>;
-
-template <typename Iter>
-concept SizedIter = requires (Iter iter) {
-  { static_cast<usize>(iter.size()) };
-};
-
-template <typename Iter>
-concept BoundedSizeIter = requires (Iter iter) {
-  { static_cast<usize>(iter.max_size()) };
-};
-
-template <typename Iter, typename T>
-concept IterOf = requires (Iter iter) {
-  { static_cast<T>(*iter) };
-};
-
 struct IterEnd
 {
 };
@@ -939,32 +890,6 @@ struct [[nodiscard]] RevSpanIter
   }
 };
 
-template <typename Iter>
-struct IterView
-{
-  Iter iter_;
-
-  constexpr auto begin() const
-  {
-    return iter_;
-  }
-
-  constexpr auto end() const
-  {
-    return IterEnd{};
-  }
-
-  constexpr auto size() const requires (SizedIter<Iter>)
-  {
-    return iter_.size();
-  }
-
-  constexpr auto max_size() const requires (BoundedSizeIter<Iter>)
-  {
-    return iter_.max_size();
-  }
-};
-
 template <typename T, usize N>
 constexpr SpanIter<T> begin(T (&a)[N])
 {
@@ -1012,6 +937,81 @@ constexpr auto size(T && a) -> decltype(a.size())
 {
   return a.size();
 }
+
+/// @brief Iterator Model. Iterators are only required to
+/// produce values, they are not required to provide
+/// references to the values
+template <typename T>
+concept Iter = requires (T it) {
+  {
+    // value producer
+    *it
+  };
+  {
+    // in-place (pre-fix) advancement
+    ++it
+  };
+};
+
+/// @brief Range Model. Ranges are read-only by default.
+template <typename R>
+concept Range = requires (R r) {
+  {
+    // can get an iterator to its beginning element
+    begin(r)
+  } -> Iter;
+  {
+    // returns boolean when asked if it has ended
+    !(begin(r) != end(r))
+  };
+};
+
+template <typename T>
+concept OutIter = Iter<T>;
+
+template <typename T>
+concept OutRange = Range<T>;
+
+template <typename Iter>
+concept SizedIter = requires (Iter iter) {
+  { static_cast<usize>(iter.size()) };
+};
+
+template <typename Iter>
+concept BoundedSizeIter = requires (Iter iter) {
+  { static_cast<usize>(iter.max_size()) };
+};
+
+template <typename Iter, typename T>
+concept IterOf = requires (Iter iter) {
+  { static_cast<T>(*iter) };
+};
+
+template <typename Iter>
+struct IterView
+{
+  Iter iter_;
+
+  constexpr auto begin() const
+  {
+    return iter_;
+  }
+
+  constexpr auto end() const
+  {
+    return IterEnd{};
+  }
+
+  constexpr auto size() const requires (SizedIter<Iter>)
+  {
+    return iter_.size();
+  }
+
+  constexpr auto max_size() const requires (BoundedSizeIter<Iter>)
+  {
+    return iter_.max_size();
+  }
+};
 
 template <typename T>
 concept Sized = requires (T t) {
