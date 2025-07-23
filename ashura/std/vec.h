@@ -198,13 +198,13 @@ struct [[nodiscard]] Vec
 
   constexpr void clear()
   {
-    obj::destruct(Span{data(), size_});
+    obj::destruct(view());
     size_ = 0;
   }
 
   constexpr void uninit()
   {
-    obj::destruct(Span{data(), size_});
+    obj::destruct(view());
     allocator_->pndealloc(ALIGNMENT, capacity_, storage_);
   }
 
@@ -241,7 +241,7 @@ struct [[nodiscard]] Vec
         return Err{};
       }
 
-      obj::relocate_nonoverlapping(Span{data(), size_}, new_storage);
+      obj::relocate_nonoverlapping(view(), new_storage);
       allocator_->pndealloc(ALIGNMENT, capacity_, storage_);
       storage_ = new_storage;
     }
@@ -278,7 +278,7 @@ struct [[nodiscard]] Vec
         return Err{};
       }
 
-      obj::relocate_nonoverlapping(Span{data(), size_}, new_storage);
+      obj::relocate_nonoverlapping(view(), new_storage);
       allocator_->pndealloc(ALIGNMENT, capacity_, storage_);
       storage_ = new_storage;
     }
@@ -588,6 +588,625 @@ constexpr Result<Vec<T>> vec_move(AllocatorRef allocator, Span<T> data)
   return out;
 }
 
+/// @brief A Vec with a small inline-reserved storage
+/// @warning SmallVec does not have stable addressing
+template <typename T, usize InlineCapacity = 8>
+requires (NonConst<T> && InlineCapacity > 0)
+struct [[nodiscard]] SmallVec
+{
+  using Type = T;
+  using Repr = T;
+  using Iter = SpanIter<T>;
+  using View = Span<T>;
+
+  static constexpr usize ALIGNMENT = max(alignof(Type), MIN_VEC_ALIGNMENT);
+  static constexpr usize INLINE_CAPACITY = InlineCapacity;
+
+  using InlineStorage = InplaceStorage<ALIGNMENT, sizeof(T) * INLINE_CAPACITY>;
+
+  Type *                storage_   = nullptr;
+  usize                 size_      = 0;
+  usize                 capacity_  = 0;
+  AllocatorRef          allocator_ = {};
+  mutable InlineStorage inline_    = {};
+
+  explicit constexpr SmallVec(AllocatorRef allocator) :
+    storage_{nullptr},
+    size_{0},
+    capacity_{0},
+    allocator_{allocator},
+    inline_{}
+  {
+  }
+
+  constexpr SmallVec() : SmallVec{default_allocator}
+  {
+  }
+
+  constexpr SmallVec(AllocatorRef allocator, Type * storage, usize capacity,
+                     usize size) :
+    storage_{storage},
+    size_{size},
+    capacity_{capacity},
+    allocator_{allocator},
+    inline_{}
+  {
+  }
+
+  constexpr SmallVec(SmallVec const &) = delete;
+
+  constexpr SmallVec & operator=(SmallVec const &) = delete;
+
+  constexpr SmallVec(SmallVec && other) :
+    storage_{nullptr},
+    size_{other.size_},
+    capacity_{other.capacity_},
+    allocator_{other.allocator_},
+    inline_{}
+  {
+    if (other.is_inline())
+    {
+      obj::relocate_nonoverlapping(other.view(), inline_storage());
+      storage_ = inline_storage();
+    }
+    else
+    {
+      storage_ = other.storage_;
+    }
+
+    other.storage_   = nullptr;
+    other.size_      = 0;
+    other.capacity_  = 0;
+    other.allocator_ = default_allocator;
+  }
+
+  constexpr SmallVec & operator=(SmallVec && other)
+  {
+    if (this == &other) [[unlikely]]
+    {
+      return *this;
+    }
+    uninit();
+    new (this) SmallVec{static_cast<SmallVec &&>(other)};
+    return *this;
+  }
+
+  constexpr ~SmallVec()
+  {
+    uninit();
+  }
+
+  static constexpr Result<SmallVec> make(usize        capacity,
+                                         AllocatorRef allocator = {})
+  {
+    SmallVec out{allocator};
+
+    if (!out.reserve(capacity))
+    {
+      return Err{};
+    }
+
+    return Ok{static_cast<SmallVec &&>(out)};
+  }
+
+  constexpr Result<SmallVec> clone(AllocatorRef allocator) const
+  {
+    SmallVec out{allocator};
+
+    if (!out.extend(*this))
+    {
+      return Err{};
+    }
+
+    return Ok{static_cast<SmallVec &&>(out)};
+  }
+
+  constexpr Result<SmallVec> clone() const
+  {
+    return clone(allocator_);
+  }
+
+  constexpr bool is_empty() const
+  {
+    return size() == 0;
+  }
+
+  constexpr Type * data() const
+  {
+    return assume_aligned<ALIGNMENT>(storage_);
+  }
+
+  constexpr Type * inline_storage() const
+  {
+    return assume_aligned<ALIGNMENT>(
+      reinterpret_cast<Type *>(inline_.storage_));
+  }
+
+  static constexpr usize alignment()
+  {
+    return ALIGNMENT;
+  }
+
+  constexpr usize size() const
+  {
+    return size_;
+  }
+
+  constexpr usize size_bytes() const
+  {
+    return sizeof(Type) * size();
+  }
+
+  static constexpr usize inline_capacity()
+  {
+    return INLINE_CAPACITY;
+  }
+
+  static constexpr usize inline_capacity_bytes()
+  {
+    return sizeof(Type) * inline_capacity();
+  }
+
+  constexpr usize capacity() const
+  {
+    return capacity_;
+  }
+
+  constexpr usize capacity_bytes() const
+  {
+    return sizeof(Type) * capacity();
+  }
+
+  static constexpr bool can_inline(usize target_capacity)
+  {
+    return INLINE_CAPACITY >= target_capacity;
+  }
+
+  constexpr bool is_inline() const
+  {
+    return storage_ == inline_storage();
+  }
+
+  constexpr auto begin() const
+  {
+    return Iter{.iter_ = data(), .end_ = data() + size()};
+  }
+
+  constexpr auto end() const
+  {
+    return IterEnd{};
+  }
+
+  constexpr Type & first() const
+  {
+    return get(0);
+  }
+
+  constexpr Type & last() const
+  {
+    return get(size() - 1);
+  }
+
+  constexpr Type & operator[](usize index) const
+  {
+    return get(index);
+  }
+
+  constexpr Type & get(usize index) const
+  {
+    return data()[index];
+  }
+
+  constexpr Option<Type &> try_get(usize index) const
+  {
+    if (index >= size()) [[unlikely]]
+    {
+      return none;
+    }
+
+    return data()[index];
+  }
+
+  template <typename... Args>
+  constexpr void set(usize index, Args &&... args) const
+  {
+    data()[index] = Type{static_cast<Args &&>(args)...};
+  }
+
+  constexpr void clear()
+  {
+    obj::destruct(view());
+    size_ = 0;
+  }
+
+  constexpr void uninit()
+  {
+    obj::destruct(view());
+    if (is_inline())
+    {
+      return;
+    }
+    allocator_->pndealloc(ALIGNMENT, capacity_, storage_);
+  }
+
+  constexpr void reset()
+  {
+    uninit();
+    storage_   = nullptr;
+    size_      = 0;
+    capacity_  = 0;
+    allocator_ = default_allocator;
+  }
+
+  constexpr Result<> reserve(usize target_capacity)
+  {
+    if (capacity_ >= target_capacity)
+    {
+      return Ok{};
+    }
+
+    if (is_inline())
+    {
+      if (can_inline(target_capacity))
+      {
+        capacity_ = target_capacity;
+        return Ok{};
+      }
+
+      Type * new_storage;
+      if (!allocator_->pnalloc(ALIGNMENT, target_capacity, new_storage))
+        [[unlikely]]
+      {
+        return Err{};
+      }
+
+      obj::relocate_nonoverlapping(view(), new_storage);
+      capacity_ = target_capacity;
+      storage_  = new_storage;
+      return Ok{};
+    }
+    else
+    {
+      if constexpr (TriviallyRelocatable<Type>)
+      {
+        if (!allocator_->pnrealloc(ALIGNMENT, capacity_, target_capacity,
+                                   storage_)) [[unlikely]]
+        {
+          return Err{};
+        }
+      }
+      else
+      {
+        Type * new_storage;
+        if (!allocator_->pnalloc(ALIGNMENT, target_capacity, new_storage))
+          [[unlikely]]
+        {
+          return Err{};
+        }
+
+        obj::relocate_nonoverlapping(view(), new_storage);
+        allocator_->pndealloc(ALIGNMENT, capacity_, storage_);
+        storage_ = new_storage;
+      }
+
+      capacity_ = target_capacity;
+      return Ok{};
+    }
+  }
+
+  constexpr Result<> reserve_extend(usize extension)
+  {
+    return reserve(size_ + extension);
+  }
+
+  constexpr Result<> fit()
+  {
+    if (size_ == capacity_)
+    {
+      return Ok{};
+    }
+
+    if (is_inline())
+    {
+      return Ok{};
+    }
+
+    if constexpr (TriviallyRelocatable<Type>)
+    {
+      if (!allocator_->pnrealloc(ALIGNMENT, capacity_, size_, storage_))
+        [[unlikely]]
+      {
+        return Err{};
+      }
+    }
+    else
+    {
+      Type * new_storage;
+      if (!allocator_->pnalloc(ALIGNMENT, size_, new_storage)) [[unlikely]]
+      {
+        return Err{};
+      }
+
+      obj::relocate_nonoverlapping(view(), new_storage);
+      allocator_->pndealloc(ALIGNMENT, capacity_, storage_);
+      storage_ = new_storage;
+    }
+
+    capacity_ = size_;
+    return Ok{};
+  }
+
+  static constexpr usize growth(usize capacity)
+  {
+    return capacity << 1;
+  }
+
+  constexpr Result<> grow(usize target_capacity)
+  {
+    if (capacity_ >= target_capacity)
+    {
+      return Ok{};
+    }
+
+    return reserve(max(target_capacity, growth(capacity_)));
+  }
+
+  constexpr Result<> grow_extend(usize extension)
+  {
+    return grow(size() + extension);
+  }
+
+  constexpr void erase(usize first, usize num)
+  {
+    return erase(Slice{first, num});
+  }
+
+  constexpr void erase(Slice slice)
+  {
+    slice = slice(size_);
+    if constexpr (TriviallyRelocatable<Type>)
+    {
+      mem::move(Span{data() + slice.end(), size_ - slice.end()},
+                data() + slice.begin());
+    }
+    else
+    {
+      obj::move_assign(Span{data() + slice.end(), size_ - slice.end()},
+                       data() + slice.begin());
+
+      obj::destruct(Span{data() + size_ - slice.span, slice.span});
+    }
+    size_ -= slice.span;
+  }
+
+  template <typename... Args>
+  constexpr Result<> push(Args &&... args)
+  {
+    if (!grow(size_ + 1)) [[unlikely]]
+    {
+      return Err{};
+    }
+
+    new (data() + size_) Type{static_cast<Args &&>(args)...};
+
+    size_++;
+
+    return Ok{};
+  }
+
+  constexpr void pop(usize num = 1)
+  {
+    num = min(num, size_);
+    obj::destruct(Span{data() + size_ - num, num});
+    size_ -= num;
+  }
+
+  constexpr Result<> try_pop(usize num = 1)
+  {
+    if (size() < num) [[unlikely]]
+    {
+      return Err{};
+    }
+
+    pop(num);
+
+    return Ok{};
+  }
+
+  Result<> shift_uninit(usize first, usize distance)
+  {
+    first = min(first, size_);
+    if (!grow(size_ + distance)) [[unlikely]]
+    {
+      return Err{};
+    }
+
+    if constexpr (TriviallyRelocatable<Type>)
+    {
+      // potentially overlapping
+      mem::move(Span{data() + first, size_ - first}, data() + first + distance);
+    }
+    else
+    {
+      usize const tail_first = max(first, min(size_, distance) - size_);
+
+      // move construct tail elements to uninitialized placements
+      obj::move_construct(Span{data() + tail_first, size_ - tail_first},
+                          data() + tail_first + distance);
+
+      // move non-tail elements towards end
+      obj::move_assign(Span{data() + first, tail_first - first},
+                       data() + first + distance);
+
+      // destruct previous placements of non-tail elements
+      obj::destruct(Span{data() + first, tail_first - first});
+    }
+
+    size_ += distance;
+
+    return Ok{};
+  }
+
+  template <typename... Args>
+  constexpr Result<> insert(usize pos, Args &&... args)
+  {
+    pos = min(pos, size_);
+
+    if (!shift_uninit(pos, 1)) [[unlikely]]
+    {
+      return Err{};
+    }
+
+    new (data() + pos) Type{static_cast<Args &&>(args)...};
+    return Ok{};
+  }
+
+  constexpr Result<> insert_span(usize pos, Span<Type const> span)
+  {
+    pos = min(pos, size_);
+
+    if (!shift_uninit(pos, span.size())) [[unlikely]]
+    {
+      return Err{};
+    }
+
+    if constexpr (TriviallyCopyConstructible<Type>)
+    {
+      mem::copy(span, data() + pos);
+    }
+    else
+    {
+      obj::copy_construct(span, data() + pos);
+    }
+
+    return Ok{};
+  }
+
+  constexpr Result<> insert_span_move(usize pos, Span<Type> span)
+  {
+    pos = min(pos, size_);
+
+    if (!shift_uninit(pos, span.size())) [[unlikely]]
+    {
+      return Err{};
+    }
+
+    if constexpr (TriviallyMoveConstructible<Type>)
+    {
+      mem::copy(span, data() + pos);
+    }
+    else
+    {
+      obj::move_construct(span, data() + pos);
+    }
+
+    return Ok{};
+  }
+
+  constexpr Result<> extend_uninit(usize extension)
+  {
+    if (!grow(size_ + extension)) [[unlikely]]
+    {
+      return Err{};
+    }
+
+    size_ += extension;
+
+    return Ok{};
+  }
+
+  constexpr Result<> extend(usize extension)
+  {
+    usize const pos = size_;
+
+    if (!extend_uninit(extension)) [[unlikely]]
+    {
+      return Err{};
+    }
+
+    obj::default_construct(Span{data() + pos, extension});
+
+    return Ok{};
+  }
+
+  constexpr Result<> extend(Span<Type const> span)
+  {
+    usize const pos = size_;
+
+    if (!extend_uninit(span.size())) [[unlikely]]
+    {
+      return Err{};
+    }
+
+    // free to use memcpy because the source range is not overlapping with this
+    // anyway
+    if constexpr (TriviallyCopyConstructible<Type>)
+    {
+      mem::copy(span, data() + pos);
+    }
+    else
+    {
+      obj::copy_construct(span, data() + pos);
+    }
+
+    return Ok{};
+  }
+
+  constexpr Result<> extend_move(Span<Type> span)
+  {
+    usize const pos = size_;
+
+    if (!extend_uninit(span.size())) [[unlikely]]
+    {
+      return Err{};
+    }
+
+    // non-overlapping, use memcpy
+    if constexpr (TriviallyMoveConstructible<Type>)
+    {
+      mem::copy(span, data() + pos);
+    }
+    else
+    {
+      obj::move_construct(span, data() + pos);
+    }
+
+    return Ok{};
+  }
+
+  constexpr void swap(usize a, usize b) const
+  {
+    ash::swap(data()[a], data()[b]);
+  }
+
+  constexpr Result<> resize_uninit(usize new_size)
+  {
+    if (new_size <= size_)
+    {
+      erase(new_size, size_ - new_size);
+      return Ok{};
+    }
+
+    return extend_uninit(new_size - size_);
+  }
+
+  constexpr Result<> resize(usize new_size)
+  {
+    if (new_size <= size_)
+    {
+      erase(new_size, size_ - new_size);
+      return Ok{};
+    }
+
+    return extend(new_size - size_);
+  }
+
+  constexpr View view() const
+  {
+    return View{data(), size()};
+  }
+};
+
 /// @brief A vector with elements pinned to memory, The address of the vector is
 /// stable over its lifetime and guarantees that there's never reference
 /// invalidation. The elements are never relocated during their lifetime. It can
@@ -676,7 +1295,7 @@ struct [[nodiscard]] PinVec
 
   constexpr void uninit()
   {
-    obj::destruct(Span{data(), size_});
+    obj::destruct(view());
     allocator_->pndealloc(ALIGNMENT, capacity_, storage_);
   }
 
@@ -775,7 +1394,7 @@ struct [[nodiscard]] PinVec
 
   constexpr void clear()
   {
-    obj::destruct(Span{data(), size_});
+    obj::destruct(view());
     size_ = 0;
   }
 
@@ -1204,7 +1823,7 @@ struct [[nodiscard]] InplaceVec
 
   constexpr InplaceVec(InplaceVec const & other) : size_{other.size()}
   {
-    obj::copy_construct(Span{other.data(), other.size()}, data());
+    obj::copy_construct(other.view(), data());
   }
 
   constexpr InplaceVec & operator=(InplaceVec const & other)
@@ -1220,7 +1839,7 @@ struct [[nodiscard]] InplaceVec
 
   constexpr InplaceVec(InplaceVec && other) : size_{other.size()}
   {
-    obj::relocate_nonoverlapping(Span{other.data(), other.size_}, data());
+    obj::relocate_nonoverlapping(other.view(), data());
     other.size_ = 0;
   }
 
@@ -1318,13 +1937,13 @@ struct [[nodiscard]] InplaceVec
 
   constexpr void clear()
   {
-    obj::destruct(Span{data(), size_});
+    obj::destruct(view());
     size_ = 0;
   }
 
   constexpr void uninit()
   {
-    obj::destruct(Span{data(), size_});
+    obj::destruct(view());
   }
 
   constexpr void reset()
