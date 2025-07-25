@@ -216,21 +216,13 @@ struct DeviceTable
 
 #undef ASH_DEF_VKPFN
 
-// [ ] integrate
-struct alignas(u64) PassTimestamp
-{
-  u32 epoch = 0;
-  u32 pass  = 0;
-
-  // operator== != <= >=
-};
-
 struct Access
 {
   VkPipelineStageFlags stages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
   VkAccessFlags        access = VK_ACCESS_NONE;
 };
 
+/*
 enum class AliasState : u8
 {
   /// the resource is the active resource using the aliased memory region, i.e. no other resource that overlaps the same memory region is currently using part of the memory
@@ -238,31 +230,7 @@ enum class AliasState : u8
   /// the resource is not the active resource using its allocated memory region, i.e. another resource that overlaps the same memory region is using part of the memory
   Displaced = 1
 };
-
-enum class HazardType : u8
-{
-  None            = 0,
-  Write           = 1,
-  Reads           = 2,
-  ReadsAfterWrite = 3
-};
-
-struct BufferHazard
-{
-  u64        pass_timestamp = 0;
-  HazardType type           = HazardType::None;
-  Access     reads          = {};
-  Access     write          = {};
-};
-
-struct ImageHazard
-{
-  u64           pass_timestamp = 0;
-  HazardType    type           = HazardType::None;
-  Access        reads          = {};
-  Access        write          = {};
-  VkImageLayout layout         = VK_IMAGE_LAYOUT_UNDEFINED;
-};
+*/
 
 // [ ] we can merge this hazard states and move them into the memorygroup abstraction; it will enable us track aliases? by binding id?
 
@@ -283,9 +251,8 @@ struct MemoryInfo
 {
   MemoryGroup *   memory_group  = nullptr;
   u32             group_binding = 0;
-  u32             alias_binding = 0;    // [ ] needs to be across epochs
+  u32             alias_binding = 0;
   gpu::MemoryType type          = gpu::MemoryType::Unique;
-  AliasState      alias_state   = AliasState::Displaced;
 };
 
 struct BufferBarrier
@@ -313,14 +280,12 @@ struct MemoryBarrier
 struct BufferState
 {
   MemoryInfo                               memory  = {};
-  BufferHazard                             hazard  = {};
   InplaceVec<Binder, MAX_RESOURCE_BINDERS> binders = {};
 };
 
 struct ImageState
 {
   MemoryInfo                               memory  = {};
-  ImageHazard                              hazard  = {};
   InplaceVec<Binder, MAX_RESOURCE_BINDERS> binders = {};
 };
 
@@ -417,10 +382,6 @@ struct DescriptorSet
 
   InplaceVec<DescriptorBinding, gpu::MAX_DESCRIPTOR_SET_BINDINGS> bindings = {};
 
-  void update_link(Buffer * next, u32 binding, u32 element)
-  {
-  }
-
   /*
   {
 
@@ -467,6 +428,10 @@ struct DescriptorSet
     current = next;
     current->state.aspects[state].binders.push(binder).unwrap();
   }*.*/
+
+  void update_link(Buffer * next, u32 binding, u32 element)
+  {
+  }
 
   void update_link(BufferView * next, u32 binding, u32 element)
   {
@@ -720,9 +685,6 @@ struct RenderPassContext
 
   bool has_state = false;
 
-  //  [ ] fix
-  u64 pass_timestamp = 1;
-
   void clear()
   {
     render_area = {};
@@ -745,7 +707,6 @@ struct ComputePassContext
 {
   InplaceVec<DescriptorSet *, gpu::MAX_PIPELINE_DESCRIPTOR_SETS> sets = {};
   ComputePipeline * pipeline                                          = nullptr;
-  u64               pass_timestamp = 1;    // [ ] handle
 
   void clear()
   {
@@ -754,23 +715,214 @@ struct ComputePassContext
   }
 };
 
-enum class ResourceState
+namespace experimental
+{
+
+enum class ImageId : u16
+{
+  Undefined = U16_MAX
+};
+
+enum class BufferId : u16
+{
+  Undefined = U16_MAX
+};
+
+enum class DescriptorSetId : u16
+{
+  Undefined = U16_MAX
+};
+
+enum class AliasId : u16
+{
+  Undefined = U16_MAX
+};
+
+enum class HazardType : u8
+{
+  None            = 0,
+  Write           = 1,
+  Reads           = 2,
+  ReadsAfterWrite = 3
+};
+
+struct BufferHazard
+{
+  u32        pass  = 0;
+  HazardType type  = HazardType::None;
+  Access     reads = {};
+  Access     write = {};
+};
+
+struct ImageHazard
+{
+  u32           pass   = 0;
+  HazardType    type   = HazardType::None;
+  Access        reads  = {};
+  Access        write  = {};
+  VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
+};
+
+struct ImageAccess
+{
+  VkPipelineStageFlags stages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+  VkAccessFlags        access = VK_ACCESS_NONE;
+  VkImageLayout        layout = VK_IMAGE_LAYOUT_UNDEFINED;
+};
+
+struct BufferAccess
+{
+  VkPipelineStageFlags stages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+  VkAccessFlags        access = VK_ACCESS_NONE;
+};
+
+struct AliasAccess
 {
 };
 
-struct BindingHazardState
+/// @brief Multiple aliases can be binded to the same memory alias and read from it at the same time.
+/// but they can't write to it at the same time.
+// [ ] will this tracking work?
+struct AliasHazard
 {
+  u32                           pass   = 0;
+  Enum<None, BufferId, ImageId> reader = none;
+  Enum<None, BufferId, ImageId> writer = none;
 };
 
-struct DescriptorSetHazardState
+// [ ] fix alias tracking
+// [ ] how to track memory aliases
+// [ ] how to track descriptor set bindings
+
+/// @brief Descriptor set hazard state
+struct DescriptorSetHazard
 {
+  u32  pass       = 0;
+  // [ ] if an hazard has occured on one of its bindings' elements
+  bool has_hazard = false;
 };
 
+/*
+/// @brief resources need timeline ids as their ids will change across frames when resources are removed
+constexpr u16 MAX_TIMELINES = 16;
+
+struct ImageIds
+{
+  ImageId timelines[MAX_TIMELINES] = {};
+  ImageId id = ImageId::Undefined;
+};
+
+struct BufferIds
+{
+  BufferId timelines[MAX_TIMELINES] = {};
+  BufferId id = BufferId::Undefined;
+};
+
+struct DescriptorSetIds
+{
+  // DescriptorSetId timelines[MAX_TIMELINES] = {};
+  DescriptorSetId id = DescriptorSetId::Undefined;
+};
+*/
+
+/// @brief Per-encoder resource state heap
 struct ResourceStateHeap
 {
-  ResourceState *            resource_states;
-  DescriptorSetHazardState * descriptor_states;
+  CoreSparseMap<u16, Vec<VkImageLayout>> image_states     = {};
+  CoreSparseMap<u16, Vec<AliasId>>       image_alias_map  = {};
+  CoreSparseMap<u16, Vec<AliasId>>       buffer_alias_map = {};
+  // memory group
 };
+
+/// @brief Per-encoder resource hazard state heap
+struct ResourceHazardHeap
+{
+  template <typename... T>
+  using Map = CoreSparseMap<u16, BitVec<u64>, Vec<T>...>;
+
+  Map<Enum<ImageId, BufferId>> alias_state            = {};
+  Map<ImageHazard>             image_hazards          = {};
+  Map<BufferHazard>            buffer_hazards         = {};
+  Map<AliasHazard>             alias_hazards          = {};
+  Map<DescriptorSetHazard>     descriptor_set_hazards = {};
+
+  void mark(ImageId, ImageAccess const &);
+  void mark(BufferId, BufferAccess const &);
+  void mark(AliasId, AliasAccess const &);
+  void mark(DescriptorSetId);
+};
+
+struct AccessTimeline
+{
+  struct Pass
+  {
+    Slice32 descriptor_sets           = {};
+    Slice32 vertex_buffers            = {};
+    Slice32 index_buffers             = {};
+    Slice32 indirect_buffers          = {};
+    Slice32 color_attachments         = {};
+    Slice32 depth_stencil_attachments = {};
+    Slice32 transfer_src_images       = {};
+    Slice32 transfer_dst_images       = {};
+    Slice32 transfer_src_buffers      = {};
+    Slice32 transfer_dst_buffers      = {};
+  };
+
+  // [ ] alias?
+
+  Vec<DescriptorSetId> descriptor_sets           = {};
+  Vec<BufferId>        vertex_buffers            = {};
+  Vec<BufferId>        index_buffers             = {};
+  Vec<BufferId>        indirect_buffers          = {};
+  Vec<ImageId>         color_attachments         = {};
+  Vec<ImageId>         depth_stencil_attachments = {};
+  Vec<ImageId>         transfer_src_images       = {};
+  Vec<ImageId>         transfer_dst_images       = {};
+  Vec<BufferId>        transfer_src_buffers      = {};
+  Vec<BufferId>        transfer_dst_buffers      = {};
+  Vec<Pass>            passes                    = {};
+
+  void begin_pass();
+  void end_pass();
+  void access_descriptor_set(DescriptorSetId);
+  void access_vertex_buffer(BufferId);
+  void access_index_buffer(BufferId);
+  void access_indirect_buffer(BufferId);
+  void access_color_image(ImageId);
+  void access_depth_stencil_image(ImageId);
+  void access_transfer_src_image(ImageId);
+  void access_transfer_dst_image(ImageId);
+  void access_transfer_src_buffer(ImageId);
+  void access_transfer_dst_buffer(ImageId);
+};
+
+struct TransferCmd
+{
+};
+
+struct TransferPass
+{
+};
+
+struct ComputeCmd
+{
+};
+
+struct ComputePass
+{
+  Slice32 commands;
+};
+
+struct RenderCmd
+{
+};
+
+struct RenderPass
+{
+  Slice32 commands;
+};
+
+}    // namespace experimental
 
 struct AccessEncoder
 {
@@ -779,8 +931,6 @@ struct AccessEncoder
     // these will determine the expected state and layout of each item
     // DescriptorSetLayout * layout;
     // DescriptorSet * set;
-
-    // [ ] add linkedlist of state to set?
 
     // { set bindings: sampler }
     // { set bindings: sampledimage, combinedimage, texelbuffer, read-only storagebuffer, input attachments }
