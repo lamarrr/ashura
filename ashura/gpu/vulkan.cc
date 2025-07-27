@@ -300,6 +300,900 @@ void load_vma_table(InstanceTable const & instance_table,
 #undef SET_VMA_DEV
 }
 
+constexpr bool has_read_access(VkAccessFlags access)
+{
+  return has_any_bit(
+    access,
+    (VkAccessFlags) (VK_ACCESS_INDIRECT_COMMAND_READ_BIT |
+                     VK_ACCESS_INDEX_READ_BIT |
+                     VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT |
+                     VK_ACCESS_UNIFORM_READ_BIT |
+                     VK_ACCESS_INPUT_ATTACHMENT_READ_BIT |
+                     VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT |
+                     VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
+                     VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
+                     VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_HOST_READ_BIT |
+                     VK_ACCESS_MEMORY_READ_BIT |
+                     VK_ACCESS_TRANSFORM_FEEDBACK_COUNTER_READ_BIT_EXT |
+                     VK_ACCESS_CONDITIONAL_RENDERING_READ_BIT_EXT |
+                     VK_ACCESS_COLOR_ATTACHMENT_READ_NONCOHERENT_BIT_EXT |
+                     VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR |
+                     VK_ACCESS_FRAGMENT_DENSITY_MAP_READ_BIT_EXT |
+                     VK_ACCESS_FRAGMENT_SHADING_RATE_ATTACHMENT_READ_BIT_KHR |
+                     VK_ACCESS_COMMAND_PREPROCESS_READ_BIT_NV));
+}
+
+constexpr bool has_write_access(VkAccessFlags access)
+{
+  return has_any_bit(
+    access,
+    (VkAccessFlags) (VK_ACCESS_SHADER_WRITE_BIT |
+                     VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
+                     VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |
+                     VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_HOST_WRITE_BIT |
+                     VK_ACCESS_MEMORY_WRITE_BIT |
+                     VK_ACCESS_TRANSFORM_FEEDBACK_WRITE_BIT_EXT |
+                     VK_ACCESS_TRANSFORM_FEEDBACK_COUNTER_WRITE_BIT_EXT |
+                     VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR |
+                     VK_ACCESS_COMMAND_PREPROCESS_WRITE_BIT_NV |
+                     VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_NV));
+}
+
+Layout64 MemoryGroup::layout() const
+{
+  return alias_offsets.is_empty() ?
+           Layout64{.alignment = alignment, .size = 0} :
+           Layout64{.alignment = alignment, .size = alias_offsets.last()};
+}
+
+u32 DescriptorBinding::size() const
+{
+  return sync_resources.match(
+    [](None) { return (u32) 0; }, [](auto & v) { return size32(v); },
+    [](auto & v) { return size32(v); }, [](auto & v) { return size32(v); });
+}
+
+void DescriptorSet::remove_bind_loc(BindLocations &      locations,
+                                    BindLocation const & loc)
+{
+  auto pos = find(locations.view(), loc).as_slice_of(locations);
+  locations.erase(pos);
+}
+
+void DescriptorSet::update_link(BindLocation const & loc, Buffer * next)
+{
+  auto &    binding = bindings[loc.binding];
+  Buffer *& current = binding.sync_resources[v1][loc.element];
+  if (current == next)
+  {
+    return;
+  }
+
+  if (current != nullptr)
+  {
+    remove_bind_loc(current->bind_locations, loc);
+  }
+
+  if (next != nullptr)
+  {
+    next->bind_locations.push(loc).unwrap();
+  }
+
+  current = next;
+}
+
+void DescriptorSet::update_link(BindLocation const & loc, BufferView * next)
+{
+  auto &        binding = bindings[loc.binding];
+  BufferView *& current = binding.sync_resources[v2][loc.element];
+  if (current == next)
+  {
+    return;
+  }
+
+  if (current != nullptr)
+  {
+    remove_bind_loc(current->buffer->bind_locations, loc);
+  }
+
+  if (next != nullptr)
+  {
+    next->buffer->bind_locations.push(loc).unwrap();
+  }
+
+  current = next;
+}
+
+void DescriptorSet::update_link(BindLocation const & loc, ImageView * next)
+{
+  auto &       binding = bindings[loc.binding];
+  ImageView *& current = binding.sync_resources[v3][loc.element];
+  if (current == next)
+  {
+    return;
+  }
+
+  if (current != nullptr)
+  {
+    remove_bind_loc(current->image->bind_locations, loc);
+  }
+
+  if (next != nullptr)
+  {
+    next->image->bind_locations.push(loc).unwrap();
+  }
+
+  current = next;
+}
+
+MemoryAccess BufferAccess::to_memory() const
+{
+  return MemoryAccess{.stages = stages, .access = access};
+}
+
+MemoryAccess BufferHazard::latest_acccess() const
+{
+  switch (type)
+  {
+    case HazardType::None:
+      return MemoryAccess{.stages = VK_PIPELINE_STAGE_NONE,
+                          .access = VK_ACCESS_NONE};
+    case HazardType::Reads:
+      return MemoryAccess{.stages = reads.stages, .access = reads.access};
+    case HazardType::Write:
+      return MemoryAccess{.stages = write.stages, .access = write.access};
+    case HazardType::ReadsAfterWrite:
+      return MemoryAccess{.stages = reads.stages, .access = reads.access};
+  }
+}
+
+MemoryAccess ImageAccess::to_memory() const
+{
+  return MemoryAccess{.stages = stages, .access = access};
+}
+
+MemoryAccess ImageHazard::latest_acccess() const
+{
+  switch (type)
+  {
+    case HazardType::None:
+      return MemoryAccess{.stages = VK_PIPELINE_STAGE_NONE,
+                          .access = VK_ACCESS_NONE};
+    case HazardType::Reads:
+      return MemoryAccess{.stages = reads.stages, .access = reads.access};
+    case HazardType::Write:
+      return MemoryAccess{.stages = write.stages, .access = write.access};
+    case HazardType::ReadsAfterWrite:
+      return MemoryAccess{.stages = reads.stages, .access = reads.access};
+  }
+}
+
+// layout transitions are considered write operations even if only a read
+// happens so multiple ones can't happen at the same time
+//
+// we'll kind of be waiting on a barrier operation which doesn't make sense cos
+// the barrier might have already taken care of us even when they both only
+// perform reads
+//
+// if their scopes don't line-up, they won't observe the effects same
+void ResourceHazardHeap::barrier(Image const &       image,
+                                 ImageAccess const & old_state,
+                                 ImageAccess const & new_state,
+                                 HazardBarriers &    barriers)
+{
+  barriers.image
+    .push(ImageBarrier{
+      .src_stages = old_state.stages,
+      .dst_stages = new_state.stages,
+      .barrier    = {.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+                     .pNext               = nullptr,
+                     .srcAccessMask       = old_state.access,
+                     .dstAccessMask       = new_state.access,
+                     .oldLayout           = old_state.layout,
+                     .newLayout           = new_state.layout,
+                     .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                     .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                     .image               = image.vk_image,
+                     .subresourceRange    = {.aspectMask =
+                                               (VkImageAspectFlags) image.aspects,
+                                             .baseMipLevel = 0,
+                                             .levelCount   = VK_REMAINING_MIP_LEVELS,
+                                             .baseArrayLayer = 0,
+                                             .layerCount =
+                                               VK_REMAINING_ARRAY_LAYERS}}
+  })
+    .unwrap();
+}
+
+void ResourceHazardHeap::barrier(Buffer const &       buffer,
+                                 BufferAccess const & old_state,
+                                 BufferAccess const & new_state,
+                                 HazardBarriers &     barriers)
+{
+  barriers.buffer
+    .push(BufferBarrier{
+      .src_stages = old_state.stages,
+      .dst_stages = new_state.stages,
+      .barrier    = {.sType         = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+                     .pNext         = nullptr,
+                     .srcAccessMask = old_state.access,
+                     .dstAccessMask = new_state.access,
+                     .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                     .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                     .buffer              = buffer.vk_buffer,
+                     .offset              = 0,
+                     .size                = VK_WHOLE_SIZE}
+  })
+    .unwrap();
+}
+
+void ResourceHazardHeap::barrier(MemoryAccess const & old_state,
+                                 MemoryAccess const & new_state,
+                                 HazardBarriers &     barriers)
+{
+  barriers.memory
+    .push(MemoryBarrier{
+      .src_stages = old_state.stages,
+      .dst_stages = new_state.stages,
+      .barrier    = {.sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+                     .pNext         = nullptr,
+                     .srcAccessMask = old_state.access,
+                     .dstAccessMask = new_state.access}
+  })
+    .unwrap();
+}
+
+void ResourceHazardHeap::access(Image const & image, ImageAccess const & state,
+                                u64 pass, HazardBarriers & barriers)
+{
+  // only one element of the alias can issue a barrier for a pass
+  auto const mem_id =
+    image.memory.memory_group->alias_ids[image.memory.group_binding];
+  auto &     hazard   = memory_hazards[(usize) mem_id].v0;
+  auto const has_read = has_read_access(state.access);
+  auto const alias    = image.memory.alias_binding;
+
+  if (pass <= hazard.pass)
+  {
+    return;
+  }
+
+  auto discard = [&](MemoryAccess const & old_access) {
+    barrier(old_access, state.to_memory(), barriers);
+    barrier(image,
+            ImageAccess{.stages = old_access.stages,
+                        .access = VK_ACCESS_NONE,
+                        .layout = VK_IMAGE_LAYOUT_UNDEFINED},
+            state, barriers);
+
+    hazard = MemoryHazard{
+      .pass    = pass,
+      .binding = ImageHazard{.alias  = alias,
+                             .type   = HazardType::Write,
+                             .reads  = {},
+                             .write  = state,
+                             .layout = state.layout}
+    };
+  };
+
+  hazard.binding.match(
+    [&](BufferHazard const & h) {
+      discard(h.latest_acccess());
+      return;
+    },
+    [&](ImageHazard const & h) {
+      auto const current_layout   = h.layout;
+      auto const needs_transition = current_layout != state.layout;
+      auto const has_write = has_write_access(state.access) || needs_transition;
+      auto const previous_reads = h.reads;
+      auto const previous_write = h.write;
+
+      if (h.alias != alias)
+      {
+        discard(h.latest_acccess());
+        return;
+      }
+
+      switch (h.type)
+      {
+        case HazardType::None:
+        {
+          // no sync needed, no accessor before this
+          if (has_write)
+          {
+            hazard = MemoryHazard{
+              .pass    = pass,
+              .binding = ImageHazard{.alias  = alias,
+                                     .type   = HazardType::Write,
+                                     .reads  = {},
+                                     .write  = state,
+                                     .layout = state.layout}
+            };
+
+            if (needs_transition)
+            {
+              barrier(image,
+                      ImageAccess{.stages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                                  .access = VK_ACCESS_NONE,
+                                  .layout = current_layout},
+                      state, barriers);
+
+              return;
+            }
+
+            return;
+          }
+
+          if (has_read)
+          {
+            hazard = MemoryHazard{
+              .pass    = pass,
+              .binding = ImageHazard{.alias  = alias,
+                                     .type   = HazardType::Reads,
+                                     .reads  = state,
+                                     .write  = {},
+                                     .layout = state.layout}
+            };
+
+            return;
+          }
+
+          return;
+        }
+        case HazardType::Reads:
+        {
+          if (has_write)
+          {
+            // wait till done reading before modifying
+            // reset access sequence since all stages following this write need to
+            // wait on this write
+
+            hazard = MemoryHazard{
+              .pass    = pass,
+              .binding = ImageHazard{.alias  = alias,
+                                     .type   = HazardType::Write,
+                                     .reads  = {},
+                                     .write  = state,
+                                     .layout = state.layout}
+            };
+
+            barrier(image, previous_reads, state, barriers);
+
+            return;
+          }
+
+          if (has_read)
+          {
+            // combine all subsequent reads, so the next writer knows to wait on all
+            // combined reads to complete
+
+            hazard = MemoryHazard{
+              .pass    = pass,
+              .binding = ImageHazard{
+                                     .alias  = alias,
+                                     .type   = HazardType::Reads,
+                                     .reads  = {.stages = previous_reads.stages | state.stages,
+                           .access = previous_reads.access | state.access},
+                                     .write  = {},
+                                     .layout = state.layout}
+            };
+
+            return;
+          }
+
+          return;
+        }
+        case HazardType::Write:
+        {
+          if (has_write)
+          {
+            // wait till done writing before modifying
+            // remove previous write since this access already waits on another
+            // access to complete and the next access will have to wait on this
+            // access
+            hazard = MemoryHazard{
+              .pass    = pass,
+              .binding = ImageHazard{.alias  = alias,
+                                     .type   = HazardType::Write,
+                                     .reads  = {},
+                                     .write  = state,
+                                     .layout = state.layout}
+            };
+
+            barrier(image, previous_write, state, barriers);
+
+            return;
+          }
+
+          if (has_read)
+          {
+            // wait till all write stages are done
+
+            hazard = MemoryHazard{
+              .pass    = pass,
+              .binding = ImageHazard{.alias  = alias,
+                                     .type   = HazardType::ReadsAfterWrite,
+                                     .reads  = state,
+                                     .write  = previous_write,
+                                     .layout = state.layout}
+            };
+
+            barrier(image, previous_write, state, barriers);
+
+            return;
+          }
+
+          return;
+        }
+        case HazardType::ReadsAfterWrite:
+        {
+          if (has_write)
+          {
+            // wait for all reading stages only
+            // stages can be reset and point only to the latest write stage, since
+            // they all need to wait for this write anyway.
+
+            hazard = MemoryHazard{
+              .pass    = pass,
+              .binding = ImageHazard{.alias  = alias,
+                                     .type   = HazardType::Write,
+                                     .reads  = {},
+                                     .write  = state,
+                                     .layout = state.layout}
+            };
+
+            barrier(image, previous_reads, state, barriers);
+
+            return;
+          }
+
+          if (has_read)
+          {
+            // wait for all write stages to be done
+            // no need to wait on other reads since we are only performing a read.
+
+            //
+            // mask all subsequent reads so next writer knows to wait on all reads
+            // to complete
+            //
+            // if stage and access intersects previous barrier, no need to add new
+            // one as we'll observe the effect
+            auto implictly_merged =
+              has_any_bit(previous_reads.stages, state.stages) &&
+              has_any_bit(previous_reads.access, state.access);
+
+            if (implictly_merged)
+            {
+              hazard = MemoryHazard{
+                .pass    = pass,
+                .binding = ImageHazard{
+                                       .alias  = alias,
+                                       .type   = HazardType::ReadsAfterWrite,
+                                       .reads  = {.stages = previous_reads.stages | state.stages,
+                             .access = previous_reads.access | state.access},
+                                       .write  = previous_write,
+                                       .layout = state.layout}
+              };
+              return;
+            }
+
+            hazard = MemoryHazard{
+              .pass    = pass,
+              .binding = ImageHazard{
+                                     .alias  = alias,
+                                     .type   = HazardType::ReadsAfterWrite,
+                                     .reads  = {.stages = previous_reads.stages | state.stages,
+                           .access = previous_reads.access | state.access},
+                                     .write  = previous_write,
+                                     .layout = state.layout}
+            };
+
+            barrier(image, previous_write, state, barriers);
+
+            return;
+          }
+
+          return;
+        }
+
+        default:
+          return;
+      }
+    });
+
+  return;
+}
+
+void ResourceHazardHeap::access(Buffer const &       buffer,
+                                BufferAccess const & state, u64 pass,
+                                HazardBarriers & barriers)
+{
+  auto const mem_id =
+    buffer.memory.memory_group->alias_ids[buffer.memory.group_binding];
+  auto &     hazard    = memory_hazards[(usize) mem_id].v0;
+  auto const has_write = has_write_access(state.access);
+  auto const has_read  = has_read_access(state.access);
+  auto const alias     = buffer.memory.alias_binding;
+
+  if (pass <= hazard.pass)
+  {
+    return;
+  }
+
+  auto discard = [&](MemoryAccess const & old_access) {
+    barrier(old_access, state.to_memory(), barriers);
+    barrier(
+      buffer,
+      BufferAccess{.stages = old_access.stages, .access = old_access.access},
+      state, barriers);
+
+    hazard = MemoryHazard{
+      .pass = pass,
+      .binding =
+        BufferHazard{.alias = alias,
+                     .type  = has_write ? HazardType::Write : HazardType::Reads,
+                     .reads = {},
+                     .write = state}
+    };
+  };
+
+  hazard.binding.match(
+    [&](BufferHazard const & h) {
+      auto const previous_reads = h.reads;
+      auto const previous_write = h.write;
+
+      switch (h.type)
+      {
+        case HazardType::None:
+        {
+          if (has_write)
+          {
+            hazard = MemoryHazard{
+              .pass    = pass,
+              .binding = BufferHazard{.alias = alias,
+                                      .type  = HazardType::Write,
+                                      .reads = {},
+                                      .write = state}
+            };
+
+            return;
+          }
+
+          if (has_read)
+          {
+            hazard = MemoryHazard{
+              .pass    = pass,
+              .binding = BufferHazard{.alias = alias,
+                                      .type  = HazardType::Reads,
+                                      .reads = state,
+                                      .write = {}}
+            };
+
+            return;
+          }
+
+          return;
+        }
+
+        case HazardType::Reads:
+        {
+          if (has_write)
+          {
+            // wait till done reading before modifying
+            // reset access sequence since all stages following this write need to
+            // wait on this write
+            hazard = MemoryHazard{
+              .pass    = pass,
+              .binding = BufferHazard{.alias = alias,
+                                      .type  = HazardType::Write,
+                                      .reads = {},
+                                      .write = state}
+            };
+
+            barrier(buffer, previous_reads, state, barriers);
+
+            return;
+          }
+
+          if (has_read)
+          {
+            // combine all subsequent reads, so the next writer knows to wait on all
+            // combined reads to complete
+
+            hazard = MemoryHazard{
+              .pass    = pass,
+              .binding = BufferHazard{
+                                      .alias = alias,
+                                      .type  = HazardType::Reads,
+                                      .reads = {.stages = previous_reads.stages | state.stages,
+                          .access = previous_reads.access | state.access},
+                                      .write = state}
+            };
+
+            return;
+          }
+
+          return;
+        }
+        case HazardType::Write:
+        {
+          if (has_write)
+          {
+            // wait till done writing before modifying
+            // remove previous write since this access already waits on another
+            // access to complete and the next access will have to wait on this
+            // access
+            hazard = MemoryHazard{
+              .pass    = pass,
+              .binding = BufferHazard{.alias = alias,
+                                      .type  = HazardType::Write,
+                                      .reads = {},
+                                      .write = state}
+            };
+
+            barrier(buffer, previous_write, state, barriers);
+
+            return;
+          }
+
+          if (has_read)
+          {
+            // wait till all write stages are done
+            hazard = MemoryHazard{
+              .pass    = pass,
+              .binding = BufferHazard{.alias = alias,
+                                      .type  = HazardType::ReadsAfterWrite,
+                                      .reads = state,
+                                      .write = previous_write}
+            };
+
+            barrier(buffer, previous_write, state, barriers);
+
+            return;
+          }
+
+          return;
+        }
+        case HazardType::ReadsAfterWrite:
+        {
+          if (has_write)
+          {
+            // wait for all reading stages only
+            // stages can be reset and point only to the latest write stage, since
+            // they all need to wait for this write anyway.
+
+            hazard = MemoryHazard{
+              .pass    = pass,
+              .binding = BufferHazard{.alias = alias,
+                                      .type  = HazardType::Write,
+                                      .reads = {},
+                                      .write = state}
+            };
+
+            barrier(buffer, previous_reads, state, barriers);
+
+            return;
+          }
+
+          if (has_read)
+          {
+            // wait for all write stages to be done
+            // no need to wait on other reads since we are only performing a read
+            // mask all subsequent reads so next writer knows to wait on all reads
+            // to complete
+
+            // if stage and access intersects previous barrier, no need to add new
+            // one
+
+            auto implicitly_merged =
+              has_any_bit(previous_reads.stages, state.stages) &&
+              has_any_bit(previous_reads.access, state.access);
+
+            if (implicitly_merged)
+            {
+              hazard.pass = pass;
+              hazard      = MemoryHazard{
+                     .pass    = pass,
+                     .binding = BufferHazard{
+                                             .alias = alias,
+                                             .type  = HazardType::ReadsAfterWrite,
+                                             .reads = {.stages = previous_reads.stages | state.stages,
+                                 .access = previous_reads.access | state.access},
+                                             .write = previous_write}
+              };
+              return;
+            }
+
+            hazard = MemoryHazard{
+              .pass    = pass,
+              .binding = BufferHazard{
+                                      .alias = alias,
+                                      .type  = HazardType::ReadsAfterWrite,
+                                      .reads =
+                  BufferAccess{.stages = previous_reads.stages | state.stages,
+                               .access = previous_reads.access | state.access},
+                                      .write = previous_write}
+            };
+
+            barrier(buffer, previous_write, state, barriers);
+
+            return;
+          }
+
+          return;
+        }
+
+        default:
+          return;
+      }
+    },
+    [&](ImageHazard const & h) {
+      discard(h.latest_acccess());
+      return;
+    });
+}
+
+void ResourceHazardHeap::access(DescriptorSet const & set, u64 pass,
+                                HazardBarriers & barriers)
+{
+  // [ ] reclaim the memory range used by the buffer and invalidate all the binding resources that overlap/alias the same memory range
+  // [ ] if new resource is binded whilst others have been placed? how will sync work?
+  // [ ] store list of written-to resources so we know which to be tracked?; will also help with sets if propagated with it
+  // [ ] will this tracking work for aliasing?
+  // [ ] we need to know if descriptor set has mutating bindings so we can overlap draw commands if neccessary? read-only/readwrite
+  // [ ] how can we develop an early-rejection system? what attributes can we exploit?
+  // [ ] we don't need to track these, do we? we only need our copy of the resource heap state and then modify to declare the barriers to be inserted?
+  // [ ] how do we manage overlap of renderpasses
+  // [ ] can we mark some memory as not hazarded after certain conditions?
+  // [ ] can we have a fast cache of hazarded resources in a large descriptor set?
+  // [ ] fix alias tracking
+  // [ ] how to track memory aliases
+  // [ ] how to track descriptor set bindings
+  // [ ] if an hazard has occured on one of its bindings' elements
+  // [ ] per-descriptor-set hazard tracking for large descriptor sets
+
+  // [ ] notify binders that the resource has been invalidated
+  // [ ] reset hazard at the start of the frame? provided there's a sync; so that RAW will not persist
+  // [ ] state save and restore; i.e. across threads and when an operation fails that prevents it from being submitted
+  // [ ] will have buffer system that can be used to select state.
+  // [ ] make sure it works for Swapchain Images
+  // [ ] keep a set of transitioned resources?
+  // [ ] if resource is accessed, we need to get its binders and mark them as hazarded; read/write
+  // [ ] we nedd to log all access until there's a first hazard
+
+  // [ ] we need a fast way to check that all the descriptor set's resources are in the expected state
+}
+
+/*
+
+struct RenderPassContext
+{
+  RectU render_area = {};
+
+  u32 num_layers = 0;
+
+  InplaceVec<gpu::RenderingAttachment, gpu::MAX_PIPELINE_COLOR_ATTACHMENTS>
+    color_attachments = {};
+
+  Option<gpu::RenderingAttachment> depth_attachment = none;
+
+  Option<gpu::RenderingAttachment> stencil_attachment = none;
+
+  ArenaPool arg_pool = {};
+
+  ArenaPool command_pool = {};
+
+  Vec<Command> commands = {};
+
+  InplaceVec<Buffer *, gpu::MAX_VERTEX_ATTRIBUTES> vertex_buffers = {};
+
+  Buffer * index_buffer = nullptr;
+
+  gpu::IndexType index_type = gpu::IndexType::Uint16;
+
+  u64 index_buffer_offset = 0;
+
+  GraphicsPipeline * pipeline = nullptr;
+
+  bool has_state = false;
+
+  void clear()
+  {
+    render_area = {};
+    num_layers  = 0;
+    color_attachments.clear();
+    depth_attachment   = none;
+    stencil_attachment = none;
+    commands.reset();
+    command_pool.reclaim();
+    arg_pool.reclaim();
+    vertex_buffers.clear();
+    index_buffer        = nullptr;
+    index_buffer_offset = 0;
+    pipeline            = nullptr;
+    has_state           = false;
+  }
+};
+
+struct ComputePassContext
+{
+  InplaceVec<DescriptorSet *, gpu::MAX_PIPELINE_DESCRIPTOR_SETS> sets = {};
+  ComputePipeline * pipeline                                          = nullptr;
+
+  void clear()
+  {
+    sets.clear();
+    pipeline = nullptr;
+  }
+};
+
+*/
+
+inline bool is_image_view_type_compatible(gpu::ImageType     image_type,
+                                          gpu::ImageViewType view_type)
+{
+  switch (view_type)
+  {
+    case gpu::ImageViewType::Type1D:
+    case gpu::ImageViewType::Type1DArray:
+      return image_type == gpu::ImageType::Type1D;
+    case gpu::ImageViewType::Type2D:
+    case gpu::ImageViewType::Type2DArray:
+      return image_type == gpu::ImageType::Type2D ||
+             image_type == gpu::ImageType::Type3D;
+    case gpu::ImageViewType::TypeCube:
+    case gpu::ImageViewType::TypeCubeArray:
+      return image_type == gpu::ImageType::Type2D;
+    case gpu::ImageViewType::Type3D:
+      return image_type == gpu::ImageType::Type3D;
+    default:
+      return false;
+  }
+}
+
+inline u64 index_type_size(gpu::IndexType type)
+{
+  switch (type)
+  {
+    case gpu::IndexType::U16:
+      return 2;
+    case gpu::IndexType::U32:
+      return 4;
+    default:
+      CHECK_UNREACHABLE();
+  }
+}
+
+inline bool is_valid_buffer_access(u64 size, u64 access_offset, u64 access_size,
+                                   u64 offset_alignment = 1)
+{
+  access_size =
+    (access_size == gpu::WHOLE_SIZE) ? (size - access_offset) : access_size;
+  return (access_size > 0) && (access_offset < size) &&
+         ((access_offset + access_size) <= size) &&
+         is_aligned(offset_alignment, access_offset);
+}
+
+inline bool is_valid_image_access(gpu::ImageAspects aspects, u32 num_levels,
+                                  u32               num_layers,
+                                  gpu::ImageAspects access_aspects,
+                                  u32 access_level, u32 num_access_levels,
+                                  u32 access_layer, u32 num_access_layers)
+{
+  num_access_levels = num_access_levels == gpu::REMAINING_MIP_LEVELS ?
+                        (num_levels - access_level) :
+                        num_access_levels;
+  num_access_layers = num_access_layers == gpu::REMAINING_ARRAY_LAYERS ?
+                        (num_access_layers - access_layer) :
+                        num_access_layers;
+  return num_access_levels > 0 && num_access_layers > 0 &&
+         access_level < num_levels && access_layer < num_layers &&
+         (access_level + num_access_levels) <= num_levels &&
+         (access_layer + num_access_layers) <= num_layers &&
+         has_bits(aspects, access_aspects) &&
+         access_aspects != gpu::ImageAspects::None;
+}
+
 static VkBool32 VKAPI_ATTR VKAPI_CALL
   debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT       message_severity,
                  VkDebugUtilsMessageTypeFlagsEXT              message_type,
@@ -343,631 +1237,6 @@ static VkBool32 VKAPI_ATTR VKAPI_CALL
   }
 
   return VK_FALSE;
-}
-
-constexpr bool has_read_access(VkAccessFlags access)
-{
-  return has_any_bit(
-    access,
-    (VkAccessFlags) (VK_ACCESS_INDIRECT_COMMAND_READ_BIT |
-                     VK_ACCESS_INDEX_READ_BIT |
-                     VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT |
-                     VK_ACCESS_UNIFORM_READ_BIT |
-                     VK_ACCESS_INPUT_ATTACHMENT_READ_BIT |
-                     VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT |
-                     VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
-                     VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
-                     VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_HOST_READ_BIT |
-                     VK_ACCESS_MEMORY_READ_BIT |
-                     VK_ACCESS_TRANSFORM_FEEDBACK_COUNTER_READ_BIT_EXT |
-                     VK_ACCESS_CONDITIONAL_RENDERING_READ_BIT_EXT |
-                     VK_ACCESS_COLOR_ATTACHMENT_READ_NONCOHERENT_BIT_EXT |
-                     VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR |
-                     VK_ACCESS_FRAGMENT_DENSITY_MAP_READ_BIT_EXT |
-                     VK_ACCESS_FRAGMENT_SHADING_RATE_ATTACHMENT_READ_BIT_KHR |
-                     VK_ACCESS_COMMAND_PREPROCESS_READ_BIT_NV));
-}
-
-constexpr bool has_write_access(VkAccessFlags access)
-{
-  return has_any_bit(
-    access,
-    (VkAccessFlags) (VK_ACCESS_SHADER_WRITE_BIT |
-                     VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
-                     VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |
-                     VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_HOST_WRITE_BIT |
-                     VK_ACCESS_MEMORY_WRITE_BIT |
-                     VK_ACCESS_TRANSFORM_FEEDBACK_WRITE_BIT_EXT |
-                     VK_ACCESS_TRANSFORM_FEEDBACK_COUNTER_WRITE_BIT_EXT |
-                     VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR |
-                     VK_ACCESS_COMMAND_PREPROCESS_WRITE_BIT_NV |
-                     VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_NV));
-}
-
-Option<BufferBarrier> Buffer::sync(Access request, u64 pass_timestamp)
-{
-  // [ ] reset hazard at the start of the frame? provided there's a sync; so that RAW will not persist
-  // [ ] state save and restore; i.e. across threads and when an operation fails that prevents it from being submitted
-  // [ ] will have buffer system that can be used to select state.
-  // [ ] if displaced, use a memorybarrier
-  // [ ] make sure it works for Swapchain Images
-  // [ ] keep a set of transitioned resources?
-  auto & state = this->state.hazard;
-
-  if (pass_timestamp <= state.pass_timestamp)
-  {
-    return none;
-  }
-
-  bool const has_write = has_write_access(request.access);
-  bool const has_read  = has_read_access(request.access);
-
-  switch (state.type)
-  {
-      // no sync needed, no accessor before this
-    case HazardType::None:
-    {
-      if (has_write)
-      {
-        state = BufferHazard{.pass_timestamp = pass_timestamp,
-                             .type           = HazardType::Write,
-                             .reads          = {},
-                             .write          = request};
-        return none;
-      }
-
-      if (has_read)
-      {
-        state = BufferHazard{.pass_timestamp = pass_timestamp,
-                             .type           = HazardType::Reads,
-                             .reads          = request,
-                             .write          = {}};
-        return none;
-      }
-
-      return none;
-    }
-    case HazardType::Reads:
-    {
-      if (has_write)
-      {
-        // wait till done reading before modifying
-        // reset access sequence since all stages following this write need to
-        // wait on this write
-        auto const previous_reads = state.reads;
-        state = BufferHazard{.pass_timestamp = pass_timestamp,
-                             .type           = HazardType::Write,
-                             .reads          = {},
-                             .write          = request};
-
-        return BufferBarrier{
-          .src_stages = previous_reads.stages,
-          .dst_stages = request.stages,
-          .barrier    = {.sType         = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-                         .pNext         = nullptr,
-                         .srcAccessMask = previous_reads.access,
-                         .dstAccessMask = request.access,
-                         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                         .buffer              = vk_buffer,
-                         .offset              = 0,
-                         .size                = VK_WHOLE_SIZE}
-        };
-      }
-
-      if (has_read)
-      {
-        // combine all subsequent reads, so the next writer knows to wait on all
-        // combined reads to complete
-        auto const previous_reads = state.reads;
-        state                     = BufferHazard{
-                              .pass_timestamp = pass_timestamp,
-                              .type           = HazardType::Reads,
-                              .reads          = {.stages = previous_reads.stages | request.stages,
-                                                 .access = previous_reads.access | request.access},
-                              .write          = {}
-        };
-        return none;
-      }
-
-      return none;
-    }
-    case HazardType::Write:
-    {
-      if (has_write)
-      {
-        // wait till done writing before modifying
-        // remove previous write since this access already waits on another
-        // access to complete and the next access will have to wait on this
-        // access
-        auto const previous_write = state.write;
-        state = BufferHazard{.pass_timestamp = pass_timestamp,
-                             .type           = HazardType::Write,
-                             .reads          = {},
-                             .write          = request};
-
-        return BufferBarrier{
-          .src_stages = previous_write.stages,
-          .dst_stages = request.stages,
-          .barrier    = {.sType         = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-                         .pNext         = nullptr,
-                         .srcAccessMask = previous_write.access,
-                         .dstAccessMask = request.access,
-                         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                         .buffer              = vk_buffer,
-                         .offset              = 0,
-                         .size                = VK_WHOLE_SIZE}
-        };
-      }
-
-      if (has_read)
-      {
-        // wait till all write stages are done
-        auto const previous_write = state.write;
-        state = BufferHazard{.pass_timestamp = pass_timestamp,
-                             .type           = HazardType::ReadsAfterWrite,
-                             .reads          = request,
-                             .write          = state.write};
-
-        return BufferBarrier{
-          .src_stages = previous_write.stages,
-          .dst_stages = request.stages,
-          .barrier    = {.sType         = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-                         .pNext         = nullptr,
-                         .srcAccessMask = previous_write.access,
-                         .dstAccessMask = request.access,
-                         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                         .buffer              = vk_buffer,
-                         .offset              = 0,
-                         .size                = VK_WHOLE_SIZE}
-        };
-      }
-
-      return none;
-    }
-    case HazardType::ReadsAfterWrite:
-    {
-      if (has_write)
-      {
-        // wait for all reading stages only
-        // stages can be reset and point only to the latest write stage, since
-        // they all need to wait for this write anyway.
-        auto const previous_reads = state.reads;
-
-        state = BufferHazard{.pass_timestamp = pass_timestamp,
-                             .type           = HazardType::Write,
-                             .reads          = {},
-                             .write          = request};
-
-        return BufferBarrier{
-          .src_stages = previous_reads.stages,
-          .dst_stages = request.stages,
-          .barrier    = {.sType         = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-                         .pNext         = nullptr,
-                         .srcAccessMask = previous_reads.access,
-                         .dstAccessMask = request.access,
-                         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                         .buffer              = vk_buffer,
-                         .offset              = 0,
-                         .size                = VK_WHOLE_SIZE}
-        };
-      }
-
-      if (has_read)
-      {
-        // wait for all write stages to be done
-        // no need to wait on other reads since we are only performing a read
-        // mask all subsequent reads so next writer knows to wait on all reads
-        // to complete
-
-        // if stage and access intersects previous barrier, no need to add new
-        // one
-
-        if (has_any_bit(state.reads.stages, request.stages) &&
-            has_any_bit(state.reads.access, request.access))
-        {
-          state.pass_timestamp = pass_timestamp;
-          return none;
-        }
-
-        auto const previous_reads = state.reads;
-        auto const previous_write = state.write;
-
-        state = BufferHazard{
-          .pass_timestamp = pass_timestamp,
-          .type           = HazardType::ReadsAfterWrite,
-          .reads = Access{.stages = previous_reads.stages | request.stages,
-                          .access = previous_reads.access | request.access},
-          .write = previous_write
-        };
-
-        return BufferBarrier{
-          .src_stages = previous_write.stages,
-          .dst_stages = request.stages,
-          .barrier    = {.sType         = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-                         .pNext         = nullptr,
-                         .srcAccessMask = previous_write.access,
-                         .dstAccessMask = request.access,
-                         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                         .buffer              = vk_buffer,
-                         .offset              = 0,
-                         .size                = VK_WHOLE_SIZE}
-        };
-      }
-
-      return none;
-    }
-    default:
-      return none;
-  }
-}
-
-// layout transitions are considered write operations even if only a read
-// happens so multiple ones can't happen at the same time
-//
-// we'll kind of be waiting on a barrier operation which doesn't make sense cos
-// the barrier might have already taken care of us even when they both only
-// perform reads
-//
-// if their scopes don't line-up, they won't observe the effects same
-Option<ImageBarrier> Image::sync(gpu::ImageSubresourceRange const &,
-                                 Access request, VkImageLayout new_layout,
-                                 u64 pass_timestamp)
-{
-  // [ ] notify binders that the resource has been invalidated
-  // [ ] merge depth and stencil layouts; use timestamp to check if merge is needed
-  // [ ] handle timestamp 0; frame init
-  auto & state = this->state.hazard;
-
-  if (pass_timestamp <= state.pass_timestamp)
-  {
-    return none;
-  }
-
-  bool const needs_layout_transition = state.layout != new_layout;
-  bool const has_write =
-    has_write_access(request.access) || needs_layout_transition;
-  bool const has_read   = has_read_access(request.access);
-  auto       old_layout = state.layout;
-  auto       aspects    = (VkImageAspectFlags) info.aspects;
-
-  switch (state.type)
-  {
-      // no sync needed, no accessor before this
-    case HazardType::None:
-    {
-      if (has_write)
-      {
-        state = ImageHazard{.pass_timestamp = pass_timestamp,
-                            .type           = HazardType::Write,
-                            .reads          = {},
-                            .write          = request,
-                            .layout         = new_layout};
-
-        if (needs_layout_transition)
-        {
-          return ImageBarrier{
-            .src_stages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-            .dst_stages = request.stages,
-            .barrier    = {
-                           .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-                           .pNext               = nullptr,
-                           .srcAccessMask       = VK_ACCESS_NONE,
-                           .dstAccessMask       = request.access,
-                           .oldLayout           = old_layout,
-                           .newLayout           = new_layout,
-                           .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                           .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                           .image               = vk_image,
-                           .subresourceRange    = {.aspectMask     = aspects,
-                                         .baseMipLevel   = 0,
-                                         .levelCount     = VK_REMAINING_MIP_LEVELS,
-                                         .baseArrayLayer = 0,
-                                         .layerCount = VK_REMAINING_ARRAY_LAYERS}}
-          };
-        }
-
-        return none;
-      }
-
-      if (has_read)
-      {
-        state = ImageHazard{.pass_timestamp = pass_timestamp,
-                            .type           = HazardType::Reads,
-                            .reads          = request,
-                            .write          = {},
-                            .layout         = new_layout};
-        return none;
-      }
-
-      return none;
-    }
-    case HazardType::Reads:
-    {
-      if (has_write)
-      {
-        // wait till done reading before modifying
-        // reset access sequence since all stages following this write need to
-        // wait on this write
-        auto const previous_reads = state.reads;
-
-        state = ImageHazard{.pass_timestamp = pass_timestamp,
-                            .type           = HazardType::Write,
-                            .reads          = {},
-                            .write          = request,
-                            .layout         = new_layout};
-
-        return ImageBarrier{
-          .src_stages = previous_reads.stages,
-          .dst_stages = request.stages,
-          .barrier    = {
-                         .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-                         .pNext               = nullptr,
-                         .srcAccessMask       = previous_reads.access,
-                         .dstAccessMask       = request.access,
-                         .oldLayout           = old_layout,
-                         .newLayout           = new_layout,
-                         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                         .image               = vk_image,
-                         .subresourceRange    = {.aspectMask     = aspects,
-                                       .baseMipLevel   = 0,
-                                       .levelCount     = VK_REMAINING_MIP_LEVELS,
-                                       .baseArrayLayer = 0,
-                                       .layerCount     = VK_REMAINING_ARRAY_LAYERS}}
-        };
-      }
-
-      if (has_read)
-      {
-        // combine all subsequent reads, so the next writer knows to wait on all
-        // combined reads to complete
-        auto const previous_reads = state.reads;
-        state                     = ImageHazard{
-                              .pass_timestamp = pass_timestamp,
-                              .type           = HazardType::Reads,
-                              .reads          = {.stages = previous_reads.stages | request.stages,
-                                                 .access = previous_reads.access | request.access},
-                              .write          = {},
-                              .layout         = new_layout
-        };
-
-        return none;
-      }
-
-      return none;
-    }
-    case HazardType::Write:
-    {
-      if (has_write)
-      {
-        // wait till done writing before modifying
-        // remove previous write since this access already waits on another
-        // access to complete and the next access will have to wait on this
-        // access
-        auto const previous_write = state.write;
-        state = ImageHazard{.pass_timestamp = pass_timestamp,
-                            .type           = HazardType::Write,
-                            .reads          = {},
-                            .write          = request,
-                            .layout         = new_layout};
-
-        return ImageBarrier{
-          .src_stages = previous_write.stages,
-          .dst_stages = request.stages,
-          .barrier    = {
-                         .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-                         .pNext               = nullptr,
-                         .srcAccessMask       = previous_write.access,
-                         .dstAccessMask       = request.access,
-                         .oldLayout           = old_layout,
-                         .newLayout           = new_layout,
-                         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                         .image               = vk_image,
-                         .subresourceRange    = {.aspectMask     = aspects,
-                                       .baseMipLevel   = 0,
-                                       .levelCount     = VK_REMAINING_MIP_LEVELS,
-                                       .baseArrayLayer = 0,
-                                       .layerCount     = VK_REMAINING_ARRAY_LAYERS}}
-        };
-      }
-
-      if (has_read)
-      {
-        // wait till all write stages are done
-        auto const previous_write = state.write;
-
-        state = ImageHazard{.pass_timestamp = pass_timestamp,
-                            .type           = HazardType::ReadsAfterWrite,
-                            .reads          = request,
-                            .write          = previous_write,
-                            .layout         = new_layout};
-
-        return ImageBarrier{
-          .src_stages = previous_write.stages,
-          .dst_stages = request.stages,
-          .barrier    = {
-                         .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-                         .pNext               = nullptr,
-                         .srcAccessMask       = previous_write.access,
-                         .dstAccessMask       = request.access,
-                         .oldLayout           = old_layout,
-                         .newLayout           = new_layout,
-                         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                         .image               = vk_image,
-                         .subresourceRange    = {.aspectMask     = aspects,
-                                       .baseMipLevel   = 0,
-                                       .levelCount     = VK_REMAINING_MIP_LEVELS,
-                                       .baseArrayLayer = 0,
-                                       .layerCount     = VK_REMAINING_ARRAY_LAYERS}}
-        };
-      }
-
-      return none;
-    }
-    case HazardType::ReadsAfterWrite:
-    {
-      if (has_write)
-      {
-        // wait for all reading stages only
-        // stages can be reset and point only to the latest write stage, since
-        // they all need to wait for this write anyway.
-        auto const previous_reads = state.reads;
-
-        state = ImageHazard{.pass_timestamp = pass_timestamp,
-                            .type           = HazardType::Write,
-                            .reads          = {},
-                            .write          = request,
-                            .layout         = new_layout};
-
-        return ImageBarrier{
-          .src_stages = previous_reads.stages,
-          .dst_stages = request.stages,
-          .barrier    = {
-                         .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-                         .pNext               = nullptr,
-                         .srcAccessMask       = previous_reads.access,
-                         .dstAccessMask       = request.access,
-                         .oldLayout           = old_layout,
-                         .newLayout           = new_layout,
-                         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                         .image               = vk_image,
-                         .subresourceRange    = {.aspectMask     = aspects,
-                                       .baseMipLevel   = 0,
-                                       .levelCount     = VK_REMAINING_MIP_LEVELS,
-                                       .baseArrayLayer = 0,
-                                       .layerCount     = VK_REMAINING_ARRAY_LAYERS}}
-        };
-      }
-
-      if (has_read)
-      {
-        // wait for all write stages to be done
-        // no need to wait on other reads since we are only performing a read.
-
-        //
-        // mask all subsequent reads so next writer knows to wait on all reads
-        // to complete
-        //
-        // if stage and access intersects previous barrier, no need to add new
-        // one as we'll observe the effect
-        auto const previous_reads = state.reads;
-        auto const previous_write = state.write;
-
-        if (has_any_bit(previous_reads.stages, request.stages) &&
-            has_any_bit(previous_reads.access, request.access))
-        {
-          state.pass_timestamp = pass_timestamp;
-          return none;
-        }
-
-        state = ImageHazard{
-          .pass_timestamp = pass_timestamp,
-          .type           = HazardType::ReadsAfterWrite,
-          .reads          = {.stages = previous_reads.stages | request.stages,
-                             .access = previous_reads.access | request.access},
-          .write          = previous_write,
-          .layout         = new_layout
-        };
-
-        return ImageBarrier{
-          .src_stages = previous_write.stages,
-          .dst_stages = request.stages,
-          .barrier    = {
-                         .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-                         .pNext               = nullptr,
-                         .srcAccessMask       = previous_write.access,
-                         .dstAccessMask       = request.access,
-                         .oldLayout           = old_layout,
-                         .newLayout           = new_layout,
-                         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                         .image               = vk_image,
-                         .subresourceRange    = {.aspectMask     = aspects,
-                                       .baseMipLevel   = 0,
-                                       .levelCount     = VK_REMAINING_MIP_LEVELS,
-                                       .baseArrayLayer = 0,
-                                       .layerCount     = VK_REMAINING_ARRAY_LAYERS}}
-        };
-      }
-
-      return none;
-    }
-    default:
-      return none;
-  }
-}
-
-inline bool is_image_view_type_compatible(gpu::ImageType     image_type,
-                                          gpu::ImageViewType view_type)
-{
-  switch (view_type)
-  {
-    case gpu::ImageViewType::Type1D:
-    case gpu::ImageViewType::Type1DArray:
-      return image_type == gpu::ImageType::Type1D;
-    case gpu::ImageViewType::Type2D:
-    case gpu::ImageViewType::Type2DArray:
-      return image_type == gpu::ImageType::Type2D ||
-             image_type == gpu::ImageType::Type3D;
-    case gpu::ImageViewType::TypeCube:
-    case gpu::ImageViewType::TypeCubeArray:
-      return image_type == gpu::ImageType::Type2D;
-    case gpu::ImageViewType::Type3D:
-      return image_type == gpu::ImageType::Type3D;
-    default:
-      return false;
-  }
-}
-
-inline u64 index_type_size(gpu::IndexType type)
-{
-  switch (type)
-  {
-    case gpu::IndexType::Uint16:
-      return 2;
-    case gpu::IndexType::Uint32:
-      return 4;
-    default:
-      CHECK_UNREACHABLE();
-  }
-}
-
-inline bool is_valid_buffer_access(u64 size, u64 access_offset, u64 access_size,
-                                   u64 offset_alignment = 1)
-{
-  access_size =
-    (access_size == gpu::WHOLE_SIZE) ? (size - access_offset) : access_size;
-  return (access_size > 0) && (access_offset < size) &&
-         ((access_offset + access_size) <= size) &&
-         is_aligned(offset_alignment, access_offset);
-}
-
-inline bool is_valid_image_access(gpu::ImageAspects aspects, u32 num_levels,
-                                  u32               num_layers,
-                                  gpu::ImageAspects access_aspects,
-                                  u32 access_level, u32 num_access_levels,
-                                  u32 access_layer, u32 num_access_layers)
-{
-  num_access_levels = num_access_levels == gpu::REMAINING_MIP_LEVELS ?
-                        (num_levels - access_level) :
-                        num_access_levels;
-  num_access_layers = num_access_layers == gpu::REMAINING_ARRAY_LAYERS ?
-                        (num_access_layers - access_layer) :
-                        num_access_layers;
-  return num_access_levels > 0 && num_access_layers > 0 &&
-         access_level < num_levels && access_layer < num_layers &&
-         (access_level + num_access_levels) <= num_levels &&
-         (access_layer + num_access_layers) <= num_layers &&
-         has_bits(aspects, access_aspects) &&
-         access_aspects != gpu::ImageAspects::None;
 }
 
 Result<Dyn<gpu::Instance *>, Status> create_instance(AllocatorRef allocator,
@@ -1981,13 +2250,13 @@ Result<gpu::Buffer, Status> Device::create_buffer(gpu::BufferInfo const & info)
     return Err{Status::OutOfHostMemory};
   }
 
-  new (buffer)
-    Buffer{.info      = info,
-           .vk_buffer = vk_buffer,
-           .state     = BufferState{
-                 .memory = MemoryInfo{.memory_group = nullptr,
-                                      .type         = info.memory_type,
-                                      .alias_state  = AliasState::Displaced}}};
+  new (buffer) Buffer{
+    .info      = info,
+    .vk_buffer = vk_buffer,
+    .state =
+      BufferState{.memory = MemoryInfo{.memory_group = nullptr,
+                                       .type         = info.memory_type,
+                                       .alias_state  = AliasState::Displaced}}};
 
   if (info.memory_type == gpu::MemoryType::Unique)
   {
@@ -2140,12 +2409,12 @@ Result<gpu::Image, Status> Device::create_image(gpu::ImageInfo const & info)
     .info               = info,
     .is_swapchain_image = false,
     .vk_image           = vk_image,
-    .state              = ImageState{.memory =
-                          MemoryInfo{.memory_group = nullptr,
-                                                  .type         = info.memory_type,
-                                                  .alias_state = AliasState::Displaced},
-                                     .hazard  = ImageHazard{},
-                                     .binders = {}}
+    .state =
+      ImageState{.memory  = MemoryInfo{.memory_group = nullptr,
+                                       .type         = info.memory_type,
+                                       .alias_state  = AliasState::Displaced},
+                 .hazard  = ImageHazard{},
+                 .binders = {}}
   };
 
   if (info.memory_type == gpu::MemoryType::Unique)
@@ -2578,7 +2847,6 @@ Result<gpu::DescriptorSetLayout, Status> Device::create_descriptor_set_layout(
 
   new (layout) DescriptorSetLayout{.vk_layout           = vk_layout,
                                    .bindings            = bindings,
-                                   .sizing              = sizing,
                                    .num_variable_length = num_variable_length};
 
   vk_layout = nullptr;
@@ -3777,7 +4045,11 @@ void Device::uninit(gpu::Image image_)
     return;
   }
 
-  CHECK(!image->is_swapchain_image, "");
+  if (image->is_swapchain_image)
+  {
+    // [ ] destroy
+    return;
+  }
 
   for (auto binder : image->state.binders)
   {

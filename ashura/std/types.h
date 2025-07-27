@@ -2485,10 +2485,16 @@ using Storage = InplaceStorage<alignof(T), sizeof(T)>;
 
 struct alignas(u64) Version
 {
-  u32 major   = 0;
-  u32 minor   = 0;
-  u32 patch   = 0;
-  u32 variant = 0;
+  u16 variant = 0;
+  u16 major   = 0;
+  u16 minor   = 0;
+  u16 patch   = 0;
 };
+
+#define ASH_VERSION                               \
+  (::ash::Version{.variant = ASH_VARIANT_VERSION, \
+                  .major   = ASH_MAJOR_VERSION,   \
+                  .minor   = ASH_MINOR_VERSION,   \
+                  .patch   = ASH_PATCH_VERSION})
 
 }    // namespace ash

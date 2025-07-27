@@ -32,7 +32,7 @@ typedef struct DescriptorSet_T *       DescriptorSet;
 typedef struct PipelineCache_T *       PipelineCache;
 typedef struct ComputePipeline_T *     ComputePipeline;
 typedef struct GraphicsPipeline_T *    GraphicsPipeline;
-typedef struct TimestampQuery_T *      TimeStampQuery;
+typedef struct TimestampQuery_T *      TimestampQuery;
 typedef struct StatisticsQuery_T *     StatisticsQuery;
 typedef struct CommandEncoder          CommandEncoder;
 typedef struct Surface_T *             Surface;
@@ -57,7 +57,7 @@ enum class ObjectType : u32
   PipelineCache       = 12,
   ComputePipeline     = 13,
   GraphicsPipeline    = 14,
-  TimeStampQuery      = 15,
+  TimestampQuery      = 15,
   StatisticsQuery     = 16,
   Surface             = 17,
   Swapchain           = 18
@@ -700,8 +700,8 @@ enum class DescriptorType : u8
 
 enum class IndexType : u8
 {
-  Uint16 = 0,
-  Uint32 = 1
+  U16 = 0,
+  U32 = 1
 };
 
 enum class CompositeAlpha : u32
@@ -738,7 +738,7 @@ using Object =
   Enum<Instance *, Device *, CommandEncoder *, Buffer, BufferView, Image,
        ImageView, MemoryGroup, Sampler, Shader, DescriptorSetLayout,
        DescriptorSet, PipelineCache, ComputePipeline, GraphicsPipeline,
-       TimeStampQuery, StatisticsQuery, Surface, Swapchain>;
+       TimestampQuery, StatisticsQuery, Surface, Swapchain>;
 
 struct SurfaceFormat
 {
@@ -1240,14 +1240,13 @@ struct RenderingInfo
   Option<RenderingAttachment>     stencil_attachment = none;
 };
 
-/// to execute tasks at end of frame. use the tail frame index.
 struct CommandEncoder
 {
-  virtual void reset_timestamp_query(TimeStampQuery query, Slice32 range) = 0;
+  virtual void reset_timestamp_query(TimestampQuery query, Slice32 range) = 0;
 
   virtual void reset_statistics_query(StatisticsQuery query, Slice32 range) = 0;
 
-  virtual void write_timestamp(TimeStampQuery query, PipelineStages stage,
+  virtual void write_timestamp(TimestampQuery query, PipelineStages stage,
                                u32 index) = 0;
 
   virtual void begin_statistics(StatisticsQuery query, u32 index) = 0;
@@ -1302,8 +1301,7 @@ struct CommandEncoder
 
   virtual void push_constants(Span<u8 const> push_constants_data) = 0;
 
-  virtual void dispatch(u32 group_count_x, u32 group_count_y,
-                        u32 group_count_z) = 0;
+  virtual void dispatch(u32x3 group_count) = 0;
 
   virtual void dispatch_indirect(Buffer buffer, u64 offset) = 0;
 
@@ -1315,11 +1313,10 @@ struct CommandEncoder
   virtual void bind_index_buffer(Buffer index_buffer, u64 offset,
                                  IndexType index_type) = 0;
 
-  virtual void draw(u32 vertex_count, u32 instance_count, u32 first_vertex,
-                    u32 first_instance) = 0;
+  virtual void draw(Slice32 vertices, Slice32 instances) = 0;
 
-  virtual void draw_indexed(u32 first_index, u32 num_indices, i32 vertex_offset,
-                            u32 first_instance, u32 num_instances) = 0;
+  virtual void draw_indexed(Slice32 indices, Slice32 instances,
+                            i32 vertex_offset) = 0;
 
   virtual void draw_indirect(Buffer buffer, u64 offset, u32 draw_count,
                              u32 stride) = 0;
@@ -1330,91 +1327,7 @@ struct CommandEncoder
 
 struct CommandBuffer
 {
-  virtual void commit(CommandEncoder const &) = 0;
-
-  virtual void reset_timestamp_query(TimeStampQuery query, Slice32 range) = 0;
-
-  virtual void reset_statistics_query(StatisticsQuery query, Slice32 range) = 0;
-
-  virtual void write_timestamp(TimeStampQuery query, PipelineStages stage,
-                               u32 index) = 0;
-
-  virtual void begin_statistics(StatisticsQuery query, u32 index) = 0;
-
-  virtual void end_statistics(StatisticsQuery query, u32 index) = 0;
-
-  virtual void begin_debug_marker(Str region_name, f32x4 color) = 0;
-
-  virtual void end_debug_marker() = 0;
-
-  virtual void fill_buffer(Buffer dst, u64 offset, u64 size, u32 data) = 0;
-
-  virtual void copy_buffer(Buffer src, Buffer dst,
-                           Span<BufferCopy const> copies) = 0;
-
-  virtual void update_buffer(Span<u8 const> src, u64 dst_offset,
-                             Buffer dst) = 0;
-
-  virtual void clear_color_image(Image dst, Color value,
-                                 Span<ImageSubresourceRange const> ranges) = 0;
-
-  virtual void
-    clear_depth_stencil_image(Image dst, DepthStencil value,
-                              Span<ImageSubresourceRange const> ranges) = 0;
-
-  virtual void copy_image(Image src, Image dst,
-                          Span<ImageCopy const> copies) = 0;
-
-  virtual void copy_buffer_to_image(Buffer src, Image dst,
-                                    Span<BufferImageCopy const> copies) = 0;
-
-  virtual void blit_image(Image src, Image dst, Span<ImageBlit const> blits,
-                          Filter filter) = 0;
-
-  virtual void resolve_image(Image src, Image dst,
-                             Span<ImageResolve const> resolves) = 0;
-
-  virtual void begin_compute_pass() = 0;
-
-  virtual void end_compute_pass() = 0;
-
-  virtual void begin_rendering(RenderingInfo const & info) = 0;
-
-  virtual void end_rendering() = 0;
-
-  virtual void bind_compute_pipeline(ComputePipeline pipeline) = 0;
-
-  virtual void bind_graphics_pipeline(GraphicsPipeline pipeline) = 0;
-
-  virtual void bind_descriptor_sets(Span<DescriptorSet const> descriptor_sets,
-                                    Span<u32 const> dynamic_offsets) = 0;
-
-  virtual void push_constants(Span<u8 const> push_constants_data) = 0;
-
-  virtual void dispatch(u32 group_count_x, u32 group_count_y,
-                        u32 group_count_z) = 0;
-
-  virtual void dispatch_indirect(Buffer buffer, u64 offset) = 0;
-
-  virtual void set_graphics_state(GraphicsState const & state) = 0;
-
-  virtual void bind_vertex_buffers(Span<Buffer const> vertex_buffers,
-                                   Span<u64 const>    offsets) = 0;
-
-  virtual void bind_index_buffer(Buffer index_buffer, u64 offset,
-                                 IndexType index_type) = 0;
-
-  virtual void draw(u32 vertex_count, u32 instance_count, u32 first_vertex,
-                    u32 first_instance) = 0;
-
-  virtual void draw_indexed(u32 first_index, u32 num_indices, i32 vertex_offset,
-                            u32 first_instance, u32 num_instances) = 0;
-
-  virtual void draw_indirect(Buffer buffer, u64 offset, u32 draw_count,
-                             u32 stride) = 0;
-
-  virtual void draw_indexed_indirect(Buffer buffer, u64 offset, u32 draw_count,
-                                     u32 stride) = 0;
+  virtual void commit(CommandEncoder & encoder) = 0;
 };
 
 struct FrameContext
@@ -1472,10 +1385,14 @@ struct Device
   virtual Result<Swapchain, Status>
     create_swapchain(Surface surface, SwapchainInfo const & info) = 0;
 
-  virtual Result<TimeStampQuery, Status> create_timestamp_query(u32 count) = 0;
+  virtual Result<TimestampQuery, Status> create_timestamp_query(u32 count) = 0;
 
   virtual Result<StatisticsQuery, Status>
     create_statistics_query(u32 count) = 0;
+
+  virtual Result<CommandEncoder *, Status> create_command_encoder() = 0;
+
+  virtual Result<CommandBuffer *, Status> create_command_buffer() = 0;
 
   virtual void uninit(Buffer buffer) = 0;
 
@@ -1503,9 +1420,13 @@ struct Device
 
   virtual void uninit(Swapchain swapchain) = 0;
 
-  virtual void uninit(TimeStampQuery query) = 0;
+  virtual void uninit(TimestampQuery query) = 0;
 
   virtual void uninit(StatisticsQuery query) = 0;
+
+  virtual void uninit(CommandEncoder * encoder) = 0;
+
+  virtual void uninit(CommandBuffer * buffer) = 0;
 
   virtual FrameContext get_frame_context() = 0;
 
@@ -1547,12 +1468,12 @@ struct Device
   virtual Result<Void, Status>
     invalidate_swapchain(Swapchain swapchain, SwapchainInfo const & info) = 0;
 
-  virtual Result<Void, Status> begin_frame(Swapchain swapchain) = 0;
+  // virtual Result<Void, Status> begin_frame(Swapchain swapchain) = 0;
 
-  virtual Result<Void, Status> submit_frame(Swapchain swapchain) = 0;
+  // virtual Result<Void, Status> submit_frame(Swapchain swapchain) = 0;
 
   virtual Result<Void, Status>
-    get_timestamp_query_result(TimeStampQuery query, Slice32 range,
+    get_timestamp_query_result(TimestampQuery query, Slice32 range,
                                Vec<u64> & timestamps) = 0;
 
   virtual Result<Void, Status>

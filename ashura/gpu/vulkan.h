@@ -20,10 +20,12 @@ namespace vk
 
 using gpu::Status;
 
-inline constexpr char const * ENGINE_NAME    = "Ash";
-inline constexpr u32          ENGINE_VERSION = VK_MAKE_API_VERSION(0, 0, 0, 1);
+inline constexpr char const * ENGINE_NAME = "Ash";
+inline constexpr u32          ENGINE_VERSION =
+  VK_MAKE_API_VERSION(ASH_VERSION.variant, ASH_VERSION.major, ASH_VERSION.minor,
+                      ASH_VERSION.variant);
 inline constexpr char const * CLIENT_NAME    = "Ash Client";
-inline constexpr u32          CLIENT_VERSION = VK_MAKE_API_VERSION(0, 0, 0, 1);
+inline constexpr u32          CLIENT_VERSION = ENGINE_VERSION;
 
 inline constexpr u32 MAX_MEMORY_HEAP_PROPERTIES = 32;
 inline constexpr u32 MAX_MEMORY_HEAPS           = 16;
@@ -37,6 +39,7 @@ typedef VkQueryPool           TimestampQuery;
 typedef VkQueryPool           StatisticsQuery;
 typedef struct Instance       Instance;
 typedef struct Device         Device;
+typedef struct CommandBuffer  CommandBuffer;
 typedef struct CommandEncoder CommandEncoder;
 
 #define ASH_DEF_VKPFN(name) PFN_vk##name name = nullptr
@@ -216,36 +219,47 @@ struct DeviceTable
 
 #undef ASH_DEF_VKPFN
 
-struct Access
+enum class AliasId : u16
 {
-  VkPipelineStageFlags stages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-  VkAccessFlags        access = VK_ACCESS_NONE;
+  Undefined = U16_MAX
 };
 
-/*
-enum class AliasState : u8
+enum class ImageStateId : u16
 {
-  /// the resource is the active resource using the aliased memory region, i.e. no other resource that overlaps the same memory region is currently using part of the memory
-  Resident  = 0,
-  /// the resource is not the active resource using its allocated memory region, i.e. another resource that overlaps the same memory region is using part of the memory
-  Displaced = 1
+  Undefined = U16_MAX
 };
-*/
-
-// [ ] we can merge this hazard states and move them into the memorygroup abstraction; it will enable us track aliases? by binding id?
 
 struct DescriptorSet;
 
-struct Binder
+struct BindLocation
 {
   DescriptorSet * set     = nullptr;
   u32             binding = 0;
   u32             element = 0;
+
+  constexpr bool operator==(BindLocation const & rhs) const
+  {
+    return set == rhs.set && binding == rhs.binding && element == rhs.element;
+  }
+
+  constexpr bool is_valid() const
+  {
+    return set != nullptr;
+  }
 };
 
-constexpr u32 MAX_RESOURCE_BINDERS = 16;
+/// @brief An allocated block of memory that can be aliased by multiple resources.
+struct MemoryGroup
+{
+  VmaAllocation     vma_allocation = nullptr;
+  u64               alignment      = 0;
+  void *            map            = nullptr;
+  SmallVec<u64>     alias_offsets  = {};
+  SmallVec<u32>     alias_bindings = {};
+  SmallVec<AliasId> alias_ids      = {};    // [ ] stable accross frames
 
-struct MemoryGroup;
+  Layout64 layout() const;
+};
 
 struct MemoryInfo
 {
@@ -276,69 +290,35 @@ struct MemoryBarrier
   VkMemoryBarrier      barrier    = {};
 };
 
-// [ ] use an array and a slot system for the binders
-struct BufferState
-{
-  MemoryInfo                               memory  = {};
-  InplaceVec<Binder, MAX_RESOURCE_BINDERS> binders = {};
-};
-
-struct ImageState
-{
-  MemoryInfo                               memory  = {};
-  InplaceVec<Binder, MAX_RESOURCE_BINDERS> binders = {};
-};
+using BindLocations = SmallVec<BindLocation, 8>;
 
 struct Buffer
 {
-  gpu::BufferInfo info      = {};
-  VkBuffer        vk_buffer = nullptr;
-  BufferState     state     = {};
-
-  Option<BufferBarrier> sync(Access request, u64 pass_timestamp);
+  VkBuffer      vk_buffer      = nullptr;
+  MemoryInfo    memory         = {};
+  BindLocations bind_locations = {};
 };
 
 struct BufferView
 {
-  gpu::BufferViewInfo info    = {};
-  VkBufferView        vk_view = nullptr;
+  VkBufferView vk_view = nullptr;
+  Buffer *     buffer  = nullptr;
 };
 
 struct Image
 {
-  gpu::ImageInfo info               = {};
-  bool           is_swapchain_image = false;
-  VkImage        vk_image           = nullptr;
-  ImageState     state              = {};
-
-  Option<ImageBarrier> sync(gpu::ImageSubresourceRange const & range,
-                            Access request, VkImageLayout layout,
-                            u64 pass_timestamp);
-};
-
-// [ ] sorted insert and remove
-// [ ] if new resource is binded whilst others have been placed? how will sync work?
-// [ ] store list of written-to resources so we know which to be tracked?; will also help with sets if propagated with it
-
-/// @brief An allocated block of memory that can be aliased by multiple resources.
-struct MemoryGroup
-{
-  VmaAllocation vma_allocation = nullptr;
-  u64           alignment      = 0;
-  void *        map            = nullptr;
-  SmallVec<u64> alias_offsets  = {};
-  SmallVec<u32> alias_bindings = {};
-
-  // [ ] reclaim the memory range used by the buffer and invalidate all the binding resources that overlap/alias the same memory range
-  void reclaim(Buffer *);
-
-  void reclaim(Image *);
+  ImageStateId      state_id           = ImageStateId::Undefined;
+  gpu::ImageAspects aspects            = gpu::ImageAspects::None;
+  bool              is_swapchain_image = false;
+  VkImage           vk_image           = nullptr;
+  MemoryInfo        memory             = {};
+  BindLocations     bind_locations     = {};
 };
 
 struct ImageView
 {
-  gpu::ImageViewInfo info    = {};
-  VkImageView        vk_view = nullptr;
+  VkImageView vk_view = nullptr;
+  Image *     image   = nullptr;
 };
 
 struct DescriptorSetLayout
@@ -348,30 +328,18 @@ struct DescriptorSetLayout
   InplaceVec<gpu::DescriptorBindingInfo, gpu::MAX_DESCRIPTOR_SET_BINDINGS>
     bindings = {};
 
-  Array<u32, NUM_DESCRIPTOR_TYPES> sizing = {};
-
   u32 num_variable_length = 0;
 };
 
-using SyncResources =
-  Enum<None, Vec<Tuple<Buffer *, u32>>, Vec<Tuple<BufferView *, u32>>,
-       Vec<Tuple<ImageView *, u32>>>;
+using SyncResources = Enum<None, SmallVec<Buffer *, 4>,
+                           SmallVec<BufferView *, 4>, SmallVec<ImageView *, 4>>;
 
-/// used to track stateful resource access
-/// @param images only valid if `type` is a descriptor type that access images
-/// @param param buffers: only valid if `type` is a descriptor type that access
-/// buffers
 struct DescriptorBinding
 {
   SyncResources       sync_resources = none;
   gpu::DescriptorType type           = gpu::DescriptorType::Sampler;
 
-  u32 size() const
-  {
-    return sync_resources.match(
-      [](None) { return (u32) 0; }, [](auto & v) { return size32(v); },
-      [](auto & v) { return size32(v); }, [](auto & v) { return size32(v); });
-  }
+  u32 size() const;
 };
 
 struct DescriptorSet
@@ -382,80 +350,14 @@ struct DescriptorSet
 
   InplaceVec<DescriptorBinding, gpu::MAX_DESCRIPTOR_SET_BINDINGS> bindings = {};
 
-  /*
-  {
+  static void remove_bind_loc(BindLocations &      locations,
+                              BindLocation const & loc);
 
-  // [ ] fix
-  // [ ] needs binding system; store binding slots in resources and let the binders allocate from it
-  // [ ] remove old binding; if non-null
-  // [ ] add new binding
-  // if same slot continue; if not bind
-  // [ ] if(buffer == binding.sync_resources[el + i])  buffer might already be added, if it is the same as the present slot, we need to remove it? it can be binded-to multiple times
-  // [ ] alternate method?
+  void update_link(BindLocation const & loc, Buffer * next);
 
-    BufferView *& current = sync_resources[v2][binder.element];
+  void update_link(BindLocation const & loc, BufferView * next);
 
-    // remove old binder
-    if (current != nullptr)
-    {
-      auto loc = find(current->state.binders.view(), binder, obj::byte_eq)
-                   .as_slice_of(current->state.binders.view());
-      if (!loc.is_empty())
-      {
-        current->state.binders.erase(loc);
-      }
-    }
-
-    // update binder
-    current = next;
-    current->state.binders.push(binder).unwrap();
-  }*/
-
-  /*{
-    ImageView *& current = sync_resources[v1][binder.element];
-
-    if (current != nullptr)
-    {
-      auto loc =
-        find(current->state.aspects[state].binders.view(), binder, obj::byte_eq)
-          .as_slice_of(current->state.aspects[state].binders.view());
-      if (!loc.is_empty())
-      {
-        current->state.aspects[state].binders.erase(loc);
-      }
-    }
-
-    current = next;
-    current->state.aspects[state].binders.push(binder).unwrap();
-  }*.*/
-
-  void update_link(Buffer * next, u32 binding, u32 element)
-  {
-  }
-
-  void update_link(BufferView * next, u32 binding, u32 element)
-  {
-  }
-
-  void update_link(ImageView * next, u32 binding, u32 element)
-  {
-  }
-
-  static void remove_binder(InplaceVec<Binder, MAX_RESOURCE_BINDERS> & binders,
-                            DescriptorSet *                            set)
-  {
-    auto old = binders;
-    binders.clear();
-    // [ ] this sucks
-    for (auto const & binder : old)
-    {
-      if (binder.set == set)
-      {
-        continue;
-      }
-      binders.push(binder).unwrap();
-    }
-  }
+  void update_link(BindLocation const & loc, ImageView * next);
 };
 
 struct ComputePipeline
@@ -540,8 +442,6 @@ struct PhysicalDevice
 /// because the surface requested a zero sized image extent
 struct Swapchain
 {
-  gpu::SwapchainInfo info = {};
-
   bool is_out_of_date = true;
 
   bool is_optimal = false;
@@ -558,9 +458,7 @@ struct Swapchain
 
   gpu::CompositeAlpha composite_alpha = gpu::CompositeAlpha::None;
 
-  InplaceVec<Image, gpu::MAX_SWAPCHAIN_IMAGES> image_impls = {};
-
-  InplaceVec<gpu::Image, gpu::MAX_SWAPCHAIN_IMAGES> images = {};
+  InplaceVec<Image *, gpu::MAX_SWAPCHAIN_IMAGES> images = {};
 
   InplaceVec<VkImage, gpu::MAX_SWAPCHAIN_IMAGES> vk_images = {};
 
@@ -571,6 +469,519 @@ struct Swapchain
   VkSurfaceKHR vk_surface = nullptr;
 };
 
+#define ASH_VK_CAST(Handle)                           \
+  ASH_FORCE_INLINE inline Handle * ptr(gpu::Handle p) \
+  {                                                   \
+    return reinterpret_cast<Handle *>(p);             \
+  }                                                   \
+                                                      \
+  ASH_FORCE_INLINE inline Handle & ref(gpu::Handle p) \
+  {                                                   \
+    return *ptr(p);                                   \
+  }
+
+ASH_VK_CAST(Buffer)
+ASH_VK_CAST(Image)
+ASH_VK_CAST(BufferView)
+ASH_VK_CAST(ImageView)
+ASH_VK_CAST(DescriptorSetLayout)
+ASH_VK_CAST(DescriptorSet)
+ASH_VK_CAST(ComputePipeline)
+ASH_VK_CAST(GraphicsPipeline)
+ASH_VK_CAST(Swapchain)
+
+namespace cmd
+{
+
+enum class Type : u8
+{
+  ResetTimestampQuery    = 0,
+  ResetStatisticsQuery   = 1,
+  WriteTimestamp         = 2,
+  BeginStatistics        = 3,
+  EndStatistics          = 4,
+  BeginDebugMarker       = 5,
+  EndDebugMarker         = 6,
+  FillBuffer             = 7,
+  CopyBuffer             = 8,
+  UpdateBuffer           = 9,
+  ClearColorImage        = 10,
+  ClearDepthStencilImage = 11,
+  CopyImage              = 12,
+  CopyBufferToImage      = 13,
+  BlitImage              = 14,
+  ResolveImage           = 15,
+  BeginComputePass       = 16,
+  EndComputePass         = 17,
+  BeginRendering         = 18,
+  EndRendering           = 19,
+  BindComputePipeline    = 20,
+  BindGraphicsPipeline   = 21,
+  BindDescriptorSets     = 22,
+  PushConstants          = 23,
+  Dispatch               = 24,
+  DispatchIndirect       = 25,
+  SetGraphicsState       = 26,
+  BindVertexBuffers      = 27,
+  BindIndexBuffer        = 28,
+  Draw                   = 29,
+  DrawIndexed            = 30,
+  DrawIndirect           = 31,
+  DrawIndexedIndirect    = 32,
+  Undefined              = U8_MAX
+};
+
+struct Command
+{
+  Type const type_ = Type::Undefined;
+};
+
+struct ResetTimestampQuery
+{
+  Type const          type_ = Type::ResetTimestampQuery;
+  gpu::TimestampQuery query = nullptr;
+  Slice32             range = {};
+};
+
+struct ResetStatisticsQuery
+{
+  Type const           type_ = Type::ResetStatisticsQuery;
+  gpu::StatisticsQuery query = nullptr;
+  Slice32              range = {};
+};
+
+struct WriteTimestamp
+{
+  Type const          type_ = Type::WriteTimestamp;
+  gpu::TimestampQuery query = nullptr;
+  gpu::PipelineStages stage = gpu::PipelineStages::TopOfPipe;
+  u32                 index = 0;
+};
+
+struct BeginStatistics
+{
+  Type const           type_ = Type::BeginStatistics;
+  gpu::StatisticsQuery query = nullptr;
+  u32                  index = 0;
+};
+
+struct EndStatistics
+{
+  Type const           type_ = Type::EndStatistics;
+  gpu::StatisticsQuery query = nullptr;
+  u32                  index = 0;
+};
+
+struct BeginDebugMarker
+{
+  Type const type_       = Type::BeginDebugMarker;
+  Str        region_name = {};
+  f32x4      color       = {};
+};
+
+struct EndDebugMarker
+{
+  Type const type_ = Type::EndDebugMarker;
+};
+
+struct FillBuffer
+{
+  Type const  type_  = Type::FillBuffer;
+  gpu::Buffer dst    = nullptr;
+  u64         offset = 0;
+  u64         size   = 0;
+  u32         data   = 0;
+};
+
+struct CopyBuffer
+{
+  Type const                  type_  = Type::CopyBuffer;
+  gpu::Buffer                 src    = nullptr;
+  gpu::Buffer                 dst    = nullptr;
+  Span<gpu::BufferCopy const> copies = {};
+};
+
+struct UpdateBuffer
+{
+  Type const     type_      = Type::UpdateBuffer;
+  Span<u8 const> src        = {};
+  u64            dst_offset = 0;
+  gpu::Buffer    dst        = nullptr;
+};
+
+struct ClearColorImage
+{
+  Type const                             type_  = Type::ClearColorImage;
+  gpu::Image                             dst    = nullptr;
+  gpu::Color                             value  = {};
+  Span<gpu::ImageSubresourceRange const> ranges = {};
+};
+
+struct ClearDepthStencilImage
+{
+  Type const                             type_  = Type::ClearDepthStencilImage;
+  gpu::Image                             dst    = nullptr;
+  gpu::DepthStencil                      value  = {};
+  Span<gpu::ImageSubresourceRange const> ranges = {};
+};
+
+struct CopyImage
+{
+  Type const                 type_  = Type::CopyImage;
+  gpu::Image                 src    = nullptr;
+  gpu::Image                 dst    = nullptr;
+  Span<gpu::ImageCopy const> copies = {};
+};
+
+struct CopyBufferToImage
+{
+  Type const                       type_  = Type::CopyBufferToImage;
+  gpu::Buffer                      src    = nullptr;
+  gpu::Image                       dst    = nullptr;
+  Span<gpu::BufferImageCopy const> copies = {};
+};
+
+struct BlitImage
+{
+  Type const                 type_  = Type::BlitImage;
+  gpu::Image                 src    = nullptr;
+  gpu::Image                 dst    = nullptr;
+  Span<gpu::ImageBlit const> blits  = {};
+  gpu::Filter                filter = gpu::Filter::Linear;
+};
+
+struct ResolveImage
+{
+  Type const                    type_    = Type::ResolveImage;
+  gpu::Image                    src      = nullptr;
+  gpu::Image                    dst      = nullptr;
+  Span<gpu::ImageResolve const> resolves = {};
+};
+
+struct BeginComputePass
+{
+  Type const type_ = Type::BeginComputePass;
+};
+
+struct EndComputePass
+{
+  Type const type_ = Type::EndComputePass;
+};
+
+struct BeginRendering
+{
+  Type const         type_ = Type::BeginRendering;
+  gpu::RenderingInfo info  = {};
+};
+
+struct EndRendering
+{
+  Type const type_ = Type::EndRendering;
+};
+
+struct BindComputePipeline
+{
+  Type const           type_ = Type::BindComputePipeline;
+  gpu::ComputePipeline pipeline;
+};
+
+struct BindGraphicsPipeline
+{
+  Type const            type_    = Type::BindGraphicsPipeline;
+  gpu::GraphicsPipeline pipeline = nullptr;
+};
+
+struct BindDescriptorSets
+{
+  Type const                     type_           = Type::BindDescriptorSets;
+  Span<gpu::DescriptorSet const> sets            = {};
+  Span<u32 const>                dynamic_offsets = {};
+};
+
+struct PushConstants
+{
+  Type const     type_    = Type::PushConstants;
+  Span<u8 const> constant = {};
+};
+
+struct Dispatch
+{
+  Type const type_       = Type::Dispatch;
+  u32x3      group_count = {};
+};
+
+struct DispatchIndirect
+{
+  Type const  type_  = Type::DispatchIndirect;
+  gpu::Buffer buffer = nullptr;
+  u64         offset = 0;
+};
+
+struct SetGraphicsState
+{
+  Type const         type_ = Type::SetGraphicsState;
+  gpu::GraphicsState state = {};
+};
+
+struct BindVertexBuffers
+{
+  Type const              type_   = Type::BindVertexBuffers;
+  u32                     binding = 0;
+  Span<gpu::Buffer const> buffers = {};
+  Span<u64 const>         offsets = {};
+};
+
+struct BindIndexBuffer
+{
+  Type const     type_      = Type::BindIndexBuffer;
+  gpu::Buffer    buffer     = nullptr;
+  u64            offset     = 0;
+  gpu::IndexType index_type = gpu::IndexType::U32;
+};
+
+struct Draw
+{
+  Type const type_     = Type::Draw;
+  Slice32    vertices  = {};
+  Slice32    instances = {};
+};
+
+struct DrawIndexed
+{
+  Type const type_         = Type::DrawIndexed;
+  Slice32    indices       = {};
+  Slice32    instances     = {};
+  i32        vertex_offset = 0;
+};
+
+struct DrawIndirect
+{
+  Type const  type_      = Type::DrawIndirect;
+  gpu::Buffer buffer     = nullptr;
+  u64         offset     = 0;
+  u32         draw_count = 0;
+  u32         stride     = 0;
+};
+
+struct DrawIndexedIndirect
+{
+  Type const  type_      = Type::DrawIndexedIndirect;
+  gpu::Buffer buffer     = nullptr;
+  u64         offset     = 0;
+  u32         draw_count = 0;
+  u32         stride     = 0;
+};
+
+}    // namespace cmd
+
+enum class HazardType : u8
+{
+  /// @brief No reads or writes so far
+  None            = 0,
+  /// @brief Read hazards that need to be awaited. Subsequent reads are overlapped until a write occurs
+  Reads           = 1,
+  /// @brief Write hazard that needs to be awaited.
+  Write           = 2,
+  /// @brief Reads after a write that need to be awaited. Subsequent reads are allowed to overlap until a write occurs
+  ReadsAfterWrite = 3
+};
+
+struct MemoryAccess
+{
+  VkPipelineStageFlags stages = VK_PIPELINE_STAGE_NONE;
+  VkAccessFlags        access = VK_ACCESS_NONE;
+};
+
+struct BufferAccess
+{
+  VkPipelineStageFlags stages = VK_PIPELINE_STAGE_NONE;
+  VkAccessFlags        access = VK_ACCESS_NONE;
+
+  MemoryAccess to_memory() const;
+};
+
+struct BufferHazard
+{
+  u32          alias = U32_MAX;
+  HazardType   type  = HazardType::None;
+  BufferAccess reads = {};
+  BufferAccess write = {};
+
+  MemoryAccess latest_acccess() const;
+};
+
+struct ImageAccess
+{
+  VkPipelineStageFlags stages = VK_PIPELINE_STAGE_NONE;
+  VkAccessFlags        access = VK_ACCESS_NONE;
+  VkImageLayout        layout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+  MemoryAccess to_memory() const;
+};
+
+struct ImageHazard
+{
+  u32           alias  = U32_MAX;
+  HazardType    type   = HazardType::None;
+  ImageAccess   reads  = {};
+  ImageAccess   write  = {};
+  VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+  MemoryAccess latest_acccess() const;
+};
+
+/// @brief Multiple aliases can be binded to the same memory alias and read from it at the same time.
+/// but they can't write to it at the same time.
+struct MemoryHazard
+{
+  u64                             pass = 0;
+  Enum<BufferHazard, ImageHazard> binding;
+};
+
+/// @brief Descriptor set hazard state
+struct DescriptorSetHazard
+{
+  u64 pass = 0;
+};
+
+/// @brief Per-encoder resource state heap
+struct ResourceStateHeap
+{
+  template <typename T>
+  using Map = CoreSparseMap<Vec<u16>, Vec<T>>;
+
+  Map<VkImageLayout> image_states = {};
+};
+
+enum class DescriptorSetState : u8
+{
+  ComputeShaderView  = 0,
+  GraphicsShaderView = 1,
+  Undefined          = U8_MAX
+};
+
+enum class AccessState : u8
+{
+  Read      = 0,
+  ReadWrite = 1
+};
+
+enum class BufferState : u8
+{
+  ComputeShaderView  = 0,
+  GraphicsShaderView = 1,
+  VertexBuffer       = 2,
+  IndexBuffer        = 3,
+  IndirectBuffer     = 4,
+  TransferSrc        = 5,
+  TransferDst        = 6,
+  Undefined          = U8_MAX
+};
+
+enum class ImageState : u8
+{
+  ComputeShaderView             = 0,
+  GraphicsShaderView            = 1,
+  ColorAttachment               = 2,
+  DepthStencilAttachment        = 3,
+  ColorResolveAttachment        = 4,
+  DepthStencilResolveAttachment = 5,
+  TransferSrc                   = 6,
+  TransferDst                   = 7,
+  Present                       = 8,
+  General                       = 9,
+  Undefined                     = U8_MAX
+};
+
+struct HazardBarriers
+{
+  Vec<BufferBarrier> buffer;
+  Vec<ImageBarrier>  image;
+  Vec<MemoryBarrier> memory;
+};
+
+/// @brief Per-encoder resource hazard state heap
+struct ResourceHazardHeap
+{
+  CoreSparseMap<Vec<u16>, Vec<MemoryHazard>> memory_hazards = {};
+  CoreSparseMap<Vec<u16>, BitVec<u64>, Vec<DescriptorSetHazard>>
+    descriptor_set_hazards = {};
+
+  /*bool has_hazard(AliasId id) const
+  {
+    return memory_hazards[(usize) id].v0;
+  } */
+
+  static void barrier(Image const & image, ImageAccess const & old_state,
+                      ImageAccess const & new_state, HazardBarriers & barriers);
+
+  static void barrier(Buffer const & buffer, BufferAccess const & old_state,
+                      BufferAccess const & new_state,
+                      HazardBarriers &     barriers);
+
+  static void barrier(MemoryAccess const & old_state,
+                      MemoryAccess const & new_state,
+                      HazardBarriers &     barriers);
+
+  /// @param image image to sync
+  /// @param access merged image state for the pass
+  /// @param pass the pass temporal id
+  /// @param barriers destination to issue barriers
+  void access(Image const & image, ImageAccess const & state, u64 pass,
+              HazardBarriers & barriers);
+
+  /// @param buffer buffer to sync
+  /// @param access merged image state for the pass
+  /// @param pass the pass temporal id
+  /// @param barriers destination to issue barriers
+  void access(Buffer const & buffer, BufferAccess const & state, u64 pass,
+              HazardBarriers & barriers);
+
+  /// @param set descriptor set to sync
+  /// @param access merged image state for the pass
+  /// @param pass the pass temporal id
+  /// @param barriers destination to issue barriers
+  void access(DescriptorSet const & set, u64 pass, HazardBarriers & barriers);
+};
+
+struct PassAccess
+{
+  Slice32 descriptor_sets = {};
+  Slice32 buffers         = {};
+  Slice32 images          = {};
+};
+
+struct AccessEncoder
+{
+  Vec<Tuple<gpu::DescriptorSet, DescriptorSetState>> descriptor_sets_ = {};
+  Vec<Tuple<gpu::Buffer, BufferState>>               buffers_         = {};
+  Vec<Tuple<gpu::Image, ImageState>>                 images_          = {};
+  Vec<PassAccess>                                    passes_          = {};
+
+  void begin_pass()
+  {
+    passes_.push(PassAccess{}).unwrap();
+  }
+
+  void end_pass()
+  {
+  }
+
+  void access(gpu::DescriptorSet set, DescriptorSetState state);
+  void access(gpu::Buffer buffer, BufferState state);
+  void access(gpu::Image image, ImageState state);
+};
+
+struct Encoder
+{
+  Vec<cmd::Command *> cmds_;
+  ArenaPool           pool_;
+};
+
+/*
+
+
+
 enum class CommandEncoderState : u16
 {
   Reset       = 0,
@@ -580,396 +991,19 @@ enum class CommandEncoderState : u16
   End         = 4
 };
 
-struct CmdBindDescriptorSets
-{
-  PinVec<DescriptorSet *> sets            = {};
-  PinVec<u32>             dynamic_offsets = {};
-};
 
-struct CmdBindGraphicsPipeline
-{
-  GraphicsPipeline * pipeline = nullptr;
-};
 
-struct CmdPushConstants
-{
-  PinVec<u8> constant = {};
-};
-
-// can be split up into subcommands, this alone takes 112 bytes
-struct CmdSetGraphicsState
-{
-  gpu::GraphicsState state{};
-};
-
-struct CmdBindVertexBuffer
-{
-  u32      binding = 0;
-  Buffer * buffer  = nullptr;
-  u64      offset  = 0;
-};
-
-struct CmdBindIndexBuffer
-{
-  Buffer *       buffer     = nullptr;
-  u64            offset     = 0;
-  gpu::IndexType index_type = gpu::IndexType::Uint32;
-};
-
-struct CmdDraw
-{
-  u32 vertex_count   = 0;
-  u32 instance_count = 0;
-  u32 first_vertex   = 0;
-  u32 first_instance = 0;
-};
-
-struct CmdDrawIndexed
-{
-  u32 first_index    = 0;
-  u32 num_indices    = 0;
-  i32 vertex_offset  = 0;
-  u32 first_instance = 0;
-  u32 num_instances  = 0;
-};
-
-struct CmdDrawIndirect
-{
-  Buffer * buffer     = nullptr;
-  u64      offset     = 0;
-  u32      draw_count = 0;
-  u32      stride     = 0;
-};
-
-struct CmdDrawIndexedIndirect
-{
-  Buffer * buffer     = nullptr;
-  u64      offset     = 0;
-  u32      draw_count = 0;
-  u32      stride     = 0;
-};
-
-using Command =
-  Enum<CmdBindDescriptorSets, CmdBindGraphicsPipeline, CmdPushConstants,
-       CmdSetGraphicsState, CmdBindVertexBuffer, CmdBindIndexBuffer, CmdDraw,
-       CmdDrawIndexed, CmdDrawIndirect, CmdDrawIndexedIndirect>;
-
-struct RenderPassContext
-{
-  RectU render_area = {};
-
-  u32 num_layers = 0;
-
-  InplaceVec<gpu::RenderingAttachment, gpu::MAX_PIPELINE_COLOR_ATTACHMENTS>
-    color_attachments = {};
-
-  Option<gpu::RenderingAttachment> depth_attachment = none;
-
-  Option<gpu::RenderingAttachment> stencil_attachment = none;
-
-  ArenaPool arg_pool = {};
-
-  ArenaPool command_pool = {};
-
-  Vec<Command> commands = {};
-
-  InplaceVec<Buffer *, gpu::MAX_VERTEX_ATTRIBUTES> vertex_buffers = {};
-
-  Buffer * index_buffer = nullptr;
-
-  gpu::IndexType index_type = gpu::IndexType::Uint16;
-
-  u64 index_buffer_offset = 0;
-
-  GraphicsPipeline * pipeline = nullptr;
-
-  bool has_state = false;
-
-  void clear()
-  {
-    render_area = {};
-    num_layers  = 0;
-    color_attachments.clear();
-    depth_attachment   = none;
-    stencil_attachment = none;
-    commands.reset();
-    command_pool.reclaim();
-    arg_pool.reclaim();
-    vertex_buffers.clear();
-    index_buffer        = nullptr;
-    index_buffer_offset = 0;
-    pipeline            = nullptr;
-    has_state           = false;
-  }
-};
-
-struct ComputePassContext
-{
-  InplaceVec<DescriptorSet *, gpu::MAX_PIPELINE_DESCRIPTOR_SETS> sets = {};
-  ComputePipeline * pipeline                                          = nullptr;
-
-  void clear()
-  {
-    sets.clear();
-    pipeline = nullptr;
-  }
-};
-
-namespace experimental
-{
-
-enum class ImageId : u16
-{
-  Undefined = U16_MAX
-};
-
-enum class BufferId : u16
-{
-  Undefined = U16_MAX
-};
-
-enum class DescriptorSetId : u16
-{
-  Undefined = U16_MAX
-};
-
-enum class AliasId : u16
-{
-  Undefined = U16_MAX
-};
-
-enum class HazardType : u8
-{
-  None            = 0,
-  Write           = 1,
-  Reads           = 2,
-  ReadsAfterWrite = 3
-};
-
-struct BufferHazard
-{
-  u32        pass  = 0;
-  HazardType type  = HazardType::None;
-  Access     reads = {};
-  Access     write = {};
-};
-
-struct ImageHazard
-{
-  u32           pass   = 0;
-  HazardType    type   = HazardType::None;
-  Access        reads  = {};
-  Access        write  = {};
-  VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
-};
-
-struct ImageAccess
-{
-  VkPipelineStageFlags stages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-  VkAccessFlags        access = VK_ACCESS_NONE;
-  VkImageLayout        layout = VK_IMAGE_LAYOUT_UNDEFINED;
-};
-
-struct BufferAccess
-{
-  VkPipelineStageFlags stages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-  VkAccessFlags        access = VK_ACCESS_NONE;
-};
-
-struct AliasAccess
-{
-};
-
-/// @brief Multiple aliases can be binded to the same memory alias and read from it at the same time.
-/// but they can't write to it at the same time.
-// [ ] will this tracking work?
-struct AliasHazard
-{
-  u32                           pass   = 0;
-  Enum<None, BufferId, ImageId> reader = none;
-  Enum<None, BufferId, ImageId> writer = none;
-};
-
-// [ ] fix alias tracking
-// [ ] how to track memory aliases
-// [ ] how to track descriptor set bindings
-
-/// @brief Descriptor set hazard state
-struct DescriptorSetHazard
-{
-  u32  pass       = 0;
-  // [ ] if an hazard has occured on one of its bindings' elements
-  bool has_hazard = false;
-};
-
-/*
-/// @brief resources need timeline ids as their ids will change across frames when resources are removed
-constexpr u16 MAX_TIMELINES = 16;
-
-struct ImageIds
-{
-  ImageId timelines[MAX_TIMELINES] = {};
-  ImageId id = ImageId::Undefined;
-};
-
-struct BufferIds
-{
-  BufferId timelines[MAX_TIMELINES] = {};
-  BufferId id = BufferId::Undefined;
-};
-
-struct DescriptorSetIds
-{
-  // DescriptorSetId timelines[MAX_TIMELINES] = {};
-  DescriptorSetId id = DescriptorSetId::Undefined;
-};
 */
-
-/// @brief Per-encoder resource state heap
-struct ResourceStateHeap
-{
-  CoreSparseMap<u16, Vec<VkImageLayout>> image_states     = {};
-  CoreSparseMap<u16, Vec<AliasId>>       image_alias_map  = {};
-  CoreSparseMap<u16, Vec<AliasId>>       buffer_alias_map = {};
-  // memory group
-};
-
-/// @brief Per-encoder resource hazard state heap
-struct ResourceHazardHeap
-{
-  template <typename... T>
-  using Map = CoreSparseMap<u16, BitVec<u64>, Vec<T>...>;
-
-  Map<Enum<ImageId, BufferId>> alias_state            = {};
-  Map<ImageHazard>             image_hazards          = {};
-  Map<BufferHazard>            buffer_hazards         = {};
-  Map<AliasHazard>             alias_hazards          = {};
-  Map<DescriptorSetHazard>     descriptor_set_hazards = {};
-
-  void mark(ImageId, ImageAccess const &);
-  void mark(BufferId, BufferAccess const &);
-  void mark(AliasId, AliasAccess const &);
-  void mark(DescriptorSetId);
-};
-
-struct AccessTimeline
-{
-  struct Pass
-  {
-    Slice32 descriptor_sets           = {};
-    Slice32 vertex_buffers            = {};
-    Slice32 index_buffers             = {};
-    Slice32 indirect_buffers          = {};
-    Slice32 color_attachments         = {};
-    Slice32 depth_stencil_attachments = {};
-    Slice32 transfer_src_images       = {};
-    Slice32 transfer_dst_images       = {};
-    Slice32 transfer_src_buffers      = {};
-    Slice32 transfer_dst_buffers      = {};
-  };
-
-  // [ ] alias?
-
-  Vec<DescriptorSetId> descriptor_sets           = {};
-  Vec<BufferId>        vertex_buffers            = {};
-  Vec<BufferId>        index_buffers             = {};
-  Vec<BufferId>        indirect_buffers          = {};
-  Vec<ImageId>         color_attachments         = {};
-  Vec<ImageId>         depth_stencil_attachments = {};
-  Vec<ImageId>         transfer_src_images       = {};
-  Vec<ImageId>         transfer_dst_images       = {};
-  Vec<BufferId>        transfer_src_buffers      = {};
-  Vec<BufferId>        transfer_dst_buffers      = {};
-  Vec<Pass>            passes                    = {};
-
-  void begin_pass();
-  void end_pass();
-  void access_descriptor_set(DescriptorSetId);
-  void access_vertex_buffer(BufferId);
-  void access_index_buffer(BufferId);
-  void access_indirect_buffer(BufferId);
-  void access_color_image(ImageId);
-  void access_depth_stencil_image(ImageId);
-  void access_transfer_src_image(ImageId);
-  void access_transfer_dst_image(ImageId);
-  void access_transfer_src_buffer(ImageId);
-  void access_transfer_dst_buffer(ImageId);
-};
-
-struct TransferCmd
-{
-};
-
-struct TransferPass
-{
-};
-
-struct ComputeCmd
-{
-};
-
-struct ComputePass
-{
-  Slice32 commands;
-};
-
-struct RenderCmd
-{
-};
-
-struct RenderPass
-{
-  Slice32 commands;
-};
-
-}    // namespace experimental
-
-struct AccessEncoder
-{
-  struct RenderPass
-  {
-    // these will determine the expected state and layout of each item
-    // DescriptorSetLayout * layout;
-    // DescriptorSet * set;
-
-    // { set bindings: sampler }
-    // { set bindings: sampledimage, combinedimage, texelbuffer, read-only storagebuffer, input attachments }
-    // {  Set{ set bindings: storage image, storage texel buffer, read-write storage buffer } }
-    // { output attachments: color, depth, stencil }
-    // { output resolve attachments: color, depth, stencil }
-    //
-    //
-    // needs to emit barriers in-between render passes as they might overlap write access
-  };
-
-  struct ComputePass
-  {
-    // Set { read set bindings }
-    // Set { write set bindings }
-    //
-    // issue barrier immediately after render pass
-  };
-
-  struct TransferPass
-  {
-    // Set { read resources }
-    // Set { write resources }
-  };
-};
 
 struct CommandEncoder final : gpu::CommandEncoder
 {
-  AllocatorRef        allocator         = {};
-  Device *            dev               = nullptr;
-  ArenaPool           arg_pool          = {};
-  VkCommandPool       vk_command_pool   = nullptr;
-  VkCommandBuffer     vk_command_buffer = nullptr;
-  Status              status            = Status::Success;
-  CommandEncoderState state             = CommandEncoderState::Reset;
-  RenderPassContext   render_ctx        = {};
-  ComputePassContext  compute_ctx       = {};
-  u64                 pass_timestamp    = 1;
+  AllocatorRef    allocator         = {};
+  ArenaPool       arg_pool          = {};
+  VkCommandPool   vk_command_pool   = nullptr;
+  VkCommandBuffer vk_command_buffer = nullptr;
+  Status          status            = Status::Success;
 
+  /*
   bool is_in_render_pass() const
   {
     return state == CommandEncoderState::RenderPass;
@@ -1017,14 +1051,15 @@ struct CommandEncoder final : gpu::CommandEncoder
     render_ctx.clear();
     compute_ctx.clear();
   }
+  */
 
-  virtual void reset_timestamp_query(gpu::TimeStampQuery query,
+  virtual void reset_timestamp_query(gpu::TimestampQuery query,
                                      Slice32             range) override;
 
   virtual void reset_statistics_query(gpu::StatisticsQuery query,
                                       Slice32              range) override;
 
-  virtual void write_timestamp(gpu::TimeStampQuery query,
+  virtual void write_timestamp(gpu::TimestampQuery query,
                                gpu::PipelineStages stage, u32 index) override;
 
   virtual void begin_statistics(gpu::StatisticsQuery query, u32 index) override;
@@ -1084,8 +1119,7 @@ struct CommandEncoder final : gpu::CommandEncoder
 
   virtual void push_constants(Span<u8 const> push_constants_data) override;
 
-  virtual void dispatch(u32 group_count_x, u32 group_count_y,
-                        u32 group_count_z) override;
+  virtual void dispatch(u32x3 group_count) override;
 
   virtual void dispatch_indirect(gpu::Buffer buffer, u64 offset) override;
 
@@ -1097,11 +1131,10 @@ struct CommandEncoder final : gpu::CommandEncoder
   virtual void bind_index_buffer(gpu::Buffer index_buffer, u64 offset,
                                  gpu::IndexType index_type) override;
 
-  virtual void draw(u32 vertex_count, u32 instance_count, u32 first_vertex,
-                    u32 first_instance) override;
+  virtual void draw(Slice32 vertices, Slice32 instances) override;
 
-  virtual void draw_indexed(u32 first_index, u32 num_indices, i32 vertex_offset,
-                            u32 first_instance, u32 num_instances) override;
+  virtual void draw_indexed(Slice32 indices, Slice32 instances,
+                            i32 vertex_offset) override;
 
   virtual void draw_indirect(gpu::Buffer buffer, u64 offset, u32 draw_count,
                              u32 stride) override;
@@ -1112,102 +1145,12 @@ struct CommandEncoder final : gpu::CommandEncoder
 
 struct CommandBuffer final : gpu::CommandBuffer
 {
-  Device *            dev               = nullptr;
-  VkCommandPool       vk_command_pool   = nullptr;
-  VkCommandBuffer     vk_command_buffer = nullptr;
-  Status              status            = Status::Success;
-  CommandEncoderState state             = CommandEncoderState::Reset;
+  Device *        dev               = nullptr;
+  VkCommandPool   vk_command_pool   = nullptr;
+  VkCommandBuffer vk_command_buffer = nullptr;
+  Status          status            = Status::Success;
 
-  virtual void reset_timestamp_query(gpu::TimeStampQuery query,
-                                     Slice32             range) override;
-
-  virtual void reset_statistics_query(gpu::StatisticsQuery query,
-                                      Slice32              range) override;
-
-  virtual void write_timestamp(gpu::TimeStampQuery query,
-                               gpu::PipelineStages stage, u32 index) override;
-
-  virtual void begin_statistics(gpu::StatisticsQuery query, u32 index) override;
-
-  virtual void end_statistics(gpu::StatisticsQuery query, u32 index) override;
-
-  virtual void begin_debug_marker(Str region_name, f32x4 color) override;
-
-  virtual void end_debug_marker() override;
-
-  virtual void fill_buffer(gpu::Buffer dst, u64 offset, u64 size,
-                           u32 data) override;
-
-  virtual void copy_buffer(gpu::Buffer src, gpu::Buffer dst,
-                           Span<gpu::BufferCopy const> copies) override;
-
-  virtual void update_buffer(Span<u8 const> src, u64 dst_offset,
-                             gpu::Buffer dst) override;
-
-  virtual void
-    clear_color_image(gpu::Image dst, gpu::Color value,
-                      Span<gpu::ImageSubresourceRange const> ranges) override;
-
-  virtual void clear_depth_stencil_image(
-    gpu::Image dst, gpu::DepthStencil value,
-    Span<gpu::ImageSubresourceRange const> ranges) override;
-
-  virtual void copy_image(gpu::Image src, gpu::Image dst,
-                          Span<gpu::ImageCopy const> copies) override;
-
-  virtual void
-    copy_buffer_to_image(gpu::Buffer src, gpu::Image dst,
-                         Span<gpu::BufferImageCopy const> copies) override;
-
-  virtual void blit_image(gpu::Image src, gpu::Image dst,
-                          Span<gpu::ImageBlit const> blits,
-                          gpu::Filter                filter) override;
-
-  virtual void resolve_image(gpu::Image src, gpu::Image dst,
-                             Span<gpu::ImageResolve const> resolves) override;
-
-  virtual void begin_compute_pass() override;
-
-  virtual void end_compute_pass() override;
-
-  virtual void begin_rendering(gpu::RenderingInfo const & info) override;
-
-  virtual void end_rendering() override;
-
-  virtual void bind_compute_pipeline(gpu::ComputePipeline pipeline) override;
-
-  virtual void bind_graphics_pipeline(gpu::GraphicsPipeline pipeline) override;
-
-  virtual void
-    bind_descriptor_sets(Span<gpu::DescriptorSet const> descriptor_sets,
-                         Span<u32 const> dynamic_offsets) override;
-
-  virtual void push_constants(Span<u8 const> push_constants_data) override;
-
-  virtual void dispatch(u32 group_count_x, u32 group_count_y,
-                        u32 group_count_z) override;
-
-  virtual void dispatch_indirect(gpu::Buffer buffer, u64 offset) override;
-
-  virtual void set_graphics_state(gpu::GraphicsState const & state) override;
-
-  virtual void bind_vertex_buffers(Span<gpu::Buffer const> vertex_buffers,
-                                   Span<u64 const>         offsets) override;
-
-  virtual void bind_index_buffer(gpu::Buffer index_buffer, u64 offset,
-                                 gpu::IndexType index_type) override;
-
-  virtual void draw(u32 vertex_count, u32 instance_count, u32 first_vertex,
-                    u32 first_instance) override;
-
-  virtual void draw_indexed(u32 first_index, u32 num_indices, i32 vertex_offset,
-                            u32 first_instance, u32 num_instances) override;
-
-  virtual void draw_indirect(gpu::Buffer buffer, u64 offset, u32 draw_count,
-                             u32 stride) override;
-
-  virtual void draw_indexed_indirect(gpu::Buffer buffer, u64 offset,
-                                     u32 draw_count, u32 stride) override;
+  virtual void commit(gpu::CommandEncoder & encoder) override;
 };
 
 struct FrameContext
@@ -1310,7 +1253,7 @@ struct Device final : gpu::Device
     create_swapchain(gpu::Surface               surface,
                      gpu::SwapchainInfo const & info) override;
 
-  virtual Result<gpu::TimeStampQuery, Status>
+  virtual Result<gpu::TimestampQuery, Status>
     create_timestamp_query(u32 count) override;
 
   virtual Result<gpu::StatisticsQuery, Status>
@@ -1342,7 +1285,7 @@ struct Device final : gpu::Device
 
   virtual void uninit(gpu::Swapchain swapchain) override;
 
-  virtual void uninit(gpu::TimeStampQuery query) override;
+  virtual void uninit(gpu::TimestampQuery query) override;
 
   virtual void uninit(gpu::StatisticsQuery query) override;
 
@@ -1396,7 +1339,7 @@ struct Device final : gpu::Device
   virtual Result<Void, Status> submit_frame(gpu::Swapchain swapchain) override;
 
   virtual Result<Void, Status>
-    get_timestamp_query_result(gpu::TimeStampQuery query, Slice32 range,
+    get_timestamp_query_result(gpu::TimestampQuery query, Slice32 range,
                                Vec<u64> & timestamps) override;
 
   virtual Result<Void, Status> get_statistics_query_result(
