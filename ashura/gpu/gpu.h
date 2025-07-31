@@ -14,11 +14,9 @@ namespace ash
 namespace gpu
 {
 
-inline constexpr u32 REMAINING_MIP_LEVELS   = ~0U;
-inline constexpr u32 REMAINING_ARRAY_LAYERS = ~0U;
-inline constexpr u64 WHOLE_SIZE             = ~0ULL;
-
-typedef u64 FrameId;
+inline constexpr u32 REMAINING_MIP_LEVELS   = U32_MAX;
+inline constexpr u32 REMAINING_ARRAY_LAYERS = U32_MAX;
+inline constexpr u64 WHOLE_SIZE             = U64_MAX;
 
 typedef struct Buffer_T *              Buffer;
 typedef struct BufferView_T *          BufferView;
@@ -34,11 +32,13 @@ typedef struct ComputePipeline_T *     ComputePipeline;
 typedef struct GraphicsPipeline_T *    GraphicsPipeline;
 typedef struct TimestampQuery_T *      TimestampQuery;
 typedef struct StatisticsQuery_T *     StatisticsQuery;
-typedef struct CommandEncoder          CommandEncoder;
+typedef struct CommandEncoder *        CommandEncoderPtr;
+typedef struct CommandBuffer *         CommandBufferPtr;
 typedef struct Surface_T *             Surface;
 typedef struct Swapchain_T *           Swapchain;
-typedef struct Device                  Device;
-typedef struct Instance                Instance;
+typedef struct QueueScope_T *          QueueScope;
+typedef struct Device *                DevicePtr;
+typedef struct Instance *              InstancePtr;
 
 enum class ObjectType : u32
 {
@@ -618,7 +618,7 @@ ASH_BIT_ENUM_OPS(ShaderStages)
 
 enum class PipelineStages : u64
 {
-  NONE                  = 0x0000'0000,
+  None                  = 0x0000'0000,
   TopOfPipe             = 0x0000'0001,
   DrawIndirect          = 0x0000'0002,
   VertexInput           = 0x0000'0004,
@@ -692,11 +692,15 @@ enum class DescriptorType : u8
   UniformTexelBuffer   = 4,
   StorageTexelBuffer   = 5,
   UniformBuffer        = 6,
-  StorageBuffer        = 7,
-  DynamicUniformBuffer = 8,
-  DynamicStorageBuffer = 9,
-  InputAttachment      = 10
+  ReadStorageBuffer    = 7,
+  RWStorageBuffer      = 8,
+  DynUniformBuffer     = 9,
+  DynReadStorageBuffer = 10,
+  DynRWStorageBuffer   = 11,
+  InputAttachment      = 12
 };
+
+constexpr u8 NUM_DESCRIPTOR_TYPES = 13;
 
 enum class IndexType : u8
 {
@@ -734,11 +738,11 @@ enum class MemoryType : u8
   Group  = 1
 };
 
-using Object =
-  Enum<Instance *, Device *, CommandEncoder *, Buffer, BufferView, Image,
-       ImageView, MemoryGroup, Sampler, Shader, DescriptorSetLayout,
-       DescriptorSet, PipelineCache, ComputePipeline, GraphicsPipeline,
-       TimestampQuery, StatisticsQuery, Surface, Swapchain>;
+using Object = Enum<InstancePtr, DevicePtr, CommandEncoderPtr, CommandBufferPtr,
+                    Buffer, BufferView, Image, ImageView, MemoryGroup, Sampler,
+                    Shader, DescriptorSetLayout, DescriptorSet, PipelineCache,
+                    ComputePipeline, GraphicsPipeline, TimestampQuery,
+                    StatisticsQuery, Surface, Swapchain, QueueScope>;
 
 struct SurfaceFormat
 {
@@ -786,19 +790,16 @@ struct FormatProperties
 
 struct ImageSubresourceRange
 {
-  ImageAspects aspects           = ImageAspects::None;
-  u32          first_mip_level   = 0;
-  u32          num_mip_levels    = 0;
-  u32          first_array_layer = 0;
-  u32          num_array_layers  = 0;
+  ImageAspects aspects    = ImageAspects::None;
+  Slice32      mip_levels = {};
+  Slice32      layers     = {};
 };
 
 struct ImageSubresourceLayers
 {
-  ImageAspects aspects           = ImageAspects::None;
-  u32          mip_level         = 0;
-  u32          first_array_layer = 0;
-  u32          num_array_layers  = 0;
+  ImageAspects aspects   = ImageAspects::None;
+  u32          mip_level = 0;
+  Slice32      layers    = {};
 };
 
 struct MemoryGroupInfo
@@ -819,11 +820,10 @@ struct BufferInfo
 /// format interpretation of a buffer's contents
 struct BufferViewInfo
 {
-  Str    label  = {};
-  Buffer buffer = nullptr;
-  Format format = Format::Undefined;
-  u64    offset = 0;
-  u64    size   = 0;
+  Str     label  = {};
+  Buffer  buffer = nullptr;
+  Format  format = Format::Undefined;
+  Slice64 slice  = {};
 };
 
 struct ImageInfo
@@ -849,16 +849,14 @@ struct ImageInfo
 ///
 struct ImageViewInfo
 {
-  Str              label             = {};
-  Image            image             = nullptr;
-  ImageViewType    view_type         = ImageViewType::Type1D;
-  Format           view_format       = Format::Undefined;
-  ComponentMapping mapping           = {};
-  ImageAspects     aspects           = ImageAspects::None;
-  u32              first_mip_level   = 0;
-  u32              num_mip_levels    = 0;
-  u32              first_array_layer = 0;
-  u32              num_array_layers  = 0;
+  Str              label        = {};
+  Image            image        = nullptr;
+  ImageViewType    view_type    = ImageViewType::Type1D;
+  Format           view_format  = Format::Undefined;
+  ComponentMapping mapping      = {};
+  ImageAspects     aspects      = ImageAspects::None;
+  Slice32          mip_levels   = {};
+  Slice32          array_layers = {};
 };
 
 struct SamplerInfo
@@ -924,9 +922,8 @@ struct ImageBinding
 
 struct BufferBinding
 {
-  Buffer buffer = nullptr;
-  u64    offset = 0;
-  u64    size   = 0;
+  Buffer  buffer = nullptr;
+  Slice64 range  = {};
 };
 
 struct DescriptorSetUpdate
@@ -1100,9 +1097,8 @@ struct DrawIndexedCommand
 
 struct BufferCopy
 {
-  u64 src_offset = 0;
-  u64 size       = 0;
-  u64 dst_offset = 0;
+  Slice64 src_range{};
+  u64     dst_offset = 0;
 };
 
 struct BufferImageCopy
@@ -1173,6 +1169,7 @@ struct SwapchainInfo
   PresentMode    present_mode        = PresentMode::Immediate;
   u32x2          preferred_extent    = {};
   CompositeAlpha composite_alpha     = CompositeAlpha::None;
+  Swapchain      old                 = nullptr;
 };
 
 /// @param generation increases everytime the swapchain for the surface is
@@ -1257,7 +1254,7 @@ struct CommandEncoder
 
   virtual void end_debug_marker() = 0;
 
-  virtual void fill_buffer(Buffer dst, u64 offset, u64 size, u32 data) = 0;
+  virtual void fill_buffer(Buffer dst, Slice64 range, u32 data) = 0;
 
   virtual void copy_buffer(Buffer src, Buffer dst,
                            Span<BufferCopy const> copies) = 0;
@@ -1327,20 +1324,46 @@ struct CommandEncoder
 
 struct CommandBuffer
 {
-  virtual void commit(CommandEncoder & encoder) = 0;
+  // [ ] processing deletion
+  // [ ] how to sequence encode->commit->submit with swapchain
+  //
+  // encode:
+  //
+  // commit:
+  //  - get immutable copy of current state
+  //  - copy the state to a local one
+  //  - update the local state
+  //  - record to command buffer
+  //  - return u64 of state index
+  //
+  //
+  // - in between acquiring state and modifying it, another thread might do the same, and we'd have state conflicts
+  //
+  // - we can store the encoder ids, when resolving state conflicts, we need to use the latest modified one across the encoders.
+  //
+  // - if they were running concurrently, we need to raise an error about conflicts
+  //
+  //
+  //
+  //
+  //
+  // --- synchronizing state changes between multiple threads?
+  //
+  //
+  //
+  // submit:
+  //
+  //
+  //
+  virtual void encode(CommandEncoder & encoder) = 0;
 };
 
-struct FrameContext
+struct QueueScopeInfo
 {
-  FrameId                      tail       = 0;
-  FrameId                      current    = 0;
-  Span<CommandEncoder * const> encoders   = {};
-  u32                          ring_index = 0;
-
-  u32 buffering() const
-  {
-    return size32(encoders);
-  }
+  u32 tail_frame    = 0;
+  u32 current_frame = 0;
+  u32 ring_index    = 0;
+  u32 buffering     = 0;
 };
 
 struct Device
@@ -1390,9 +1413,11 @@ struct Device
   virtual Result<StatisticsQuery, Status>
     create_statistics_query(u32 count) = 0;
 
-  virtual Result<CommandEncoder *, Status> create_command_encoder() = 0;
+  virtual Result<CommandEncoderPtr, Status> create_command_encoder() = 0;
 
-  virtual Result<CommandBuffer *, Status> create_command_buffer() = 0;
+  virtual Result<CommandBufferPtr, Status> create_command_buffer() = 0;
+
+  virtual Result<QueueScope, Status> create_queue_scope(u32 buffering) = 0;
 
   virtual void uninit(Buffer buffer) = 0;
 
@@ -1424,11 +1449,13 @@ struct Device
 
   virtual void uninit(StatisticsQuery query) = 0;
 
-  virtual void uninit(CommandEncoder * encoder) = 0;
+  virtual void uninit(CommandEncoderPtr encoder) = 0;
 
-  virtual void uninit(CommandBuffer * buffer) = 0;
+  virtual void uninit(CommandBufferPtr buffer) = 0;
 
-  virtual FrameContext get_frame_context() = 0;
+  virtual void uninit(QueueScope scope) = 0;
+
+  virtual QueueScopeInfo get_queue_scope_info(QueueScope scope) = 0;
 
   virtual Result<Span<u8>, Status> get_memory_map(Buffer buffer) = 0;
 
@@ -1468,10 +1495,6 @@ struct Device
   virtual Result<Void, Status>
     invalidate_swapchain(Swapchain swapchain, SwapchainInfo const & info) = 0;
 
-  // virtual Result<Void, Status> begin_frame(Swapchain swapchain) = 0;
-
-  // virtual Result<Void, Status> submit_frame(Swapchain swapchain) = 0;
-
   virtual Result<Void, Status>
     get_timestamp_query_result(TimestampQuery query, Slice32 range,
                                Vec<u64> & timestamps) = 0;
@@ -1479,19 +1502,28 @@ struct Device
   virtual Result<Void, Status>
     get_statistics_query_result(StatisticsQuery query, Slice32 range,
                                 Vec<PipelineStatistics> & statistics) = 0;
+
+  // virtual Result<Void, Status> begin_frame(Swapchain swapchain) = 0;
+
+  // virtual Result<Void, Status> submit_frame(Swapchain swapchain) = 0;
+
+  virtual u64 enqueue(CommandBuffer & buffer) = 0;
+
+  virtual void submit(CommandBuffer & buffer, QueueScope scope,
+                      Swapchain swapchain) = 0;
 };
 
 struct Instance
 {
   virtual ~Instance() = default;
 
-  virtual Result<Device *, Status>
+  virtual Result<DevicePtr, Status>
     create_device(AllocatorRef           allocator,
-                  Span<DeviceType const> preferred_types, u32 buffering) = 0;
+                  Span<DeviceType const> preferred_types) = 0;
 
   virtual Backend get_backend() = 0;
 
-  virtual void uninit(Device * device) = 0;
+  virtual void uninit(DevicePtr device) = 0;
 
   virtual void uninit(Surface surface) = 0;
 };

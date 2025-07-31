@@ -12,9 +12,6 @@ namespace ash
 namespace vk
 {
 
-// [ ] subresource binding is incorrect
-// [ ] need to be able to unbind descriptorset when view is destroyed but image or buffer is not
-
 #define BUFFER_FROM_VIEW(buffer_view) \
   ((Buffer *) (((BufferView *) (buffer_view))->info.buffer))
 #define IMAGE_FROM_VIEW(image_view) \
@@ -346,7 +343,7 @@ Layout64 MemoryGroup::layout() const
            Layout64{.alignment = alignment, .size = alias_offsets.last()};
 }
 
-u32 DescriptorBinding::size() const
+u32 DescriptorBinding::sync_size() const
 {
   return sync_resources.match(
     [](None) { return (u32) 0; }, [](auto & v) { return size32(v); },
@@ -415,15 +412,199 @@ void DescriptorSet::update_link(BindLocation const & loc, ImageView * next)
 
   if (current != nullptr)
   {
-    remove_bind_loc(current->image->bind_locations, loc);
+    remove_bind_loc(current->bind_locations, loc);
   }
 
   if (next != nullptr)
   {
-    next->image->bind_locations.push(loc).unwrap();
+    next->bind_locations.push(loc).unwrap();
   }
 
   current = next;
+}
+
+constexpr VkAccessFlags descriptor_access(gpu::DescriptorType type)
+{
+  switch (type)
+  {
+    case gpu::DescriptorType::Sampler:
+      return VK_ACCESS_NONE;
+    case gpu::DescriptorType::CombinedImageSampler:
+      return VK_ACCESS_SHADER_READ_BIT;
+    case gpu::DescriptorType::SampledImage:
+      return VK_ACCESS_SHADER_READ_BIT;
+    case gpu::DescriptorType::StorageImage:
+      return VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+    case gpu::DescriptorType::UniformTexelBuffer:
+      return VK_ACCESS_SHADER_READ_BIT;
+    case gpu::DescriptorType::StorageTexelBuffer:
+      return VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+    case gpu::DescriptorType::UniformBuffer:
+      return VK_ACCESS_SHADER_READ_BIT;
+    case gpu::DescriptorType::ReadStorageBuffer:
+      return VK_ACCESS_SHADER_READ_BIT;
+    case gpu::DescriptorType::RWStorageBuffer:
+      return VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+    case gpu::DescriptorType::DynUniformBuffer:
+      return VK_ACCESS_SHADER_READ_BIT;
+    case gpu::DescriptorType::DynReadStorageBuffer:
+      return VK_ACCESS_SHADER_READ_BIT;
+    case gpu::DescriptorType::DynRWStorageBuffer:
+      return VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+    case gpu::DescriptorType::InputAttachment:
+      return VK_ACCESS_SHADER_READ_BIT;
+    default:
+      return VK_ACCESS_NONE;
+  }
+}
+
+constexpr VkImageLayout descriptor_image_layout(gpu::DescriptorType type)
+{
+  switch (type)
+  {
+    case gpu::DescriptorType::Sampler:
+      return VK_IMAGE_LAYOUT_UNDEFINED;
+    case gpu::DescriptorType::CombinedImageSampler:
+      return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    case gpu::DescriptorType::SampledImage:
+      return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    case gpu::DescriptorType::StorageImage:
+      return VK_IMAGE_LAYOUT_GENERAL;
+    case gpu::DescriptorType::UniformTexelBuffer:
+      return VK_IMAGE_LAYOUT_UNDEFINED;
+    case gpu::DescriptorType::StorageTexelBuffer:
+      return VK_IMAGE_LAYOUT_UNDEFINED;
+    case gpu::DescriptorType::UniformBuffer:
+      return VK_IMAGE_LAYOUT_UNDEFINED;
+    case gpu::DescriptorType::ReadStorageBuffer:
+      return VK_IMAGE_LAYOUT_UNDEFINED;
+    case gpu::DescriptorType::RWStorageBuffer:
+      return VK_IMAGE_LAYOUT_UNDEFINED;
+    case gpu::DescriptorType::DynUniformBuffer:
+      return VK_IMAGE_LAYOUT_UNDEFINED;
+    case gpu::DescriptorType::DynReadStorageBuffer:
+      return VK_IMAGE_LAYOUT_UNDEFINED;
+    case gpu::DescriptorType::DynRWStorageBuffer:
+      return VK_IMAGE_LAYOUT_UNDEFINED;
+    case gpu::DescriptorType::InputAttachment:
+      return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    default:
+      return VK_IMAGE_LAYOUT_UNDEFINED;
+  }
+}
+
+constexpr gpu::ImageUsage descriptor_image_usage(gpu::DescriptorType type)
+{
+  switch (type)
+  {
+    case gpu::DescriptorType::Sampler:
+      return gpu::ImageUsage::None;
+    case gpu::DescriptorType::CombinedImageSampler:
+      return gpu::ImageUsage::Sampled;
+    case gpu::DescriptorType::SampledImage:
+      return gpu::ImageUsage::Sampled;
+    case gpu::DescriptorType::StorageImage:
+      return gpu::ImageUsage::Storage;
+    case gpu::DescriptorType::UniformTexelBuffer:
+      return gpu::ImageUsage::None;
+    case gpu::DescriptorType::StorageTexelBuffer:
+      return gpu::ImageUsage::None;
+    case gpu::DescriptorType::UniformBuffer:
+      return gpu::ImageUsage::None;
+    case gpu::DescriptorType::ReadStorageBuffer:
+      return gpu::ImageUsage::None;
+    case gpu::DescriptorType::RWStorageBuffer:
+      return gpu::ImageUsage::None;
+    case gpu::DescriptorType::DynUniformBuffer:
+      return gpu::ImageUsage::None;
+    case gpu::DescriptorType::DynReadStorageBuffer:
+      return gpu::ImageUsage::None;
+    case gpu::DescriptorType::DynRWStorageBuffer:
+      return gpu::ImageUsage::None;
+    case gpu::DescriptorType::InputAttachment:
+      return gpu::ImageUsage::InputAttachment;
+    default:
+      return gpu::ImageUsage::None;
+  }
+}
+
+constexpr gpu::BufferUsage descriptor_buffer_usage(gpu::DescriptorType type)
+{
+  switch (type)
+  {
+    case gpu::DescriptorType::Sampler:
+      return gpu::BufferUsage::None;
+    case gpu::DescriptorType::CombinedImageSampler:
+      return gpu::BufferUsage::None;
+    case gpu::DescriptorType::SampledImage:
+      return gpu::BufferUsage::None;
+    case gpu::DescriptorType::StorageImage:
+      return gpu::BufferUsage::None;
+    case gpu::DescriptorType::UniformTexelBuffer:
+      return gpu::BufferUsage::UniformTexelBuffer;
+    case gpu::DescriptorType::StorageTexelBuffer:
+      return gpu::BufferUsage::StorageTexelBuffer;
+    case gpu::DescriptorType::UniformBuffer:
+      return gpu::BufferUsage::UniformBuffer;
+    case gpu::DescriptorType::ReadStorageBuffer:
+      return gpu::BufferUsage::StorageBuffer;
+    case gpu::DescriptorType::RWStorageBuffer:
+      return gpu::BufferUsage::StorageBuffer;
+    case gpu::DescriptorType::DynUniformBuffer:
+      return gpu::BufferUsage::UniformBuffer;
+    case gpu::DescriptorType::DynReadStorageBuffer:
+      return gpu::BufferUsage::StorageBuffer;
+    case gpu::DescriptorType::DynRWStorageBuffer:
+      return gpu::BufferUsage::StorageBuffer;
+    case gpu::DescriptorType::InputAttachment:
+      return gpu::BufferUsage::None;
+    default:
+      return gpu::BufferUsage::None;
+  }
+}
+
+enum class SyncResourceType : u8
+{
+  None       = 0,
+  Buffer     = 1,
+  BufferView = 2,
+  ImageView  = 3
+};
+
+constexpr SyncResourceType
+  descriptor_sync_resource_type(gpu::DescriptorType type)
+{
+  switch (type)
+  {
+    case gpu::DescriptorType::Sampler:
+      return SyncResourceType::None;
+    case gpu::DescriptorType::CombinedImageSampler:
+      return SyncResourceType::ImageView;
+    case gpu::DescriptorType::SampledImage:
+      return SyncResourceType::ImageView;
+    case gpu::DescriptorType::StorageImage:
+      return SyncResourceType::ImageView;
+    case gpu::DescriptorType::UniformTexelBuffer:
+      return SyncResourceType::BufferView;
+    case gpu::DescriptorType::StorageTexelBuffer:
+      return SyncResourceType::BufferView;
+    case gpu::DescriptorType::UniformBuffer:
+      return SyncResourceType::Buffer;
+    case gpu::DescriptorType::ReadStorageBuffer:
+      return SyncResourceType::Buffer;
+    case gpu::DescriptorType::RWStorageBuffer:
+      return SyncResourceType::Buffer;
+    case gpu::DescriptorType::DynUniformBuffer:
+      return SyncResourceType::Buffer;
+    case gpu::DescriptorType::DynReadStorageBuffer:
+      return SyncResourceType::Buffer;
+    case gpu::DescriptorType::DynRWStorageBuffer:
+      return SyncResourceType::Buffer;
+    case gpu::DescriptorType::InputAttachment:
+      return SyncResourceType::ImageView;
+    default:
+      return SyncResourceType::None;
+  }
 }
 
 MemoryAccess BufferAccess::to_memory() const
@@ -468,6 +649,49 @@ MemoryAccess ImageHazard::latest_acccess() const
   }
 }
 
+void HazardBarriers::begin_pass()
+{
+  auto first_buffer = passes_.is_empty() ? 0 : passes_.last().buffers.end();
+  auto first_image  = passes_.is_empty() ? 0 : passes_.last().images.end();
+  auto first_mem    = passes_.is_empty() ? 0 : passes_.last().memory.end();
+  passes_
+    .push(Entry{
+      .buffers = {first_buffer, 0},
+      .images  = {first_image,  0},
+      .memory  = {first_mem,    0},
+  })
+    .unwrap();
+}
+
+void HazardBarriers::end_pass()
+{
+}
+
+void HazardBarriers::buffer(VkPipelineStageFlags src, VkPipelineStageFlags dst,
+                            VkBufferMemoryBarrier buffer)
+{
+  // [ ] shouldn't stages be merged?
+  stage_.push(Stage{.src = src, .dst = dst}).unwrap();
+  buffer_.push(buffer).unwrap();
+  passes_.last().buffers.span++;
+}
+
+void HazardBarriers::image(VkPipelineStageFlags src, VkPipelineStageFlags dst,
+                           VkImageMemoryBarrier image)
+{
+  stage_.push(Stage{.src = src, .dst = dst}).unwrap();
+  image_.push(image).unwrap();
+  passes_.last().images.span++;
+}
+
+void HazardBarriers::mem(VkPipelineStageFlags src, VkPipelineStageFlags dst,
+                         VkMemoryBarrier memory)
+{
+  stage_.push(Stage{.src = src, .dst = dst}).unwrap();
+  mem_.push(memory).unwrap();
+  passes_.last().memory.span++;
+}
+
 // layout transitions are considered write operations even if only a read
 // happens so multiple ones can't happen at the same time
 //
@@ -481,28 +705,24 @@ void ResourceHazardHeap::barrier(Image const &       image,
                                  ImageAccess const & new_state,
                                  HazardBarriers &    barriers)
 {
-  barriers.image
-    .push(ImageBarrier{
-      .src_stages = old_state.stages,
-      .dst_stages = new_state.stages,
-      .barrier    = {.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-                     .pNext               = nullptr,
-                     .srcAccessMask       = old_state.access,
-                     .dstAccessMask       = new_state.access,
-                     .oldLayout           = old_state.layout,
-                     .newLayout           = new_state.layout,
-                     .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                     .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                     .image               = image.vk_image,
-                     .subresourceRange    = {.aspectMask =
-                                               (VkImageAspectFlags) image.aspects,
-                                             .baseMipLevel = 0,
-                                             .levelCount   = VK_REMAINING_MIP_LEVELS,
-                                             .baseArrayLayer = 0,
-                                             .layerCount =
-                                               VK_REMAINING_ARRAY_LAYERS}}
-  })
-    .unwrap();
+  barriers.image(
+    old_state.stages, new_state.stages,
+    {
+      .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+      .pNext               = nullptr,
+      .srcAccessMask       = old_state.access,
+      .dstAccessMask       = new_state.access,
+      .oldLayout           = old_state.layout,
+      .newLayout           = new_state.layout,
+      .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .image               = image.vk_image,
+      .subresourceRange    = {.aspectMask     = (VkImageAspectFlags) image.aspects,
+                              .baseMipLevel   = 0,
+                              .levelCount     = VK_REMAINING_MIP_LEVELS,
+                              .baseArrayLayer = 0,
+                              .layerCount     = VK_REMAINING_ARRAY_LAYERS}
+  });
 }
 
 void ResourceHazardHeap::barrier(Buffer const &       buffer,
@@ -510,48 +730,38 @@ void ResourceHazardHeap::barrier(Buffer const &       buffer,
                                  BufferAccess const & new_state,
                                  HazardBarriers &     barriers)
 {
-  barriers.buffer
-    .push(BufferBarrier{
-      .src_stages = old_state.stages,
-      .dst_stages = new_state.stages,
-      .barrier    = {.sType         = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-                     .pNext         = nullptr,
-                     .srcAccessMask = old_state.access,
-                     .dstAccessMask = new_state.access,
-                     .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                     .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                     .buffer              = buffer.vk_buffer,
-                     .offset              = 0,
-                     .size                = VK_WHOLE_SIZE}
-  })
-    .unwrap();
+  barriers.buffer(old_state.stages, new_state.stages,
+                  {.sType         = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+                   .pNext         = nullptr,
+                   .srcAccessMask = old_state.access,
+                   .dstAccessMask = new_state.access,
+                   .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                   .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                   .buffer              = buffer.vk_buffer,
+                   .offset              = 0,
+                   .size                = VK_WHOLE_SIZE});
 }
 
 void ResourceHazardHeap::barrier(MemoryAccess const & old_state,
                                  MemoryAccess const & new_state,
                                  HazardBarriers &     barriers)
 {
-  barriers.memory
-    .push(MemoryBarrier{
-      .src_stages = old_state.stages,
-      .dst_stages = new_state.stages,
-      .barrier    = {.sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
-                     .pNext         = nullptr,
-                     .srcAccessMask = old_state.access,
-                     .dstAccessMask = new_state.access}
-  })
-    .unwrap();
+  barriers.mem(old_state.stages, new_state.stages,
+               {.sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+                .pNext         = nullptr,
+                .srcAccessMask = old_state.access,
+                .dstAccessMask = new_state.access});
 }
 
 void ResourceHazardHeap::access(Image const & image, ImageAccess const & state,
                                 u64 pass, HazardBarriers & barriers)
 {
   // only one element of the alias can issue a barrier for a pass
-  auto const mem_id =
-    image.memory.memory_group->alias_ids[image.memory.group_binding];
-  auto &     hazard   = memory_hazards[(usize) mem_id].v0;
+  auto const alias_id =
+    image.memory.memory_group->alias_ids[image.memory.alias];
+  auto &     hazard   = memory_hazards[alias_id].v0;
   auto const has_read = has_read_access(state.access);
-  auto const alias    = image.memory.alias_binding;
+  auto const element  = image.memory.element;
 
   if (pass <= hazard.pass)
   {
@@ -568,11 +778,11 @@ void ResourceHazardHeap::access(Image const & image, ImageAccess const & state,
 
     hazard = MemoryHazard{
       .pass    = pass,
-      .binding = ImageHazard{.alias  = alias,
-                             .type   = HazardType::Write,
-                             .reads  = {},
-                             .write  = state,
-                             .layout = state.layout}
+      .binding = ImageHazard{.element = element,
+                             .type    = HazardType::Write,
+                             .reads   = {},
+                             .write   = state,
+                             .layout  = state.layout}
     };
   };
 
@@ -588,7 +798,7 @@ void ResourceHazardHeap::access(Image const & image, ImageAccess const & state,
       auto const previous_reads = h.reads;
       auto const previous_write = h.write;
 
-      if (h.alias != alias)
+      if (h.element != element)
       {
         discard(h.latest_acccess());
         return;
@@ -603,11 +813,11 @@ void ResourceHazardHeap::access(Image const & image, ImageAccess const & state,
           {
             hazard = MemoryHazard{
               .pass    = pass,
-              .binding = ImageHazard{.alias  = alias,
-                                     .type   = HazardType::Write,
-                                     .reads  = {},
-                                     .write  = state,
-                                     .layout = state.layout}
+              .binding = ImageHazard{.element = element,
+                                     .type    = HazardType::Write,
+                                     .reads   = {},
+                                     .write   = state,
+                                     .layout  = state.layout}
             };
 
             if (needs_transition)
@@ -628,11 +838,11 @@ void ResourceHazardHeap::access(Image const & image, ImageAccess const & state,
           {
             hazard = MemoryHazard{
               .pass    = pass,
-              .binding = ImageHazard{.alias  = alias,
-                                     .type   = HazardType::Reads,
-                                     .reads  = state,
-                                     .write  = {},
-                                     .layout = state.layout}
+              .binding = ImageHazard{.element = element,
+                                     .type    = HazardType::Reads,
+                                     .reads   = state,
+                                     .write   = {},
+                                     .layout  = state.layout}
             };
 
             return;
@@ -650,11 +860,11 @@ void ResourceHazardHeap::access(Image const & image, ImageAccess const & state,
 
             hazard = MemoryHazard{
               .pass    = pass,
-              .binding = ImageHazard{.alias  = alias,
-                                     .type   = HazardType::Write,
-                                     .reads  = {},
-                                     .write  = state,
-                                     .layout = state.layout}
+              .binding = ImageHazard{.element = element,
+                                     .type    = HazardType::Write,
+                                     .reads   = {},
+                                     .write   = state,
+                                     .layout  = state.layout}
             };
 
             barrier(image, previous_reads, state, barriers);
@@ -670,12 +880,12 @@ void ResourceHazardHeap::access(Image const & image, ImageAccess const & state,
             hazard = MemoryHazard{
               .pass    = pass,
               .binding = ImageHazard{
-                                     .alias  = alias,
-                                     .type   = HazardType::Reads,
-                                     .reads  = {.stages = previous_reads.stages | state.stages,
-                           .access = previous_reads.access | state.access},
-                                     .write  = {},
-                                     .layout = state.layout}
+                                     .element = element,
+                                     .type    = HazardType::Reads,
+                                     .reads   = {.stages = previous_reads.stages | state.stages,
+                            .access = previous_reads.access | state.access},
+                                     .write   = {},
+                                     .layout  = state.layout}
             };
 
             return;
@@ -693,11 +903,11 @@ void ResourceHazardHeap::access(Image const & image, ImageAccess const & state,
             // access
             hazard = MemoryHazard{
               .pass    = pass,
-              .binding = ImageHazard{.alias  = alias,
-                                     .type   = HazardType::Write,
-                                     .reads  = {},
-                                     .write  = state,
-                                     .layout = state.layout}
+              .binding = ImageHazard{.element = element,
+                                     .type    = HazardType::Write,
+                                     .reads   = {},
+                                     .write   = state,
+                                     .layout  = state.layout}
             };
 
             barrier(image, previous_write, state, barriers);
@@ -711,11 +921,11 @@ void ResourceHazardHeap::access(Image const & image, ImageAccess const & state,
 
             hazard = MemoryHazard{
               .pass    = pass,
-              .binding = ImageHazard{.alias  = alias,
-                                     .type   = HazardType::ReadsAfterWrite,
-                                     .reads  = state,
-                                     .write  = previous_write,
-                                     .layout = state.layout}
+              .binding = ImageHazard{.element = element,
+                                     .type    = HazardType::ReadsAfterWrite,
+                                     .reads   = state,
+                                     .write   = previous_write,
+                                     .layout  = state.layout}
             };
 
             barrier(image, previous_write, state, barriers);
@@ -735,11 +945,11 @@ void ResourceHazardHeap::access(Image const & image, ImageAccess const & state,
 
             hazard = MemoryHazard{
               .pass    = pass,
-              .binding = ImageHazard{.alias  = alias,
-                                     .type   = HazardType::Write,
-                                     .reads  = {},
-                                     .write  = state,
-                                     .layout = state.layout}
+              .binding = ImageHazard{.element = element,
+                                     .type    = HazardType::Write,
+                                     .reads   = {},
+                                     .write   = state,
+                                     .layout  = state.layout}
             };
 
             barrier(image, previous_reads, state, barriers);
@@ -767,12 +977,12 @@ void ResourceHazardHeap::access(Image const & image, ImageAccess const & state,
               hazard = MemoryHazard{
                 .pass    = pass,
                 .binding = ImageHazard{
-                                       .alias  = alias,
-                                       .type   = HazardType::ReadsAfterWrite,
-                                       .reads  = {.stages = previous_reads.stages | state.stages,
-                             .access = previous_reads.access | state.access},
-                                       .write  = previous_write,
-                                       .layout = state.layout}
+                                       .element = element,
+                                       .type    = HazardType::ReadsAfterWrite,
+                                       .reads   = {.stages = previous_reads.stages | state.stages,
+                              .access = previous_reads.access | state.access},
+                                       .write   = previous_write,
+                                       .layout  = state.layout}
               };
               return;
             }
@@ -780,12 +990,12 @@ void ResourceHazardHeap::access(Image const & image, ImageAccess const & state,
             hazard = MemoryHazard{
               .pass    = pass,
               .binding = ImageHazard{
-                                     .alias  = alias,
-                                     .type   = HazardType::ReadsAfterWrite,
-                                     .reads  = {.stages = previous_reads.stages | state.stages,
-                           .access = previous_reads.access | state.access},
-                                     .write  = previous_write,
-                                     .layout = state.layout}
+                                     .element = element,
+                                     .type    = HazardType::ReadsAfterWrite,
+                                     .reads   = {.stages = previous_reads.stages | state.stages,
+                            .access = previous_reads.access | state.access},
+                                     .write   = previous_write,
+                                     .layout  = state.layout}
             };
 
             barrier(image, previous_write, state, barriers);
@@ -808,12 +1018,12 @@ void ResourceHazardHeap::access(Buffer const &       buffer,
                                 BufferAccess const & state, u64 pass,
                                 HazardBarriers & barriers)
 {
-  auto const mem_id =
-    buffer.memory.memory_group->alias_ids[buffer.memory.group_binding];
-  auto &     hazard    = memory_hazards[(usize) mem_id].v0;
+  auto const alias_id =
+    buffer.memory.memory_group->alias_ids[buffer.memory.alias];
+  auto &     hazard    = memory_hazards[alias_id].v0;
   auto const has_write = has_write_access(state.access);
   auto const has_read  = has_read_access(state.access);
-  auto const alias     = buffer.memory.alias_binding;
+  auto const element   = buffer.memory.element;
 
   if (pass <= hazard.pass)
   {
@@ -830,7 +1040,7 @@ void ResourceHazardHeap::access(Buffer const &       buffer,
     hazard = MemoryHazard{
       .pass = pass,
       .binding =
-        BufferHazard{.alias = alias,
+        BufferHazard{.element = element,
                      .type  = has_write ? HazardType::Write : HazardType::Reads,
                      .reads = {},
                      .write = state}
@@ -850,10 +1060,10 @@ void ResourceHazardHeap::access(Buffer const &       buffer,
           {
             hazard = MemoryHazard{
               .pass    = pass,
-              .binding = BufferHazard{.alias = alias,
-                                      .type  = HazardType::Write,
-                                      .reads = {},
-                                      .write = state}
+              .binding = BufferHazard{.element = element,
+                                      .type    = HazardType::Write,
+                                      .reads   = {},
+                                      .write   = state}
             };
 
             return;
@@ -863,10 +1073,10 @@ void ResourceHazardHeap::access(Buffer const &       buffer,
           {
             hazard = MemoryHazard{
               .pass    = pass,
-              .binding = BufferHazard{.alias = alias,
-                                      .type  = HazardType::Reads,
-                                      .reads = state,
-                                      .write = {}}
+              .binding = BufferHazard{.element = element,
+                                      .type    = HazardType::Reads,
+                                      .reads   = state,
+                                      .write   = {}}
             };
 
             return;
@@ -884,10 +1094,10 @@ void ResourceHazardHeap::access(Buffer const &       buffer,
             // wait on this write
             hazard = MemoryHazard{
               .pass    = pass,
-              .binding = BufferHazard{.alias = alias,
-                                      .type  = HazardType::Write,
-                                      .reads = {},
-                                      .write = state}
+              .binding = BufferHazard{.element = element,
+                                      .type    = HazardType::Write,
+                                      .reads   = {},
+                                      .write   = state}
             };
 
             barrier(buffer, previous_reads, state, barriers);
@@ -903,11 +1113,11 @@ void ResourceHazardHeap::access(Buffer const &       buffer,
             hazard = MemoryHazard{
               .pass    = pass,
               .binding = BufferHazard{
-                                      .alias = alias,
-                                      .type  = HazardType::Reads,
-                                      .reads = {.stages = previous_reads.stages | state.stages,
-                          .access = previous_reads.access | state.access},
-                                      .write = state}
+                                      .element = element,
+                                      .type    = HazardType::Reads,
+                                      .reads   = {.stages = previous_reads.stages | state.stages,
+                            .access = previous_reads.access | state.access},
+                                      .write   = state}
             };
 
             return;
@@ -925,10 +1135,10 @@ void ResourceHazardHeap::access(Buffer const &       buffer,
             // access
             hazard = MemoryHazard{
               .pass    = pass,
-              .binding = BufferHazard{.alias = alias,
-                                      .type  = HazardType::Write,
-                                      .reads = {},
-                                      .write = state}
+              .binding = BufferHazard{.element = element,
+                                      .type    = HazardType::Write,
+                                      .reads   = {},
+                                      .write   = state}
             };
 
             barrier(buffer, previous_write, state, barriers);
@@ -941,10 +1151,10 @@ void ResourceHazardHeap::access(Buffer const &       buffer,
             // wait till all write stages are done
             hazard = MemoryHazard{
               .pass    = pass,
-              .binding = BufferHazard{.alias = alias,
-                                      .type  = HazardType::ReadsAfterWrite,
-                                      .reads = state,
-                                      .write = previous_write}
+              .binding = BufferHazard{.element = element,
+                                      .type    = HazardType::ReadsAfterWrite,
+                                      .reads   = state,
+                                      .write   = previous_write}
             };
 
             barrier(buffer, previous_write, state, barriers);
@@ -964,10 +1174,10 @@ void ResourceHazardHeap::access(Buffer const &       buffer,
 
             hazard = MemoryHazard{
               .pass    = pass,
-              .binding = BufferHazard{.alias = alias,
-                                      .type  = HazardType::Write,
-                                      .reads = {},
-                                      .write = state}
+              .binding = BufferHazard{.element = element,
+                                      .type    = HazardType::Write,
+                                      .reads   = {},
+                                      .write   = state}
             };
 
             barrier(buffer, previous_reads, state, barriers);
@@ -995,11 +1205,11 @@ void ResourceHazardHeap::access(Buffer const &       buffer,
               hazard      = MemoryHazard{
                      .pass    = pass,
                      .binding = BufferHazard{
-                                             .alias = alias,
-                                             .type  = HazardType::ReadsAfterWrite,
-                                             .reads = {.stages = previous_reads.stages | state.stages,
-                                 .access = previous_reads.access | state.access},
-                                             .write = previous_write}
+                                             .element = element,
+                                             .type    = HazardType::ReadsAfterWrite,
+                                             .reads   = {.stages = previous_reads.stages | state.stages,
+                                   .access = previous_reads.access | state.access},
+                                             .write   = previous_write}
               };
               return;
             }
@@ -1007,8 +1217,8 @@ void ResourceHazardHeap::access(Buffer const &       buffer,
             hazard = MemoryHazard{
               .pass    = pass,
               .binding = BufferHazard{
-                                      .alias = alias,
-                                      .type  = HazardType::ReadsAfterWrite,
+                                      .element = element,
+                                      .type    = HazardType::ReadsAfterWrite,
                                       .reads =
                   BufferAccess{.stages = previous_reads.stages | state.stages,
                                .access = previous_reads.access | state.access},
@@ -1034,34 +1244,112 @@ void ResourceHazardHeap::access(Buffer const &       buffer,
 }
 
 void ResourceHazardHeap::access(DescriptorSet const & set, u64 pass,
-                                HazardBarriers & barriers)
+                                VkPipelineStageFlags shader_stages,
+                                HazardBarriers &     barriers)
 {
-  // [ ] reclaim the memory range used by the buffer and invalidate all the binding resources that overlap/alias the same memory range
-  // [ ] if new resource is binded whilst others have been placed? how will sync work?
-  // [ ] store list of written-to resources so we know which to be tracked?; will also help with sets if propagated with it
-  // [ ] will this tracking work for aliasing?
-  // [ ] we need to know if descriptor set has mutating bindings so we can overlap draw commands if neccessary? read-only/readwrite
-  // [ ] how can we develop an early-rejection system? what attributes can we exploit?
-  // [ ] we don't need to track these, do we? we only need our copy of the resource heap state and then modify to declare the barriers to be inserted?
+  // [ ] need to be able to unbind descriptorset when view is destroyed but image or buffer is not
   // [ ] how do we manage overlap of renderpasses
-  // [ ] can we mark some memory as not hazarded after certain conditions?
-  // [ ] can we have a fast cache of hazarded resources in a large descriptor set?
-  // [ ] fix alias tracking
-  // [ ] how to track memory aliases
-  // [ ] how to track descriptor set bindings
-  // [ ] if an hazard has occured on one of its bindings' elements
-  // [ ] per-descriptor-set hazard tracking for large descriptor sets
+  // [ ] we need to consider a renderpass with multiple mutating draw commands to be split up as multiple passes in terms of synchronization
 
-  // [ ] notify binders that the resource has been invalidated
-  // [ ] reset hazard at the start of the frame? provided there's a sync; so that RAW will not persist
-  // [ ] state save and restore; i.e. across threads and when an operation fails that prevents it from being submitted
-  // [ ] will have buffer system that can be used to select state.
-  // [ ] make sure it works for Swapchain Images
-  // [ ] keep a set of transitioned resources?
-  // [ ] if resource is accessed, we need to get its binders and mark them as hazarded; read/write
-  // [ ] we nedd to log all access until there's a first hazard
+  // [ ] for subsequent accesses to the resources in different or same pass, we only need to issue a memorybarrier,
 
-  // [ ] we need a fast way to check that all the descriptor set's resources are in the expected state
+  auto & hazard = descriptor_set_hazards[set.id].v0;
+
+  /// if it is a read-only descriptor set we don't need to synchronize after the first synchronization pass
+  if (!set.is_mutating && pass != 0 && (pass - 1) == hazard.pass)
+  {
+    // [ ] this won't work if the scope isn't same
+    hazard.pass = pass;
+    return;
+  }
+
+  for (auto const & binding : set.bindings)
+  {
+    auto const access_flags = descriptor_access(binding.type);
+    binding.sync_resources.match(
+      [](None) {},
+      [&](auto const & buffers) {
+        for (Buffer * buffer : buffers)
+        {
+          if (buffer != nullptr)
+          {
+            access(
+              *buffer,
+              BufferAccess{.stages = shader_stages, .access = access_flags},
+              pass, barriers);
+          }
+        }
+      },
+      [&](auto const & buffer_views) {
+        for (BufferView * buffer_view : buffer_views)
+        {
+          if (buffer_view != nullptr)
+          {
+            access(
+              *buffer_view->buffer,
+              BufferAccess{.stages = shader_stages, .access = access_flags},
+              pass, barriers);
+          }
+        }
+      },
+      [&](auto const & image_views) {
+        for (ImageView * image_view : image_views)
+        {
+          // [ ] allow mutation, needed for PLS; means we need to sync each draw call?
+          if (image_view != nullptr)
+          {
+            auto layout = descriptor_image_layout(binding.type);
+
+            access(*image_view->image,
+                   ImageAccess{.stages = shader_stages,
+                               .access = access_flags,
+                               .layout = layout},
+                   pass, barriers);
+          }
+        }
+      });
+  }
+
+  hazard.pass = pass;
+}
+
+u32 AccessEncoder::begin_pass()
+{
+  auto index        = size32(passes_);
+  auto first_buffer = passes_.is_empty() ? 0 : passes_.last().buffers.end();
+  auto first_image  = passes_.is_empty() ? 0 : passes_.last().images.end();
+  auto first_descriptor_set =
+    passes_.is_empty() ? 0 : passes_.last().descriptor_sets.end();
+  passes_
+    .push(Entry{
+      .buffers         = {first_buffer,         0},
+      .images          = {first_image,          0},
+      .descriptor_sets = {first_descriptor_set, 0},
+  })
+    .unwrap();
+  return index;
+}
+
+void AccessEncoder::end_pass()
+{
+}
+
+void AccessEncoder::access(gpu::DescriptorSet set, DescriptorSetState state)
+{
+  descriptor_sets_.push(set, state).unwrap();
+  passes_.last().descriptor_sets.span++;
+}
+
+void AccessEncoder::access(gpu::Buffer buffer, BufferState state)
+{
+  buffers_.push(buffer, state).unwrap();
+  passes_.last().buffers.span++;
+}
+
+void AccessEncoder::access(gpu::Image image, ImageState state)
+{
+  images_.push(image, state).unwrap();
+  passes_.last().images.span++;
 }
 
 /*
@@ -1129,8 +1417,8 @@ struct ComputePassContext
 
 */
 
-inline bool is_image_view_type_compatible(gpu::ImageType     image_type,
-                                          gpu::ImageViewType view_type)
+constexpr bool is_image_view_type_compatible(gpu::ImageType     image_type,
+                                             gpu::ImageViewType view_type)
 {
   switch (view_type)
   {
@@ -1151,7 +1439,7 @@ inline bool is_image_view_type_compatible(gpu::ImageType     image_type,
   }
 }
 
-inline u64 index_type_size(gpu::IndexType type)
+constexpr u64 index_type_size(gpu::IndexType type)
 {
   switch (type)
   {
@@ -1164,32 +1452,24 @@ inline u64 index_type_size(gpu::IndexType type)
   }
 }
 
-inline bool is_valid_buffer_access(u64 size, u64 access_offset, u64 access_size,
-                                   u64 offset_alignment = 1)
+constexpr bool is_valid_buffer_access(u64 size, Slice64 access_range,
+                                      u64 offset_alignment)
 {
-  access_size =
-    (access_size == gpu::WHOLE_SIZE) ? (size - access_offset) : access_size;
-  return (access_size > 0) && (access_offset < size) &&
-         ((access_offset + access_size) <= size) &&
-         is_aligned(offset_alignment, access_offset);
+  access_range = access_range(size);
+  return !access_range.is_empty() &&
+         is_aligned(offset_alignment, access_range.offset);
 }
 
-inline bool is_valid_image_access(gpu::ImageAspects aspects, u32 num_levels,
-                                  u32               num_layers,
-                                  gpu::ImageAspects access_aspects,
-                                  u32 access_level, u32 num_access_levels,
-                                  u32 access_layer, u32 num_access_layers)
+constexpr bool is_valid_image_access(gpu::ImageAspects aspects,
+                                     u32 num_mip_levels, u32 num_array_layers,
+                                     gpu::ImageAspects access_aspects,
+                                     Slice32           access_mip_levels,
+                                     Slice32           access_array_layers)
 {
-  num_access_levels = num_access_levels == gpu::REMAINING_MIP_LEVELS ?
-                        (num_levels - access_level) :
-                        num_access_levels;
-  num_access_layers = num_access_layers == gpu::REMAINING_ARRAY_LAYERS ?
-                        (num_access_layers - access_layer) :
-                        num_access_layers;
-  return num_access_levels > 0 && num_access_layers > 0 &&
-         access_level < num_levels && access_layer < num_layers &&
-         (access_level + num_access_levels) <= num_levels &&
-         (access_layer + num_access_layers) <= num_layers &&
+  access_mip_levels   = access_mip_levels(num_mip_levels);
+  access_array_layers = access_array_layers(num_array_layers);
+
+  return !access_mip_levels.is_empty() && !access_array_layers.is_empty() &&
          has_bits(aspects, access_aspects) &&
          access_aspects != gpu::ImageAspects::None;
 }
@@ -1581,13 +1861,12 @@ void check_device_features(VkPhysicalDeviceFeatures feat)
 
 Result<gpu::Device *, Status>
   Instance::create_device(AllocatorRef                allocator,
-                          Span<gpu::DeviceType const> preferred_types,
-                          u32                         buffering)
+                          Span<gpu::DeviceType const> preferred_types)
 {
   constexpr u32 MAX_QUEUE_FAMILIES = 16;
 
-  CHECK(buffering > 0, "");
-  CHECK(buffering <= gpu::MAX_FRAME_BUFFERING, "");
+  // CHECK(buffering > 0, "");
+  // CHECK(buffering <= gpu::MAX_FRAME_BUFFERING, "");
 
   u32      num_devs;
   VkResult result =
@@ -1942,7 +2221,7 @@ Result<gpu::Device *, Status>
     .occlusionQueryPrecise          = VK_FALSE,
     .pipelineStatisticsQuery        = VK_TRUE,
     .vertexPipelineStoresAndAtomics = VK_FALSE,
-    .fragmentStoresAndAtomics       = VK_FALSE,
+    .fragmentStoresAndAtomics       = VK_TRUE,
     .shaderTessellationAndGeometryPointSize  = VK_FALSE,
     .shaderImageGatherExtended               = VK_FALSE,
     .shaderStorageImageExtendedFormats       = VK_FALSE,
@@ -2091,7 +2370,7 @@ Result<gpu::Device *, Status>
   dev->queue_family  = selected_queue_family;
   dev->vk_queue      = vk_queue;
   dev->vma_allocator = vma_allocator;
-  dev->frame_ctx     = FrameContext{};
+  // dev->frame_ctx     = FrameContext{};
   dev->scratch       = Vec<u8>{allocator};
 
   defer dev_{[&] {
@@ -2139,6 +2418,11 @@ void Instance::uninit(gpu::Device * device_)
 void Instance::uninit(gpu::Surface surface)
 {
   vk_table.DestroySurfaceKHR(vk_instance, (Surface) surface, nullptr);
+}
+
+u32 QueueScope::buffering() const
+{
+  return size32(submit_semaphores);
 }
 
 void Device::set_resource_name(Str label, void const * resource,
@@ -2251,12 +2535,16 @@ Result<gpu::Buffer, Status> Device::create_buffer(gpu::BufferInfo const & info)
   }
 
   new (buffer) Buffer{
-    .info      = info,
-    .vk_buffer = vk_buffer,
-    .state =
-      BufferState{.memory = MemoryInfo{.memory_group = nullptr,
-                                       .type         = info.memory_type,
-                                       .alias_state  = AliasState::Displaced}}};
+    .vk_buffer      = vk_buffer,
+    .usage          = info.usage,
+    .host_mapped    = info.host_mapped,
+    .size           = info.size,
+    .memory         = MemoryInfo{.memory_group = nullptr,
+                                 .alias        = 0,
+                                 .element      = 0,
+                                 .type         = gpu::MemoryType::Unique},
+    .bind_locations = BindLocations{allocator}
+  };
 
   if (info.memory_type == gpu::MemoryType::Unique)
   {
@@ -2282,15 +2570,14 @@ Result<gpu::BufferView, Status>
   auto * const buffer = (Buffer *) info.buffer;
 
   CHECK(buffer != nullptr, "");
-  CHECK(has_any_bit(buffer->info.usage, gpu::BufferUsage::UniformTexelBuffer |
-                                          gpu::BufferUsage::StorageTexelBuffer),
+  CHECK(has_any_bit(buffer->usage, gpu::BufferUsage::UniformTexelBuffer |
+                                     gpu::BufferUsage::StorageTexelBuffer),
         "");
   CHECK(info.format != gpu::Format::Undefined, "");
-  CHECK(is_valid_buffer_access(buffer->info.size, info.offset, info.size), "");
 
-  u64 const view_size = info.size == gpu::WHOLE_SIZE ?
-                          (buffer->info.size - info.offset) :
-                          info.size;
+  auto slice = info.slice(buffer->size);
+
+  CHECK(slice.span != 0, "");
 
   VkBufferViewCreateInfo create_info{
     .sType  = VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO,
@@ -2298,8 +2585,8 @@ Result<gpu::BufferView, Status>
     .flags  = 0,
     .buffer = buffer->vk_buffer,
     .format = (VkFormat) info.format,
-    .offset = info.offset,
-    .range  = info.size};
+    .offset = slice.offset,
+    .range  = slice.span};
 
   VkBufferView vk_view;
 
@@ -2321,9 +2608,10 @@ Result<gpu::BufferView, Status>
     return Err{Status::OutOfHostMemory};
   }
 
-  new (view) BufferView{.info = info, .vk_view = vk_view};
-
-  view->info.size = view_size;
+  new (view) BufferView{.vk_view        = vk_view,
+                        .buffer         = buffer,
+                        .slice          = slice,
+                        .bind_locations = BindLocations{allocator}};
 
   return Ok{(gpu::BufferView) view};
 }
@@ -2406,15 +2694,18 @@ Result<gpu::Image, Status> Device::create_image(gpu::ImageInfo const & info)
   }
 
   new (image) Image{
-    .info               = info,
-    .is_swapchain_image = false,
     .vk_image           = vk_image,
-    .state =
-      ImageState{.memory  = MemoryInfo{.memory_group = nullptr,
-                                       .type         = info.memory_type,
-                                       .alias_state  = AliasState::Displaced},
-                 .hazard  = ImageHazard{},
-                 .binders = {}}
+    .type               = info.type,
+    .usage              = info.usage,
+    .aspects            = info.aspects,
+    .sample_count       = info.sample_count,
+    .mip_levels         = info.mip_levels,
+    .array_layers       = info.array_layers,
+    .is_swapchain_image = false,
+    .memory             = MemoryInfo{.memory_group = nullptr,
+                                     .alias        = 0,
+                                     .element      = 0,
+                                     .type         = info.memory_type}
   };
 
   if (info.memory_type == gpu::MemoryType::Unique)
@@ -2442,21 +2733,19 @@ Result<gpu::ImageView, Status>
 
   CHECK(info.image != nullptr, "");
   CHECK(info.view_format != gpu::Format::Undefined, "");
-  CHECK(is_image_view_type_compatible(src_image->info.type, info.view_type),
-        "");
-  CHECK(is_valid_image_access(
-          src_image->info.aspects, src_image->info.mip_levels,
-          src_image->info.array_layers, info.aspects, info.first_mip_level,
-          info.num_mip_levels, info.first_array_layer, info.num_array_layers),
-        "");
+  CHECK(is_image_view_type_compatible(src_image->type, info.view_type), "");
+  // [ ] fix
+  // CHECK(is_valid_image_access(src_image->aspects, src_image->mip_levels,
+  //                             src_image->array_layers, info.aspects,
+  //                             info.first_mip_level, info.num_mip_levels,
+  //                             info.first_array_layer, info.num_array_layers),
+  //       "");
 
-  u32 const mip_levels = info.num_mip_levels == gpu::REMAINING_MIP_LEVELS ?
-                           (src_image->info.mip_levels - info.first_mip_level) :
-                           info.num_mip_levels;
-  u32 const array_layers =
-    info.num_array_layers == gpu::REMAINING_ARRAY_LAYERS ?
-      (src_image->info.array_layers - info.first_array_layer) :
-      info.num_array_layers;
+  auto mip_levels   = info.mip_levels(src_image->mip_levels);
+  auto array_layers = info.array_layers(src_image->array_layers);
+
+  CHECK(!mip_levels.is_empty(), "");
+  CHECK(!array_layers.is_empty(), "");
 
   VkImageViewCreateInfo create_info{
     .sType      = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -2471,10 +2760,10 @@ Result<gpu::ImageView, Status>
                                      .a = (VkComponentSwizzle) info.mapping.a},
     .subresourceRange =
       VkImageSubresourceRange{.aspectMask   = (VkImageAspectFlags) info.aspects,
-                                     .baseMipLevel = info.first_mip_level,
-                                     .levelCount   = info.num_mip_levels,
-                                     .baseArrayLayer = info.first_array_layer,
-                                     .layerCount     = info.num_array_layers}
+                                     .baseMipLevel = mip_levels.offset,
+                                     .levelCount   = mip_levels.span,
+                                     .baseArrayLayer = array_layers.offset,
+                                     .layerCount     = array_layers.span}
   };
 
   VkImageView vk_view;
@@ -2495,10 +2784,11 @@ Result<gpu::ImageView, Status>
     return Err{Status::OutOfHostMemory};
   }
 
-  new (view) ImageView{.info = info, .vk_view = vk_view};
-
-  view->info.num_mip_levels   = mip_levels;
-  view->info.num_array_layers = array_layers;
+  new (view) ImageView{.vk_view        = vk_view,
+                       .image          = src_image,
+                       .mip_levels     = mip_levels,
+                       .array_layers   = array_layers,
+                       .bind_locations = BindLocations{allocator}};
 
   return Ok{(gpu::ImageView) view};
 }
@@ -2528,11 +2818,11 @@ Result<gpu::MemoryGroup, Status>
       resource.match(
         [&](gpu::Buffer p) {
           auto buffer = (Buffer *) p;
-          CHECK(buffer->state.memory.type == gpu::MemoryType::Group, "");
+          CHECK(buffer->memory.memory_group == nullptr, "");
         },
         [&](gpu::Image p) {
           auto image = (Image *) p;
-          CHECK(image->state.memory.type == gpu::MemoryType::Group, "");
+          CHECK(image->memory.memory_group == nullptr, "");
         });
     }
   }
@@ -2560,12 +2850,12 @@ Result<gpu::MemoryGroup, Status>
       VkMemoryRequirements req{};
       resource.match(
         [&](gpu::Buffer p) {
-          auto buffer = (Buffer *) p;
+          auto buffer = ptr(p);
           vk_table.GetBufferMemoryRequirements(vk_dev, buffer->vk_buffer, &req);
-          alias_host_mapped = alias_host_mapped || buffer->info.host_mapped;
+          alias_host_mapped = alias_host_mapped || buffer->host_mapped;
         },
         [&](gpu::Image p) {
-          auto image = (Image *) p;
+          auto image = ptr(p);
           vk_table.GetImageMemoryRequirements(vk_dev, image->vk_image, &req);
         });
 
@@ -2627,19 +2917,19 @@ Result<gpu::MemoryGroup, Status>
       VkResult result = VK_SUCCESS;
       resource.match(
         [&](gpu::Buffer p) {
-          auto buffer = (Buffer *) p;
+          auto buffer = ptr(p);
           result =
             vmaBindBufferMemory2(vma_allocator, vma_allocation, alias_offset,
                                  buffer->vk_buffer, nullptr);
-          buffer->state.memory.group_binding = i;
-          buffer->state.memory.alias_binding = ialias;
+          buffer->memory.alias   = i;
+          buffer->memory.element = ialias;
         },
         [&](gpu::Image p) {
-          auto image = (Image *) p;
+          auto image = ptr(p);
           result     = vmaBindImageMemory2(vma_allocator, vma_allocation,
                                            alias_offset, image->vk_image, nullptr);
-          image->state.memory.group_binding = i;
-          image->state.memory.alias_binding = ialias;
+          image->memory.alias   = i;
+          image->memory.element = ialias;
         });
 
       CHECK(result == VK_SUCCESS, "");
@@ -2651,15 +2941,16 @@ Result<gpu::MemoryGroup, Status>
   CHECK(allocator->nalloc(1, group), "");
 
   // [ ] add clear_memory_group and rebind_group
-  SmallVec<u32> alias_bindings{allocator};
-  alias_bindings.resize(num_aliases).unwrap();
-
+  // [ ] alias ids
   // [ ] set alignment
+  SmallVec<AliasId> alias_ids{allocator};
+  // alias_ids.resize(num_aliases).unwrap();
 
   new (group) MemoryGroup{.vma_allocation = vma_allocation,
+                          .alignment      = 0,
                           .map            = vma_allocation_info.pMappedData,
                           .alias_offsets  = std::move(alias_offsets),
-                          .alias_bindings = std::move(alias_bindings)};
+                          .alias_ids      = std::move(alias_ids)};
 
   return Ok{(gpu::MemoryGroup) group};
 }
@@ -2731,12 +3022,58 @@ Result<gpu::Shader, Status> Device::create_shader(gpu::ShaderInfo const & info)
   return Ok{(gpu::Shader) vk_shader};
 }
 
+constexpr VkDescriptorType to_vk(gpu::DescriptorType type)
+{
+  switch (type)
+  {
+    case gpu::DescriptorType::Sampler:
+      return VK_DESCRIPTOR_TYPE_SAMPLER;
+    case gpu::DescriptorType::CombinedImageSampler:
+      return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    case gpu::DescriptorType::SampledImage:
+      return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+    case gpu::DescriptorType::StorageImage:
+      return VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    case gpu::DescriptorType::UniformTexelBuffer:
+      return VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER;
+    case gpu::DescriptorType::StorageTexelBuffer:
+      return VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER;
+    case gpu::DescriptorType::UniformBuffer:
+      return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    case gpu::DescriptorType::ReadStorageBuffer:
+      return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    case gpu::DescriptorType::RWStorageBuffer:
+      return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    case gpu::DescriptorType::DynUniformBuffer:
+      return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+    case gpu::DescriptorType::DynReadStorageBuffer:
+      return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
+    case gpu::DescriptorType::DynRWStorageBuffer:
+      return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
+    case gpu::DescriptorType::InputAttachment:
+      return VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+    default:
+      return VK_DESCRIPTOR_TYPE_MAX_ENUM;
+  }
+}
+
+bool is_mutating_binding(gpu::DescriptorBindingInfo const & binding)
+{
+  auto access_flags = descriptor_access(binding.type);
+  return has_write_access(access_flags);
+}
+
+bool is_mutating_set(Span<gpu::DescriptorBindingInfo const> bindings)
+{
+  return any_is(bindings, is_mutating_binding);
+}
+
 Result<gpu::DescriptorSetLayout, Status> Device::create_descriptor_set_layout(
   gpu::DescriptorSetLayoutInfo const & info)
 {
-  u32                              num_descriptors     = 0;
-  u32                              num_variable_length = 0;
-  Array<u32, NUM_DESCRIPTOR_TYPES> sizing              = {};
+  u32                                   num_descriptors     = 0;
+  u32                                   num_variable_length = 0;
+  Array<u32, gpu::NUM_DESCRIPTOR_TYPES> sizing              = {};
 
   for (gpu::DescriptorBindingInfo const & info : info.bindings)
   {
@@ -2745,14 +3082,17 @@ Result<gpu::DescriptorSetLayout, Status> Device::create_descriptor_set_layout(
     num_variable_length += info.is_variable_length ? 1 : 0;
   }
 
-  u32 num_dynamic_storage_buffers =
-    sizing[(u32) gpu::DescriptorType::DynamicStorageBuffer];
-  u32 num_dynamic_uniform_buffers =
-    sizing[(u32) gpu::DescriptorType::DynamicUniformBuffer];
+  auto num_dynamic_read_storage_buffers =
+    sizing[(u32) gpu::DescriptorType::DynReadStorageBuffer];
+  auto num_dynamic_read_write_storage_buffers =
+    sizing[(u32) gpu::DescriptorType::DynReadStorageBuffer];
+  auto num_dynamic_uniform_buffers =
+    sizing[(u32) gpu::DescriptorType::DynUniformBuffer];
 
   CHECK(info.bindings.size() > 0, "");
   CHECK(info.bindings.size() <= gpu::MAX_DESCRIPTOR_SET_BINDINGS, "");
-  CHECK(num_dynamic_storage_buffers <=
+  CHECK((num_dynamic_read_storage_buffers +
+         num_dynamic_read_write_storage_buffers) <=
           gpu::MAX_PIPELINE_DYNAMIC_STORAGE_BUFFERS,
         "");
   CHECK(num_dynamic_uniform_buffers <=
@@ -2760,9 +3100,11 @@ Result<gpu::DescriptorSetLayout, Status> Device::create_descriptor_set_layout(
         "");
   CHECK(num_descriptors <= gpu::MAX_DESCRIPTOR_SET_DESCRIPTORS, "");
   CHECK(num_variable_length <= 1, "");
-  CHECK(!(num_variable_length > 0 &&
-          (num_dynamic_storage_buffers > 0 || num_dynamic_uniform_buffers > 0)),
-        "");
+  CHECK(
+    !(num_variable_length > 0 && (num_dynamic_read_storage_buffers > 0 ||
+                                  num_dynamic_read_write_storage_buffers > 0 ||
+                                  num_dynamic_uniform_buffers > 0)),
+    "Variable-length descriptor sets must not have dynamic offsets");
 
   for (auto [i, binding] : enumerate<u32>(info.bindings))
   {
@@ -2779,17 +3121,16 @@ Result<gpu::DescriptorSetLayout, Status> Device::create_descriptor_set_layout(
 
   for (auto [i, binding] : enumerate<u32>(info.bindings))
   {
-    VkShaderStageFlags stage_flags =
+    auto stage_flags =
       (VkShaderStageFlags) (binding.type ==
                                 gpu::DescriptorType::InputAttachment ?
                               VK_SHADER_STAGE_FRAGMENT_BIT :
                               VK_SHADER_STAGE_ALL);
     vk_bindings
-      .push(VkDescriptorSetLayoutBinding{.binding = i,
-                                         .descriptorType =
-                                           (VkDescriptorType) binding.type,
-                                         .descriptorCount    = binding.count,
-                                         .stageFlags         = stage_flags,
+      .push(VkDescriptorSetLayoutBinding{.binding         = i,
+                                         .descriptorType  = to_vk(binding.type),
+                                         .descriptorCount = binding.count,
+                                         .stageFlags      = stage_flags,
                                          .pImmutableSamplers = nullptr})
       .unwrap();
 
@@ -2845,9 +3186,12 @@ Result<gpu::DescriptorSetLayout, Status> Device::create_descriptor_set_layout(
     bindings;
   bindings.extend(info.bindings).unwrap();
 
+  auto is_mutating = is_mutating_set(info.bindings);
+
   new (layout) DescriptorSetLayout{.vk_layout           = vk_layout,
                                    .bindings            = bindings,
-                                   .num_variable_length = num_variable_length};
+                                   .num_variable_length = num_variable_length,
+                                   .is_mutating         = is_mutating};
 
   vk_layout = nullptr;
 
@@ -2874,9 +3218,11 @@ Result<gpu::DescriptorSet, Status>
     }
   }
 
+  constexpr u32 NUM_VK_DESCRIPTOR_TYPES = 11;
+
   InplaceVec<u32, gpu::MAX_DESCRIPTOR_SET_BINDINGS> bindings_sizes;
 
-  Array<u32, NUM_DESCRIPTOR_TYPES> type_count;
+  Array<u32, NUM_VK_DESCRIPTOR_TYPES> vk_type_count;
 
   {
     u32 vlb_idx = 0;
@@ -2893,23 +3239,23 @@ Result<gpu::DescriptorSet, Status>
         vlb_idx++;
       }
 
-      type_count[(u32) binding.type] += count;
+      vk_type_count[(u32) to_vk(binding.type)] += count;
       bindings_sizes.push(count).unwrap();
     }
   }
 
-  InplaceVec<VkDescriptorPoolSize, NUM_DESCRIPTOR_TYPES> pool_sizes;
+  InplaceVec<VkDescriptorPoolSize, gpu::NUM_DESCRIPTOR_TYPES> pool_sizes;
 
-  for (auto [i, count] : enumerate<u32>(type_count))
+  for (auto [i, count] : enumerate<u32>(vk_type_count))
   {
-    if (type_count[i] == 0)
+    if (vk_type_count[i] == 0)
     {
       continue;
     }
 
     pool_sizes
       .push(VkDescriptorPoolSize{.type            = (VkDescriptorType) i,
-                                 .descriptorCount = type_count[i]})
+                                 .descriptorCount = vk_type_count[i]})
       .unwrap();
   }
 
@@ -2973,52 +3319,36 @@ Result<gpu::DescriptorSet, Status>
   {
     bindings
       .push(DescriptorBinding{
-        .sync_resources = none, .type = info.type, .size = size})
+        .sync_resources = none, .type = info.type, .count = size})
       .unwrap();
   }
 
-  for (auto & binding : bindings)
+  for (auto [binding, size] : zip(bindings, bindings_sizes))
   {
-    switch (binding.type)
+    auto sync_type = descriptor_sync_resource_type(binding.type);
+
+    switch (sync_type)
     {
-      case gpu::DescriptorType::DynamicStorageBuffer:
-      case gpu::DescriptorType::DynamicUniformBuffer:
-      case gpu::DescriptorType::StorageBuffer:
-      case gpu::DescriptorType::UniformBuffer:
-      {
-        auto resources = Vec<Buffer *>::make(binding.size, allocator).unwrap();
-        resources.resize(binding.size).unwrap();
-        binding.sync_resources = std::move(resources);
-      }
-      break;
-
-      case gpu::DescriptorType::StorageTexelBuffer:
-      case gpu::DescriptorType::UniformTexelBuffer:
-      {
-        auto resources =
-          Vec<BufferView *>::make(binding.size, allocator).unwrap();
-        resources.resize(binding.size).unwrap();
-        binding.sync_resources = std::move(resources);
-      }
-      break;
-
-      case gpu::DescriptorType::SampledImage:
-      case gpu::DescriptorType::CombinedImageSampler:
-      case gpu::DescriptorType::StorageImage:
-      case gpu::DescriptorType::InputAttachment:
-      {
-        auto resources =
-          Vec<ImageView *>::make(binding.size, allocator).unwrap();
-        resources.resize(binding.size).unwrap();
-        binding.sync_resources = std::move(resources);
-      }
-      break;
-
-      case gpu::DescriptorType::Sampler:
+      case SyncResourceType::None:
         break;
-
-      default:
-        break;
+      case SyncResourceType::Buffer:
+      {
+        binding.sync_resources =
+          SmallVec<Buffer *, 4>::make(size, allocator).unwrap();
+      }
+      break;
+      case SyncResourceType::BufferView:
+      {
+        binding.sync_resources =
+          SmallVec<BufferView *, 4>::make(size, allocator).unwrap();
+      }
+      break;
+      case SyncResourceType::ImageView:
+      {
+        binding.sync_resources =
+          SmallVec<ImageView *, 4>::make(size, allocator).unwrap();
+      }
+      break;
     }
   }
 
@@ -3029,8 +3359,11 @@ Result<gpu::DescriptorSet, Status>
     return Err{(gpu::Status) result};
   }
 
-  new (set) DescriptorSet{
-    .vk_set = vk_set, .vk_pool = vk_pool, .bindings = std::move(bindings)};
+  new (set) DescriptorSet{.vk_set  = vk_set,
+                          .vk_pool = vk_pool,
+                          .id      = DescriptorSetId::Undefined,    // [ ] impl
+                          .is_mutating = layout->is_mutating,
+                          .bindings    = std::move(bindings)};
 
   vk_pool = nullptr;
   vk_set  = nullptr;
@@ -3512,69 +3845,79 @@ Result<gpu::GraphicsPipeline, Status>
   return Ok{(gpu::GraphicsPipeline) pipeline};
 }
 
-/// old swapchain will be retired and destroyed irregardless of whether new
-/// swapchain recreation fails.
-VkResult Device::recreate_swapchain(Swapchain * swapchain)
+Result<gpu::Swapchain, Status>
+  Device::create_swapchain(gpu::Surface               surface,
+                           gpu::SwapchainInfo const & info)
 {
-  CHECK(swapchain->info.preferred_extent.x() > 0, "");
-  CHECK(swapchain->info.preferred_extent.y() > 0, "");
-  CHECK(swapchain->info.preferred_buffering <= gpu::MAX_SWAPCHAIN_IMAGES, "");
+  CHECK(info.preferred_extent.x() > 0, "");
+  CHECK(info.preferred_extent.y() > 0, "");
+  CHECK(info.preferred_buffering <= gpu::MAX_SWAPCHAIN_IMAGES, "");
+
+  auto vk_surface    = (VkSurfaceKHR) surface;
+  auto old_swapchain = (Swapchain *) info.old;
+
+  defer old_swapchain_{[&] {
+    if (old_swapchain != nullptr)
+    {
+      uninit((gpu::Swapchain) old_swapchain);
+    }
+  }};
 
   VkSurfaceCapabilitiesKHR surface_capabilities;
-  VkResult result = instance->vk_table.GetPhysicalDeviceSurfaceCapabilitiesKHR(
-    phy_dev.vk_phy_dev, swapchain->vk_surface, &surface_capabilities);
+  auto result = instance->vk_table.GetPhysicalDeviceSurfaceCapabilitiesKHR(
+    phy_dev.vk_phy_dev, vk_surface, &surface_capabilities);
 
   if (result != VK_SUCCESS)
   {
-    return result;
+    old_swapchain = nullptr;
+    return Err{(Status) result};
   }
 
   if (surface_capabilities.currentExtent.width == 0 ||
       surface_capabilities.currentExtent.height == 0)
   {
-    swapchain->is_zero_sized = true;
-    return VK_SUCCESS;
+    uninit(info.old);
+
+    Swapchain * swapchain;
+    if (!allocator->nalloc(1, swapchain))
+    {
+      return Err{Status::OutOfHostMemory};
+    }
+
+    new (swapchain) Swapchain{
+      .vk_swapchain    = nullptr,
+      .vk_surface      = vk_surface,
+      .images          = {},
+      .current_image   = none,
+      .is_out_of_date  = false,
+      .is_optimal      = true,
+      .is_zero_sized   = true,
+      .format          = info.format,
+      .usage           = info.usage,
+      .present_mode    = info.present_mode,
+      .extent          = {0, 0},
+      .composite_alpha = info.composite_alpha
+    };
+
+    return Ok{(gpu::Swapchain) swapchain};
   }
 
   CHECK(has_bits(surface_capabilities.supportedUsageFlags,
-                 (VkImageUsageFlags) swapchain->info.usage),
+                 (VkImageUsageFlags) info.usage),
         "");
   CHECK(has_bits(surface_capabilities.supportedCompositeAlpha,
-                 (VkImageUsageFlags) swapchain->info.composite_alpha),
+                 (VkImageUsageFlags) info.composite_alpha),
         "");
-
-  // take ownership of internal data for re-use/release
-  VkSwapchainKHR old_vk_swapchain = swapchain->vk_swapchain;
-  defer          old_vk_swapchain_{[&] {
-    if (old_vk_swapchain != nullptr)
-    {
-      vk_table.DestroySwapchainKHR(vk_dev, old_vk_swapchain, nullptr);
-    }
-  }};
-
-  swapchain->is_out_of_date  = true;
-  swapchain->is_optimal      = false;
-  swapchain->is_zero_sized   = false;
-  swapchain->format          = gpu::SurfaceFormat{};
-  swapchain->usage           = gpu::ImageUsage::None;
-  swapchain->present_mode    = gpu::PresentMode::Immediate;
-  swapchain->extent          = u32x2{};
-  swapchain->composite_alpha = gpu::CompositeAlpha::None;
-  swapchain->image_impls     = {};
-  swapchain->images          = {};
-  swapchain->vk_images       = {};
-  swapchain->current_image   = 0;
-  swapchain->vk_swapchain    = nullptr;
 
   VkExtent2D vk_extent;
 
   if (surface_capabilities.currentExtent.width == 0xFFFF'FFFFU &&
       surface_capabilities.currentExtent.height == 0xFFFF'FFFFU)
   {
-    vk_extent.width  = clamp(swapchain->info.preferred_extent.x(),
+    vk_extent.width  = clamp(info.preferred_extent.x(),
                              surface_capabilities.minImageExtent.width,
                              surface_capabilities.maxImageExtent.width);
-    vk_extent.height = clamp(swapchain->info.preferred_extent.y(),
+    vk_extent.height = clamp(info.preferred_extent.y(),
                              surface_capabilities.minImageExtent.height,
                              surface_capabilities.maxImageExtent.height);
   }
@@ -3587,9 +3930,9 @@ VkResult Device::recreate_swapchain(Swapchain * swapchain)
 
   if (surface_capabilities.maxImageCount != 0)
   {
-    min_image_count = clamp(swapchain->info.preferred_buffering,
-                            surface_capabilities.minImageCount,
-                            surface_capabilities.maxImageCount);
+    min_image_count =
+      clamp(info.preferred_buffering, surface_capabilities.minImageCount,
+            surface_capabilities.maxImageCount);
   }
   else
   {
@@ -3597,100 +3940,272 @@ VkResult Device::recreate_swapchain(Swapchain * swapchain)
   }
 
   VkSwapchainCreateInfoKHR create_info{
-    .sType            = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-    .pNext            = nullptr,
-    .flags            = 0,
-    .surface          = swapchain->vk_surface,
-    .minImageCount    = min_image_count,
-    .imageFormat      = (VkFormat) swapchain->info.format.format,
-    .imageColorSpace  = (VkColorSpaceKHR) swapchain->info.format.color_space,
-    .imageExtent      = vk_extent,
-    .imageArrayLayers = 1,
-    .imageUsage       = (VkImageUsageFlags) swapchain->info.usage,
-    .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
+    .sType                 = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+    .pNext                 = nullptr,
+    .flags                 = 0,
+    .surface               = vk_surface,
+    .minImageCount         = min_image_count,
+    .imageFormat           = (VkFormat) info.format.format,
+    .imageColorSpace       = (VkColorSpaceKHR) info.format.color_space,
+    .imageExtent           = vk_extent,
+    .imageArrayLayers      = 1,
+    .imageUsage            = (VkImageUsageFlags) info.usage,
+    .imageSharingMode      = VK_SHARING_MODE_EXCLUSIVE,
     .queueFamilyIndexCount = 1,
     .pQueueFamilyIndices   = nullptr,
     .preTransform          = surface_capabilities.currentTransform,
-    .compositeAlpha =
-      (VkCompositeAlphaFlagBitsKHR) swapchain->info.composite_alpha,
-    .presentMode  = (VkPresentModeKHR) swapchain->info.present_mode,
-    .clipped      = VK_TRUE,
-    .oldSwapchain = old_vk_swapchain};
+    .compositeAlpha        = (VkCompositeAlphaFlagBitsKHR) info.composite_alpha,
+    .presentMode           = (VkPresentModeKHR) info.present_mode,
+    .clipped               = VK_TRUE,
+    .oldSwapchain =
+      old_swapchain == nullptr ? nullptr : old_swapchain->vk_swapchain};
 
-  VkSwapchainKHR new_vk_swapchain;
+  VkSwapchainKHR vk_swapchain;
 
-  result = vk_table.CreateSwapchainKHR(vk_dev, &create_info, nullptr,
-                                       &new_vk_swapchain);
+  result =
+    vk_table.CreateSwapchainKHR(vk_dev, &create_info, nullptr, &vk_swapchain);
 
-  CHECK(result == VK_SUCCESS, "");
+  if (result != VK_SUCCESS)
+  {
+    old_swapchain = nullptr;
+    return Err{(Status) result};
+  }
 
-  defer new_vk_swapchain_{[&] {
-    if (new_vk_swapchain != nullptr)
+  defer vk_swapchain_{[&] {
+    if (vk_swapchain != nullptr)
     {
-      vk_table.DestroySwapchainKHR(vk_dev, new_vk_swapchain, nullptr);
+      vk_table.DestroySwapchainKHR(vk_dev, vk_swapchain, nullptr);
     }
   }};
 
   u32 num_images;
-  result = vk_table.GetSwapchainImagesKHR(vk_dev, new_vk_swapchain, &num_images,
-                                          nullptr);
+  result =
+    vk_table.GetSwapchainImagesKHR(vk_dev, vk_swapchain, &num_images, nullptr);
 
-  CHECK(result == VK_SUCCESS, "");
-
-  swapchain->vk_images.resize(num_images).unwrap();
-  swapchain->image_impls.resize(num_images).unwrap();
-  swapchain->images.resize(num_images).unwrap();
-
-  result = vk_table.GetSwapchainImagesKHR(vk_dev, new_vk_swapchain, &num_images,
-                                          swapchain->vk_images.data());
-
-  CHECK(result == VK_SUCCESS, "");
-
-  for (auto [vk, impl, img] :
-       zip(swapchain->vk_images, swapchain->image_impls, swapchain->images))
+  if (result != VK_SUCCESS)
   {
-    impl = Image{
-      .info =
-        gpu::ImageInfo{.type    = gpu::ImageType::Type2D,
-                       .format  = swapchain->info.format.format,
-                       .usage   = swapchain->info.usage,
-                       .aspects = gpu::ImageAspects::Color,
-                       .extent  = u32x3{vk_extent.width, vk_extent.height, 1},
-                       .mip_levels   = 1,
-                       .array_layers = 1},
-      .is_swapchain_image = true,
-      .vk_image           = vk,
-      .state              = ImageState{.hazard = ImageHazard{}}
-    };
-    img = (gpu::Image) &impl;
+    old_swapchain = nullptr;
+    return Err{(Status) result};
   }
 
-  set_resource_name(swapchain->info.label, new_vk_swapchain,
-                    VK_OBJECT_TYPE_SWAPCHAIN_KHR,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_SWAPCHAIN_KHR_EXT);
-  for (u32 i = 0; i < num_images; i++)
+  InplaceVec<Image *, gpu::MAX_SWAPCHAIN_IMAGES> images;
+  images.resize(num_images).unwrap();
+  InplaceVec<VkImage, gpu::MAX_SWAPCHAIN_IMAGES> vk_images;
+  vk_images.resize(num_images).unwrap();
+
+  result = vk_table.GetSwapchainImagesKHR(vk_dev, vk_swapchain, &num_images,
+                                          vk_images.data());
+
+  if (result != VK_SUCCESS)
   {
-    set_resource_name(swapchain->info.label, swapchain->vk_images[i],
-                      VK_OBJECT_TYPE_IMAGE,
+    old_swapchain = nullptr;
+    return Err{(Status) result};
+  }
+
+  for (auto [vk, image] : zip(vk_images, images))
+  {
+    CHECK(allocator->nalloc(1, image), "");
+
+    new (image) Image{
+      .type               = gpu::ImageType::Type2D,
+      .aspects            = gpu::ImageAspects::Color,
+      .mip_levels         = 1,
+      .array_layers       = 1,
+      .is_swapchain_image = true,
+      .memory             = MemoryInfo{.memory_group = nullptr,
+                                       .alias        = 0,
+                                       .element      = 0,
+                                       .type         = gpu::MemoryType::Unique}
+    };
+  }
+
+  set_resource_name(info.label, vk_swapchain, VK_OBJECT_TYPE_SWAPCHAIN_KHR,
+                    VK_DEBUG_REPORT_OBJECT_TYPE_SWAPCHAIN_KHR_EXT);
+  for (auto & image : images)
+  {
+    set_resource_name(info.label, image->vk_image, VK_OBJECT_TYPE_IMAGE,
                       VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT);
   }
 
-  swapchain->is_out_of_date  = false;
-  swapchain->is_optimal      = true;
-  swapchain->is_zero_sized   = false;
-  swapchain->format          = swapchain->info.format;
-  swapchain->usage           = swapchain->info.usage;
-  swapchain->present_mode    = swapchain->info.present_mode;
-  swapchain->extent.x()      = vk_extent.width;
-  swapchain->extent.y()      = vk_extent.height;
-  swapchain->composite_alpha = swapchain->info.composite_alpha;
-  swapchain->current_image   = 0;
-  swapchain->vk_swapchain    = new_vk_swapchain;
-  new_vk_swapchain           = nullptr;
+  Swapchain * swapchain;
+  if (!allocator->nalloc(1, swapchain))
+  {
+    old_swapchain = nullptr;
+    return Err{Status::OutOfHostMemory};
+  }
 
-  return VK_SUCCESS;
+  new (swapchain) Swapchain{
+    .vk_swapchain    = vk_swapchain,
+    .vk_surface      = vk_surface,
+    .images          = std::move(images),
+    .current_image   = none,
+    .is_out_of_date  = false,
+    .is_optimal      = true,
+    .is_zero_sized   = false,
+    .format          = info.format,
+    .usage           = info.usage,
+    .present_mode    = info.present_mode,
+    .extent          = {vk_extent.width, vk_extent.height},
+    .composite_alpha = info.composite_alpha
+  };
+
+  return Ok{(gpu::Swapchain) swapchain};
 }
 
+Result<gpu::TimestampQuery, Status> Device::create_timestamp_query(u32 count)
+{
+  CHECK(count > 0, "");
+
+  VkQueryPoolCreateInfo create_info{.sType =
+                                      VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO,
+                                    .pNext      = nullptr,
+                                    .flags      = 0,
+                                    .queryType  = VK_QUERY_TYPE_TIMESTAMP,
+                                    .queryCount = count,
+                                    .pipelineStatistics = 0};
+  VkQueryPool           vk_pool;
+  VkResult              result =
+    vk_table.CreateQueryPool(vk_dev, &create_info, nullptr, &vk_pool);
+
+  if (result != VK_SUCCESS)
+  {
+    return Err{(Status) result};
+  }
+
+  return Ok{(gpu::TimestampQuery) vk_pool};
+}
+
+Result<gpu::StatisticsQuery, Status> Device::create_statistics_query(u32 count)
+{
+  CHECK(count > 0, "");
+
+  if (phy_dev.vk_features.pipelineStatisticsQuery != VK_TRUE)
+  {
+    return Err{Status::FeatureNotPresent};
+  }
+
+  constexpr VkQueryPipelineStatisticFlags QUERY_STATS =
+    VK_QUERY_PIPELINE_STATISTIC_INPUT_ASSEMBLY_VERTICES_BIT |
+    VK_QUERY_PIPELINE_STATISTIC_INPUT_ASSEMBLY_PRIMITIVES_BIT |
+    VK_QUERY_PIPELINE_STATISTIC_VERTEX_SHADER_INVOCATIONS_BIT |
+    VK_QUERY_PIPELINE_STATISTIC_CLIPPING_INVOCATIONS_BIT |
+    VK_QUERY_PIPELINE_STATISTIC_CLIPPING_PRIMITIVES_BIT |
+    VK_QUERY_PIPELINE_STATISTIC_FRAGMENT_SHADER_INVOCATIONS_BIT |
+    VK_QUERY_PIPELINE_STATISTIC_COMPUTE_SHADER_INVOCATIONS_BIT;
+
+  VkQueryPoolCreateInfo create_info{
+    .sType              = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO,
+    .pNext              = nullptr,
+    .flags              = 0,
+    .queryType          = VK_QUERY_TYPE_PIPELINE_STATISTICS,
+    .queryCount         = count,
+    .pipelineStatistics = QUERY_STATS};
+
+  VkQueryPool vk_pool;
+  VkResult    result =
+    vk_table.CreateQueryPool(vk_dev, &create_info, nullptr, &vk_pool);
+  if (result != VK_SUCCESS)
+  {
+    return Err{(Status) result};
+  }
+
+  return Ok{(gpu::StatisticsQuery) vk_pool};
+}
+
+Result<gpu::QueueScope, Status> Device::create_queue_scope(u32 buffering)
+{
+  SmallBitVec<usize, gpu::MAX_FRAME_BUFFERING>    has_acquire{allocator};
+  SmallVec<VkSemaphore, gpu::MAX_FRAME_BUFFERING> acquire_semaphores{allocator};
+  SmallVec<VkSemaphore, gpu::MAX_FRAME_BUFFERING> submit_semaphores{allocator};
+  SmallVec<VkFence, gpu::MAX_FRAME_BUFFERING>     submit_fences{allocator};
+
+  defer _{[&] {
+    for (auto sem : acquire_semaphores)
+    {
+      vk_table.DestroySemaphore(vk_dev, sem, nullptr);
+    }
+
+    for (auto sem : submit_semaphores)
+    {
+      vk_table.DestroySemaphore(vk_dev, sem, nullptr);
+    }
+
+    for (auto fence : submit_fences)
+    {
+      vk_table.DestroyFence(vk_dev, fence, nullptr);
+    }
+  }};
+
+  VkSemaphoreCreateInfo sem_info{.sType =
+                                   VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+                                 .pNext = nullptr,
+                                 .flags = 0};
+
+  VkFenceCreateInfo fence_info{.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+                               .pNext = nullptr,
+                               .flags = VK_FENCE_CREATE_SIGNALED_BIT};
+
+  for (auto _ : range(buffering))
+  {
+    VkSemaphore acquire_sem;
+    VkResult    result =
+      vk_table.CreateSemaphore(vk_dev, &sem_info, nullptr, &acquire_sem);
+    if (result != VK_SUCCESS)
+    {
+      return Err{(Status) result};
+    }
+
+    set_resource_name("Scope Acquire Semaphore"_str, acquire_sem,
+                      VK_OBJECT_TYPE_SEMAPHORE,
+                      VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT);
+
+    acquire_semaphores.push(acquire_sem).unwrap();
+
+    VkSemaphore submit_sem;
+
+    result = vk_table.CreateSemaphore(vk_dev, &sem_info, nullptr, &submit_sem);
+
+    set_resource_name("Scope Submit Semaphore"_str, submit_sem,
+                      VK_OBJECT_TYPE_SEMAPHORE,
+                      VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT);
+
+    submit_semaphores.push(submit_sem).unwrap();
+
+    VkFence submit_fence;
+    result = vk_table.CreateFence(vk_dev, &fence_info, nullptr, &submit_fence);
+
+    set_resource_name("Scope Submit Fence"_str, submit_fence,
+                      VK_OBJECT_TYPE_FENCE,
+                      VK_DEBUG_REPORT_OBJECT_TYPE_FENCE_EXT);
+
+    submit_fences.push(submit_fence).unwrap();
+  }
+
+  // [ ] check if an acquire operation was requested
+  has_acquire.resize(buffering).unwrap();
+
+  QueueScope * scope;
+
+  if (!allocator->nalloc(1, scope))
+  {
+    return Err{Status::OutOfDeviceMemory};
+  }
+
+  new (scope) QueueScope{.tail_frame         = 0,
+                         .current_frame      = 0,
+                         .ring_index         = 0,
+                         .has_acquire        = std::move(has_acquire),
+                         .acquire_semaphores = std::move(acquire_semaphores),
+                         .submit_fences      = std::move(submit_fences)};
+
+  return Ok{(gpu::QueueScope) scope};
+}
+
+void Device::uninit()
+{
+}
+
+/*
 Status Device::init_command_encoder(CommandEncoder * enc)
 {
   VkCommandPoolCreateInfo command_pool_create_info{
@@ -3745,244 +4260,7 @@ Status Device::init_command_encoder(CommandEncoder * enc)
   enc->compute_ctx = {};
 
   return Status::Success;
-}
-
-void Device::uninit(CommandEncoder * enc)
-{
-  if (enc == nullptr)
-  {
-    return;
-  }
-  enc->render_ctx.commands.reset();
-  vk_table.DestroyCommandPool(vk_dev, enc->vk_command_pool, nullptr);
-}
-
-Status Device::init_frame_context(u32 buffering)
-{
-  FrameContext & ctx = frame_ctx;
-  ctx.tail_frame     = 0;
-  ctx.current_frame  = 0;
-  ctx.ring_index     = 0;
-  ctx.tail_frame     = 0;
-
-  bool success = false;
-
-  defer _{[&] {
-    if (!success)
-    {
-      for (auto & enc : ctx.encoders.view().rev())
-      {
-        uninit(&enc);
-      }
-      ctx.encoders.clear();
-      ctx.encoders_impl.clear();
-
-      for (auto & sem : ctx.acquire_semaphores.view().rev())
-      {
-        vk_table.DestroySemaphore(vk_dev, sem, nullptr);
-      }
-      ctx.acquire_semaphores.clear();
-
-      for (auto & fence : ctx.submit_fences.view().rev())
-      {
-        vk_table.DestroyFence(vk_dev, fence, nullptr);
-      }
-      ctx.submit_fences.clear();
-
-      for (auto & sem : ctx.submit_semaphores.view().rev())
-      {
-        vk_table.DestroySemaphore(vk_dev, sem, nullptr);
-      }
-      ctx.submit_semaphores.clear();
-    }
-  }};
-
-  for (auto i : range(buffering))
-  {
-    Status status = init_command_encoder(ctx.encoders.data() + i);
-    if (status != Status::Success)
-    {
-      return status;
-    }
-    ctx.encoders.extend_uninit(1).unwrap();
-  }
-
-  VkSemaphoreCreateInfo sem_info{.sType =
-                                   VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-                                 .pNext = nullptr,
-                                 .flags = 0};
-
-  for (auto i : range(buffering))
-  {
-    VkResult result = vk_table.CreateSemaphore(
-      vk_dev, &sem_info, nullptr, ctx.acquire_semaphores.data() + i);
-    if (result != VK_SUCCESS)
-    {
-      return (Status) result;
-    }
-    ctx.acquire_semaphores.extend_uninit(1).unwrap();
-    set_resource_name("Frame Acquire Semaphore"_str, ctx.acquire_semaphores[i],
-                      VK_OBJECT_TYPE_SEMAPHORE,
-                      VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT);
-  }
-
-  VkFenceCreateInfo fence_info{.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-                               .pNext = nullptr,
-                               .flags = VK_FENCE_CREATE_SIGNALED_BIT};
-
-  for (auto i : range(buffering))
-  {
-    VkResult result = vk_table.CreateFence(vk_dev, &fence_info, nullptr,
-                                           ctx.submit_fences.data() + i);
-    if (result != VK_SUCCESS)
-    {
-      return (Status) result;
-    }
-    ctx.submit_fences.extend_uninit(1).unwrap();
-    set_resource_name("Frame Submit Fence"_str, ctx.submit_fences[i],
-                      VK_OBJECT_TYPE_FENCE,
-                      VK_DEBUG_REPORT_OBJECT_TYPE_FENCE_EXT);
-  }
-
-  for (auto i : range(buffering))
-  {
-    VkResult result = vk_table.CreateSemaphore(
-      vk_dev, &sem_info, nullptr, ctx.submit_semaphores.data() + i);
-    if (result != VK_SUCCESS)
-    {
-      return (Status) result;
-    }
-    ctx.submit_semaphores.extend_uninit(1).unwrap();
-    set_resource_name("Frame Submit Semaphore"_str, ctx.submit_semaphores[i],
-                      VK_OBJECT_TYPE_SEMAPHORE,
-                      VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT);
-  }
-
-  success = true;
-
-  // self-referential
-  for (auto & enc : ctx.encoders)
-  {
-    ctx.encoders_impl.push(&enc).unwrap();
-  }
-
-  return Status::Success;
-}
-
-void Device::uninit()
-{
-  for (auto & enc : frame_ctx.encoders.view().rev())
-  {
-    uninit(&enc);
-  }
-
-  for (VkSemaphore sem : frame_ctx.acquire_semaphores.view().rev())
-  {
-    vk_table.DestroySemaphore(vk_dev, sem, nullptr);
-  }
-
-  for (VkFence fence : frame_ctx.submit_fences.view().rev())
-  {
-    vk_table.DestroyFence(vk_dev, fence, nullptr);
-  }
-
-  for (VkSemaphore sem : frame_ctx.submit_semaphores.view().rev())
-  {
-    vk_table.DestroySemaphore(vk_dev, sem, nullptr);
-  }
-}
-
-Result<gpu::Swapchain, Status>
-  Device::create_swapchain(gpu::Surface               surface,
-                           gpu::SwapchainInfo const & info)
-{
-  CHECK(info.preferred_extent.x() > 0, "");
-  CHECK(info.preferred_extent.y() > 0, "");
-
-  Swapchain * swapchain;
-  if (!allocator->nalloc(1, swapchain))
-  {
-    return Err{Status::OutOfHostMemory};
-  }
-
-  new (swapchain) Swapchain{.info            = info,
-                            .is_out_of_date  = true,
-                            .is_optimal      = false,
-                            .is_zero_sized   = false,
-                            .format          = {},
-                            .usage           = {},
-                            .present_mode    = gpu::PresentMode::Immediate,
-                            .extent          = {},
-                            .composite_alpha = gpu::CompositeAlpha::None,
-                            .image_impls     = {},
-                            .images          = {},
-                            .vk_images       = {},
-                            .current_image   = 0,
-                            .vk_swapchain    = nullptr,
-                            .vk_surface      = (VkSurfaceKHR) surface};
-
-  return Ok{(gpu::Swapchain) swapchain};
-}
-
-Result<gpu::TimeStampQuery, Status> Device::create_timestamp_query(u32 count)
-{
-  CHECK(count > 0, "");
-
-  VkQueryPoolCreateInfo create_info{.sType =
-                                      VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO,
-                                    .pNext      = nullptr,
-                                    .flags      = 0,
-                                    .queryType  = VK_QUERY_TYPE_TIMESTAMP,
-                                    .queryCount = count,
-                                    .pipelineStatistics = 0};
-  VkQueryPool           vk_pool;
-  VkResult              result =
-    vk_table.CreateQueryPool(vk_dev, &create_info, nullptr, &vk_pool);
-
-  if (result != VK_SUCCESS)
-  {
-    return Err{(Status) result};
-  }
-
-  return Ok{(gpu::TimeStampQuery) vk_pool};
-}
-
-Result<gpu::StatisticsQuery, Status> Device::create_statistics_query(u32 count)
-{
-  CHECK(count > 0, "");
-
-  if (phy_dev.vk_features.pipelineStatisticsQuery != VK_TRUE)
-  {
-    return Err{Status::FeatureNotPresent};
-  }
-
-  constexpr VkQueryPipelineStatisticFlags QUERY_STATS =
-    VK_QUERY_PIPELINE_STATISTIC_INPUT_ASSEMBLY_VERTICES_BIT |
-    VK_QUERY_PIPELINE_STATISTIC_INPUT_ASSEMBLY_PRIMITIVES_BIT |
-    VK_QUERY_PIPELINE_STATISTIC_VERTEX_SHADER_INVOCATIONS_BIT |
-    VK_QUERY_PIPELINE_STATISTIC_CLIPPING_INVOCATIONS_BIT |
-    VK_QUERY_PIPELINE_STATISTIC_CLIPPING_PRIMITIVES_BIT |
-    VK_QUERY_PIPELINE_STATISTIC_FRAGMENT_SHADER_INVOCATIONS_BIT |
-    VK_QUERY_PIPELINE_STATISTIC_COMPUTE_SHADER_INVOCATIONS_BIT;
-
-  VkQueryPoolCreateInfo create_info{
-    .sType              = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO,
-    .pNext              = nullptr,
-    .flags              = 0,
-    .queryType          = VK_QUERY_TYPE_PIPELINE_STATISTICS,
-    .queryCount         = count,
-    .pipelineStatistics = QUERY_STATS};
-
-  VkQueryPool vk_pool;
-  VkResult    result =
-    vk_table.CreateQueryPool(vk_dev, &create_info, nullptr, &vk_pool);
-  if (result != VK_SUCCESS)
-  {
-    return Err{(Status) result};
-  }
-
-  return Ok{(gpu::StatisticsQuery) vk_pool};
-}
+}*/
 
 void Device::uninit(gpu::Buffer buffer_)
 {
@@ -3993,20 +4271,19 @@ void Device::uninit(gpu::Buffer buffer_)
     return;
   }
 
-  // [ ] unbind from descriptor set
-  for (auto binder : buffer->state.binders)
+  for (auto loc : buffer->bind_locations)
   {
-    // binder.set->bindings[binder.binding].sync_resources[v1][binder.element] =
-    //   (Buffer *) nullptr;
+    loc.set->bindings[loc.binding].sync_resources[v1][loc.element] =
+      (Buffer *) nullptr;
   }
 
-  if (buffer->state.memory.memory_group != nullptr)
+  if (buffer->memory.memory_group != nullptr)
   {
-    switch (buffer->state.memory.type)
+    switch (buffer->memory.type)
     {
       case gpu::MemoryType::Unique:
       {
-        uninit((gpu::MemoryGroup) buffer->state.memory.memory_group);
+        uninit((gpu::MemoryGroup) buffer->memory.memory_group);
       }
       break;
       case gpu::MemoryType::Group:
@@ -4030,7 +4307,12 @@ void Device::uninit(gpu::BufferView buffer_view_)
     return;
   }
 
-  // [ ] needs to be unbounded from descriptor set
+  for (auto loc : buffer_view->bind_locations)
+  {
+    loc.set->bindings[loc.binding].sync_resources[v2][loc.element] =
+      (BufferView *) nullptr;
+  }
+
   vk_table.DestroyBufferView(vk_dev, buffer_view->vk_view, nullptr);
   buffer_view->~BufferView();
   allocator->ndealloc(1, buffer_view);
@@ -4047,23 +4329,18 @@ void Device::uninit(gpu::Image image_)
 
   if (image->is_swapchain_image)
   {
-    // [ ] destroy
+    image->~Image();
+    allocator->ndealloc(1, image);
     return;
   }
 
-  for (auto binder : image->state.binders)
+  if (image->memory.memory_group != nullptr)
   {
-    // binder.set->bindings[binder.binding].sync_resources[v4][binder.element] =
-    //   (Image *) nullptr;
-  }
-
-  if (image->state.memory.memory_group != nullptr)
-  {
-    switch (image->state.memory.type)
+    switch (image->memory.type)
     {
       case gpu::MemoryType::Unique:
       {
-        uninit((gpu::MemoryGroup) image->state.memory.memory_group);
+        uninit((gpu::MemoryGroup) image->memory.memory_group);
       }
       break;
       case gpu::MemoryType::Group:
@@ -4087,7 +4364,11 @@ void Device::uninit(gpu::ImageView image_view_)
     return;
   }
 
-  // [ ] needs to be unbounded from descriptor set
+  for (auto loc : image_view->bind_locations)
+  {
+    loc.set->bindings[loc.binding].sync_resources[v3][loc.element] =
+      (ImageView *) nullptr;
+  }
 
   vk_table.DestroyImageView(vk_dev, image_view->vk_view, nullptr);
   image_view->~ImageView();
@@ -4142,42 +4423,50 @@ void Device::uninit(gpu::DescriptorSet set_)
     return;
   }
 
-  for (auto & binding : set->bindings)
+  for (auto [ibinding, binding] : enumerate<u32>(set->bindings))
   {
-    // [ ] add imageview to binding info
-    // [ ] once imageview is destoryed, consult image
-    // [ ] do same for texel views and storage views
     binding.sync_resources.match(
       [&](None) {},
       [&](auto & buffers) {
-        for (Buffer * buffer : buffers)
+        for (auto [i, buffer] : enumerate<u32>(buffers))
         {
           if (buffer != nullptr)
           {
-            remove_binder(buffer->state.binders, set);
+            DescriptorSet::remove_bind_loc(
+              buffer->bind_locations,
+              BindLocation{.set = set, .binding = ibinding, .element = i});
           }
         }
       },
-      [&](auto & buffers) {
-        for (BufferView * buffer : buffers)
+      [&](auto & buffer_views) {
+        for (auto [i, buffer_view] : enumerate<u32>(buffer_views))
         {
-          if (buffer != nullptr)
+          if (buffer_view != nullptr)
           {
-            remove_binder(BUFFER_FROM_VIEW(buffer)->state.binders, set);
+            DescriptorSet::remove_bind_loc(
+              buffer_view->bind_locations,
+              BindLocation{.set = set, .binding = ibinding, .element = i});
           }
         }
       },
-      [&](Span<ImageView *> images) {
-        for (ImageView * img : images)
+      [&](auto & image_views) {
+        for (auto [i, image_view] : enumerate<u32>(image_views))
         {
-          if (img != nullptr)
+          if (image_view != nullptr)
           {
-            remove_binder(IMAGE_FROM_VIEW(img)->state.binders, set);
+            DescriptorSet::remove_bind_loc(
+              image_view->bind_locations,
+              BindLocation{.set = set, .binding = ibinding, .element = i});
           }
         }
       });
   }
 
+  // [ ] uninit id
+  // [ ] uninit image id
+  // [ ] uninit buffer id
+
+  vk_table.FreeDescriptorSets(vk_dev, set->vk_pool, 1, &set->vk_set);
   vk_table.DestroyDescriptorPool(vk_dev, set->vk_pool, nullptr);
   set->~DescriptorSet();
   allocator->ndealloc(1, set);
@@ -4232,7 +4521,7 @@ void Device::uninit(gpu::Swapchain swapchain_)
   allocator->ndealloc(1, swapchain);
 }
 
-void Device::uninit(gpu::TimeStampQuery query_)
+void Device::uninit(gpu::TimestampQuery query_)
 {
   auto const vk_pool = (VkQueryPool) query_;
 
@@ -4246,49 +4535,64 @@ void Device::uninit(gpu::StatisticsQuery query_)
   vk_table.DestroyQueryPool(vk_dev, vk_pool, nullptr);
 }
 
-gpu::FrameContext Device::get_frame_context()
+void Device::uninit(gpu::CommandEncoder * enc_)
 {
-  return gpu::FrameContext{.tail       = frame_ctx.tail_frame,
-                           .current    = frame_ctx.current_frame,
-                           .encoders   = frame_ctx.encoders_impl,
-                           .ring_index = frame_ctx.ring_index};
+  // [ ] fix
+  auto enc = (CommandEncoder *) enc_;
+  if (enc == nullptr)
+  {
+    return;
+  }
+  enc->~CommandEncoder();
+  allocator->ndealloc(1, enc);
+  /*
+  enc->render_ctx.commands.reset();
+  vk_table.DestroyCommandPool(vk_dev, enc->vk_command_pool, nullptr);
+  */
+}
+
+void Device::uninit(gpu::CommandBuffer * buff_)
+{
+  auto buff = (CommandBuffer *) buff_;
+  if (buff == nullptr)
+  {
+    return;
+  }
+
+  vk_table.FreeCommandBuffers(vk_dev, buff->vk_pool, 1, &buff->vk_buffer);
+  vk_table.DestroyCommandPool(vk_dev, buff->vk_pool, nullptr);
 }
 
 Result<Span<u8>, Status> Device::get_memory_map(gpu::Buffer buffer_)
 {
   auto * const buffer = (Buffer *) buffer_;
-  CHECK(buffer->info.host_mapped, "");
-  CHECK(buffer->state.memory.memory_group != nullptr, "");
-  auto * group = buffer->state.memory.memory_group;
+  CHECK(buffer->host_mapped, "");
+  CHECK(buffer->memory.memory_group != nullptr, "");
+  auto & mem       = buffer->memory;
+  auto * group     = mem.memory_group;
+  auto * alias_map = ((u8 *) group->map) + group->alias_offsets[mem.alias];
 
-  void *   map;
-  VkResult result = vmaMapMemory(vma_allocator, group->vma_allocation, &map);
-  if (result != VK_SUCCESS)
-  {
-    return Err{(Status) result};
-  }
-
-  auto * offseted =
-    ((u8 *) map) + group->alias_offsets[buffer->state.memory.group_binding];
-
-  return Ok{(void *) offseted};
+  return Ok{
+    Span<u8>{alias_map, buffer->size}
+  };
 }
 
 Result<Void, Status> Device::invalidate_mapped_memory(gpu::Buffer buffer_,
                                                       Slice64     range)
 {
-  // [ ] fix
   auto * const buffer = (Buffer *) buffer_;
 
-  CHECK(buffer->info.host_mapped, "");
-  CHECK(range.offset < buffer->info.size, "");
-  CHECK(range.span == gpu::WHOLE_SIZE || range.end() <= buffer->info.size, "");
+  CHECK(buffer->host_mapped, "");
+  CHECK(buffer->memory.memory_group != nullptr, "");
 
-  auto * group  = buffer->state.memory.memory_group;
-  auto   offset = group->alias_offsets[buffer->state.memory.group_binding];
+  range = range(buffer->size);
 
-  VkResult result = vmaInvalidateAllocation(
-    vma_allocator, group->vma_allocation, offset + range.offset, range.span);
+  auto * group        = buffer->memory.memory_group;
+  auto   alias_offset = group->alias_offsets[buffer->memory.alias];
+
+  VkResult result =
+    vmaInvalidateAllocation(vma_allocator, group->vma_allocation,
+                            alias_offset + range.offset, range.span);
   if (result != VK_SUCCESS)
   {
     return Err{(Status) result};
@@ -4299,18 +4603,18 @@ Result<Void, Status> Device::invalidate_mapped_memory(gpu::Buffer buffer_,
 Result<Void, Status> Device::flush_mapped_memory(gpu::Buffer buffer_,
                                                  Slice64     range)
 {
-  // [ ] fix
   auto * const buffer = (Buffer *) buffer_;
 
-  CHECK(buffer->info.host_mapped, "");
-  CHECK(range.offset < buffer->info.size, "");
-  CHECK(range.span == gpu::WHOLE_SIZE || range.end() <= buffer->info.size, "");
+  CHECK(buffer->host_mapped, "");
+  CHECK(buffer->memory.memory_group != nullptr, "");
 
-  auto * group  = buffer->state.memory.memory_group;
-  auto   offset = group->alias_offsets[buffer->state.memory.group_binding];
+  range = range(buffer->size);
+
+  auto * group        = buffer->memory.memory_group;
+  auto   alias_offset = group->alias_offsets[buffer->memory.alias];
 
   VkResult result = vmaFlushAllocation(vma_allocator, group->vma_allocation,
-                                       offset + range.offset, range.span);
+                                       alias_offset + range.offset, range.span);
   if (result != VK_SUCCESS)
   {
     return Err{(Status) result};
@@ -4398,207 +4702,115 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
 
   CHECK(update.binding < set->bindings.size(), "");
   DescriptorBinding & binding = set->bindings[update.binding];
-  CHECK(update.element < binding.size, "");
+  CHECK(update.element < binding.count, "");
 
-  switch (binding.type)
+  auto sync_type = descriptor_sync_resource_type(binding.type);
+
+  switch (sync_type)
   {
-    case gpu::DescriptorType::DynamicStorageBuffer:
-    case gpu::DescriptorType::StorageBuffer:
-      for (gpu::BufferBinding const & b : update.buffers)
-      {
-        auto * buffer = (Buffer *) b.buffer;
-        CHECK(buffer != nullptr, "");
-        CHECK(has_bits(buffer->info.usage, gpu::BufferUsage::StorageBuffer),
-              "");
-        CHECK(is_valid_buffer_access(buffer->info.size, b.offset, b.size,
-                                     gpu::BUFFER_OFFSET_ALIGNMENT),
-              "");
-      }
+    case SyncResourceType::None:
       break;
-
-    case gpu::DescriptorType::DynamicUniformBuffer:
-    case gpu::DescriptorType::UniformBuffer:
-      for (gpu::BufferBinding const & b : update.buffers)
-      {
-        auto * buffer = (Buffer *) b.buffer;
-        CHECK(buffer != nullptr, "");
-        CHECK(has_bits(buffer->info.usage, gpu::BufferUsage::UniformBuffer),
-              "");
-        CHECK(is_valid_buffer_access(buffer->info.size, b.offset, b.size,
-                                     gpu::BUFFER_OFFSET_ALIGNMENT),
-              "");
-      }
-      break;
-
-    case gpu::DescriptorType::Sampler:
+    case SyncResourceType::Buffer:
     {
-      for (gpu::ImageBinding const & b : update.images)
+      for (gpu::BufferBinding const & b : update.buffers)
       {
-        auto * sampler = (Sampler *) b.sampler;
-        CHECK(sampler != nullptr, "");
+        auto * buffer = (Buffer *) b.buffer;
+        if (buffer == nullptr)
+        {
+          continue;
+        }
+        CHECK(has_bits(buffer->usage, descriptor_buffer_usage(binding.type)),
+              "");
+        CHECK(is_valid_buffer_access(buffer->size, b.range,
+                                     gpu::BUFFER_OFFSET_ALIGNMENT),
+              "");
       }
     }
     break;
-
-    case gpu::DescriptorType::SampledImage:
-    case gpu::DescriptorType::CombinedImageSampler:
-    case gpu::DescriptorType::InputAttachment:
+    case SyncResourceType::BufferView:
+    {
+      for (gpu::BufferView v : update.texel_buffers)
+      {
+        auto * view = (BufferView *) v;
+        if (view == nullptr)
+        {
+          continue;
+        }
+        CHECK(
+          has_bits(view->buffer->usage, descriptor_buffer_usage(binding.type)),
+          "");
+      }
+    }
+    break;
+    case SyncResourceType::ImageView:
     {
       for (gpu::ImageBinding const & b : update.images)
       {
         auto * view = (ImageView *) b.image_view;
-        CHECK(view != nullptr, "");
-        auto * image = (Image *) view->info.image;
-        CHECK(has_bits(image->info.usage, gpu::ImageUsage::Sampled), "");
-        CHECK(image->info.sample_count == gpu::SampleCount::C1, "");
+        if (view == nullptr)
+        {
+          continue;
+        }
+        auto * image = (Image *) view->image;
+        CHECK(has_bits(image->usage, descriptor_image_usage(binding.type)), "");
+        CHECK(image->sample_count == gpu::SampleCount::C1, "");
       }
     }
     break;
-
-    case gpu::DescriptorType::StorageImage:
-    {
-      for (gpu::ImageBinding const & b : update.images)
-      {
-        auto * view = (ImageView *) b.image_view;
-        CHECK(view != nullptr, "");
-        auto * image = (Image *) view->info.image;
-        CHECK(has_bits(image->info.usage, gpu::ImageUsage::Storage), "");
-        CHECK(image->info.sample_count == gpu::SampleCount::C1, "");
-      }
-    }
-    break;
-
-    case gpu::DescriptorType::StorageTexelBuffer:
-      for (gpu::BufferView const & v : update.texel_buffers)
-      {
-        auto * view = (BufferView *) v;
-        CHECK(view != nullptr, "");
-        auto * buffer = (Buffer *) view->info.buffer;
-        CHECK(
-          has_bits(buffer->info.usage, gpu::BufferUsage::StorageTexelBuffer),
-          "");
-      }
-      break;
-
-    case gpu::DescriptorType::UniformTexelBuffer:
-      for (gpu::BufferView const & v : update.texel_buffers)
-      {
-        auto * view = (BufferView *) v;
-        CHECK(view != nullptr, "");
-        auto * buffer = (Buffer *) view->info.buffer;
-        CHECK(
-          has_bits(buffer->info.usage, gpu::BufferUsage::UniformTexelBuffer),
-          "");
-      }
-      break;
 
     default:
       CHECK_UNREACHABLE();
   }
 
-  VkDescriptorImageInfo *  pImageInfo       = nullptr;
-  VkDescriptorBufferInfo * pBufferInfo      = nullptr;
-  VkBufferView *           pTexelBufferView = nullptr;
-  u32                      count            = 0;
+  Span<VkDescriptorImageInfo>  image_infos;
+  Span<VkDescriptorBufferInfo> buffer_infos;
+  Span<VkBufferView>           texel_buffer_views;
 
   scratch
-    .resize(max(sizeof(VkDescriptorBufferInfo), sizeof(VkDescriptorImageInfo),
-                sizeof(VkBufferView)) *
-            binding.size)
+    .resize(max(sizeof(VkDescriptorBufferInfo), sizeof(VkBufferView),
+                sizeof(VkDescriptorImageInfo)) *
+            binding.count)
     .unwrap();
 
   switch (binding.type)
   {
-    case gpu::DescriptorType::DynamicStorageBuffer:
-    case gpu::DescriptorType::DynamicUniformBuffer:
-    case gpu::DescriptorType::StorageBuffer:
     case gpu::DescriptorType::UniformBuffer:
+    case gpu::DescriptorType::DynUniformBuffer:
+    case gpu::DescriptorType::ReadStorageBuffer:
+    case gpu::DescriptorType::DynReadStorageBuffer:
+    case gpu::DescriptorType::RWStorageBuffer:
+    case gpu::DescriptorType::DynRWStorageBuffer:
     {
-      pBufferInfo = (VkDescriptorBufferInfo *) scratch.data();
-      count       = size32(update.buffers);
-      for (u32 i = 0; i < size32(update.buffers); i++)
+      buffer_infos =
+        Span{(VkDescriptorBufferInfo *) scratch.data(), update.buffers.size()};
+      for (auto [vk, b] : zip(buffer_infos, update.buffers))
       {
-        gpu::BufferBinding const & b      = update.buffers[i];
-        auto *                     buffer = (Buffer *) b.buffer;
-        pBufferInfo[i]                    = VkDescriptorBufferInfo{
-                             .buffer = (buffer == nullptr) ? nullptr : buffer->vk_buffer,
-                             .offset = b.offset,
-                             .range  = b.size};
+        auto * buffer = (Buffer *) b.buffer;
+        auto   range  = b.range(buffer->size);
+        vk            = VkDescriptorBufferInfo{
+                     .buffer = (buffer == nullptr) ? nullptr : buffer->vk_buffer,
+                     .offset = range.offset,
+                     .range  = range.span};
       }
     }
     break;
 
     case gpu::DescriptorType::Sampler:
-    {
-      pImageInfo = (VkDescriptorImageInfo *) scratch.data();
-      count      = size32(update.images);
-      for (u32 i = 0; i < update.images.size(); i++)
-      {
-        pImageInfo[i] =
-          VkDescriptorImageInfo{.sampler   = (Sampler) update.images[i].sampler,
-                                .imageView = nullptr,
-                                .imageLayout = VK_IMAGE_LAYOUT_UNDEFINED};
-      }
-    }
-    break;
-
     case gpu::DescriptorType::SampledImage:
-    {
-      pImageInfo = (VkDescriptorImageInfo *) scratch.data();
-      count      = size32(update.images);
-      for (u32 i = 0; i < update.images.size(); i++)
-      {
-        auto * view   = (ImageView *) update.images[i].image_view;
-        pImageInfo[i] = VkDescriptorImageInfo{
-          .sampler     = nullptr,
-          .imageView   = (view == nullptr) ? nullptr : view->vk_view,
-          .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-      }
-    }
-    break;
-
     case gpu::DescriptorType::CombinedImageSampler:
-    {
-      pImageInfo = (VkDescriptorImageInfo *) scratch.data();
-      count      = size32(update.images);
-      for (u32 i = 0; i < update.images.size(); i++)
-      {
-        gpu::ImageBinding const & b    = update.images[i];
-        auto *                    view = (ImageView *) b.image_view;
-        pImageInfo[i]                  = VkDescriptorImageInfo{
-                           .sampler     = (Sampler) b.sampler,
-                           .imageView   = (view == nullptr) ? nullptr : view->vk_view,
-                           .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-      }
-    }
-    break;
-
     case gpu::DescriptorType::StorageImage:
-    {
-      pImageInfo = (VkDescriptorImageInfo *) scratch.data();
-      count      = size32(update.images);
-      for (u32 i = 0; i < update.images.size(); i++)
-      {
-        auto * view   = (ImageView *) update.images[i].image_view;
-        pImageInfo[i] = VkDescriptorImageInfo{
-          .sampler     = nullptr,
-          .imageView   = (view == nullptr) ? nullptr : view->vk_view,
-          .imageLayout = VK_IMAGE_LAYOUT_GENERAL};
-      }
-    }
-    break;
-
     case gpu::DescriptorType::InputAttachment:
     {
-      pImageInfo = (VkDescriptorImageInfo *) scratch.data();
-      count      = size32(update.images);
-      for (u32 i = 0; i < update.images.size(); i++)
+      image_infos =
+        Span{(VkDescriptorImageInfo *) scratch.data(), update.images.size()};
+      for (auto [vk, b] : zip(image_infos, update.images))
       {
-        auto * view   = (ImageView *) update.images[i].image_view;
-        pImageInfo[i] = VkDescriptorImageInfo{
-          .sampler     = nullptr,
-          .imageView   = (view == nullptr) ? nullptr : view->vk_view,
-          .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+        auto * view    = (ImageView *) b.image_view;
+        auto * sampler = (Sampler) b.sampler;
+        vk             = VkDescriptorImageInfo{
+                      .sampler     = sampler,
+                      .imageView   = (view == nullptr) ? nullptr : view->vk_view,
+                      .imageLayout = descriptor_image_layout(binding.type)};
       }
     }
     break;
@@ -4606,12 +4818,12 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
     case gpu::DescriptorType::StorageTexelBuffer:
     case gpu::DescriptorType::UniformTexelBuffer:
     {
-      pTexelBufferView = (VkBufferView *) scratch.data();
-      count            = size32(update.texel_buffers);
-      for (u32 i = 0; i < update.texel_buffers.size(); i++)
+      texel_buffer_views =
+        Span{(VkBufferView *) scratch.data(), update.texel_buffers.size()};
+      for (auto [vk, b] : zip(texel_buffer_views, update.texel_buffers))
       {
-        auto * view         = (BufferView *) update.texel_buffers[i];
-        pTexelBufferView[i] = (view == nullptr) ? nullptr : view->vk_view;
+        auto * view = (BufferView *) b;
+        vk          = (view == nullptr) ? nullptr : view->vk_view;
       }
     }
     break;
@@ -4619,65 +4831,63 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
     default:
       CHECK_UNREACHABLE();
   }
-
-  scratch.clear();
 
   VkWriteDescriptorSet vk_write{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                                 .pNext = nullptr,
                                 .dstSet          = set->vk_set,
                                 .dstBinding      = update.binding,
                                 .dstArrayElement = update.element,
-                                .descriptorCount = count,
-                                .descriptorType =
-                                  (VkDescriptorType) binding.type,
-                                .pImageInfo       = pImageInfo,
-                                .pBufferInfo      = pBufferInfo,
-                                .pTexelBufferView = pTexelBufferView};
+                                .descriptorCount =
+                                  max(size32(image_infos), size32(buffer_infos),
+                                      size32(texel_buffer_views)),
+                                .descriptorType   = to_vk(binding.type),
+                                .pImageInfo       = image_infos.data(),
+                                .pBufferInfo      = buffer_infos.data(),
+                                .pTexelBufferView = texel_buffer_views.data()};
 
   vk_table.UpdateDescriptorSets(vk_dev, 1, &vk_write, 0, nullptr);
 
-  switch (binding.type)
+  scratch.shrink().unwrap();
+  scratch.clear();
+
+  switch (sync_type)
   {
-    case gpu::DescriptorType::DynamicStorageBuffer:
-    case gpu::DescriptorType::DynamicUniformBuffer:
-    case gpu::DescriptorType::StorageBuffer:
-    case gpu::DescriptorType::UniformBuffer:
-      for (u32 i = 0; i < update.buffers.size(); i++)
+    case SyncResourceType::Buffer:
+    {
+      for (auto [i, buffer] : enumerate<u32>(update.buffers))
       {
-        auto * const buffer = (Buffer *) update.buffers[i].buffer;
-        binding.update(buffer, Binder{.set     = set,
+        set->update_link(BindLocation{.set     = set,
                                       .binding = update.binding,
-                                      .element = update.element + i});
+                                      .element = update.element + i},
+                         ptr(buffer.buffer));
       }
       break;
-
-    case gpu::DescriptorType::StorageTexelBuffer:
-    case gpu::DescriptorType::UniformTexelBuffer:
-      for (u32 i = 0; i < update.texel_buffers.size(); i++)
+    }
+    break;
+    case SyncResourceType::BufferView:
+    {
+      for (auto [i, texel_buffer] : enumerate<u32>(update.texel_buffers))
       {
-        auto * const view = (BufferView *) update.texel_buffers[i];
-        binding.update(view, Binder{.set     = set,
-                                    .binding = update.binding,
-                                    .element = update.element + i});
+        set->update_link(BindLocation{.set     = set,
+                                      .binding = update.binding,
+                                      .element = update.element + i},
+                         ptr(texel_buffer));
       }
       break;
-
-    case gpu::DescriptorType::Sampler:
-      break;
-
-    case gpu::DescriptorType::SampledImage:
-    case gpu::DescriptorType::CombinedImageSampler:
-    case gpu::DescriptorType::StorageImage:
-    case gpu::DescriptorType::InputAttachment:
-      for (u32 i = 0; i < update.images.size(); i++)
+    }
+    break;
+    case SyncResourceType::ImageView:
+    {
+      for (auto [i, image] : enumerate<u32>(update.images))
       {
-        auto * const view = (ImageView *) update.images[i].image_view;
-        binding.update(view, Binder{.set     = set,
-                                    .binding = update.binding,
-                                    .element = update.element + i});
+        set->update_link(BindLocation{.set     = set,
+                                      .binding = update.binding,
+                                      .element = update.element + i},
+                         ptr(image.image_view));
       }
       break;
-
+    }
+    break;
     default:
       CHECK_UNREACHABLE();
   }
@@ -4836,18 +5046,12 @@ Result<gpu::SwapchainState, Status>
 {
   auto * const swapchain = (Swapchain *) swapchain_;
 
-  gpu::SwapchainState state{.extent = swapchain->extent,
-                            .format = swapchain->info.format,
-                            .images = swapchain->images};
+  gpu::SwapchainState state{
+    .extent        = swapchain->extent,
+    .format        = swapchain->format,
+    .images        = swapchain->images.view().reinterpret<gpu::Image>(),
+    .current_image = swapchain->current_image};
 
-  if (swapchain->is_zero_sized)
-  {
-    state.current_image = none;
-  }
-  else
-  {
-    state.current_image = swapchain->current_image;
-  }
   return Ok{state};
 }
 
@@ -5017,7 +5221,7 @@ Result<Void, Status> Device::submit_frame(gpu::Swapchain swapchain_)
 }
 
 Result<Void, Status>
-  Device::get_timestamp_query_result(gpu::TimeStampQuery query_, Slice32 range,
+  Device::get_timestamp_query_result(gpu::TimestampQuery query_, Slice32 range,
                                      Vec<u64> & timestamps)
 {
   if (range.span == 0)
@@ -5088,7 +5292,7 @@ Result<Void, Status>
     [&] { arg_pool.reclaim(); }  \
   }
 
-void CommandEncoder::reset_timestamp_query(gpu::TimeStampQuery query_,
+void CommandEncoder::reset_timestamp_query(gpu::TimestampQuery query_,
                                            Slice32             range)
 {
   ENCODE_PRELUDE();
@@ -6242,216 +6446,6 @@ void CommandEncoder::validate_render_pass_compatible(
             IMAGE_FROM_VIEW(attachment.view)->info.format,
           "");
   });
-}
-
-void CommandEncoder::insert_barrier(ImageBarrier const & barrier)
-{
-  dev->vk_table.CmdPipelineBarrier(vk_command_buffer, barrier.src_stages,
-                                   barrier.dst_stages, 0, 0, nullptr, 0,
-                                   nullptr, 1, &barrier.barrier);
-}
-
-void CommandEncoder::insert_barrier(BufferBarrier const & barrier)
-{
-  dev->vk_table.CmdPipelineBarrier(vk_command_buffer, barrier.src_stages,
-                                   barrier.dst_stages, 0, 0, nullptr, 1,
-                                   &barrier.barrier, 0, nullptr);
-}
-
-void CommandEncoder::insert_barrier(MemoryBarrier const & barrier)
-{
-  dev->vk_table.CmdPipelineBarrier(vk_command_buffer, barrier.src_stages,
-                                   barrier.dst_stages, 0, 1, &barrier.barrier,
-                                   0, nullptr, 0, nullptr);
-}
-
-void CommandEncoder::access_buffer(Buffer & buffer, VkPipelineStageFlags stages,
-                                   VkAccessFlags access, u64 pass_timestamp)
-{
-  buffer.sync(Access{.stages = stages, .access = access}, pass_timestamp)
-    .match([&](auto & barrier) { insert_barrier(barrier); });
-}
-
-void CommandEncoder::access_image(Image & image, VkPipelineStageFlags stages,
-                                  VkAccessFlags access, VkImageLayout layout,
-                                  u64 pass_timestamp)
-{
-  image.sync(Access{.stages = stages, .access = access}, layout, pass_timestamp)
-    .match([&](auto & barrier) { insert_barrier(barrier); });
-}
-
-void CommandEncoder::access_compute_bindings(DescriptorSet const & set,
-                                             u64 pass_timestamp)
-{
-  for (auto binding : set.bindings)
-  {
-    switch (binding.type)
-    {
-      case gpu::DescriptorType::CombinedImageSampler:
-      case gpu::DescriptorType::SampledImage:
-        for (ImageView * img : binding.sync_resources[v1])
-        {
-          if (img != nullptr)
-          {
-            access_image_all_aspects(*img, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                     VK_ACCESS_SHADER_READ_BIT,
-                                     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                     pass_timestamp);
-          }
-        }
-        break;
-
-      case gpu::DescriptorType::StorageImage:
-        for (ImageView * img : binding.sync_resources[v1])
-        {
-          if (img != nullptr)
-          {
-            access_image_all_aspects(*img, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                     VK_ACCESS_SHADER_READ_BIT |
-                                       VK_ACCESS_SHADER_WRITE_BIT,
-                                     VK_IMAGE_LAYOUT_GENERAL, pass_timestamp);
-          }
-        }
-        break;
-
-      case gpu::DescriptorType::UniformBuffer:
-      case gpu::DescriptorType::DynamicUniformBuffer:
-        for (Buffer * buffer : binding.sync_resources[v3])
-        {
-          if (buffer != nullptr)
-          {
-            access_buffer(*buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                          VK_ACCESS_SHADER_READ_BIT, pass_timestamp);
-          }
-        }
-        break;
-
-      case gpu::DescriptorType::UniformTexelBuffer:
-        for (BufferView * buffer : binding.sync_resources[v2])
-        {
-          if (buffer != nullptr)
-          {
-            access_buffer(*buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                          VK_ACCESS_SHADER_READ_BIT, pass_timestamp);
-          }
-        }
-        break;
-
-      case gpu::DescriptorType::StorageBuffer:
-      case gpu::DescriptorType::DynamicStorageBuffer:
-        for (Buffer * buffer : binding.sync_resources[v2])
-        {
-          if (buffer != nullptr)
-          {
-            access_buffer(*buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                          VK_ACCESS_SHADER_READ_BIT |
-                            VK_ACCESS_SHADER_WRITE_BIT,
-                          pass_timestamp);
-          }
-        }
-        break;
-
-      case gpu::DescriptorType::StorageTexelBuffer:
-        for (BufferView * buffer : binding.sync_resources[v2])
-        {
-          if (buffer != nullptr)
-          {
-            access_buffer(*buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                          VK_ACCESS_SHADER_READ_BIT |
-                            VK_ACCESS_SHADER_WRITE_BIT,
-                          pass_timestamp);
-          }
-        }
-        break;
-
-      case gpu::DescriptorType::InputAttachment:
-        CHECK_UNREACHABLE();
-        break;
-
-      default:
-        CHECK_UNREACHABLE();
-    }
-  }
-}
-
-void CommandEncoder::access_graphics_bindings(DescriptorSet const & set,
-                                              u64 pass_timestamp)
-{
-  for (auto const & binding : set.bindings)
-  {
-    switch (binding.type)
-    {
-      case gpu::DescriptorType::CombinedImageSampler:
-      case gpu::DescriptorType::SampledImage:
-      case gpu::DescriptorType::InputAttachment:
-        for (Image * img : binding.sync_resources[v1])
-        {
-          if (img != nullptr)
-          {
-            access_image_all_aspects(*img,
-                                     VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
-                                       VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                                     VK_ACCESS_SHADER_READ_BIT,
-                                     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                     pass_timestamp);
-          }
-        }
-        break;
-
-      case gpu::DescriptorType::UniformTexelBuffer:
-      case gpu::DescriptorType::UniformBuffer:
-      case gpu::DescriptorType::DynamicUniformBuffer:
-        for (Buffer * buffer : binding.sync_resources[v2])
-        {
-          if (buffer != nullptr)
-          {
-            access_buffer(*buffer,
-                          VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
-                            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                          VK_ACCESS_SHADER_READ_BIT, pass_timestamp);
-          }
-        }
-        break;
-
-        // only readonly storage images are supported
-      case gpu::DescriptorType::StorageImage:
-        for (Image * img : binding.sync_resources[v1])
-        {
-          if (img != nullptr)
-          {
-            access_image_all_aspects(*img,
-                                     VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
-                                       VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                                     VK_ACCESS_SHADER_READ_BIT,
-                                     VK_IMAGE_LAYOUT_GENERAL, pass_timestamp);
-          }
-        }
-        break;
-
-        // only readonly storage buffers are supported
-      case gpu::DescriptorType::StorageTexelBuffer:
-      case gpu::DescriptorType::StorageBuffer:
-      case gpu::DescriptorType::DynamicStorageBuffer:
-        for (Buffer * buffer : binding.sync_resources[v2])
-        {
-          // [ ] allow mutation, needed for PLS
-          // [ ] means we need to sync each draw call?
-          if (buffer != nullptr)
-          {
-            access_buffer(*buffer,
-                          VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
-                            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                          VK_ACCESS_SHADER_READ_BIT, pass_timestamp);
-          }
-        }
-        break;
-
-      case gpu::DescriptorType::Sampler:
-        break;
-      default:
-        CHECK_UNREACHABLE();
-    }
-  }
 }
 
 void CommandEncoder::bind_graphics_pipeline(gpu::GraphicsPipeline pipeline_)
