@@ -5,27 +5,25 @@
 namespace ash
 {
 
-constexpr hash64 hash_combine(hash64 hash_a, hash64 hash_b)
+constexpr auto hash_combine(usize a, usize b)
 {
-  hash_a ^= hash_b + 0x9e37'79b9 + (hash_a << 6) + (hash_a >> 2);
-  return hash_a;
+  a ^= b + 0x9e37'79b9 + (a << 6) + (a >> 2);
+  return a;
 }
 
 template <typename... H>
-constexpr hash64 hash_combine(hash64 hash_a, hash64 hash_b, H... hash_c)
+constexpr auto hash_combine(usize a, usize b, H... c)
 {
-  hash_a = hash_combine(hash_a, hash_b);
-  // clang-format off
-  ((hash_a = hash_combine(hash_a, hash_c)), ...);
-  // clang-format on
-  return hash_a;
+  a = hash_combine(a, b);
+  ((a = hash_combine(a, c)), ...);
+  return a;
 }
 
-hash64 hash_bytes(Span<u8 const> bytes, hash64 seed = 0);
+usize hash_bytes(Span<u8 const> bytes, usize seed = 0);
 
 struct SpanHash
 {
-  hash64 operator()(auto const & range) const
+  auto operator()(auto const & range) const
   {
     return hash_bytes(span(range).as_u8());
   }
@@ -34,7 +32,7 @@ struct SpanHash
 struct BitHash
 {
   template <typename T>
-  hash64 operator()(T const & a) const
+  auto operator()(T const & a) const
   {
     return hash_bytes(Span<T const>{&a, 1}.as_u8());
   }
@@ -42,54 +40,54 @@ struct BitHash
 
 struct IdentityHash
 {
-  constexpr hash64 operator()(u8 a) const
+  constexpr auto operator()(u8 a) const
   {
-    return static_cast<hash64>(a);
+    return static_cast<usize>(a);
   }
 
-  constexpr hash64 operator()(u16 a) const
+  constexpr auto operator()(u16 a) const
   {
-    return static_cast<hash64>(a);
+    return static_cast<usize>(a);
   }
 
-  constexpr hash64 operator()(u32 a) const
+  constexpr auto operator()(u32 a) const
   {
-    return static_cast<hash64>(a);
+    return static_cast<usize>(a);
   }
 
-  constexpr hash64 operator()(u64 a) const
+  constexpr auto operator()(u64 a) const
   {
-    return static_cast<hash64>(a);
+    return static_cast<usize>(a);
   }
 
-  constexpr hash64 operator()(i8 a) const
+  constexpr auto operator()(i8 a) const
   {
-    return static_cast<hash64>(a);
+    return static_cast<usize>(a);
   }
 
-  constexpr hash64 operator()(i16 a) const
+  constexpr auto operator()(i16 a) const
   {
-    return static_cast<hash64>(a);
+    return static_cast<usize>(a);
   }
 
-  constexpr hash64 operator()(i32 a) const
+  constexpr auto operator()(i32 a) const
   {
-    return static_cast<hash64>(a);
+    return static_cast<usize>(a);
   }
 
-  constexpr hash64 operator()(i64 a) const
+  constexpr auto operator()(i64 a) const
   {
-    return static_cast<hash64>(a);
+    return static_cast<usize>(a);
   }
 
-  constexpr hash64 operator()(f32 a) const
+  constexpr auto operator()(f32 a) const
   {
-    return static_cast<hash64>(bit_cast<u32>(a));
+    return static_cast<usize>(bit_cast<u32>(a));
   }
 
-  constexpr hash64 operator()(f64 a) const
+  constexpr auto operator()(f64 a) const
   {
-    return bit_cast<hash64>(a);
+    return bit_cast<usize>(a);
   }
 };
 

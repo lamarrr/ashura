@@ -36,7 +36,7 @@ struct TraceEvent
 
 struct TraceEventHash
 {
-  hash64 operator()(TraceEvent const & event) const
+  usize operator()(TraceEvent const & event) const
   {
     return hash_combine(span_hash(event.label), bit_hash(event.id));
   }

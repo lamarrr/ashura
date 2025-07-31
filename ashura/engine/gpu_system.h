@@ -157,18 +157,17 @@ struct [[nodiscard]] Framebuffer
 
 struct SamplerHasher
 {
-  constexpr hash64 operator()(gpu::SamplerInfo const & info) const
+  constexpr usize operator()(gpu::SamplerInfo const & info) const
   {
     return hash_combine(
-      (hash64) info.mag_filter, (hash64) info.min_filter,
-      (hash64) info.mip_map_mode, (hash64) info.address_mode_u,
-      (hash64) info.address_mode_v, (hash64) info.address_mode_w,
-      (hash64) bit_cast<u32>(info.mip_lod_bias),
-      (hash64) info.anisotropy_enable,
-      (hash64) bit_cast<u32>(info.max_anisotropy), (hash64) info.compare_enable,
-      (hash64) info.compare_op, (hash64) bit_cast<u32>(info.min_lod),
-      (hash64) bit_cast<u32>(info.max_lod), (hash64) info.border_color,
-      (hash64) info.unnormalized_coordinates);
+      (usize) info.mag_filter, (usize) info.min_filter,
+      (usize) info.mip_map_mode, (usize) info.address_mode_u,
+      (usize) info.address_mode_v, (usize) info.address_mode_w,
+      (usize) bit_cast<u32>(info.mip_lod_bias), (usize) info.anisotropy_enable,
+      (usize) bit_cast<u32>(info.max_anisotropy), (usize) info.compare_enable,
+      (usize) info.compare_op, (usize) bit_cast<u32>(info.min_lod),
+      (usize) bit_cast<u32>(info.max_lod), (usize) info.border_color,
+      (usize) info.unnormalized_coordinates);
   }
 };
 

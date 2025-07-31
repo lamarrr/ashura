@@ -27,7 +27,7 @@ struct NgonPassParams
 
 struct NgonPass final : Pass
 {
-  SparseVec<Vec<Tuple<Str, gpu::GraphicsPipeline>>> pipelines_;
+  SparseVec<Tuple<Str, gpu::GraphicsPipeline>> pipelines_;
 
   NgonPass(AllocatorRef);
 

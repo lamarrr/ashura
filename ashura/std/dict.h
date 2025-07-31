@@ -255,14 +255,14 @@ struct [[nodiscard]] Dict
   }
 
   [[nodiscard]] constexpr Option<Value &> try_get(auto const & key,
-                                                  hash64       hash) const
+                                                  usize        hash) const
   {
     if (num_probes_ == 0 || num_entries_ == 0)
     {
       return none;
     }
 
-    usize    probe_idx  = hash & (num_probes_ - 1);
+    auto     probe_idx  = hash & (num_probes_ - 1);
     Distance probe_dist = 0;
 
     while (probe_dist <= max_probe_dist_)
@@ -288,7 +288,7 @@ struct [[nodiscard]] Dict
 
   [[nodiscard]] constexpr Option<Value &> try_get(auto const & key) const
   {
-    hash64 const hash = hasher_(key);
+    auto const hash = hasher_(key);
     return try_get(key, hash);
   }
 
@@ -307,7 +307,7 @@ struct [[nodiscard]] Dict
     return try_get(key).is_some();
   }
 
-  [[nodiscard]] constexpr bool has(auto const & key, hash64 hash) const
+  [[nodiscard]] constexpr bool has(auto const & key, usize hash) const
   {
     return try_get(key, hash).is_some();
   }
@@ -327,8 +327,8 @@ struct [[nodiscard]] Dict
       {
         Entry entry{static_cast<Entry &&>(src_probes[src_probe_idx])};
         src_probes[src_probe_idx].~Entry();
-        hash64   hash       = hasher_(entry.key);
-        usize    probe_idx  = hash & (num_probes_ - 1);
+        auto     hash       = hasher_(entry.key);
+        auto     probe_idx  = hash & (num_probes_ - 1);
         Distance probe_dist = 0;
 
         while (true)
@@ -383,7 +383,7 @@ struct [[nodiscard]] Dict
 
     Entry *    old_probes      = probes_;
     Distance * old_probe_dists = probe_dists_;
-    usize      old_num_probes  = num_probes_;
+    auto       old_num_probes  = num_probes_;
     probes_                    = new_probes;
     probe_dists_               = new_probe_dists;
     num_probes_                = new_num_probes;
@@ -398,7 +398,7 @@ struct [[nodiscard]] Dict
 
   constexpr bool rehash_()
   {
-    usize new_num_probes = (num_probes_ == 0) ? 1 : (num_probes_ << 1);
+    auto new_num_probes = (num_probes_ == 0) ? 1 : (num_probes_ << 1);
     return rehash_n_(new_num_probes);
   }
 
@@ -439,10 +439,10 @@ struct [[nodiscard]] Dict
       return Err{};
     }
 
-    hash64 const hash       = hasher_(key);
-    usize        probe_idx  = hash & (num_probes_ - 1);
-    usize        insert_idx = USIZE_MAX;
-    Distance     probe_dist = 0;
+    auto const hash       = hasher_(key);
+    auto       probe_idx  = hash & (num_probes_ - 1);
+    auto       insert_idx = USIZE_MAX;
+    Distance   probe_dist = 0;
     Entry entry{static_cast<KeyArg &&>(key), static_cast<ValueArg &&>(value)};
 
     while (true)
@@ -497,8 +497,8 @@ struct [[nodiscard]] Dict
 
   constexpr void pop_probe_(usize pop_idx)
   {
-    usize insert_idx = pop_idx;
-    usize probe_idx  = (pop_idx + 1) & (num_probes_ - 1);
+    auto insert_idx = pop_idx;
+    auto probe_idx  = (pop_idx + 1) & (num_probes_ - 1);
 
     while (probe_idx != pop_idx)
     {
@@ -529,8 +529,8 @@ struct [[nodiscard]] Dict
       return false;
     }
 
-    hash64   hash       = hasher_(key);
-    usize    probe_idx  = hash & (num_probes_ - 1);
+    auto     hash       = hasher_(key);
+    auto     probe_idx  = hash & (num_probes_ - 1);
     Distance probe_dist = 0;
 
     while (probe_dist <= max_probe_dist_)

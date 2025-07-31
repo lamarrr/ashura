@@ -34,7 +34,7 @@ struct PBRPass final : Pass
     gpu::GraphicsPipeline point = nullptr;
   };
 
-  SparseVec<Vec<Tuple<Str, Pipeline>>> variants_;
+  SparseVec<Tuple<Str, Pipeline>> variants_;
 
   PBRPass(AllocatorRef);
 
