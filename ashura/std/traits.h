@@ -214,6 +214,14 @@ concept FloatingPoint =
   std::is_floating_point_v<T>;
 #endif
 
+template <typename T>
+concept Enumeration =
+#if ASH_CFG(COMPILER, CLANG)
+  __is_enum(T);
+#else
+  std::is_enum_v<T>;
+#endif
+
 template <typename F, typename... Args>
 concept Callable = requires (F && f, Args &&... args) {
   { static_cast<F &&>(f)(static_cast<Args &&>(args)...) };
