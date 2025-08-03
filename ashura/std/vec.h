@@ -104,6 +104,13 @@ struct [[nodiscard]] Vec
     uninit();
   }
 
+  constexpr void leak()
+  {
+    storage_  = nullptr;
+    size_     = 0;
+    capacity_ = 0;
+  }
+
   static constexpr Result<Vec> make(usize capacity, AllocatorRef allocator = {})
   {
     Vec out{allocator};
