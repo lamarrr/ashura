@@ -15,7 +15,11 @@ inline constexpr None none;
 template <typename T = Void>
 struct [[nodiscard]] Option
 {
-  using Type = T;
+  using Type      = T;
+  using Iter      = SpanIter<T>;
+  using ConstIter = SpanIter<T const>;
+  using View      = Span<T>;
+  using ConstView = Span<T const>;
 
   bool is_some_;
 
@@ -315,6 +319,31 @@ struct [[nodiscard]] Option
       return some(v0_);
     }
     return none();
+  }
+
+  constexpr auto begin()
+  {
+    return Iter{.iter_ = &v0_, .end_ = &v0_ + (is_some() ? 1 : 0)};
+  }
+
+  constexpr auto begin() const
+  {
+    return ConstIter{.iter_ = &v0_, .end_ = &v0_ + (is_some() ? 1 : 0)};
+  }
+
+  constexpr auto end() const
+  {
+    return IterEnd{};
+  }
+
+  constexpr View view()
+  {
+    return View{&v0_, is_some() ? 1 : 0};
+  }
+
+  constexpr ConstView view() const
+  {
+    return ConstView{&v0_, is_some() ? 1 : 0};
   }
 };
 
