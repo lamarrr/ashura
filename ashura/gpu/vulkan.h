@@ -295,7 +295,7 @@ using BindLocations = SmallVec<BindLocation, 8>;
 
 struct Buffer
 {
-  VkBuffer         vk_buffer      = nullptr;
+  VkBuffer         vk             = nullptr;
   gpu::BufferUsage usage          = gpu::BufferUsage::None;
   bool             host_mapped    = false;
   u64              size           = 0;
@@ -305,7 +305,7 @@ struct Buffer
 
 struct BufferView
 {
-  VkBufferView  vk_view        = nullptr;
+  VkBufferView  vk             = nullptr;
   Buffer *      buffer         = nullptr;
   Slice64       slice          = {};
   BindLocations bind_locations = {};
@@ -313,7 +313,7 @@ struct BufferView
 
 struct Image
 {
-  VkImage           vk_image           = nullptr;
+  VkImage           vk                 = nullptr;
   gpu::ImageType    type               = gpu::ImageType::Type1D;
   gpu::ImageUsage   usage              = gpu::ImageUsage::None;
   gpu::ImageAspects aspects            = gpu::ImageAspects::None;
@@ -327,8 +327,9 @@ struct Image
 
 struct ImageView
 {
-  VkImageView   vk_view        = nullptr;
+  VkImageView   vk             = nullptr;
   Image *       image          = nullptr;
+  gpu::Format   format         = gpu::Format::Undefined;
   Slice32       mip_levels     = {};
   Slice32       array_layers   = {};
   BindLocations bind_locations = {};
@@ -336,7 +337,7 @@ struct ImageView
 
 struct DescriptorSetLayout
 {
-  VkDescriptorSetLayout vk_layout = nullptr;
+  VkDescriptorSetLayout vk = nullptr;
 
   InplaceVec<gpu::DescriptorBindingInfo, gpu::MAX_DESCRIPTOR_SET_BINDINGS>
     bindings = {};
@@ -362,7 +363,7 @@ struct DescriptorBinding
 
 struct DescriptorSet
 {
-  VkDescriptorSet vk_set = nullptr;
+  VkDescriptorSet vk = nullptr;
 
   VkDescriptorPool vk_pool = nullptr;
 
@@ -387,7 +388,7 @@ struct DescriptorSet
 
 struct ComputePipeline
 {
-  VkPipeline vk_pipeline = nullptr;
+  VkPipeline vk = nullptr;
 
   VkPipelineLayout vk_layout = nullptr;
 
@@ -400,7 +401,7 @@ struct ComputePipeline
 
 struct GraphicsPipeline
 {
-  VkPipeline vk_pipeline = nullptr;
+  VkPipeline vk = nullptr;
 
   VkPipelineLayout vk_layout = nullptr;
 
@@ -480,7 +481,7 @@ struct PhysicalDevice
 /// because the surface requested a zero sized image extent
 struct Swapchain
 {
-  VkSwapchainKHR vk_swapchain = nullptr;
+  VkSwapchainKHR vk = nullptr;
 
   VkSurfaceKHR vk_surface = nullptr;
 
@@ -547,79 +548,74 @@ enum class Type : usize
   CopyBufferToImage      = 13,
   BlitImage              = 14,
   ResolveImage           = 15,
-  BeginComputePass       = 16,
-  EndComputePass         = 17,
-  BeginRendering         = 18,
-  EndRendering           = 19,
-  BindComputePipeline    = 20,
-  BindGraphicsPipeline   = 21,
-  BindDescriptorSets     = 22,
-  PushConstants          = 23,
-  Dispatch               = 24,
-  DispatchIndirect       = 25,
-  SetGraphicsState       = 26,
-  BindVertexBuffers      = 27,
-  BindIndexBuffer        = 28,
-  Draw                   = 29,
-  DrawIndexed            = 30,
-  DrawIndirect           = 31,
-  DrawIndexedIndirect    = 32,
-  Undefined              = USIZE_MAX
+  BeginRendering         = 16,
+  EndRendering           = 17,
+  BindPipeline           = 18,
+  BindDescriptorSets     = 19,
+  PushConstants          = 20,
+  Dispatch               = 21,
+  DispatchIndirect       = 22,
+  SetGraphicsState       = 23,
+  BindVertexBuffers      = 24,
+  BindIndexBuffer        = 25,
+  Draw                   = 26,
+  DrawIndexed            = 27,
+  DrawIndirect           = 28,
+  DrawIndexedIndirect    = 29
 };
 
 struct alignas(8) Command
 {
-  Type const type = Type::Undefined;
+  Type const type;
   Command *  next = nullptr;
 };
 
 struct alignas(8) ResetTimestampQuery
 {
-  Type const          type  = Type::ResetTimestampQuery;
-  Command *           next  = nullptr;
-  gpu::TimestampQuery query = nullptr;
-  Slice32             range = {};
+  Type const  type  = Type::ResetTimestampQuery;
+  Command *   next  = nullptr;
+  VkQueryPool query = nullptr;
+  Slice32     range = {};
 };
 
 struct alignas(8) ResetStatisticsQuery
 {
-  Type const           type  = Type::ResetStatisticsQuery;
-  Command *            next  = nullptr;
-  gpu::StatisticsQuery query = nullptr;
-  Slice32              range = {};
+  Type const  type  = Type::ResetStatisticsQuery;
+  Command *   next  = nullptr;
+  VkQueryPool query = nullptr;
+  Slice32     range = {};
 };
 
 struct alignas(8) WriteTimestamp
 {
-  Type const          type  = Type::WriteTimestamp;
-  Command *           next  = nullptr;
-  gpu::TimestampQuery query = nullptr;
-  gpu::PipelineStages stage = gpu::PipelineStages::TopOfPipe;
-  u32                 index = 0;
+  Type const              type   = Type::WriteTimestamp;
+  Command *               next   = nullptr;
+  VkQueryPool             query  = nullptr;
+  VkPipelineStageFlagBits stages = VK_PIPELINE_STAGE_NONE;
+  u32                     index  = 0;
 };
 
 struct alignas(8) BeginStatistics
 {
-  Type const           type  = Type::BeginStatistics;
-  Command *            next  = nullptr;
-  gpu::StatisticsQuery query = nullptr;
-  u32                  index = 0;
+  Type const  type  = Type::BeginStatistics;
+  Command *   next  = nullptr;
+  VkQueryPool query = nullptr;
+  u32         index = 0;
 };
 
 struct alignas(8) EndStatistics
 {
-  Type const           type  = Type::EndStatistics;
-  Command *            next  = nullptr;
-  gpu::StatisticsQuery query = nullptr;
-  u32                  index = 0;
+  Type const  type  = Type::EndStatistics;
+  Command *   next  = nullptr;
+  VkQueryPool query = nullptr;
+  u32         index = 0;
 };
 
 struct alignas(8) BeginDebugMarker
 {
-  Type const type        = Type::BeginDebugMarker;
-  Command *  next        = nullptr;
-  Str        region_name = {};
-  f32x4      color       = {};
+  Type const                 type = Type::BeginDebugMarker;
+  Command *                  next = nullptr;
+  VkDebugMarkerMarkerInfoEXT info = {};
 };
 
 struct alignas(8) EndDebugMarker
@@ -630,20 +626,20 @@ struct alignas(8) EndDebugMarker
 
 struct alignas(8) FillBuffer
 {
-  Type const  type  = Type::FillBuffer;
-  Command *   next  = nullptr;
-  gpu::Buffer dst   = nullptr;
-  Slice64     range = {};
-  u32         data  = 0;
+  Type const type  = Type::FillBuffer;
+  Command *  next  = nullptr;
+  VkBuffer   dst   = nullptr;
+  Slice64    range = {};
+  u32        data  = 0;
 };
 
 struct alignas(8) CopyBuffer
 {
-  Type const                  type   = Type::CopyBuffer;
-  Command *                   next   = nullptr;
-  gpu::Buffer                 src    = nullptr;
-  gpu::Buffer                 dst    = nullptr;
-  Span<gpu::BufferCopy const> copies = {};
+  Type const               type   = Type::CopyBuffer;
+  Command *                next   = nullptr;
+  VkBuffer                 src    = nullptr;
+  VkBuffer                 dst    = nullptr;
+  Span<VkBufferCopy const> copies = {};
 };
 
 struct alignas(8) UpdateBuffer
@@ -652,81 +648,78 @@ struct alignas(8) UpdateBuffer
   Command *      next       = nullptr;
   Span<u8 const> src        = {};
   u64            dst_offset = 0;
-  gpu::Buffer    dst        = nullptr;
+  VkBuffer       dst        = nullptr;
 };
 
 struct alignas(8) ClearColorImage
 {
-  Type const                             type   = Type::ClearColorImage;
-  Command *                              next   = nullptr;
-  gpu::Image                             dst    = nullptr;
-  gpu::Color                             value  = {};
-  Span<gpu::ImageSubresourceRange const> ranges = {};
+  Type const                          type       = Type::ClearColorImage;
+  Command *                           next       = nullptr;
+  VkImage                             dst        = nullptr;
+  VkImageLayout                       dst_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+  VkClearColorValue                   value      = {};
+  Span<VkImageSubresourceRange const> ranges     = {};
 };
 
 struct alignas(8) ClearDepthStencilImage
 {
-  Type const                             type   = Type::ClearDepthStencilImage;
-  Command *                              next   = nullptr;
-  gpu::Image                             dst    = nullptr;
-  gpu::DepthStencil                      value  = {};
-  Span<gpu::ImageSubresourceRange const> ranges = {};
+  Type const                          type       = Type::ClearDepthStencilImage;
+  Command *                           next       = nullptr;
+  VkImage                             dst        = nullptr;
+  VkImageLayout                       dst_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+  VkClearDepthStencilValue            value      = {};
+  Span<VkImageSubresourceRange const> ranges     = {};
 };
 
 struct alignas(8) CopyImage
 {
-  Type const                 type   = Type::CopyImage;
-  Command *                  next   = nullptr;
-  gpu::Image                 src    = nullptr;
-  gpu::Image                 dst    = nullptr;
-  Span<gpu::ImageCopy const> copies = {};
+  Type const              type       = Type::CopyImage;
+  Command *               next       = nullptr;
+  VkImage                 src        = nullptr;
+  VkImageLayout           src_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+  VkImage                 dst        = nullptr;
+  VkImageLayout           dst_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+  Span<VkImageCopy const> copies     = {};
 };
 
 struct alignas(8) CopyBufferToImage
 {
-  Type const                       type   = Type::CopyBufferToImage;
-  Command *                        next   = nullptr;
-  gpu::Buffer                      src    = nullptr;
-  gpu::Image                       dst    = nullptr;
-  Span<gpu::BufferImageCopy const> copies = {};
+  Type const                    type       = Type::CopyBufferToImage;
+  Command *                     next       = nullptr;
+  VkBuffer                      src        = nullptr;
+  VkImage                       dst        = nullptr;
+  VkImageLayout                 dst_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+  Span<VkBufferImageCopy const> copies     = {};
 };
 
 struct alignas(8) BlitImage
 {
-  Type const                 type   = Type::BlitImage;
-  Command *                  next   = nullptr;
-  gpu::Image                 src    = nullptr;
-  gpu::Image                 dst    = nullptr;
-  Span<gpu::ImageBlit const> blits  = {};
-  gpu::Filter                filter = gpu::Filter::Linear;
+  Type const              type       = Type::BlitImage;
+  Command *               next       = nullptr;
+  VkImage                 src        = nullptr;
+  VkImageLayout           src_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+  VkImage                 dst        = nullptr;
+  VkImageLayout           dst_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+  Span<VkImageBlit const> blits      = {};
+  VkFilter                filter     = VK_FILTER_LINEAR;
 };
 
 struct alignas(8) ResolveImage
 {
-  Type const                    type     = Type::ResolveImage;
-  Command *                     next     = nullptr;
-  gpu::Image                    src      = nullptr;
-  gpu::Image                    dst      = nullptr;
-  Span<gpu::ImageResolve const> resolves = {};
-};
-
-struct alignas(8) BeginComputePass
-{
-  Type const type = Type::BeginComputePass;
-  Command *  next = nullptr;
-};
-
-struct alignas(8) EndComputePass
-{
-  Type const type = Type::EndComputePass;
-  Command *  next = nullptr;
+  Type const                 type       = Type::ResolveImage;
+  Command *                  next       = nullptr;
+  VkImage                    src        = nullptr;
+  VkImageLayout              src_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+  VkImage                    dst        = nullptr;
+  VkImageLayout              dst_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+  Span<VkImageResolve const> resolves   = {};
 };
 
 struct alignas(8) BeginRendering
 {
-  Type const         type = Type::BeginRendering;
-  Command *          next = nullptr;
-  gpu::RenderingInfo info = {};
+  Type const      type = Type::BeginRendering;
+  Command *       next = nullptr;
+  VkRenderingInfo info = {};
 };
 
 struct alignas(8) EndRendering
@@ -735,33 +728,30 @@ struct alignas(8) EndRendering
   Command *  next = nullptr;
 };
 
-struct alignas(8) BindComputePipeline
+struct alignas(8) BindPipeline
 {
-  Type const           type     = Type::BindComputePipeline;
-  Command *            next     = nullptr;
-  gpu::ComputePipeline pipeline = nullptr;
-};
-
-struct alignas(8) BindGraphicsPipeline
-{
-  Type const            type     = Type::BindGraphicsPipeline;
-  Command *             next     = nullptr;
-  gpu::GraphicsPipeline pipeline = nullptr;
+  Type const          type       = Type::BindPipeline;
+  Command *           next       = nullptr;
+  VkPipelineBindPoint bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS;
+  VkPipeline          pipeline   = nullptr;
 };
 
 struct alignas(8) BindDescriptorSets
 {
-  Type const                     type            = Type::BindDescriptorSets;
-  Command *                      next            = nullptr;
-  Span<gpu::DescriptorSet const> sets            = {};
-  Span<u32 const>                dynamic_offsets = {};
+  Type const                  type            = Type::BindDescriptorSets;
+  Command *                   next            = nullptr;
+  VkPipelineBindPoint         bind_point      = VK_PIPELINE_BIND_POINT_MAX_ENUM;
+  VkPipelineLayout            layout          = nullptr;
+  Span<VkDescriptorSet const> sets            = {};
+  Span<u32 const>             dynamic_offsets = {};
 };
 
 struct alignas(8) PushConstants
 {
-  Type const     type     = Type::PushConstants;
-  Command *      next     = nullptr;
-  Span<u8 const> constant = {};
+  Type const       type     = Type::PushConstants;
+  Command *        next     = nullptr;
+  VkPipelineLayout layout   = nullptr;
+  Span<u8 const>   constant = {};
 };
 
 struct alignas(8) Dispatch
@@ -773,10 +763,10 @@ struct alignas(8) Dispatch
 
 struct alignas(8) DispatchIndirect
 {
-  Type const  type   = Type::DispatchIndirect;
-  Command *   next   = nullptr;
-  gpu::Buffer buffer = nullptr;
-  u64         offset = 0;
+  Type const type   = Type::DispatchIndirect;
+  Command *  next   = nullptr;
+  VkBuffer   buffer = nullptr;
+  u64        offset = 0;
 };
 
 struct alignas(8) SetGraphicsState
@@ -788,19 +778,19 @@ struct alignas(8) SetGraphicsState
 
 struct alignas(8) BindVertexBuffers
 {
-  Type const              type    = Type::BindVertexBuffers;
-  Command *               next    = nullptr;
-  Span<gpu::Buffer const> buffers = {};
-  Span<u64 const>         offsets = {};
+  Type const           type    = Type::BindVertexBuffers;
+  Command *            next    = nullptr;
+  Span<VkBuffer const> buffers = {};
+  Span<u64 const>      offsets = {};
 };
 
 struct alignas(8) BindIndexBuffer
 {
-  Type const     type       = Type::BindIndexBuffer;
-  Command *      next       = nullptr;
-  gpu::Buffer    buffer     = nullptr;
-  u64            offset     = 0;
-  gpu::IndexType index_type = gpu::IndexType::U32;
+  Type const  type       = Type::BindIndexBuffer;
+  Command *   next       = nullptr;
+  VkBuffer    buffer     = nullptr;
+  u64         offset     = 0;
+  VkIndexType index_type = VK_INDEX_TYPE_UINT32;
 };
 
 struct alignas(8) Draw
@@ -822,22 +812,22 @@ struct alignas(8) DrawIndexed
 
 struct alignas(8) DrawIndirect
 {
-  Type const  type       = Type::DrawIndirect;
-  Command *   next       = nullptr;
-  gpu::Buffer buffer     = nullptr;
-  u64         offset     = 0;
-  u32         draw_count = 0;
-  u32         stride     = 0;
+  Type const type       = Type::DrawIndirect;
+  Command *  next       = nullptr;
+  VkBuffer   buffer     = nullptr;
+  u64        offset     = 0;
+  u32        draw_count = 0;
+  u32        stride     = 0;
 };
 
 struct alignas(8) DrawIndexedIndirect
 {
-  Type const  type       = Type::DrawIndexedIndirect;
-  Command *   next       = nullptr;
-  gpu::Buffer buffer     = nullptr;
-  u64         offset     = 0;
-  u32         draw_count = 0;
-  u32         stride     = 0;
+  Type const type       = Type::DrawIndexedIndirect;
+  Command *  next       = nullptr;
+  VkBuffer   buffer     = nullptr;
+  u64        offset     = 0;
+  u32        draw_count = 0;
+  u32        stride     = 0;
 };
 
 }    // namespace cmd
@@ -992,6 +982,9 @@ struct EncoderResourceStates
   void access(Image const & image, MemAccess const & access,
               VkImageLayout layout, u32 pass, HazardBarriers & barriers);
 
+  void access(ImageView const & image, MemAccess const & access,
+              VkImageLayout layout, u32 pass, HazardBarriers & barriers);
+
   /// @param buffer buffer to sync
   /// @param access merged image state for the pass
   /// @param pass the pass temporal id
@@ -1011,40 +1004,6 @@ struct EncoderResourceStates
   void commit(DeviceResourceStates & upstream);
 };
 
-enum class DescriptorSetState : u8
-{
-  ComputeShaderView  = 0,
-  GraphicsShaderView = 1,
-  Undefined          = U8_MAX
-};
-
-enum class BufferState : u8
-{
-  ComputeShaderView  = 0,
-  GraphicsShaderView = 1,
-  VertexBuffer       = 2,
-  IndexBuffer        = 3,
-  IndirectBuffer     = 4,
-  TransferSrc        = 5,
-  TransferDst        = 6,
-  Undefined          = U8_MAX
-};
-
-enum class ImageState : u8
-{
-  ComputeShaderView             = 0,
-  GraphicsShaderView            = 1,
-  ColorAttachment               = 2,
-  DepthStencilAttachment        = 3,
-  ColorResolveAttachment        = 4,
-  DepthStencilResolveAttachment = 5,
-  TransferSrc                   = 6,
-  TransferDst                   = 7,
-  Present                       = 8,
-  General                       = 9,
-  Undefined                     = U8_MAX
-};
-
 struct AccessEncoder
 {
   struct Entry
@@ -1054,10 +1013,13 @@ struct AccessEncoder
     u32 descriptor_sets = 0;
   };
 
-  Vec<Tuple<gpu::Buffer, BufferState>>               buffers_;
-  Vec<Tuple<gpu::Image, ImageState>>                 images_;
-  Vec<Tuple<gpu::DescriptorSet, DescriptorSetState>> descriptor_sets_;
-  Vec<Entry>                                         passes_;
+  Vec<Tuple<Buffer *, VkPipelineStageFlags, VkAccessFlags>> buffers_;
+  Vec<Tuple<Image *, VkPipelineStageFlags, VkAccessFlags, VkImageLayout>>
+    images_;
+
+  Vec<Tuple<DescriptorSet *, VkShaderStageFlags, VkAccessFlags>>
+             descriptor_sets_;
+  Vec<Entry> passes_;
 
   AccessEncoder(AllocatorRef allocator) :
     buffers_{allocator},
@@ -1071,11 +1033,17 @@ struct AccessEncoder
 
   void end_pass();
 
-  void access(gpu::DescriptorSet set, DescriptorSetState state);
+  void access(Buffer * buffer, VkPipelineStageFlags stages,
+              VkAccessFlags access);
 
-  void access(gpu::Buffer buffer, BufferState state);
+  void access(Image * image, VkPipelineStageFlags stages, VkAccessFlags access,
+              VkImageLayout layout);
 
-  void access(gpu::Image image, ImageState state);
+  void access(ImageView * image, VkPipelineStageFlags stages,
+              VkAccessFlags access, VkImageLayout layout);
+
+  void access(DescriptorSet * set, VkShaderStageFlags stages,
+              VkAccessFlags access);
 };
 
 enum class CommandBufferState : u8
@@ -1102,13 +1070,8 @@ struct CommandEncoder final : gpu::CommandEncoder
 
   struct Ctx
   {
-    cmd::BindComputePipeline *  compute_pipeline  = nullptr;
-    cmd::BindDescriptorSets *   descriptor_sets   = nullptr;
-    cmd::BeginRendering *       rendering         = nullptr;
-    cmd::BindGraphicsPipeline * graphics_pipeline = nullptr;
-    cmd::SetGraphicsState *     graphics_state    = nullptr;
-    cmd::BindVertexBuffers *    vertex_buffer     = nullptr;
-    cmd::BindIndexBuffer *      index_buffer      = nullptr;
+    // [ ] remove all default-init
+    void clear();
   };
 
   Device *           dev_;
@@ -1134,20 +1097,6 @@ struct CommandEncoder final : gpu::CommandEncoder
     last_cmd_{nullptr},
     passes_{allocator}
   {
-  }
-
-  template <typename T>
-  bool push_array(Span<T> & dst, Span<T const> src)
-  {
-    T * data;
-    if (!pool_.nalloc(src.size(), data))
-    {
-      return false;
-    }
-
-    mem::copy(src, data);
-    dst = Span<T>{data, src.size()};
-    return true;
   }
 
   template <typename Cmd>
@@ -1271,7 +1220,7 @@ struct CommandBuffer final : gpu::CommandBuffer
 {
   Device *              dev_;
   VkCommandPool         vk_pool_;
-  VkCommandBuffer       vk_buffer_;
+  VkCommandBuffer       vk_;
   Status                status_;
   CommandBufferState    state_;
   EncoderResourceStates resource_states_;
@@ -1280,7 +1229,7 @@ struct CommandBuffer final : gpu::CommandBuffer
                 AllocatorRef allocator) :
     dev_{dev},
     vk_pool_{vk_pool},
-    vk_buffer_{vk_buffer},
+    vk_{vk_buffer},
     status_{Status::Success},
     state_{CommandBufferState::Reset},
     resource_states_{allocator}

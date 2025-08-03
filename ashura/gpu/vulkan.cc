@@ -720,7 +720,7 @@ void EncoderResourceStates::barrier(Image const &     image,
       .newLayout           = new_layout,
       .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
       .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-      .image               = image.vk_image,
+      .image               = image.vk,
       .subresourceRange    = {.aspectMask     = (VkImageAspectFlags) image.aspects,
                               .baseMipLevel   = 0,
                               .levelCount     = VK_REMAINING_MIP_LEVELS,
@@ -741,7 +741,7 @@ void EncoderResourceStates::barrier(Buffer const &    buffer,
                    .dstAccessMask = new_state.access,
                    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
                    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                   .buffer              = buffer.vk_buffer,
+                   .buffer              = buffer.vk,
                    .offset              = 0,
                    .size                = VK_WHOLE_SIZE});
 }
@@ -979,6 +979,14 @@ void EncoderResourceStates::access(Image const &     image,
     });
 
   return;
+}
+
+void EncoderResourceStates::access(ImageView const & image,
+                                   MemAccess const & access,
+                                   VkImageLayout layout, u32 pass,
+                                   HazardBarriers & barriers)
+{
+  this->access(*image.image, access, layout, pass, barriers);
 }
 
 void EncoderResourceStates::access(Buffer const &    buffer,
@@ -1295,22 +1303,31 @@ void AccessEncoder::end_pass()
 {
 }
 
-void AccessEncoder::access(gpu::DescriptorSet set, DescriptorSetState state)
+void AccessEncoder::access(Buffer * buffer, VkPipelineStageFlags stages,
+                           VkAccessFlags access)
 {
-  descriptor_sets_.push(set, state).unwrap();
-  passes_.last().descriptor_sets++;
-}
-
-void AccessEncoder::access(gpu::Buffer buffer, BufferState state)
-{
-  buffers_.push(buffer, state).unwrap();
+  buffers_.push(buffer, stages, access).unwrap();
   passes_.last().buffers++;
 }
 
-void AccessEncoder::access(gpu::Image image, ImageState state)
+void AccessEncoder::access(Image * image, VkPipelineStageFlags stages,
+                           VkAccessFlags access, VkImageLayout layout)
 {
-  images_.push(image, state).unwrap();
+  images_.push(image, stages, access, layout).unwrap();
   passes_.last().images++;
+}
+
+void AccessEncoder::access(ImageView * image, VkPipelineStageFlags stages,
+                           VkAccessFlags access, VkImageLayout layout)
+{
+  this->access(image->image, stages, access, layout);
+}
+
+void AccessEncoder::access(DescriptorSet * set, VkShaderStageFlags stages,
+                           VkAccessFlags access)
+{
+  descriptor_sets_.push(set, stages, access).unwrap();
+  passes_.last().descriptor_sets++;
 }
 
 constexpr bool is_image_view_type_compatible(gpu::ImageType     image_type,
@@ -1351,8 +1368,15 @@ constexpr u64 index_type_size(gpu::IndexType type)
 constexpr bool is_valid_buffer_access(u64 size, Slice64 access_range,
                                       u64 offset_alignment, u64 size_alignment)
 {
-  access_range = access_range(size);
-  return !access_range.is_empty() &&
+  access_range.span = access_range.span == U64_MAX ?
+                        (size - access_range.offset) :
+                        access_range.span;
+
+  bool is_valid_offset = access_range.offset < size;
+  bool is_valid_span   = access_range.span > 0;
+  bool is_valid_end    = access_range.end() <= size;
+
+  return is_valid_offset && is_valid_span && is_valid_end &&
          is_aligned(offset_alignment, access_range.offset) &&
          is_aligned(size_alignment, access_range.span);
 }
@@ -1363,10 +1387,21 @@ constexpr bool is_valid_image_access(gpu::ImageAspects aspects,
                                      Slice32           access_mip_levels,
                                      Slice32           access_array_layers)
 {
-  access_mip_levels   = access_mip_levels(num_mip_levels);
-  access_array_layers = access_array_layers(num_array_layers);
+  access_mip_levels.span   = access_mip_levels.span == U32_MAX ?
+                               (num_mip_levels - access_mip_levels.offset) :
+                               access_mip_levels.span;
+  access_array_layers.span = access_array_layers.span == U32_MAX ?
+                               (num_mip_levels - access_array_layers.offset) :
+                               access_array_layers.span;
 
-  return !access_mip_levels.is_empty() && !access_array_layers.is_empty() &&
+  bool is_valid_offset = access_mip_levels.offset < num_mip_levels &&
+                         access_array_layers.offset < num_array_layers;
+  bool is_valid_span =
+    access_mip_levels.span > 0 && access_array_layers.span > 0;
+  bool is_valid_end = access_mip_levels.end() <= num_mip_levels &&
+                      access_array_layers.end() <= num_array_layers;
+
+  return is_valid_offset && is_valid_span && is_valid_end &&
          has_bits(aspects, access_aspects) &&
          access_aspects != gpu::ImageAspects::None;
 }
@@ -2386,28 +2421,27 @@ Result<gpu::Buffer, Status> Device::create_buffer(gpu::BufferInfo const & info)
                                  .queueFamilyIndexCount = 1,
                                  .pQueueFamilyIndices   = nullptr};
 
-  VkBuffer vk_buffer;
+  VkBuffer vk;
 
-  auto result =
-    vk_table_.CreateBuffer(vk_dev_, &create_info, nullptr, &vk_buffer);
+  auto result = vk_table_.CreateBuffer(vk_dev_, &create_info, nullptr, &vk);
 
   if (result != VK_SUCCESS)
   {
     return Err{(Status) result};
   }
 
-  set_resource_name(info.label, vk_buffer, VK_OBJECT_TYPE_BUFFER,
+  set_resource_name(info.label, vk, VK_OBJECT_TYPE_BUFFER,
                     VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT);
 
   Buffer * buffer;
   if (!allocator_->nalloc(1, buffer))
   {
-    vk_table_.DestroyBuffer(vk_dev_, vk_buffer, nullptr);
+    vk_table_.DestroyBuffer(vk_dev_, vk, nullptr);
     return Err{Status::OutOfHostMemory};
   }
 
   new (buffer) Buffer{
-    .vk_buffer      = vk_buffer,
+    .vk             = vk,
     .usage          = info.usage,
     .host_mapped    = info.host_mapped,
     .size           = info.size,
@@ -2454,32 +2488,31 @@ Result<gpu::BufferView, Status>
     .sType  = VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO,
     .pNext  = nullptr,
     .flags  = 0,
-    .buffer = buffer->vk_buffer,
+    .buffer = buffer->vk,
     .format = (VkFormat) info.format,
     .offset = slice.offset,
     .range  = slice.span};
 
-  VkBufferView vk_view;
+  VkBufferView vk;
 
-  auto result =
-    vk_table_.CreateBufferView(vk_dev_, &create_info, nullptr, &vk_view);
+  auto result = vk_table_.CreateBufferView(vk_dev_, &create_info, nullptr, &vk);
   if (result != VK_SUCCESS)
   {
     return Err{(Status) result};
   }
 
-  set_resource_name(info.label, vk_view, VK_OBJECT_TYPE_BUFFER_VIEW,
+  set_resource_name(info.label, vk, VK_OBJECT_TYPE_BUFFER_VIEW,
                     VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_VIEW_EXT);
 
   BufferView * view;
 
   if (!allocator_->nalloc(1, view))
   {
-    vk_table_.DestroyBufferView(vk_dev_, vk_view, nullptr);
+    vk_table_.DestroyBufferView(vk_dev_, vk, nullptr);
     return Err{Status::OutOfHostMemory};
   }
 
-  new (view) BufferView{.vk_view        = vk_view,
+  new (view) BufferView{.vk             = vk,
                         .buffer         = buffer,
                         .slice          = slice,
                         .bind_locations = BindLocations{allocator_}};
@@ -2543,29 +2576,28 @@ Result<gpu::Image, Status> Device::create_image(gpu::ImageInfo const & info)
     .initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED
   };
 
-  VkImage vk_image;
+  VkImage vk;
 
-  auto result =
-    vk_table_.CreateImage(vk_dev_, &create_info, nullptr, &vk_image);
+  auto result = vk_table_.CreateImage(vk_dev_, &create_info, nullptr, &vk);
 
   if (result != VK_SUCCESS)
   {
     return Err{(Status) result};
   }
 
-  set_resource_name(info.label, vk_image, VK_OBJECT_TYPE_IMAGE,
+  set_resource_name(info.label, vk, VK_OBJECT_TYPE_IMAGE,
                     VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT);
 
   Image * image;
 
   if (!allocator_->nalloc(1, image))
   {
-    vk_table_.DestroyImage(vk_dev_, vk_image, nullptr);
+    vk_table_.DestroyImage(vk_dev_, vk, nullptr);
     return Err{Status::OutOfHostMemory};
   }
 
   new (image) Image{
-    .vk_image           = vk_image,
+    .vk                 = vk,
     .type               = info.type,
     .usage              = info.usage,
     .aspects            = info.aspects,
@@ -2618,7 +2650,7 @@ Result<gpu::ImageView, Status>
     .sType      = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
     .pNext      = nullptr,
     .flags      = 0,
-    .image      = src_image->vk_image,
+    .image      = src_image->vk,
     .viewType   = (VkImageViewType) info.view_type,
     .format     = (VkFormat) info.view_format,
     .components = VkComponentMapping{.r = (VkComponentSwizzle) info.mapping.r,
@@ -2633,26 +2665,26 @@ Result<gpu::ImageView, Status>
                                      .layerCount     = array_layers.span}
   };
 
-  VkImageView vk_view;
-  auto        result =
-    vk_table_.CreateImageView(vk_dev_, &create_info, nullptr, &vk_view);
+  VkImageView vk;
+  auto result = vk_table_.CreateImageView(vk_dev_, &create_info, nullptr, &vk);
   if (result != VK_SUCCESS)
   {
     return Err{(Status) result};
   }
 
-  set_resource_name(info.label, vk_view, VK_OBJECT_TYPE_IMAGE_VIEW,
+  set_resource_name(info.label, vk, VK_OBJECT_TYPE_IMAGE_VIEW,
                     VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_VIEW_EXT);
 
   ImageView * view;
   if (!allocator_->nalloc(1, view))
   {
-    vk_table_.DestroyImageView(vk_dev_, vk_view, nullptr);
+    vk_table_.DestroyImageView(vk_dev_, vk, nullptr);
     return Err{Status::OutOfHostMemory};
   }
 
-  new (view) ImageView{.vk_view        = vk_view,
+  new (view) ImageView{.vk             = vk,
                        .image          = src_image,
+                       .format         = info.view_format,
                        .mip_levels     = mip_levels,
                        .array_layers   = array_layers,
                        .bind_locations = BindLocations{allocator_}};
@@ -2718,13 +2750,12 @@ Result<gpu::MemoryGroup, Status>
       resource.match(
         [&](gpu::Buffer p) {
           auto buffer = ptr(p);
-          vk_table_.GetBufferMemoryRequirements(vk_dev_, buffer->vk_buffer,
-                                                &req);
+          vk_table_.GetBufferMemoryRequirements(vk_dev_, buffer->vk, &req);
           alias_host_mapped = alias_host_mapped || buffer->host_mapped;
         },
         [&](gpu::Image p) {
           auto image = ptr(p);
-          vk_table_.GetImageMemoryRequirements(vk_dev_, image->vk_image, &req);
+          vk_table_.GetImageMemoryRequirements(vk_dev_, image->vk, &req);
         });
 
       alias_layout = alias_layout.unioned(
@@ -2791,16 +2822,15 @@ Result<gpu::MemoryGroup, Status>
       resource.match(
         [&](gpu::Buffer p) {
           auto buffer = ptr(p);
-          result =
-            vmaBindBufferMemory2(vma_allocator_, vma_allocation, alias_offset,
-                                 buffer->vk_buffer, nullptr);
+          result      = vmaBindBufferMemory2(vma_allocator_, vma_allocation,
+                                             alias_offset, buffer->vk, nullptr);
           buffer->memory.alias   = i;
           buffer->memory.element = ialias;
         },
         [&](gpu::Image p) {
           auto image = ptr(p);
           result     = vmaBindImageMemory2(vma_allocator_, vma_allocation,
-                                           alias_offset, image->vk_image, nullptr);
+                                           alias_offset, image->vk, nullptr);
           image->memory.alias   = i;
           image->memory.element = ialias;
         });
@@ -3028,23 +3058,23 @@ Result<gpu::DescriptorSetLayout, Status> Device::create_descriptor_set_layout(
     .bindingCount = size32(vk_bindings),
     .pBindings    = vk_bindings.data()};
 
-  VkDescriptorSetLayout vk_layout;
-  auto result = vk_table_.CreateDescriptorSetLayout(vk_dev_, &create_info,
-                                                    nullptr, &vk_layout);
+  VkDescriptorSetLayout vk;
+  auto                  result =
+    vk_table_.CreateDescriptorSetLayout(vk_dev_, &create_info, nullptr, &vk);
 
   if (result != VK_SUCCESS)
   {
     return Err{(Status) result};
   }
 
-  defer vk_layout_{[&] {
-    if (vk_layout != nullptr)
+  defer vk_{[&] {
+    if (vk != nullptr)
     {
-      vk_table_.DestroyDescriptorSetLayout(vk_dev_, vk_layout, nullptr);
+      vk_table_.DestroyDescriptorSetLayout(vk_dev_, vk, nullptr);
     }
   }};
 
-  set_resource_name(info.label, vk_layout, VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT,
+  set_resource_name(info.label, vk, VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT,
                     VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT_EXT);
 
   DescriptorSetLayout * layout;
@@ -3059,12 +3089,12 @@ Result<gpu::DescriptorSetLayout, Status> Device::create_descriptor_set_layout(
 
   auto is_mutating = is_mutating_set(info.bindings);
 
-  new (layout) DescriptorSetLayout{.vk_layout           = vk_layout,
+  new (layout) DescriptorSetLayout{.vk                  = vk,
                                    .bindings            = bindings,
                                    .num_variable_length = num_variable_length,
                                    .is_mutating         = is_mutating};
 
-  vk_layout = nullptr;
+  vk = nullptr;
 
   return Ok{(gpu::DescriptorSetLayout) layout};
 }
@@ -3163,10 +3193,10 @@ Result<gpu::DescriptorSet, Status>
     .pNext              = &var_alloc_info,
     .descriptorPool     = vk_pool,
     .descriptorSetCount = 1,
-    .pSetLayouts        = &layout->vk_layout};
+    .pSetLayouts        = &layout->vk};
 
-  VkDescriptorSet vk_set;
-  result = vk_table_.AllocateDescriptorSets(vk_dev_, &alloc_info, &vk_set);
+  VkDescriptorSet vk;
+  result = vk_table_.AllocateDescriptorSets(vk_dev_, &alloc_info, &vk);
 
   // must not have these errors
   CHECK(result != VK_ERROR_OUT_OF_POOL_MEMORY &&
@@ -3178,7 +3208,7 @@ Result<gpu::DescriptorSet, Status>
     return Err{(Status) result};
   }
 
-  set_resource_name(info.label, vk_set, VK_OBJECT_TYPE_DESCRIPTOR_SET,
+  set_resource_name(info.label, vk, VK_OBJECT_TYPE_DESCRIPTOR_SET,
                     VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_SET_EXT);
 
   set_resource_name(info.label, vk_pool, VK_OBJECT_TYPE_DESCRIPTOR_POOL,
@@ -3232,14 +3262,14 @@ Result<gpu::DescriptorSet, Status>
 
   auto id = allocate_descriptor_set_id();
 
-  new (set) DescriptorSet{.vk_set      = vk_set,
+  new (set) DescriptorSet{.vk          = vk,
                           .vk_pool     = vk_pool,
                           .id          = id,
                           .is_mutating = layout->is_mutating,
                           .bindings    = std::move(bindings)};
 
   vk_pool = nullptr;
-  vk_set  = nullptr;
+  vk      = nullptr;
 
   return Ok{(gpu::DescriptorSet) set};
 }
@@ -3285,7 +3315,7 @@ Result<gpu::ComputePipeline, Status>
 
   for (auto layout : info.descriptor_set_layouts)
   {
-    vk_descriptor_set_layouts.push(((DescriptorSetLayout *) layout)->vk_layout)
+    vk_descriptor_set_layouts.push(((DescriptorSetLayout *) layout)->vk)
       .unwrap();
   }
 
@@ -3340,10 +3370,10 @@ Result<gpu::ComputePipeline, Status>
     .basePipelineHandle = nullptr,
     .basePipelineIndex  = 0};
 
-  VkPipeline vk_pipeline;
+  VkPipeline vk;
   result = vk_table_.CreateComputePipelines(
     vk_dev_, info.cache == nullptr ? nullptr : (PipelineCache) info.cache, 1,
-    &create_info, nullptr, &vk_pipeline);
+    &create_info, nullptr, &vk);
 
   if (result != VK_SUCCESS)
   {
@@ -3351,7 +3381,7 @@ Result<gpu::ComputePipeline, Status>
     return Err{(Status) result};
   }
 
-  set_resource_name(info.label, vk_pipeline, VK_OBJECT_TYPE_PIPELINE,
+  set_resource_name(info.label, vk, VK_OBJECT_TYPE_PIPELINE,
                     VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_EXT);
   set_resource_name(info.label, vk_layout, VK_OBJECT_TYPE_PIPELINE_LAYOUT,
                     VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_LAYOUT_EXT);
@@ -3360,12 +3390,12 @@ Result<gpu::ComputePipeline, Status>
   if (!allocator_->nalloc(1, pipeline))
   {
     vk_table_.DestroyPipelineLayout(vk_dev_, vk_layout, nullptr);
-    vk_table_.DestroyPipeline(vk_dev_, vk_pipeline, nullptr);
+    vk_table_.DestroyPipeline(vk_dev_, vk, nullptr);
     return Err{Status::OutOfHostMemory};
   }
 
   new (pipeline)
-    ComputePipeline{.vk_pipeline         = vk_pipeline,
+    ComputePipeline{.vk                  = vk,
                     .vk_layout           = vk_layout,
                     .push_constants_size = info.push_constants_size,
                     .num_sets            = size32(info.descriptor_set_layouts)};
@@ -3395,7 +3425,7 @@ Result<gpu::GraphicsPipeline, Status>
 
   for (auto layout : info.descriptor_set_layouts)
   {
-    vk_descriptor_set_layouts.push(((DescriptorSetLayout *) layout)->vk_layout)
+    vk_descriptor_set_layouts.push(((DescriptorSetLayout *) layout)->vk)
       .unwrap();
   }
 
@@ -3680,10 +3710,10 @@ Result<gpu::GraphicsPipeline, Status>
     .basePipelineHandle  = nullptr,
     .basePipelineIndex   = 0};
 
-  VkPipeline vk_pipeline;
+  VkPipeline vk;
   result = vk_table_.CreateGraphicsPipelines(
     vk_dev_, info.cache == nullptr ? nullptr : (PipelineCache) info.cache, 1,
-    &create_info, nullptr, &vk_pipeline);
+    &create_info, nullptr, &vk);
 
   if (result != VK_SUCCESS)
   {
@@ -3691,7 +3721,7 @@ Result<gpu::GraphicsPipeline, Status>
     return Err{(Status) result};
   }
 
-  set_resource_name(info.label, vk_pipeline, VK_OBJECT_TYPE_PIPELINE,
+  set_resource_name(info.label, vk, VK_OBJECT_TYPE_PIPELINE,
                     VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_EXT);
   set_resource_name(info.label, vk_layout, VK_OBJECT_TYPE_PIPELINE_LAYOUT,
                     VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_LAYOUT_EXT);
@@ -3700,12 +3730,12 @@ Result<gpu::GraphicsPipeline, Status>
   if (!allocator_->nalloc(1, pipeline))
   {
     vk_table_.DestroyPipelineLayout(vk_dev_, vk_layout, nullptr);
-    vk_table_.DestroyPipeline(vk_dev_, vk_pipeline, nullptr);
+    vk_table_.DestroyPipeline(vk_dev_, vk, nullptr);
     return Err{Status::OutOfHostMemory};
   }
 
   new (pipeline)
-    GraphicsPipeline{.vk_pipeline         = vk_pipeline,
+    GraphicsPipeline{.vk                  = vk,
                      .vk_layout           = vk_layout,
                      .push_constants_size = info.push_constants_size,
                      .num_sets            = size32(info.descriptor_set_layouts),
@@ -3764,7 +3794,7 @@ Result<gpu::Swapchain, Status>
     }
 
     new (swapchain) Swapchain{
-      .vk_swapchain    = nullptr,
+      .vk              = nullptr,
       .vk_surface      = vk_surface,
       .images          = {},
       .current_image   = none,
@@ -3829,13 +3859,11 @@ Result<gpu::Swapchain, Status>
     .compositeAlpha        = (VkCompositeAlphaFlagBitsKHR) info.composite_alpha,
     .presentMode           = (VkPresentModeKHR) info.present_mode,
     .clipped               = VK_TRUE,
-    .oldSwapchain =
-      old_swapchain == nullptr ? nullptr : old_swapchain->vk_swapchain};
+    .oldSwapchain = old_swapchain == nullptr ? nullptr : old_swapchain->vk};
 
-  VkSwapchainKHR vk_swapchain;
+  VkSwapchainKHR vk;
 
-  result =
-    vk_table_.CreateSwapchainKHR(vk_dev_, &create_info, nullptr, &vk_swapchain);
+  result = vk_table_.CreateSwapchainKHR(vk_dev_, &create_info, nullptr, &vk);
 
   if (result != VK_SUCCESS)
   {
@@ -3843,16 +3871,15 @@ Result<gpu::Swapchain, Status>
     return Err{(Status) result};
   }
 
-  defer vk_swapchain_{[&] {
-    if (vk_swapchain != nullptr)
+  defer vk_{[&] {
+    if (vk != nullptr)
     {
-      vk_table_.DestroySwapchainKHR(vk_dev_, vk_swapchain, nullptr);
+      vk_table_.DestroySwapchainKHR(vk_dev_, vk, nullptr);
     }
   }};
 
   u32 num_images;
-  result = vk_table_.GetSwapchainImagesKHR(vk_dev_, vk_swapchain, &num_images,
-                                           nullptr);
+  result = vk_table_.GetSwapchainImagesKHR(vk_dev_, vk, &num_images, nullptr);
 
   if (result != VK_SUCCESS)
   {
@@ -3865,8 +3892,8 @@ Result<gpu::Swapchain, Status>
   InplaceVec<VkImage, gpu::MAX_SWAPCHAIN_IMAGES> vk_images;
   vk_images.resize(num_images).unwrap();
 
-  result = vk_table_.GetSwapchainImagesKHR(vk_dev_, vk_swapchain, &num_images,
-                                           vk_images.data());
+  result =
+    vk_table_.GetSwapchainImagesKHR(vk_dev_, vk, &num_images, vk_images.data());
 
   if (result != VK_SUCCESS)
   {
@@ -3894,14 +3921,14 @@ Result<gpu::Swapchain, Status>
   auto swapchain_label =
     ssformat<256>(allocator_, "{}:Swapchain"_str, info.label).unwrap();
 
-  set_resource_name(swapchain_label, vk_swapchain, VK_OBJECT_TYPE_SWAPCHAIN_KHR,
+  set_resource_name(swapchain_label, vk, VK_OBJECT_TYPE_SWAPCHAIN_KHR,
                     VK_DEBUG_REPORT_OBJECT_TYPE_SWAPCHAIN_KHR_EXT);
   for (auto [i, image] : enumerate(images))
   {
     auto label =
       ssformat<256>(allocator_, "{}:Swapchain.Image:{}"_str, info.label, i)
         .unwrap();
-    set_resource_name(label, image->vk_image, VK_OBJECT_TYPE_IMAGE,
+    set_resource_name(label, image->vk, VK_OBJECT_TYPE_IMAGE,
                       VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT);
   }
 
@@ -3913,7 +3940,7 @@ Result<gpu::Swapchain, Status>
   }
 
   new (swapchain) Swapchain{
-    .vk_swapchain    = vk_swapchain,
+    .vk              = vk,
     .vk_surface      = vk_surface,
     .images          = std::move(images),
     .current_image   = none,
@@ -3996,6 +4023,91 @@ Result<gpu::StatisticsQuery, Status>
                     VK_DEBUG_REPORT_OBJECT_TYPE_QUERY_POOL_EXT);
 
   return Ok{(gpu::StatisticsQuery) vk_pool};
+}
+
+Result<gpu::CommandEncoderPtr, Status>
+  Device::create_command_encoder(gpu::CommandEncoderInfo const &)
+{
+  CommandEncoder * enc;
+
+  if (!allocator_->nalloc(1, enc))
+  {
+    return Err{Status::OutOfHostMemory};
+  }
+
+  new (enc) CommandEncoder{this, allocator_};
+
+  return Ok{(gpu::CommandEncoderPtr) enc};
+}
+
+Result<gpu::CommandBufferPtr, Status>
+  Device::create_command_buffer(gpu::CommandBufferInfo const & info)
+{
+  VkCommandPoolCreateInfo pool_create_info{
+    .sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+    .pNext            = nullptr,
+    .flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+    .queueFamilyIndex = queue_family_};
+
+  VkCommandPool vk_pool;
+  auto          result =
+    vk_table_.CreateCommandPool(vk_dev_, &pool_create_info, nullptr, &vk_pool);
+
+  if (result != VK_SUCCESS)
+  {
+    return Err{(Status) result};
+  }
+
+  defer pool_{[&] {
+    if (vk_pool != nullptr)
+    {
+      vk_table_.DestroyCommandPool(vk_dev_, vk_pool, nullptr);
+    }
+  }};
+
+  auto pool_label =
+    ssformat<512>(allocator_, "{}:CommandPool"_str, info.label).unwrap();
+  set_resource_name(pool_label, vk_pool, VK_OBJECT_TYPE_COMMAND_POOL,
+                    VK_DEBUG_REPORT_OBJECT_TYPE_COMMAND_POOL_EXT);
+
+  VkCommandBufferAllocateInfo allocate_info{
+    .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+    .pNext              = nullptr,
+    .commandPool        = vk_pool,
+    .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+    .commandBufferCount = 1};
+
+  VkCommandBuffer vk;
+  result = vk_table_.AllocateCommandBuffers(vk_dev_, &allocate_info, &vk);
+
+  if (result != VK_SUCCESS)
+  {
+    return Err{(Status) result};
+  }
+
+  defer buff_{[&] {
+    if (vk != nullptr)
+    {
+      vk_table_.FreeCommandBuffers(vk_dev_, vk_pool, 1, &vk);
+    }
+  }};
+
+  set_resource_name(info.label, vk, VK_OBJECT_TYPE_COMMAND_BUFFER,
+                    VK_DEBUG_REPORT_OBJECT_TYPE_COMMAND_BUFFER_EXT);
+
+  CommandBuffer * buff;
+
+  if (!allocator_->nalloc(1, buff))
+  {
+    return Err{Status::OutOfHostMemory};
+  }
+
+  new (buff) CommandBuffer{this, vk_pool, vk, allocator_};
+
+  vk_pool = nullptr;
+  vk      = nullptr;
+
+  return Ok{(gpu::CommandBufferPtr) buff};
 }
 
 Result<gpu::QueueScope, Status>
@@ -4129,7 +4241,7 @@ void Device::uninit(gpu::Buffer buffer_)
     }
   }
 
-  vk_table_.DestroyBuffer(vk_dev_, buffer->vk_buffer, nullptr);
+  vk_table_.DestroyBuffer(vk_dev_, buffer->vk, nullptr);
   buffer->~Buffer();
   allocator_->ndealloc(1, buffer);
 }
@@ -4149,7 +4261,7 @@ void Device::uninit(gpu::BufferView buffer_view_)
       (BufferView *) nullptr;
   }
 
-  vk_table_.DestroyBufferView(vk_dev_, buffer_view->vk_view, nullptr);
+  vk_table_.DestroyBufferView(vk_dev_, buffer_view->vk, nullptr);
   buffer_view->~BufferView();
   allocator_->ndealloc(1, buffer_view);
 }
@@ -4186,7 +4298,7 @@ void Device::uninit(gpu::Image image_)
     }
   }
 
-  vk_table_.DestroyImage(vk_dev_, image->vk_image, nullptr);
+  vk_table_.DestroyImage(vk_dev_, image->vk, nullptr);
   image->~Image();
   allocator_->ndealloc(1, image);
 }
@@ -4206,7 +4318,7 @@ void Device::uninit(gpu::ImageView image_view_)
       (ImageView *) nullptr;
   }
 
-  vk_table_.DestroyImageView(vk_dev_, image_view->vk_view, nullptr);
+  vk_table_.DestroyImageView(vk_dev_, image_view->vk, nullptr);
   image_view->~ImageView();
   allocator_->ndealloc(1, image_view);
 }
@@ -4250,7 +4362,7 @@ void Device::uninit(gpu::DescriptorSetLayout layout_)
     return;
   }
 
-  vk_table_.DestroyDescriptorSetLayout(vk_dev_, layout->vk_layout, nullptr);
+  vk_table_.DestroyDescriptorSetLayout(vk_dev_, layout->vk, nullptr);
   layout->~DescriptorSetLayout();
   allocator_->ndealloc(1, layout);
 }
@@ -4304,7 +4416,7 @@ void Device::uninit(gpu::DescriptorSet set_)
   }
 
   release_descriptor_set_id(set->id);
-  vk_table_.FreeDescriptorSets(vk_dev_, set->vk_pool, 1, &set->vk_set);
+  vk_table_.FreeDescriptorSets(vk_dev_, set->vk_pool, 1, &set->vk);
   vk_table_.DestroyDescriptorPool(vk_dev_, set->vk_pool, nullptr);
   set->~DescriptorSet();
   allocator_->ndealloc(1, set);
@@ -4324,7 +4436,7 @@ void Device::uninit(gpu::ComputePipeline pipeline_)
     return;
   }
 
-  vk_table_.DestroyPipeline(vk_dev_, pipeline->vk_pipeline, nullptr);
+  vk_table_.DestroyPipeline(vk_dev_, pipeline->vk, nullptr);
   vk_table_.DestroyPipelineLayout(vk_dev_, pipeline->vk_layout, nullptr);
   pipeline->~ComputePipeline();
   allocator_->ndealloc(1, pipeline);
@@ -4339,7 +4451,7 @@ void Device::uninit(gpu::GraphicsPipeline pipeline_)
     return;
   }
 
-  vk_table_.DestroyPipeline(vk_dev_, pipeline->vk_pipeline, nullptr);
+  vk_table_.DestroyPipeline(vk_dev_, pipeline->vk, nullptr);
   vk_table_.DestroyPipelineLayout(vk_dev_, pipeline->vk_layout, nullptr);
   pipeline->~GraphicsPipeline();
   allocator_->ndealloc(1, pipeline);
@@ -4354,7 +4466,7 @@ void Device::uninit(gpu::Swapchain swapchain_)
     return;
   }
 
-  vk_table_.DestroySwapchainKHR(vk_dev_, swapchain->vk_swapchain, nullptr);
+  vk_table_.DestroySwapchainKHR(vk_dev_, swapchain->vk, nullptr);
   swapchain->~Swapchain();
   allocator_->ndealloc(1, swapchain);
 }
@@ -4394,11 +4506,39 @@ void Device::uninit(gpu::CommandBuffer * buff_)
     return;
   }
 
-  vk_table_.FreeCommandBuffers(vk_dev_, buff->vk_pool_, 1, &buff->vk_buffer_);
+  vk_table_.FreeCommandBuffers(vk_dev_, buff->vk_pool_, 1, &buff->vk_);
   vk_table_.DestroyCommandPool(vk_dev_, buff->vk_pool_, nullptr);
 
   buff->~CommandBuffer();
   allocator_->ndealloc(1, buff);
+}
+
+void Device::uninit(gpu::QueueScope scope_)
+{
+  auto scope = (QueueScope *) scope_;
+
+  if (scope == nullptr)
+  {
+    return;
+  }
+
+  for (auto sem : scope->acquire_semaphores_)
+  {
+    vk_table_.DestroySemaphore(vk_dev_, sem, nullptr);
+  }
+
+  for (auto sem : scope->submit_semaphores_)
+  {
+    vk_table_.DestroySemaphore(vk_dev_, sem, nullptr);
+  }
+
+  for (auto fence : scope->submit_fences_)
+  {
+    vk_table_.DestroyFence(vk_dev_, fence, nullptr);
+  }
+
+  scope->~QueueScope();
+  allocator_->ndealloc(1, scope);
 }
 
 Result<Span<u8>, Status> Device::get_memory_map(gpu::Buffer buffer_)
@@ -4627,10 +4767,10 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
       {
         auto * buffer = (Buffer *) b.buffer;
         auto   range  = b.range(buffer->size);
-        vk            = VkDescriptorBufferInfo{
-                     .buffer = (buffer == nullptr) ? nullptr : buffer->vk_buffer,
-                     .offset = range.offset,
-                     .range  = range.span};
+        vk = VkDescriptorBufferInfo{.buffer = (buffer == nullptr) ? nullptr :
+                                                                    buffer->vk,
+                                    .offset = range.offset,
+                                    .range  = range.span};
       }
     }
     break;
@@ -4649,7 +4789,7 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
         auto * sampler = (Sampler) b.sampler;
         vk             = VkDescriptorImageInfo{
                       .sampler     = sampler,
-                      .imageView   = (view == nullptr) ? nullptr : view->vk_view,
+                      .imageView   = (view == nullptr) ? nullptr : view->vk,
                       .imageLayout = descriptor_image_layout(binding.type)};
       }
     }
@@ -4663,7 +4803,7 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
       for (auto [vk, b] : zip(texel_buffer_views, update.texel_buffers))
       {
         auto * view = (BufferView *) b;
-        vk          = (view == nullptr) ? nullptr : view->vk_view;
+        vk          = (view == nullptr) ? nullptr : view->vk;
       }
     }
     break;
@@ -4674,7 +4814,7 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
 
   VkWriteDescriptorSet vk_write{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                                 .pNext = nullptr,
-                                .dstSet          = set->vk_set,
+                                .dstSet          = set->vk,
                                 .dstBinding      = update.binding,
                                 .dstArrayElement = update.first_element,
                                 .descriptorCount =
@@ -4893,6 +5033,7 @@ Result<Void, Status>
   Device::invalidate_swapchain(gpu::Swapchain             swapchain_,
                                gpu::SwapchainInfo const & info)
 {
+  // [ ] fix
   CHECK(info.preferred_extent.x() > 0, "");
   CHECK(info.preferred_extent.y() > 0, "");
   auto * swapchain      = (Swapchain *) swapchain_;
@@ -4975,8 +5116,7 @@ Result<gpu::Swapchain, Status>
   {
     CHECK(buffer_ != nullptr, "");
     auto * buffer = (CommandBuffer *) buffer_;
-    // CHECK(buffer->has_pending_submission(), "");
-    // [ ] check that it is in a recorded state
+    CHECK(buffer->state_ == CommandBufferState::Recorded, "");
   }
   CHECK(scope_ != nullptr, "");
 
@@ -5002,7 +5142,7 @@ Result<gpu::Swapchain, Status>
   if (swapchain != nullptr)
   {
     if (swapchain->is_out_of_date || !swapchain->is_optimal ||
-        swapchain->vk_swapchain == nullptr)
+        swapchain->vk == nullptr)
     {
       // await all pending submitted operations on the device possibly using
       // the swapchain, to avoid destroying whilst in use
@@ -5027,7 +5167,7 @@ Result<gpu::Swapchain, Status>
     {
       u32 next_image;
       result = vk_table_.AcquireNextImageKHR(
-        vk_dev_, swapchain->vk_swapchain, U64_MAX,
+        vk_dev_, swapchain->vk, U64_MAX,
         scope->acquire_semaphores_[scope->ring_index_], nullptr, &next_image);
 
       if (result == VK_SUBOPTIMAL_KHR)
@@ -5050,12 +5190,19 @@ Result<gpu::Swapchain, Status>
   // [ ] swapchain images neeed to be transitioned; add a present command to the commandbuffer
   //
 
-  Vec<VkCommandBuffer> vk_command_buffers{scratch};
+  // if (was_acquired)
+  // {
+  //   // enc.access_image(swapchain->image_impls[swapchain->current_image],
+  //   //                  VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_ACCESS_NONE,
+  //   //                  VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+  // }
+
+  Vec<VkCommandBuffer> vk_buffers{scratch};
 
   for (auto buff_ : buffers_)
   {
     auto buff = (CommandBuffer *) buff_;
-    vk_command_buffers.push(buff->vk_buffer_).unwrap();
+    vk_buffers.push(buff->vk_).unwrap();
   }
 
   VkPipelineStageFlags wait_stages = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
@@ -5066,8 +5213,8 @@ Result<gpu::Swapchain, Status>
     .waitSemaphoreCount   = has_acquire ? 1U : 0U,
     .pWaitSemaphores      = has_acquire ? &acquire_semaphore : nullptr,
     .pWaitDstStageMask    = has_acquire ? &wait_stages : nullptr,
-    .commandBufferCount   = size32(vk_command_buffers),
-    .pCommandBuffers      = vk_command_buffers.data(),
+    .commandBufferCount   = size32(vk_buffers),
+    .pCommandBuffers      = vk_buffers.data(),
     .signalSemaphoreCount = is_presenting ? 1U : 0U,
     .pSignalSemaphores    = is_presenting ? &submit_semaphore : nullptr};
 
@@ -5096,7 +5243,7 @@ Result<gpu::Swapchain, Status>
                        .waitSemaphoreCount = 1,
                        .pWaitSemaphores    = &submit_semaphore,
                        .swapchainCount     = 1,
-                       .pSwapchains        = &swapchain->vk_swapchain,
+                       .pSwapchains        = &swapchain->vk,
                        .pImageIndices      = &image,
                        .pResults           = nullptr};
     result = vk_table_.QueuePresentKHR(vk_queue_, &present_info);
@@ -5113,6 +5260,12 @@ Result<gpu::Swapchain, Status>
     {
       CHECK(result == VK_SUCCESS, "");
     }
+  }
+
+  for (auto buffer_ : buffers_)
+  {
+    auto * buffer  = (CommandBuffer *) buffer_;
+    buffer->state_ = CommandBufferState::Submitted;
   }
 }
 
@@ -5168,7 +5321,7 @@ void CommandEncoder::reset_timestamp_query(gpu::TimestampQuery query,
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
 
-  CMD(cmd::ResetTimestampQuery{.query = query, .range = range});
+  CMD(cmd::ResetTimestampQuery{.query = (VkQueryPool) query, .range = range});
 }
 
 void CommandEncoder::reset_statistics_query(gpu::StatisticsQuery query,
@@ -5177,7 +5330,7 @@ void CommandEncoder::reset_statistics_query(gpu::StatisticsQuery query,
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
 
-  CMD(cmd::ResetStatisticsQuery{.query = query, .range = range});
+  CMD(cmd::ResetStatisticsQuery{.query = (VkQueryPool) query, .range = range});
 }
 
 void CommandEncoder::write_timestamp(gpu::TimestampQuery query,
@@ -5186,7 +5339,9 @@ void CommandEncoder::write_timestamp(gpu::TimestampQuery query,
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
 
-  CMD(cmd::WriteTimestamp{.query = query, .stage = stage, .index = index});
+  CMD(cmd::WriteTimestamp{.query  = (VkQueryPool) query,
+                          .stages = (VkPipelineStageFlagBits) stage,
+                          .index  = index});
 }
 
 void CommandEncoder::begin_statistics(gpu::StatisticsQuery query, u32 index)
@@ -5194,7 +5349,7 @@ void CommandEncoder::begin_statistics(gpu::StatisticsQuery query, u32 index)
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
 
-  CMD(cmd::BeginStatistics{.query = query, .index = index});
+  CMD(cmd::BeginStatistics{.query = (VkQueryPool) query, .index = index});
 }
 
 void CommandEncoder::end_statistics(gpu::StatisticsQuery query, u32 index)
@@ -5202,7 +5357,7 @@ void CommandEncoder::end_statistics(gpu::StatisticsQuery query, u32 index)
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
 
-  CMD(cmd::EndStatistics{.query = query, .index = index});
+  CMD(cmd::EndStatistics{.query = (VkQueryPool) query, .index = index});
 }
 
 void CommandEncoder::begin_debug_marker(Str region_name_, f32x4 color)
@@ -5210,15 +5365,27 @@ void CommandEncoder::begin_debug_marker(Str region_name_, f32x4 color)
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
 
-  Span<char> region_name;
-
-  if (!push_array(region_name, region_name_))
+  Vec<char> region_name{pool_};
+  if (!region_name.extend_uninit(region_name_.size() + 1))
   {
     status_ = Status::OutOfHostMemory;
     return;
   }
 
-  CMD(cmd::BeginDebugMarker{.region_name = region_name, .color = color});
+  mem::copy(region_name_, region_name.data());
+
+  region_name.last() = '\0';
+
+  VkDebugMarkerMarkerInfoEXT info{
+    .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_MARKER_INFO_EXT,
+    .pNext       = nullptr,
+    .pMarkerName = region_name.data(),
+    .color       = {color.x(), color.y(), color.z(), color.w()}
+  };
+
+  CMD(cmd::BeginDebugMarker{.info = info});
+
+  region_name.leak();
 }
 
 void CommandEncoder::end_debug_marker()
@@ -5239,10 +5406,11 @@ void CommandEncoder::fill_buffer(gpu::Buffer dst_, Slice64 range, u32 data)
   CHECK(has_bits(dst->usage, gpu::BufferUsage::TransferDst), "");
   CHECK(is_valid_buffer_access(dst->size, range, 4, 4), "");
 
-  CMD(cmd::FillBuffer{.dst = dst_, .range = range, .data = data});
+  CMD(cmd::FillBuffer{.dst = dst->vk, .range = range, .data = data});
 
   access_.begin_pass();
-  access_.access(dst_, BufferState::TransferDst);
+  access_.access(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                 VK_ACCESS_TRANSFER_WRITE_BIT);
   access_.end_pass();
 }
 
@@ -5267,19 +5435,30 @@ void CommandEncoder::copy_buffer(gpu::Buffer src_, gpu::Buffer dst_,
           "");
   }
 
-  Span<gpu::BufferCopy> copies;
+  Vec<VkBufferCopy> copies{pool_};
 
-  if (!push_array(copies, copies_))
+  if (!copies.resize_uninit(copies_.size()))
   {
     status_ = Status::OutOfHostMemory;
     return;
   }
 
-  CMD(cmd::CopyBuffer{.src = src_, .dst = dst_, .copies = copies});
+  for (auto [vk, copy] : zip(copies, copies_))
+  {
+    vk = VkBufferCopy{.srcOffset = copy.src_range.offset,
+                      .dstOffset = copy.dst_offset,
+                      .size      = copy.src_range.span};
+  }
+
+  CMD(cmd::CopyBuffer{.src = src->vk, .dst = dst->vk, .copies = copies});
+
+  copies.leak();
 
   access_.begin_pass();
-  access_.access(src_, BufferState::TransferSrc);
-  access_.access(dst_, BufferState::TransferDst);
+  access_.access(src, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                 VK_ACCESS_TRANSFER_READ_BIT);
+  access_.access(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                 VK_ACCESS_TRANSFER_WRITE_BIT);
   access_.end_pass();
 }
 
@@ -5297,18 +5476,21 @@ void CommandEncoder::update_buffer(Span<u8 const> src_, u64 dst_offset,
   CHECK(is_valid_buffer_access(dst->size, Slice64{dst_offset, copy_size}, 4, 4),
         "");
 
-  Span<u8> src;
+  Vec<u8> src{pool_};
 
-  if (!push_array(src, src_))
+  if (!src.extend(src_))
   {
     status_ = Status::OutOfHostMemory;
     return;
   }
 
-  CMD(cmd::UpdateBuffer{.src = src, .dst_offset = dst_offset, .dst = dst_});
+  CMD(cmd::UpdateBuffer{.src = src, .dst_offset = dst_offset, .dst = dst->vk});
+
+  src.leak();
 
   access_.begin_pass();
-  access_.access(dst_, BufferState::TransferDst);
+  access_.access(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                 VK_ACCESS_TRANSFER_WRITE_BIT);
   access_.end_pass();
 }
 
@@ -5332,18 +5514,36 @@ void CommandEncoder::clear_color_image(
           "");
   }
 
-  Span<gpu::ImageSubresourceRange> ranges;
+  Vec<VkImageSubresourceRange> ranges{pool_};
 
-  if (!push_array(ranges, ranges_))
+  if (!ranges.extend_uninit(ranges_.size()))
   {
     status_ = Status::OutOfHostMemory;
     return;
   }
 
-  CMD(cmd::ClearColorImage{.dst = dst_, .value = value, .ranges = ranges});
+  for (auto [vk, range] : zip(ranges, ranges_))
+  {
+    vk =
+      VkImageSubresourceRange{.aspectMask = (VkImageAspectFlags) range.aspects,
+                              .baseMipLevel   = range.mip_levels.offset,
+                              .levelCount     = range.mip_levels.span,
+                              .baseArrayLayer = range.array_layers.offset,
+                              .layerCount     = range.array_layers.span};
+  }
+
+  CMD(cmd::ClearColorImage{
+    .dst        = dst->vk,
+    .dst_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+    .value  = {.uint32{value.u32[0], value.u32[1], value.u32[2], value.u32[3]}},
+    .ranges = ranges});
+
+  ranges.leak();
 
   access_.begin_pass();
-  access_.access(dst_, ImageState::TransferDst);
+  access_.access(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                 VK_ACCESS_TRANSFER_WRITE_BIT,
+                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
   access_.end_pass();
 }
 
@@ -5353,7 +5553,7 @@ void CommandEncoder::clear_depth_stencil_image(
 {
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
-  CHECK(!ranges_.is_empty() > 0, "");
+  CHECK(!ranges_.is_empty(), "");
 
   auto * dst = (Image *) dst_;
 
@@ -5367,19 +5567,39 @@ void CommandEncoder::clear_depth_stencil_image(
           "");
   }
 
-  Span<gpu::ImageSubresourceRange> ranges;
+  Vec<VkImageSubresourceRange> ranges{pool_};
 
-  if (!push_array(ranges, ranges_))
+  if (!ranges.extend_uninit(ranges_.size()))
   {
     status_ = Status::OutOfHostMemory;
     return;
   }
 
-  CMD(
-    cmd::ClearDepthStencilImage{.dst = dst_, .value = value, .ranges = ranges});
+  for (auto [vk, range] : zip(ranges, ranges_))
+  {
+    vk =
+      VkImageSubresourceRange{.aspectMask = (VkImageAspectFlags) range.aspects,
+                              .baseMipLevel   = range.mip_levels.offset,
+                              .levelCount     = range.mip_levels.span,
+                              .baseArrayLayer = range.array_layers.offset,
+                              .layerCount     = range.array_layers.span};
+  }
+
+  VkClearDepthStencilValue vk_depth_stencil{.depth   = value.depth,
+                                            .stencil = value.stencil};
+
+  CMD(cmd::ClearDepthStencilImage{.dst = dst->vk,
+                                  .dst_layout =
+                                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                  .value  = vk_depth_stencil,
+                                  .ranges = ranges});
+
+  ranges.leak();
 
   access_.begin_pass();
-  access_.access(dst_, ImageState::TransferDst);
+  access_.access(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                 VK_ACCESS_TRANSFER_WRITE_BIT,
+                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
   access_.end_pass();
 }
 
@@ -5388,7 +5608,7 @@ void CommandEncoder::copy_image(gpu::Image src_, gpu::Image dst_,
 {
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
-  CHECK(!copies_.is_empty() > 0, "");
+  CHECK(!copies_.is_empty(), "");
 
   auto * src = (Image *) src_;
   auto * dst = (Image *) dst_;
@@ -5431,19 +5651,56 @@ void CommandEncoder::copy_image(gpu::Image src_, gpu::Image dst_,
           "");
   }
 
-  Span<gpu::ImageCopy> copies;
+  Vec<VkImageCopy> copies{pool_};
 
-  if (!push_array(copies, copies_))
+  if (!copies.extend_uninit(copies_.size()))
   {
     status_ = Status::OutOfHostMemory;
     return;
   }
 
-  CMD(cmd::CopyImage{.src = src_, .dst = dst_, .copies = copies});
+  for (auto [vk, copy] : zip(copies, copies_))
+  {
+    VkImageSubresourceLayers src_subresource{
+      .aspectMask     = (VkImageAspectFlags) copy.src_layers.aspects,
+      .mipLevel       = copy.src_layers.mip_level,
+      .baseArrayLayer = copy.src_layers.array_layers.offset,
+      .layerCount     = copy.src_layers.array_layers.span};
+    VkOffset3D               src_offset{(i32) copy.src_area.offset.x(),
+                          (i32) copy.src_area.offset.y(),
+                          (i32) copy.src_area.offset.z()};
+    VkImageSubresourceLayers dst_subresource{
+      .aspectMask     = (VkImageAspectFlags) copy.dst_layers.aspects,
+      .mipLevel       = copy.dst_layers.mip_level,
+      .baseArrayLayer = copy.dst_layers.array_layers.offset,
+      .layerCount     = copy.dst_layers.array_layers.span};
+    VkOffset3D dst_offset{(i32) copy.dst_offset.x(), (i32) copy.dst_offset.y(),
+                          (i32) copy.dst_offset.z()};
+    VkExtent3D extent{copy.src_area.extent.x(), copy.src_area.extent.y(),
+                      copy.src_area.extent.z()};
+
+    vk = VkImageCopy{.srcSubresource = src_subresource,
+                     .srcOffset      = src_offset,
+                     .dstSubresource = dst_subresource,
+                     .dstOffset      = dst_offset,
+                     .extent         = extent};
+  }
+
+  CMD(cmd::CopyImage{.src        = src->vk,
+                     .src_layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                     .dst        = dst->vk,
+                     .dst_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                     .copies     = copies});
+
+  copies.leak();
 
   access_.begin_pass();
-  access_.access(src_, ImageState::TransferSrc);
-  access_.access(dst_, ImageState::TransferDst);
+  access_.access(src, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                 VK_ACCESS_TRANSFER_READ_BIT,
+                 VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+  access_.access(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                 VK_ACCESS_TRANSFER_WRITE_BIT,
+                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
   access_.end_pass();
 }
 
@@ -5484,19 +5741,48 @@ void CommandEncoder::copy_buffer_to_image(
     CHECK(copy.image_area.end().z() <= dst_extent.z(), "");
   }
 
-  Span<gpu::BufferImageCopy> copies;
+  Vec<VkBufferImageCopy> copies{pool_};
 
-  if (!push_array(copies, copies_))
+  if (!copies.extend_uninit(copies_.size()))
   {
     status_ = Status::OutOfHostMemory;
     return;
   }
 
-  CMD(cmd::CopyBufferToImage{.src = src_, .dst = dst_, .copies = copies});
+  for (auto [vk, copy] : zip(copies, copies_))
+  {
+    VkImageSubresourceLayers image_subresource{
+      .aspectMask     = (VkImageAspectFlags) copy.image_layers.aspects,
+      .mipLevel       = copy.image_layers.mip_level,
+      .baseArrayLayer = copy.image_layers.array_layers.offset,
+      .layerCount     = copy.image_layers.array_layers.span};
+    vk = VkBufferImageCopy{
+      .bufferOffset      = copy.buffer_offset,
+      .bufferRowLength   = copy.buffer_row_length,
+      .bufferImageHeight = copy.buffer_image_height,
+      .imageSubresource  = image_subresource,
+      .imageOffset       = VkOffset3D{(i32) copy.image_area.offset.x(),
+                                      (i32) copy.image_area.offset.y(),
+                                      (i32) copy.image_area.offset.z()},
+      .imageExtent =
+        VkExtent3D{copy.image_area.extent.x(),       copy.image_area.extent.y(),
+                                      copy.image_area.extent.z()      }
+    };
+  }
+
+  CMD(cmd::CopyBufferToImage{.src        = src->vk,
+                             .dst        = dst->vk,
+                             .dst_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                             .copies     = copies});
+
+  copies.leak();
 
   access_.begin_pass();
-  access_.access(src_, BufferState::TransferSrc);
-  access_.access(dst_, ImageState::TransferDst);
+  access_.access(src, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                 VK_ACCESS_TRANSFER_READ_BIT);
+  access_.access(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                 VK_ACCESS_TRANSFER_WRITE_BIT,
+                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
   access_.end_pass();
 }
 
@@ -5544,20 +5830,60 @@ void CommandEncoder::blit_image(gpu::Image src_, gpu::Image dst_,
     CHECK(blit.dst_area.end().z() <= dst_extent.z(), "");
   }
 
-  Span<gpu::ImageBlit> blits;
+  Vec<VkImageBlit> blits{pool_};
 
-  if (!push_array(blits, blits_))
+  if (!blits.resize_uninit(blits_.size()))
   {
     status_ = Status::OutOfHostMemory;
     return;
   }
 
-  CMD(
-    cmd::BlitImage{.src = src_, .dst = dst_, .blits = blits, .filter = filter});
+  for (auto [vk, blit] : zip(blits, blits_))
+  {
+    VkImageSubresourceLayers src_subresource{
+      .aspectMask     = (VkImageAspectFlags) blit.src_layers.aspects,
+      .mipLevel       = blit.src_layers.mip_level,
+      .baseArrayLayer = blit.src_layers.array_layers.offset,
+      .layerCount     = blit.src_layers.array_layers.span};
+    VkImageSubresourceLayers dst_subresource{
+      .aspectMask     = (VkImageAspectFlags) blit.dst_layers.aspects,
+      .mipLevel       = blit.dst_layers.mip_level,
+      .baseArrayLayer = blit.dst_layers.array_layers.offset,
+      .layerCount     = blit.dst_layers.array_layers.span};
+    vk = VkImageBlit{
+      .srcSubresource = src_subresource,
+      .srcOffsets     = {VkOffset3D{(i32) blit.src_area.offset.x(),
+                                (i32) blit.src_area.offset.y(),
+                                (i32) blit.src_area.offset.z()},
+                         VkOffset3D{(i32) blit.src_area.end().x(),
+                                (i32) blit.src_area.end().y(),
+                                (i32) blit.src_area.end().z()}},
+      .dstSubresource = dst_subresource,
+      .dstOffsets     = {VkOffset3D{(i32) blit.dst_area.offset.x(),
+                                (i32) blit.dst_area.offset.y(),
+                                (i32) blit.dst_area.offset.z()},
+                         VkOffset3D{(i32) blit.dst_area.end().x(),
+                                (i32) blit.dst_area.end().y(),
+                                (i32) blit.dst_area.end().z()}}
+    };
+  }
+
+  CMD(cmd::BlitImage{.src        = src->vk,
+                     .src_layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                     .dst        = dst->vk,
+                     .dst_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                     .blits      = blits,
+                     .filter     = (VkFilter) filter});
+
+  blits.leak();
 
   access_.begin_pass();
-  access_.access(src_, ImageState::TransferSrc);
-  access_.access(dst_, ImageState::TransferDst);
+  access_.access(src, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                 VK_ACCESS_TRANSFER_READ_BIT,
+                 VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+  access_.access(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                 VK_ACCESS_TRANSFER_WRITE_BIT,
+                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
   access_.end_pass();
 }
 
@@ -5613,19 +5939,57 @@ void CommandEncoder::resolve_image(gpu::Image src_, gpu::Image dst_,
           "");
   }
 
-  Span<gpu::ImageResolve> resolves;
+  Vec<VkImageResolve> resolves{pool_};
 
-  if (!push_array(resolves, resolves_))
+  if (!resolves.resize_uninit(resolves_.size()))
   {
     status_ = Status::OutOfHostMemory;
     return;
   }
 
-  CMD(cmd::ResolveImage{.src = src_, .dst = dst_, .resolves = resolves});
+  for (auto [vk, resolve] : zip(resolves, resolves_))
+  {
+    VkImageSubresourceLayers src_subresource{
+      .aspectMask     = (VkImageAspectFlags) resolve.src_layers.aspects,
+      .mipLevel       = resolve.src_layers.mip_level,
+      .baseArrayLayer = resolve.src_layers.array_layers.offset,
+      .layerCount     = resolve.src_layers.array_layers.span};
+    VkOffset3D               src_offset{(i32) resolve.src_area.offset.x(),
+                          (i32) resolve.src_area.offset.y(),
+                          (i32) resolve.src_area.offset.z()};
+    VkImageSubresourceLayers dst_subresource{
+      .aspectMask     = (VkImageAspectFlags) resolve.dst_layers.aspects,
+      .mipLevel       = resolve.dst_layers.mip_level,
+      .baseArrayLayer = resolve.dst_layers.array_layers.offset,
+      .layerCount     = resolve.dst_layers.array_layers.span};
+    VkOffset3D dst_offset{(i32) resolve.dst_offset.x(),
+                          (i32) resolve.dst_offset.y(),
+                          (i32) resolve.dst_offset.z()};
+    VkExtent3D extent{resolve.src_area.extent.x(), resolve.src_area.extent.y(),
+                      resolve.src_area.extent.z()};
+
+    vk = VkImageResolve{.srcSubresource = src_subresource,
+                        .srcOffset      = src_offset,
+                        .dstSubresource = dst_subresource,
+                        .dstOffset      = dst_offset,
+                        .extent         = extent};
+  }
+
+  CMD(cmd::ResolveImage{.src        = src->vk,
+                        .src_layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                        .dst        = dst->vk,
+                        .dst_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                        .resolves   = resolves});
+
+  resolves.leak();
 
   access_.begin_pass();
-  access_.access(src_, ImageState::TransferSrc);
-  access_.access(dst_, ImageState::TransferDst);
+  access_.access(src, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                 VK_ACCESS_TRANSFER_READ_BIT,
+                 VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+  access_.access(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                 VK_ACCESS_TRANSFER_WRITE_BIT,
+                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
   access_.end_pass();
 }
 
@@ -5633,8 +5997,6 @@ void CommandEncoder::begin_compute_pass()
 {
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
-
-  CMD(cmd::BeginComputePass{});
 
   pass_ = Pass::Compute;
 
@@ -5645,8 +6007,6 @@ void CommandEncoder::end_compute_pass()
 {
   PRELUDE();
   CHECK(pass_ == Pass::Compute, "");
-
-  CMD(cmd::EndComputePass{});
 
   pass_ = Pass::None;
   access_.end_pass();
@@ -5745,26 +6105,251 @@ void CommandEncoder::begin_rendering(gpu::RenderingInfo const & info)
                         gpu::ImageUsage::DepthStencilAttachment);
   });
 
-  Span<gpu::RenderingAttachment> color_attachments;
+  Vec<VkRenderingAttachmentInfo> color_attachments{pool_};
+  Vec<VkRenderingAttachmentInfo> depth_attachment{pool_};
+  Vec<VkRenderingAttachmentInfo> stencil_attachment{pool_};
 
-  if (!push_array(color_attachments, info.color_attachments))
+  constexpr VkImageLayout COLOR_LAYOUT =
+    VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+  constexpr VkPipelineStageFlags RESOLVE_STAGE =
+    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+  constexpr VkAccessFlags RESOLVE_COLOR_SRC_ACCESS =
+    VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+
+  constexpr VkAccessFlags RESOLVE_COLOR_DST_ACCESS =
+    VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+  constexpr VkAccessFlags RESOLVE_DEPTH_STENCIL_SRC_ACCESS =
+    VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+  constexpr VkAccessFlags RESOLVE_DEPTH_STENCIL_DST_ACCESS =
+    VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
+    VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+  constexpr VkImageLayout RESOLVE_COLOR_LAYOUT =
+    VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+  constexpr VkImageLayout RESOLVE_DEPTH_STENCIL_LAYOUT =
+    VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+  constexpr VkImageLayout READ_WRITE_DEPTH_STENCIL_LAYOUT =
+    VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+  constexpr VkImageLayout READ_DEPTH_STENCIL_LAYOUT =
+    VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+
+  if (!color_attachments.resize_uninit(info.color_attachments.size()))
   {
     status_ = Status::OutOfHostMemory;
     return;
   }
 
+  for (auto [vk, attachment] : zip(color_attachments, info.color_attachments))
+  {
+    auto view = attachment.view == nullptr ? nullptr : ptr(attachment.view)->vk;
+    auto resolve =
+      attachment.resolve == nullptr ? nullptr : ptr(attachment.resolve)->vk;
+
+    VkClearValue clear_value{.color{
+      .uint32{attachment.clear.color.u32.x(), attachment.clear.color.u32.y(),
+              attachment.clear.color.u32.z(), attachment.clear.color.u32.w()}}};
+
+    vk = VkRenderingAttachmentInfoKHR{
+      .sType              = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR,
+      .pNext              = nullptr,
+      .imageView          = view,
+      .imageLayout        = COLOR_LAYOUT,
+      .resolveMode        = (VkResolveModeFlagBits) attachment.resolve_mode,
+      .resolveImageView   = resolve,
+      .resolveImageLayout = RESOLVE_COLOR_LAYOUT,
+      .loadOp             = (VkAttachmentLoadOp) attachment.load_op,
+      .storeOp            = (VkAttachmentStoreOp) attachment.store_op,
+      .clearValue         = clear_value};
+  }
+
+  if (!depth_attachment.resize_uninit(info.depth_attachment.is_some() ? 1 : 0))
+  {
+    status_ = Status::OutOfHostMemory;
+    return;
+  }
+
+  for (auto [vk, attachment] : zip(depth_attachment, info.depth_attachment))
+  {
+    auto view = attachment.view == nullptr ? nullptr : ptr(attachment.view)->vk;
+    auto resolve =
+      attachment.resolve == nullptr ? nullptr : ptr(attachment.resolve)->vk;
+
+    VkAccessFlags access = depth_stencil_attachment_access(attachment) |
+                           RESOLVE_DEPTH_STENCIL_SRC_ACCESS;
+    auto layout = has_write_access(access) ? READ_WRITE_DEPTH_STENCIL_LAYOUT :
+                                             READ_DEPTH_STENCIL_LAYOUT;
+
+    VkClearValue clear_value{
+      .depthStencil{.depth   = attachment.clear.depth_stencil.depth,
+                    .stencil = attachment.clear.depth_stencil.stencil}
+    };
+
+    vk = VkRenderingAttachmentInfoKHR{
+      .sType              = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR,
+      .pNext              = nullptr,
+      .imageView          = view,
+      .imageLayout        = layout,
+      .resolveMode        = (VkResolveModeFlagBits) attachment.resolve_mode,
+      .resolveImageView   = resolve,
+      .resolveImageLayout = RESOLVE_DEPTH_STENCIL_LAYOUT,
+      .loadOp             = (VkAttachmentLoadOp) attachment.load_op,
+      .storeOp            = (VkAttachmentStoreOp) attachment.store_op,
+      .clearValue         = clear_value};
+  }
+
+  if (!stencil_attachment.resize_uninit(info.stencil_attachment.is_some() ? 1 :
+                                                                            0))
+  {
+    status_ = Status::OutOfHostMemory;
+    return;
+  }
+
+  for (auto [vk, attachment] : zip(stencil_attachment, info.stencil_attachment))
+  {
+    auto view = attachment.view == nullptr ? nullptr : ptr(attachment.view)->vk;
+    auto resolve =
+      attachment.resolve == nullptr ? nullptr : ptr(attachment.resolve)->vk;
+
+    VkAccessFlags access = depth_stencil_attachment_access(attachment) |
+                           RESOLVE_DEPTH_STENCIL_SRC_ACCESS;
+
+    auto layout = has_write_access(access) ? READ_WRITE_DEPTH_STENCIL_LAYOUT :
+                                             READ_DEPTH_STENCIL_LAYOUT;
+
+    VkClearValue clear_value{
+      .depthStencil{.depth   = attachment.clear.depth_stencil.depth,
+                    .stencil = attachment.clear.depth_stencil.stencil}
+    };
+
+    vk = VkRenderingAttachmentInfoKHR{
+      .sType              = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR,
+      .pNext              = nullptr,
+      .imageView          = view,
+      .imageLayout        = layout,
+      .resolveMode        = (VkResolveModeFlagBits) attachment.resolve_mode,
+      .resolveImageView   = resolve,
+      .resolveImageLayout = RESOLVE_DEPTH_STENCIL_LAYOUT,
+      .loadOp             = (VkAttachmentLoadOp) attachment.load_op,
+      .storeOp            = (VkAttachmentStoreOp) attachment.store_op,
+      .clearValue         = clear_value};
+  }
+
   CMD(cmd::BeginRendering{
-    .info{.render_area        = info.render_area,
-          .num_layers         = info.num_layers,
-          .color_attachments  = color_attachments,
-          .depth_attachment   = info.depth_attachment,
-          .stencil_attachment = info.stencil_attachment}
+    .info = VkRenderingInfoKHR{
+                               .sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR,
+                               .pNext = nullptr,
+                               .flags = {},
+                               .renderArea =
+        VkRect2D{.offset = VkOffset2D{.x = (i32) info.render_area.offset.x(),
+                                      .y = (i32) info.render_area.offset.y()},
+                 .extent = VkExtent2D{.width  = info.render_area.extent.x(),
+                                      .height = info.render_area.extent.y()}},
+                               .layerCount           = info.num_layers,
+                               .viewMask             = 0,
+                               .colorAttachmentCount = size32(color_attachments),
+                               .pColorAttachments    = color_attachments.data(),
+                               .pDepthAttachment     = depth_attachment.data(),
+                               .pStencilAttachment   = stencil_attachment.data()}
   });
+
+  color_attachments.leak();
+  depth_attachment.leak();
+  stencil_attachment.leak();
 
   pass_ = Pass::Render;
   ctx_  = Ctx{.rendering = cmd};
 
   access_.begin_pass();
+
+  for (auto & attachment : info.color_attachments)
+  {
+    VkAccessFlags        access = color_attachment_access(attachment);
+    VkPipelineStageFlags stages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+    if (attachment.resolve_mode != gpu::ResolveModes::None)
+    {
+      access |= RESOLVE_COLOR_SRC_ACCESS;
+      stages |= RESOLVE_STAGE;
+    }
+
+    if (attachment.view != nullptr)
+    {
+      access_.access(ptr(attachment.view), stages, access, COLOR_LAYOUT);
+    }
+
+    if (attachment.resolve != nullptr)
+    {
+      access_.access(ptr(attachment.resolve), RESOLVE_STAGE,
+                     RESOLVE_COLOR_DST_ACCESS, RESOLVE_COLOR_LAYOUT);
+    }
+  }
+
+  for (auto & attachment : info.depth_attachment)
+  {
+    VkAccessFlags access = depth_stencil_attachment_access(attachment) |
+                           RESOLVE_DEPTH_STENCIL_SRC_ACCESS;
+    VkPipelineStageFlags stages = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+                                  VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT |
+                                  RESOLVE_STAGE;
+    VkImageLayout layout = has_write_access(access) ?
+                             VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL :
+                             VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+
+    if (attachment.resolve_mode != gpu::ResolveModes::None)
+    {
+      access |= RESOLVE_COLOR_SRC_ACCESS;
+      stages |= RESOLVE_STAGE;
+    }
+
+    if (attachment.view != nullptr)
+    {
+      access_.access(ptr(attachment.view), stages, access, layout);
+    }
+
+    if (attachment.resolve != nullptr)
+    {
+      access_.access(ptr(attachment.resolve), RESOLVE_STAGE,
+                     RESOLVE_DEPTH_STENCIL_DST_ACCESS |
+                       RESOLVE_DEPTH_STENCIL_SRC_ACCESS,
+                     RESOLVE_DEPTH_STENCIL_LAYOUT);
+    }
+  }
+
+  for (auto & attachment : info.stencil_attachment)
+  {
+    VkAccessFlags access = depth_stencil_attachment_access(attachment) |
+                           RESOLVE_DEPTH_STENCIL_SRC_ACCESS;
+    VkImageLayout        layout = has_write_access(access) ?
+                                    VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL :
+                                    VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+    VkPipelineStageFlags stages = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+                                  VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT |
+                                  RESOLVE_STAGE;
+
+    if (attachment.resolve_mode != gpu::ResolveModes::None)
+    {
+      access |= RESOLVE_COLOR_SRC_ACCESS;
+      stages |= RESOLVE_STAGE;
+    }
+
+    if (attachment.view != nullptr)
+    {
+      access_.access(ptr(attachment.view), stages, access, layout);
+    }
+
+    if (attachment.resolve != nullptr)
+    {
+      access_.access(ptr(attachment.resolve), RESOLVE_STAGE,
+                     RESOLVE_DEPTH_STENCIL_DST_ACCESS,
+                     RESOLVE_DEPTH_STENCIL_LAYOUT);
+    }
+  }
 }
 
 void CommandEncoder::end_rendering()
@@ -5785,17 +6370,57 @@ void CommandEncoder::bind_compute_pipeline(gpu::ComputePipeline pipeline)
   PRELUDE();
   CHECK(pass_ == Pass::Compute, "");
 
-  CMD(cmd::BindComputePipeline{.pipeline = pipeline});
+  CMD(cmd::BindPipeline{.bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS,
+                        .pipeline   = ptr(pipeline)->vk});
 
   ctx_.compute_pipeline = cmd;
+}
+
+void  validate_pipeline_compatible(
+  gpu::GraphicsPipeline                pipeline_,
+  Span<gpu::RenderingAttachment const> color_attachments,
+  Option<gpu::RenderingAttachment>     depth_attachment,
+  Option<gpu::RenderingAttachment>     stencil_attachment)
+{
+  GraphicsPipeline * pipeline = (GraphicsPipeline *) pipeline_;
+
+  CHECK(pipeline->color_fmts.size() == color_attachments.size(), "");
+  CHECK(!(pipeline->depth_fmt.is_none() && depth_attachment.is_some()), "");
+  CHECK(!(pipeline->stencil_fmt.is_none() && depth_attachment.is_some()), "");
+
+  for (auto [pipeline_fmt, attachment] :
+       zip(pipeline->color_fmts, color_attachments))
+  {
+    if (pipeline_fmt != gpu::Format::Undefined)
+    {
+      CHECK(attachment.view != nullptr, "");
+      CHECK(pipeline_fmt == ptr(attachment.view)->format, "");
+      CHECK(pipeline->sample_count == ptr(attachment.view)->image->sample_count,
+            "");
+    }
+  }
+
+  depth_attachment.match([&](auto & attachment) {
+    CHECK(attachment.view != nullptr, "");
+    CHECK(pipeline->depth_fmt == ptr(attachment.view)->format, "");
+  });
+
+  stencil_attachment.match([&](auto & attachment) {
+    CHECK(attachment.view != nullptr, "");
+    CHECK(pipeline->stencil_fmt == ptr(attachment.view)->format, "");
+  });
 }
 
 void CommandEncoder::bind_graphics_pipeline(gpu::GraphicsPipeline pipeline)
 {
   PRELUDE();
   CHECK(pass_ == Pass::Render, "");
+  CHECK(ctx_.rendering != nullptr, "");
+  // [ ] fill
+  validate_pipeline_compatible(pipeline, {}, {}, {});
 
-  CMD(cmd::BindGraphicsPipeline{.pipeline = pipeline});
+  CMD(cmd::BindPipeline{.bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS,
+                        .pipeline   = ptr(pipeline)->vk});
 
   ctx_.graphics_pipeline = cmd;
 }
@@ -5821,40 +6446,58 @@ void CommandEncoder::bind_descriptor_sets(
     case Pass::Render:
     {
       CHECK(ctx_.graphics_pipeline != nullptr, "");
-      auto pipeline = ptr(ctx_.graphics_pipeline->pipeline);
-      CHECK(pipeline->num_sets == descriptor_sets_.size(), "");
+      // auto pipeline = ptr(ctx_.graphics_pipeline->pipeline);
+      // CHECK(pipeline->num_sets == descriptor_sets_.size(), "");
       // [ ] check that descriptor layout maches
     }
     break;
     case Pass::Compute:
     {
       CHECK(ctx_.compute_pipeline != nullptr, "");
-      auto pipeline = ptr(ctx_.compute_pipeline->pipeline);
-      CHECK(pipeline->num_sets == descriptor_sets_.size(), "");
+      // auto pipeline = ptr(ctx_.compute_pipeline->pipeline);
+      // CHECK(pipeline->num_sets == descriptor_sets_.size(), "");
     }
     break;
     default:
       break;
   }
 
-  Span<gpu::DescriptorSet> descriptor_sets;
+  Vec<VkDescriptorSet> descriptor_sets{pool_};
 
-  if (!push_array(descriptor_sets, descriptor_sets_))
+  if (!descriptor_sets.resize_uninit(descriptor_sets_.size()))
   {
     status_ = Status::OutOfHostMemory;
     return;
   }
 
-  Span<u32> dynamic_offsets;
+  for (auto [vk, set_] : zip(descriptor_sets, descriptor_sets_))
+  {
+    auto * set = (DescriptorSet *) set_;
+    vk         = set->vk;
+  }
 
-  if (!push_array(dynamic_offsets, dynamic_offsets_))
+  // compute_ctx.sets.clear();
+  // for (auto set : descriptor_sets)
+  // {
+  //   compute_ctx.sets.push((DescriptorSet *) set).unwrap();
+  // }
+
+  Vec<u32> dynamic_offsets{pool_};
+
+  if (!dynamic_offsets.extend(dynamic_offsets_))
   {
     status_ = Status::OutOfHostMemory;
     return;
   }
 
-  CMD(cmd::BindDescriptorSets{.sets            = descriptor_sets,
+  CMD(cmd::BindDescriptorSets{.bind_point = {},    // [ ] impl
+                              .layout     = {},    // [ ] inpl
+                              .sets       = descriptor_sets,
+
                               .dynamic_offsets = dynamic_offsets});
+
+  descriptor_sets.leak();
+  dynamic_offsets.leak();
 
   ctx_.descriptor_sets = cmd;
 }
@@ -5871,30 +6514,33 @@ void CommandEncoder::push_constants(Span<u8 const> constants_)
     case Pass::Render:
     {
       CHECK(ctx_.graphics_pipeline != nullptr, "");
-      auto pipeline = ptr(ctx_.graphics_pipeline->pipeline);
-      CHECK(constants_.size() == pipeline->push_constants_size, "");
+      // auto pipeline = ptr(ctx_.graphics_pipeline->pipeline);
+      // CHECK(constants_.size() == pipeline->push_constants_size, "");
     }
     break;
     case Pass::Compute:
     {
       CHECK(ctx_.compute_pipeline != nullptr, "");
-      auto pipeline = ptr(ctx_.compute_pipeline->pipeline);
-      CHECK(constants_.size() == pipeline->push_constants_size, "");
+      // auto pipeline = ptr(ctx_.compute_pipeline->pipeline);
+      // CHECK(constants_.size() == pipeline->push_constants_size, "");
     }
     break;
     default:
       break;
   }
 
-  Span<u8> constants;
+  Vec<u8> constants{pool_};
 
-  if (!push_array(constants, constants_))
+  if (!constants.extend(constants_))
   {
     status_ = Status::OutOfHostMemory;
     return;
   }
 
-  CMD(cmd::PushConstants{.constant = constants});
+  constants.leak();
+
+  CMD(cmd::PushConstants{.layout   = {},    // [ ] impl
+                         .constant = constants});
 }
 
 void CommandEncoder::dispatch(u32x3 group_count)
@@ -5917,7 +6563,7 @@ void CommandEncoder::dispatch(u32x3 group_count)
 
   for (auto set : ctx_.descriptor_sets->sets)
   {
-    access_.access(set, DescriptorSetState::ComputeShaderView);
+    // access_.access(set, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
   }
 }
 
@@ -5938,7 +6584,7 @@ void CommandEncoder::dispatch_indirect(gpu::Buffer buffer_, u64 offset)
 
   // [ ] descriptor set bounds checks
 
-  CMD(cmd::DispatchIndirect{.buffer = buffer_, .offset = offset});
+  CMD(cmd::DispatchIndirect{.buffer = buffer->vk, .offset = offset});
 
   for (auto set : ctx_.descriptor_sets->sets)
   {
@@ -5972,29 +6618,40 @@ void CommandEncoder::bind_vertex_buffers(
 
   for (auto [buff_, off] : zip(vertex_buffers_, offsets_))
   {
-    auto * buff  = (Buffer *) buff_;
-    auto   range = Slice64{off, 1}(buff->size);
-    CHECK(range.is_empty(), "");
+    auto * buff = (Buffer *) buff_;
+    CHECK(is_valid_buffer_access(buff->size, Slice64{off, 1}, 1, 1), "");
     CHECK(has_bits(buff->usage, gpu::BufferUsage::VertexBuffer), "");
   }
 
-  Span<gpu::Buffer> vertex_buffers;
+  Vec<VkBuffer> vertex_buffers{pool_};
 
-  if (!push_array(vertex_buffers, vertex_buffers_))
+  if (!vertex_buffers.resize_uninit(vertex_buffers_.size()))
   {
     status_ = Status::OutOfHostMemory;
     return;
   }
 
-  Span<u64> offsets;
+  for (auto [vk, buff_] : zip(vertex_buffers, vertex_buffers_))
+  {
+    auto * buff = (Buffer *) buff_;
+    vk          = buff->vk;
+  }
 
-  if (!push_array(offsets, offsets_))
+  Vec<u64> offsets{pool_};
+
+  if (!offsets.extend(offsets_))
   {
     status_ = Status::OutOfHostMemory;
     return;
   }
 
   CMD(cmd::BindVertexBuffers{.buffers = vertex_buffers, .offsets = offsets});
+
+  vertex_buffers.leak();
+  offsets.leak();
+
+  //  access_buffer(*c.buffer, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
+  // VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT, ctx.pass_timestamp);
 
   ctx_.vertex_buffer = cmd;
 }
@@ -6014,9 +6671,12 @@ void CommandEncoder::bind_index_buffer(gpu::Buffer index_buffer_, u64 offset,
                                index_size, index_size),
         "");
 
-  CMD(cmd::BindIndexBuffer{
-    .buffer = index_buffer_, .offset = offset, .index_type = index_type});
+  CMD(cmd::BindIndexBuffer{.buffer     = index_buffer->vk,
+                           .offset     = offset,
+                           .index_type = (VkIndexType) index_type});
 
+  //  access_buffer(*c.buffer, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
+  // VK_ACCESS_INDEX_READ_BIT, ctx.pass_timestamp);
   ctx_.index_buffer = cmd;
 }
 
@@ -6029,6 +6689,7 @@ void CommandEncoder::draw(Slice32 vertices, Slice32 instances)
 
   CMD(cmd::Draw{.vertices = vertices, .instances = instances});
 
+  // [ ] move to bind-time
   // [ ] idx buffer, vtx buffer, manage aliasing
   for (auto set : ctx_.descriptor_sets->sets)
   {
@@ -6043,6 +6704,16 @@ void CommandEncoder::draw_indexed(Slice32 indices, Slice32 instances,
   CHECK(pass_ == Pass::Render, "");
   CHECK(ctx_.graphics_pipeline != nullptr, "");
   CHECK(ctx_.graphics_state != nullptr, "");
+
+  /* [ ] if bound
+  u64 const index_size = index_type_size(ctx.index_type);
+  CHECK((ctx.index_buffer_offset + first_index * index_size) <
+          ctx.index_buffer->size,
+        "");
+  CHECK((ctx.index_buffer_offset + (first_index + num_indices) * index_size) <=
+          ctx.index_buffer->size,
+        "");
+  */
 
   CMD(cmd::DrawIndexed{.indices       = indices,
                        .instances     = instances,
@@ -6065,15 +6736,18 @@ void CommandEncoder::draw_indirect(gpu::Buffer buffer_, u64 offset,
   auto * buffer = (Buffer *) buffer_;
 
   CHECK(has_bits(buffer->usage, gpu::BufferUsage::IndirectBuffer), "");
+  CHECK(stride >= sizeof(gpu::DrawCommand), "");
   CHECK(is_valid_buffer_access(
           buffer->size, Slice64{offset, (u64) draw_count * (u64) stride}, 4, 4),
         "");
-  CHECK(stride >= sizeof(gpu::DrawCommand), "");
 
-  CMD(cmd::DrawIndirect{.buffer     = buffer_,
+  CMD(cmd::DrawIndirect{.buffer     = buffer->vk,
                         .offset     = offset,
                         .draw_count = draw_count,
                         .stride     = stride});
+
+  // access_buffer(*c.buffer, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
+  // VK_ACCESS_INDIRECT_COMMAND_READ_BIT, ctx.pass_timestamp);
 
   for (auto set : ctx_.descriptor_sets->sets)
   {
@@ -6097,7 +6771,7 @@ void CommandEncoder::draw_indexed_indirect(gpu::Buffer buffer_, u64 offset,
         "");
   CHECK(stride >= sizeof(gpu::DrawIndexedCommand), "");
 
-  CMD(cmd::DrawIndexedIndirect{.buffer     = buffer_,
+  CMD(cmd::DrawIndexedIndirect{.buffer     = buffer->vk,
                                .offset     = offset,
                                .draw_count = draw_count,
                                .stride     = stride});
@@ -6108,6 +6782,8 @@ void CommandEncoder::draw_indexed_indirect(gpu::Buffer buffer_, u64 offset,
   }
 
   // [ ] access idx, vtx buffer
+  //  access_buffer(*c.buffer, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
+  // VK_ACCESS_INDIRECT_COMMAND_READ_BIT, ctx.pass_timestamp);
 }
 
 void CommandBuffer::begin()
@@ -6125,7 +6801,7 @@ void CommandBuffer::begin()
     .flags            = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
     .pInheritanceInfo = nullptr};
 
-  auto result = dev_->vk_table_.BeginCommandBuffer(vk_buffer_, &info);
+  auto result = dev_->vk_table_.BeginCommandBuffer(vk_, &info);
 
   CHECK(result == VK_SUCCESS, "");
 
@@ -6136,7 +6812,7 @@ Status CommandBuffer::end()
 {
   CHECK(state_ == CommandBufferState::Recording, "");
 
-  dev_->vk_table_.EndCommandBuffer(vk_buffer_);
+  dev_->vk_table_.EndCommandBuffer(vk_);
 
   state_ = CommandBufferState::Recorded;
   return status_;
@@ -6148,9 +6824,309 @@ void CommandBuffer::reset()
           state_ == CommandBufferState::Submitted,
         "");
 
-  dev_->vk_table_.ResetCommandBuffer(vk_buffer_, 0);
+  dev_->vk_table_.ResetCommandBuffer(vk_, 0);
 
   state_ = CommandBufferState::Reset;
+}
+
+ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
+                                     cmd::ResetTimestampQuery const & cmd)
+{
+  t.CmdResetQueryPool(vk, cmd.query, cmd.range.offset, cmd.range.span);
+}
+
+ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
+                                     cmd::ResetStatisticsQuery const & cmd)
+{
+  t.CmdResetQueryPool(vk, cmd.query, cmd.range.offset, cmd.range.span);
+}
+
+ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
+                                     cmd::WriteTimestamp const & cmd)
+{
+  t.CmdWriteTimestamp(vk, cmd.stages, cmd.query, cmd.index);
+}
+
+ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
+                                     cmd::BeginStatistics const & cmd)
+{
+  t.CmdBeginQuery(vk, cmd.query, cmd.index, 0);
+}
+
+ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
+                                     cmd::EndStatistics const & cmd)
+{
+  t.CmdEndQuery(vk, cmd.query, cmd.index);
+}
+
+ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
+                                     cmd::BeginDebugMarker const & cmd)
+{
+  t.CmdDebugMarkerBeginEXT(vk, &cmd.info);
+}
+
+ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
+                                     cmd::EndDebugMarker const &)
+{
+  t.CmdDebugMarkerEndEXT(vk);
+}
+
+ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
+                                     cmd::FillBuffer const & cmd)
+{
+  t.CmdFillBuffer(vk, cmd.dst, cmd.range.offset, cmd.range.span, cmd.data);
+}
+
+ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
+                                     cmd::CopyBuffer const & cmd)
+{
+  t.CmdCopyBuffer(vk, cmd.src, cmd.dst, size32(cmd.copies), cmd.copies.data());
+}
+
+ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
+                                     cmd::UpdateBuffer const & cmd)
+{
+  t.CmdUpdateBuffer(vk, cmd.dst, cmd.dst_offset, size64(cmd.src),
+                    cmd.src.data());
+}
+
+ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
+                                     cmd::ClearColorImage const & cmd)
+{
+  t.CmdClearColorImage(vk, cmd.dst, cmd.dst_layout, &cmd.value,
+                       size32(cmd.ranges), cmd.ranges.data());
+}
+
+ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
+                                     cmd::ClearDepthStencilImage const & cmd)
+{
+  t.CmdClearDepthStencilImage(vk, cmd.dst, cmd.dst_layout, &cmd.value,
+                              size32(cmd.ranges), cmd.ranges.data());
+}
+
+ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
+                                     cmd::CopyImage const & cmd)
+{
+  t.CmdCopyImage(vk, cmd.src, cmd.src_layout, cmd.dst, cmd.dst_layout,
+                 size32(cmd.copies), cmd.copies.data());
+}
+
+ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
+                                     cmd::CopyBufferToImage const & cmd)
+{
+  t.CmdCopyBufferToImage(vk, cmd.src, cmd.dst, cmd.dst_layout,
+                         size32(cmd.copies), cmd.copies.data());
+}
+
+ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
+                                     cmd::BlitImage const & cmd)
+{
+  t.CmdBlitImage(vk, cmd.src, cmd.src_layout, cmd.dst, cmd.dst_layout,
+                 size32(cmd.blits), cmd.blits.data(), cmd.filter);
+}
+
+ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
+                                     cmd::ResolveImage const & cmd)
+{
+  t.CmdResolveImage(vk, cmd.src, cmd.src_layout, cmd.dst, cmd.dst_layout,
+                    size32(cmd.resolves), cmd.resolves.data());
+}
+
+ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
+                                     cmd::BeginRendering const & cmd)
+{
+  t.CmdBeginRenderingKHR(vk, &cmd.info);
+}
+
+ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
+                                     cmd::EndRendering const &)
+{
+  t.CmdEndRenderingKHR(vk);
+}
+
+ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
+                                     cmd::BindPipeline const & cmd)
+{
+  t.CmdBindPipeline(vk, cmd.bind_point, cmd.pipeline);
+}
+
+ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
+                                     cmd::BindDescriptorSets const & cmd)
+{
+  t.CmdBindDescriptorSets(vk, cmd.bind_point, cmd.layout, 0, size32(cmd.sets),
+                          cmd.sets.data(), size32(cmd.dynamic_offsets),
+                          cmd.dynamic_offsets.data());
+}
+
+ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
+                                     cmd::PushConstants const & cmd)
+{
+  t.CmdPushConstants(vk, cmd.layout, VK_SHADER_STAGE_ALL, 0,
+                     size32(cmd.constant), cmd.constant.data());
+}
+
+ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
+                                     cmd::Dispatch const & cmd)
+{
+  t.CmdDispatch(vk, cmd.group_count.x(), cmd.group_count.y(),
+                cmd.group_count.z());
+}
+
+ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
+                                     cmd::DispatchIndirect const & cmd)
+{
+  t.CmdDispatchIndirect(vk, cmd.buffer, cmd.offset);
+}
+
+ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
+                                     cmd::SetGraphicsState const & cmd)
+{
+  auto & s = cmd.state;
+
+  VkRect2D vk_scissor{
+    .offset =
+      VkOffset2D{(i32) s.scissor.offset.x(), (i32) s.scissor.offset.y()},
+    .extent = VkExtent2D{s.scissor.extent.x(),       s.scissor.extent.y()      }
+  };
+  t.CmdSetScissor(vk, 0, 1, &vk_scissor);
+
+  VkViewport vk_viewport{.x        = s.viewport.offset.x(),
+                         .y        = s.viewport.offset.y(),
+                         .width    = s.viewport.extent.x(),
+                         .height   = s.viewport.extent.y(),
+                         .minDepth = s.viewport.min_depth,
+                         .maxDepth = s.viewport.max_depth};
+  t.CmdSetViewport(vk, 0, 1, &vk_viewport);
+
+  f32 vk_constant[4] = {s.blend_constant.x(), s.blend_constant.y(),
+                        s.blend_constant.z(), s.blend_constant.w()};
+  t.CmdSetBlendConstants(vk, vk_constant);
+
+  t.CmdSetStencilTestEnableEXT(vk, s.stencil_test_enable);
+
+  t.CmdSetStencilReference(vk, VK_STENCIL_FACE_FRONT_BIT,
+                           s.front_face_stencil.reference);
+  t.CmdSetStencilCompareMask(vk, VK_STENCIL_FACE_FRONT_BIT,
+                             s.front_face_stencil.compare_mask);
+  t.CmdSetStencilWriteMask(vk, VK_STENCIL_FACE_FRONT_BIT,
+                           s.front_face_stencil.write_mask);
+  t.CmdSetStencilOpEXT(vk, VK_STENCIL_FACE_FRONT_BIT,
+                       (VkStencilOp) s.front_face_stencil.fail_op,
+                       (VkStencilOp) s.front_face_stencil.pass_op,
+                       (VkStencilOp) s.front_face_stencil.depth_fail_op,
+                       (VkCompareOp) s.front_face_stencil.compare_op);
+
+  t.CmdSetStencilReference(vk, VK_STENCIL_FACE_BACK_BIT,
+                           s.back_face_stencil.reference);
+  t.CmdSetStencilCompareMask(vk, VK_STENCIL_FACE_BACK_BIT,
+                             s.back_face_stencil.compare_mask);
+  t.CmdSetStencilWriteMask(vk, VK_STENCIL_FACE_BACK_BIT,
+                           s.back_face_stencil.write_mask);
+  t.CmdSetStencilOpEXT(vk, VK_STENCIL_FACE_BACK_BIT,
+                       (VkStencilOp) s.back_face_stencil.fail_op,
+                       (VkStencilOp) s.back_face_stencil.pass_op,
+                       (VkStencilOp) s.back_face_stencil.depth_fail_op,
+                       (VkCompareOp) s.back_face_stencil.compare_op);
+  t.CmdSetCullModeEXT(vk, (VkCullModeFlags) s.cull_mode);
+  t.CmdSetFrontFaceEXT(vk, (VkFrontFace) s.front_face);
+  t.CmdSetDepthTestEnableEXT(vk, s.depth_test_enable);
+  t.CmdSetDepthCompareOpEXT(vk, (VkCompareOp) s.depth_compare_op);
+  t.CmdSetDepthWriteEnableEXT(vk, s.depth_write_enable);
+  t.CmdSetDepthBoundsTestEnableEXT(vk, s.depth_bounds_test_enable);
+}
+
+ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
+                                     cmd::BindVertexBuffers const & cmd)
+{
+  t.CmdBindVertexBuffers(vk, 0, size32(cmd.buffers), cmd.buffers.data(),
+                         cmd.offsets.data());
+}
+
+ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
+                                     cmd::BindIndexBuffer const & cmd)
+{
+  t.CmdBindIndexBuffer(vk, cmd.buffer, cmd.offset, cmd.index_type);
+}
+
+ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
+                                     cmd::Draw const & cmd)
+{
+  t.CmdDraw(vk, cmd.vertices.span, cmd.instances.span, cmd.vertices.offset,
+            cmd.instances.offset);
+}
+
+ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
+                                     cmd::DrawIndexed const & cmd)
+{
+  t.CmdDrawIndexed(vk, cmd.indices.span, cmd.instances.span, cmd.indices.offset,
+                   cmd.vertex_offset, cmd.instances.offset);
+}
+
+ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
+                                     cmd::DrawIndirect const & cmd)
+{
+  t.CmdDrawIndirect(vk, cmd.buffer, cmd.offset, cmd.draw_count, cmd.stride);
+}
+
+ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
+                                     cmd::DrawIndexedIndirect const & cmd)
+{
+  t.CmdDrawIndexedIndirect(vk, cmd.buffer, cmd.offset, cmd.draw_count,
+                           cmd.stride);
+}
+
+inline cmd::Command * commands(DeviceTable const & t, VkCommandBuffer vk,
+                               cmd::Command * cmd_, usize n)
+{
+#define CMD_CASE(type)               \
+  case cmd::Type::type:              \
+  {                                  \
+    auto * cmd = (cmd::type *) cmd_; \
+    command(t, vk, *cmd);            \
+  }                                  \
+  break;
+
+  while (cmd_ != nullptr && n != 0)
+  {
+    switch (cmd_->type)
+    {
+      CMD_CASE(ResetTimestampQuery);
+      CMD_CASE(ResetStatisticsQuery);
+      CMD_CASE(WriteTimestamp);
+      CMD_CASE(BeginStatistics);
+      CMD_CASE(EndStatistics);
+      CMD_CASE(BeginDebugMarker);
+      CMD_CASE(EndDebugMarker);
+      CMD_CASE(FillBuffer);
+      CMD_CASE(CopyBuffer);
+      CMD_CASE(UpdateBuffer);
+      CMD_CASE(ClearColorImage);
+      CMD_CASE(ClearDepthStencilImage);
+      CMD_CASE(CopyImage);
+      CMD_CASE(CopyBufferToImage);
+      CMD_CASE(BlitImage);
+      CMD_CASE(ResolveImage);
+      CMD_CASE(BeginRendering);
+      CMD_CASE(EndRendering);
+      CMD_CASE(BindPipeline);
+      CMD_CASE(BindDescriptorSets);
+      CMD_CASE(PushConstants);
+      CMD_CASE(Dispatch);
+      CMD_CASE(DispatchIndirect);
+      CMD_CASE(SetGraphicsState);
+      CMD_CASE(BindVertexBuffers);
+      CMD_CASE(BindIndexBuffer);
+      CMD_CASE(Draw);
+      CMD_CASE(DrawIndexed);
+      CMD_CASE(DrawIndirect);
+      CMD_CASE(DrawIndexedIndirect);
+    }
+
+    cmd_ = cmd_->next;
+    n--;
+  }
+
+  return cmd_;
 }
 
 void CommandBuffer::record(gpu::CommandEncoder & encoder_)
