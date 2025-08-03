@@ -44,6 +44,7 @@ constexpr Result<Void, fmt::Result> sformat_to(Vec & out, Span<char const> fstr,
 
 }    // namespace impl
 
+/// @brief format to a dynamic string using custom allocator
 template <typename... Args>
 constexpr Result<Vec<char>, fmt::Result>
   sformat(AllocatorRef allocator, Span<char const> fstr, Args const &... args)
@@ -55,6 +56,7 @@ constexpr Result<Vec<char>, fmt::Result>
   });
 }
 
+/// @brief format to a dynamic string using default allocator
 template <typename... Args>
 constexpr Result<Vec<char>, fmt::Result> sformat(Span<char const> fstr,
                                                  Args const &... args)
@@ -62,11 +64,24 @@ constexpr Result<Vec<char>, fmt::Result> sformat(Span<char const> fstr,
   return sformat(default_allocator, fstr, args...);
 }
 
+/// @brief format to a static capacity string
 template <usize Capacity, typename... Args>
 constexpr Result<InplaceVec<char, Capacity>, fmt::Result>
   snformat(Span<char const> fstr, Args const &... args)
 {
   InplaceVec<char, Capacity> out;
+
+  return impl::sformat_to(out, fstr, args...).map([&](auto &) {
+    return std::move(out);
+  });
+}
+
+/// @brief small-string format
+template <usize InlineCapacity, typename... Args>
+constexpr Result<SmallVec<char, InlineCapacity>, fmt::Result>
+  ssformat(AllocatorRef allocator, Span<char const> fstr, Args const &... args)
+{
+  SmallVec<char, InlineCapacity> out{allocator};
 
   return impl::sformat_to(out, fstr, args...).map([&](auto &) {
     return std::move(out);
