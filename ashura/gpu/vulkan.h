@@ -7,6 +7,7 @@
 #include "ashura/gpu/gpu.h"
 #include "ashura/std/allocator.h"
 #include "ashura/std/allocators.h"
+#include "ashura/std/async.h"
 #include "ashura/std/range.h"
 #include "ashura/std/vec.h"
 #include "vk_mem_alloc.h"
@@ -256,7 +257,7 @@ struct MemoryGroup
   u64                  alignment      = 0;
   void *               map            = nullptr;
   SmallVec<u64, 8>     alias_offsets  = {};
-  SmallVec<AliasId, 8> alias_ids      = {};    // [ ] stable accross frames
+  SmallVec<AliasId, 8> alias_ids      = {};
 
   Layout64 layout() const;
 };
@@ -317,6 +318,7 @@ struct Image
   gpu::ImageUsage   usage              = gpu::ImageUsage::None;
   gpu::ImageAspects aspects            = gpu::ImageAspects::None;
   gpu::SampleCount  sample_count       = gpu::SampleCount::None;
+  u32x3             extent             = {};
   u32               mip_levels         = 0;
   u32               array_layers       = 0;
   bool              is_swapchain_image = false;
@@ -373,11 +375,14 @@ struct DescriptorSet
   static void remove_bind_loc(BindLocations &      locations,
                               BindLocation const & loc);
 
-  void update_link(BindLocation const & loc, Buffer * next);
+  void update_link(u32 binding, u32 first_element,
+                   Span<gpu::BufferBinding const> buffers);
 
-  void update_link(BindLocation const & loc, BufferView * next);
+  void update_link(u32 binding, u32 first_element,
+                   Span<gpu::BufferView const> buffer_views);
 
-  void update_link(BindLocation const & loc, ImageView * next);
+  void update_link(u32 binding, u32 first_element,
+                   Span<gpu::ImageBinding const> images);
 };
 
 struct ComputePipeline
@@ -416,17 +421,27 @@ struct GraphicsPipeline
 
 struct Instance final : gpu::Instance
 {
-  AllocatorRef allocator = {};
+  AllocatorRef allocator_;
 
-  InstanceTable vk_table = {};
+  InstanceTable vk_table_;
 
-  VkInstance vk_instance = nullptr;
+  VkInstance vk_instance_;
 
-  VkDebugUtilsMessengerEXT vk_debug_messenger = nullptr;
+  VkDebugUtilsMessengerEXT vk_debug_messenger_;
 
-  bool validation_enabled = false;
+  bool validation_enabled_;
 
-  explicit Instance() = default;
+  explicit Instance(AllocatorRef allocator, InstanceTable table,
+                    VkInstance               instance,
+                    VkDebugUtilsMessengerEXT debug_messenger,
+                    bool                     validation_enabled) :
+    allocator_{allocator},
+    vk_table_{table},
+    vk_instance_{instance},
+    vk_debug_messenger_{debug_messenger},
+    validation_enabled_{validation_enabled}
+  {
+  }
 
   Instance(Instance const &)             = delete;
   Instance & operator=(Instance const &) = delete;
@@ -514,7 +529,7 @@ ASH_VK_CAST(Swapchain)
 namespace cmd
 {
 
-enum class Type : u8
+enum class Type : usize
 {
   ResetTimestampQuery    = 0,
   ResetStatisticsQuery   = 1,
@@ -549,244 +564,276 @@ enum class Type : u8
   DrawIndexed            = 30,
   DrawIndirect           = 31,
   DrawIndexedIndirect    = 32,
-  Undefined              = U8_MAX
+  Undefined              = USIZE_MAX
 };
 
-struct Command
+struct alignas(8) Command
 {
-  Type const type_ = Type::Undefined;
+  Type const type = Type::Undefined;
+  Command *  next = nullptr;
 };
 
-struct ResetTimestampQuery
+struct alignas(8) ResetTimestampQuery
 {
-  Type const          type_ = Type::ResetTimestampQuery;
+  Type const          type  = Type::ResetTimestampQuery;
+  Command *           next  = nullptr;
   gpu::TimestampQuery query = nullptr;
   Slice32             range = {};
 };
 
-struct ResetStatisticsQuery
+struct alignas(8) ResetStatisticsQuery
 {
-  Type const           type_ = Type::ResetStatisticsQuery;
+  Type const           type  = Type::ResetStatisticsQuery;
+  Command *            next  = nullptr;
   gpu::StatisticsQuery query = nullptr;
   Slice32              range = {};
 };
 
-struct WriteTimestamp
+struct alignas(8) WriteTimestamp
 {
-  Type const          type_ = Type::WriteTimestamp;
+  Type const          type  = Type::WriteTimestamp;
+  Command *           next  = nullptr;
   gpu::TimestampQuery query = nullptr;
   gpu::PipelineStages stage = gpu::PipelineStages::TopOfPipe;
   u32                 index = 0;
 };
 
-struct BeginStatistics
+struct alignas(8) BeginStatistics
 {
-  Type const           type_ = Type::BeginStatistics;
+  Type const           type  = Type::BeginStatistics;
+  Command *            next  = nullptr;
   gpu::StatisticsQuery query = nullptr;
   u32                  index = 0;
 };
 
-struct EndStatistics
+struct alignas(8) EndStatistics
 {
-  Type const           type_ = Type::EndStatistics;
+  Type const           type  = Type::EndStatistics;
+  Command *            next  = nullptr;
   gpu::StatisticsQuery query = nullptr;
   u32                  index = 0;
 };
 
-struct BeginDebugMarker
+struct alignas(8) BeginDebugMarker
 {
-  Type const type_       = Type::BeginDebugMarker;
+  Type const type        = Type::BeginDebugMarker;
+  Command *  next        = nullptr;
   Str        region_name = {};
   f32x4      color       = {};
 };
 
-struct EndDebugMarker
+struct alignas(8) EndDebugMarker
 {
-  Type const type_ = Type::EndDebugMarker;
+  Type const type = Type::EndDebugMarker;
+  Command *  next = nullptr;
 };
 
-struct FillBuffer
+struct alignas(8) FillBuffer
 {
-  Type const  type_  = Type::FillBuffer;
-  gpu::Buffer dst    = nullptr;
-  u64         offset = 0;
-  u64         size   = 0;
-  u32         data   = 0;
+  Type const  type  = Type::FillBuffer;
+  Command *   next  = nullptr;
+  gpu::Buffer dst   = nullptr;
+  Slice64     range = {};
+  u32         data  = 0;
 };
 
-struct CopyBuffer
+struct alignas(8) CopyBuffer
 {
-  Type const                  type_  = Type::CopyBuffer;
+  Type const                  type   = Type::CopyBuffer;
+  Command *                   next   = nullptr;
   gpu::Buffer                 src    = nullptr;
   gpu::Buffer                 dst    = nullptr;
   Span<gpu::BufferCopy const> copies = {};
 };
 
-struct UpdateBuffer
+struct alignas(8) UpdateBuffer
 {
-  Type const     type_      = Type::UpdateBuffer;
+  Type const     type       = Type::UpdateBuffer;
+  Command *      next       = nullptr;
   Span<u8 const> src        = {};
   u64            dst_offset = 0;
   gpu::Buffer    dst        = nullptr;
 };
 
-struct ClearColorImage
+struct alignas(8) ClearColorImage
 {
-  Type const                             type_  = Type::ClearColorImage;
+  Type const                             type   = Type::ClearColorImage;
+  Command *                              next   = nullptr;
   gpu::Image                             dst    = nullptr;
   gpu::Color                             value  = {};
   Span<gpu::ImageSubresourceRange const> ranges = {};
 };
 
-struct ClearDepthStencilImage
+struct alignas(8) ClearDepthStencilImage
 {
-  Type const                             type_  = Type::ClearDepthStencilImage;
+  Type const                             type   = Type::ClearDepthStencilImage;
+  Command *                              next   = nullptr;
   gpu::Image                             dst    = nullptr;
   gpu::DepthStencil                      value  = {};
   Span<gpu::ImageSubresourceRange const> ranges = {};
 };
 
-struct CopyImage
+struct alignas(8) CopyImage
 {
-  Type const                 type_  = Type::CopyImage;
+  Type const                 type   = Type::CopyImage;
+  Command *                  next   = nullptr;
   gpu::Image                 src    = nullptr;
   gpu::Image                 dst    = nullptr;
   Span<gpu::ImageCopy const> copies = {};
 };
 
-struct CopyBufferToImage
+struct alignas(8) CopyBufferToImage
 {
-  Type const                       type_  = Type::CopyBufferToImage;
+  Type const                       type   = Type::CopyBufferToImage;
+  Command *                        next   = nullptr;
   gpu::Buffer                      src    = nullptr;
   gpu::Image                       dst    = nullptr;
   Span<gpu::BufferImageCopy const> copies = {};
 };
 
-struct BlitImage
+struct alignas(8) BlitImage
 {
-  Type const                 type_  = Type::BlitImage;
+  Type const                 type   = Type::BlitImage;
+  Command *                  next   = nullptr;
   gpu::Image                 src    = nullptr;
   gpu::Image                 dst    = nullptr;
   Span<gpu::ImageBlit const> blits  = {};
   gpu::Filter                filter = gpu::Filter::Linear;
 };
 
-struct ResolveImage
+struct alignas(8) ResolveImage
 {
-  Type const                    type_    = Type::ResolveImage;
+  Type const                    type     = Type::ResolveImage;
+  Command *                     next     = nullptr;
   gpu::Image                    src      = nullptr;
   gpu::Image                    dst      = nullptr;
   Span<gpu::ImageResolve const> resolves = {};
 };
 
-struct BeginComputePass
+struct alignas(8) BeginComputePass
 {
-  Type const type_ = Type::BeginComputePass;
+  Type const type = Type::BeginComputePass;
+  Command *  next = nullptr;
 };
 
-struct EndComputePass
+struct alignas(8) EndComputePass
 {
-  Type const type_ = Type::EndComputePass;
+  Type const type = Type::EndComputePass;
+  Command *  next = nullptr;
 };
 
-struct BeginRendering
+struct alignas(8) BeginRendering
 {
-  Type const         type_ = Type::BeginRendering;
-  gpu::RenderingInfo info  = {};
+  Type const         type = Type::BeginRendering;
+  Command *          next = nullptr;
+  gpu::RenderingInfo info = {};
 };
 
-struct EndRendering
+struct alignas(8) EndRendering
 {
-  Type const type_ = Type::EndRendering;
+  Type const type = Type::EndRendering;
+  Command *  next = nullptr;
 };
 
-struct BindComputePipeline
+struct alignas(8) BindComputePipeline
 {
-  Type const           type_ = Type::BindComputePipeline;
-  gpu::ComputePipeline pipeline;
+  Type const           type     = Type::BindComputePipeline;
+  Command *            next     = nullptr;
+  gpu::ComputePipeline pipeline = nullptr;
 };
 
-struct BindGraphicsPipeline
+struct alignas(8) BindGraphicsPipeline
 {
-  Type const            type_    = Type::BindGraphicsPipeline;
+  Type const            type     = Type::BindGraphicsPipeline;
+  Command *             next     = nullptr;
   gpu::GraphicsPipeline pipeline = nullptr;
 };
 
-struct BindDescriptorSets
+struct alignas(8) BindDescriptorSets
 {
-  Type const                     type_           = Type::BindDescriptorSets;
+  Type const                     type            = Type::BindDescriptorSets;
+  Command *                      next            = nullptr;
   Span<gpu::DescriptorSet const> sets            = {};
   Span<u32 const>                dynamic_offsets = {};
 };
 
-struct PushConstants
+struct alignas(8) PushConstants
 {
-  Type const     type_    = Type::PushConstants;
+  Type const     type     = Type::PushConstants;
+  Command *      next     = nullptr;
   Span<u8 const> constant = {};
 };
 
-struct Dispatch
+struct alignas(8) Dispatch
 {
-  Type const type_       = Type::Dispatch;
+  Type const type        = Type::Dispatch;
+  Command *  next        = nullptr;
   u32x3      group_count = {};
 };
 
-struct DispatchIndirect
+struct alignas(8) DispatchIndirect
 {
-  Type const  type_  = Type::DispatchIndirect;
+  Type const  type   = Type::DispatchIndirect;
+  Command *   next   = nullptr;
   gpu::Buffer buffer = nullptr;
   u64         offset = 0;
 };
 
-struct SetGraphicsState
+struct alignas(8) SetGraphicsState
 {
-  Type const         type_ = Type::SetGraphicsState;
+  Type const         type  = Type::SetGraphicsState;
+  Command *          next  = nullptr;
   gpu::GraphicsState state = {};
 };
 
-struct BindVertexBuffers
+struct alignas(8) BindVertexBuffers
 {
-  Type const              type_   = Type::BindVertexBuffers;
-  u32                     binding = 0;
+  Type const              type    = Type::BindVertexBuffers;
+  Command *               next    = nullptr;
   Span<gpu::Buffer const> buffers = {};
   Span<u64 const>         offsets = {};
 };
 
-struct BindIndexBuffer
+struct alignas(8) BindIndexBuffer
 {
-  Type const     type_      = Type::BindIndexBuffer;
+  Type const     type       = Type::BindIndexBuffer;
+  Command *      next       = nullptr;
   gpu::Buffer    buffer     = nullptr;
   u64            offset     = 0;
   gpu::IndexType index_type = gpu::IndexType::U32;
 };
 
-struct Draw
+struct alignas(8) Draw
 {
-  Type const type_     = Type::Draw;
+  Type const type      = Type::Draw;
+  Command *  next      = nullptr;
   Slice32    vertices  = {};
   Slice32    instances = {};
 };
 
-struct DrawIndexed
+struct alignas(8) DrawIndexed
 {
-  Type const type_         = Type::DrawIndexed;
+  Type const type          = Type::DrawIndexed;
+  Command *  next          = nullptr;
   Slice32    indices       = {};
   Slice32    instances     = {};
   i32        vertex_offset = 0;
 };
 
-struct DrawIndirect
+struct alignas(8) DrawIndirect
 {
-  Type const  type_      = Type::DrawIndirect;
+  Type const  type       = Type::DrawIndirect;
+  Command *   next       = nullptr;
   gpu::Buffer buffer     = nullptr;
   u64         offset     = 0;
   u32         draw_count = 0;
   u32         stride     = 0;
 };
 
-struct DrawIndexedIndirect
+struct alignas(8) DrawIndexedIndirect
 {
-  Type const  type_      = Type::DrawIndexedIndirect;
+  Type const  type       = Type::DrawIndexedIndirect;
+  Command *   next       = nullptr;
   gpu::Buffer buffer     = nullptr;
   u64         offset     = 0;
   u32         draw_count = 0;
@@ -807,73 +854,45 @@ enum class HazardType : u8
   ReadsAfterWrite = 3
 };
 
-struct MemoryAccess
+struct MemAccess
 {
   VkPipelineStageFlags stages = VK_PIPELINE_STAGE_NONE;
   VkAccessFlags        access = VK_ACCESS_NONE;
 };
 
-struct BufferAccess
+struct Hazard
 {
-  VkPipelineStageFlags stages = VK_PIPELINE_STAGE_NONE;
-  VkAccessFlags        access = VK_ACCESS_NONE;
+  HazardType type  = HazardType::None;
+  MemAccess  reads = {};
+  MemAccess  write = {};
 
-  MemoryAccess to_memory() const;
+  MemAccess latest_acccess() const;
 };
 
-struct BufferHazard
+struct ImageMemState
 {
-  u32          element = U32_MAX;
-  HazardType   type    = HazardType::None;
-  BufferAccess reads   = {};
-  BufferAccess write   = {};
+  /// @brief alias element
+  u32 element = 0;
 
-  MemoryAccess latest_acccess() const;
+  /// @brief current image layout
+  VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
 };
 
-struct ImageAccess
+struct BufferMemState
 {
-  VkPipelineStageFlags stages = VK_PIPELINE_STAGE_NONE;
-  VkAccessFlags        access = VK_ACCESS_NONE;
-  VkImageLayout        layout = VK_IMAGE_LAYOUT_UNDEFINED;
-
-  MemoryAccess to_memory() const;
+  /// @brief alias element
+  u32 element = 0;
 };
 
-struct ImageHazard
-{
-  u32           element = U32_MAX;
-  HazardType    type    = HazardType::None;
-  ImageAccess   reads   = {};
-  ImageAccess   write   = {};
-  VkImageLayout layout  = VK_IMAGE_LAYOUT_UNDEFINED;
-
-  MemoryAccess latest_acccess() const;
-};
-
-/// @brief Multiple aliases can be binded to the same memory alias and read from it at the same time.
-/// but they can't write to it at the same time.
-struct MemoryHazard
-{
-  u64                             pass = 0;
-  Enum<BufferHazard, ImageHazard> binding;
-};
-
-struct DescriptorSetHazard
-{
-  u64          pass  = 0;
-  HazardType   type  = HazardType::None;
-  MemoryAccess reads = {};
-  MemoryAccess write = {};
-};
+using MemState = Enum<None, BufferMemState, ImageMemState>;
 
 struct HazardBarriers
 {
   struct Entry
   {
-    Slice32 buffers = {};
-    Slice32 images  = {};
-    Slice32 memory  = {};
+    u32 buffers = 0;
+    u32 images  = 0;
+    u32 memory  = 0;
   };
 
   struct Stage
@@ -882,11 +901,20 @@ struct HazardBarriers
     VkPipelineStageFlags dst = VK_PIPELINE_STAGE_NONE;
   };
 
-  Vec<VkBufferMemoryBarrier> buffer_ = {};
-  Vec<VkImageMemoryBarrier>  image_  = {};
-  Vec<VkMemoryBarrier>       mem_    = {};
-  Vec<Stage>                 stage_  = {};
-  Vec<Entry>                 passes_ = {};
+  Vec<VkBufferMemoryBarrier> buffer_;
+  Vec<VkImageMemoryBarrier>  image_;
+  Vec<VkMemoryBarrier>       mem_;
+  Vec<Stage>                 stage_;
+  Vec<Entry>                 passes_;
+
+  HazardBarriers(AllocatorRef allocator) :
+    buffer_{allocator},
+    image_{allocator},
+    mem_{allocator},
+    stage_{allocator},
+    passes_{allocator}
+  {
+  }
 
   void begin_pass();
 
@@ -902,8 +930,22 @@ struct HazardBarriers
            VkMemoryBarrier memory);
 };
 
-/// @brief Per-encoder resource hazard state heap
-struct ResourceHazardHeap
+/// @brief Global synchronization state
+struct DeviceResourceStates
+{
+  CoreSparseMap<Vec<u32>,        // id-to-index map
+                Vec<MemState>    // memory state
+                >
+                memory_;
+  ReadWriteLock lock_;
+
+  DeviceResourceStates(AllocatorRef allocator) : memory_{allocator}, lock_{}
+  {
+  }
+};
+
+/// @brief Encoder-local synchronization state
+struct EncoderResourceStates
 {
   static constexpr VkPipelineStageFlags GRAPHICS_DESCRIPTOR_STAGES =
     VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
@@ -911,43 +953,62 @@ struct ResourceHazardHeap
   static constexpr VkPipelineStageFlags COMPUTE_DESCRIPTOR_STAGES =
     VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
 
-  // [ ] must not be reset, it will contain the image state, and it is needed to preserve the contents of the images/buffers; will only need to reset the barriers
-  // [ ] if image id is re-used we need to reset
-  // [ ] allow dynamic insertion into sparsemap with reserve
-  CoreSparseMap<Vec<u32>, Vec<MemoryHazard>>        memory_hazards         = {};
-  CoreSparseMap<Vec<u32>, Vec<DescriptorSetHazard>> descriptor_set_hazards = {};
+  CoreSparseMap<
+    Vec<u32>,       // id-to-index map
+    BitVec<u64>,    // was the resource accessed?
+    Vec<u32>,       // the last pass the memory was accessed: initially U32_MAX
+    Vec<MemState>,    // memory state
+    Vec<Hazard>       // memory hazard so far
+    >
+    memory_;
 
-  static void barrier(Image const & image, ImageAccess const & old_state,
-                      ImageAccess const & new_state, HazardBarriers & barriers);
+  CoreSparseMap<
+    Vec<u32>,    // id-to-index map
+    Vec<
+      u32>    // the last pass the descriptor set was accessed: initially U32_MAX
+    >
+    descriptor_set_;
 
-  static void barrier(Buffer const & buffer, BufferAccess const & old_state,
-                      BufferAccess const & new_state,
-                      HazardBarriers &     barriers);
+  EncoderResourceStates(AllocatorRef allocator) :
+    memory_{allocator},
+    descriptor_set_{allocator}
+  {
+  }
 
-  static void barrier(MemoryAccess const & old_state,
-                      MemoryAccess const & new_state,
-                      HazardBarriers &     barriers);
+  static void barrier(Image const & image, MemAccess const & old_access,
+                      VkImageLayout old_layout, MemAccess const & new_access,
+                      VkImageLayout new_layout, HazardBarriers & barriers);
+
+  static void barrier(Buffer const & buffer, MemAccess const & old_access,
+                      MemAccess const & new_access, HazardBarriers & barriers);
+
+  static void barrier(MemAccess const & old_state, MemAccess const & new_state,
+                      HazardBarriers & barriers);
 
   /// @param image image to sync
   /// @param access merged image state for the pass
   /// @param pass the pass temporal id
   /// @param barriers destination to issue barriers
-  void access(Image const & image, ImageAccess const & state, u64 pass,
-              HazardBarriers & barriers);
+  void access(Image const & image, MemAccess const & access,
+              VkImageLayout layout, u32 pass, HazardBarriers & barriers);
 
   /// @param buffer buffer to sync
   /// @param access merged image state for the pass
   /// @param pass the pass temporal id
   /// @param barriers destination to issue barriers
-  void access(Buffer const & buffer, BufferAccess const & state, u64 pass,
+  void access(Buffer const & buffer, MemAccess const & access, u32 pass,
               HazardBarriers & barriers);
 
   /// @param set descriptor set to sync
   /// @param access merged image state for the pass
   /// @param pass the pass temporal id
   /// @param barriers destination to issue barriers
-  void access(DescriptorSet const & set, u64 pass,
+  void access(DescriptorSet const & set, u32 pass,
               VkPipelineStageFlags shader_stages, HazardBarriers & barriers);
+
+  void rebuild(DeviceResourceStates const & upstream);
+
+  void commit(DeviceResourceStates & upstream);
 };
 
 enum class DescriptorSetState : u8
@@ -988,15 +1049,23 @@ struct AccessEncoder
 {
   struct Entry
   {
-    Slice32 buffers         = {};
-    Slice32 images          = {};
-    Slice32 descriptor_sets = {};
+    u32 buffers         = 0;
+    u32 images          = 0;
+    u32 descriptor_sets = 0;
   };
 
-  Vec<Tuple<gpu::Buffer, BufferState>>               buffers_         = {};
-  Vec<Tuple<gpu::Image, ImageState>>                 images_          = {};
-  Vec<Tuple<gpu::DescriptorSet, DescriptorSetState>> descriptor_sets_ = {};
-  Vec<Entry>                                         passes_          = {};
+  Vec<Tuple<gpu::Buffer, BufferState>>               buffers_;
+  Vec<Tuple<gpu::Image, ImageState>>                 images_;
+  Vec<Tuple<gpu::DescriptorSet, DescriptorSetState>> descriptor_sets_;
+  Vec<Entry>                                         passes_;
+
+  AccessEncoder(AllocatorRef allocator) :
+    buffers_{allocator},
+    images_{allocator},
+    descriptor_sets_{allocator},
+    passes_{allocator}
+  {
+  }
 
   u32 begin_pass();
 
@@ -1009,77 +1078,105 @@ struct AccessEncoder
   void access(gpu::Image image, ImageState state);
 };
 
-/*
-
-enum class CommandEncoderState : u16
+enum class CommandBufferState : u8
 {
-  Reset       = 0,
-  Begin       = 1,
-  RenderPass  = 2,
-  ComputePass = 3,
-  End         = 4
+  Reset     = 0,
+  Recording = 1,
+  Recorded  = 2,
+  Submitted = 3
 };
-
-
-
-*/
 
 struct CommandEncoder final : gpu::CommandEncoder
 {
-  ArenaPool pool_   = {};
-  Status    status_ = Status::Success;
-
-  Vec<cmd::Command *> commands_;
-
-  /*
-  bool is_in_render_pass() const
+  enum class Pass : u8
   {
-    return state == CommandEncoderState::RenderPass;
+    None    = 0,
+    Compute = 1,
+    Render  = 2
+  };
+
+  struct Entry
+  {
+    u32 commands = 0;
+  };
+
+  struct Ctx
+  {
+    cmd::BindComputePipeline *  compute_pipeline  = nullptr;
+    cmd::BindDescriptorSets *   descriptor_sets   = nullptr;
+    cmd::BeginRendering *       rendering         = nullptr;
+    cmd::BindGraphicsPipeline * graphics_pipeline = nullptr;
+    cmd::SetGraphicsState *     graphics_state    = nullptr;
+    cmd::BindVertexBuffers *    vertex_buffer     = nullptr;
+    cmd::BindIndexBuffer *      index_buffer      = nullptr;
+  };
+
+  Device *           dev_;
+  ArenaPool          pool_;
+  Status             status_;
+  CommandBufferState state_;
+  Pass               pass_;
+  AccessEncoder      access_;
+  Ctx                ctx_;
+  cmd::Command *     first_cmd_;
+  cmd::Command *     last_cmd_;
+  Vec<Entry>         passes_;
+
+  CommandEncoder(Device * dev, AllocatorRef allocator) :
+    dev_{dev},
+    pool_{allocator},
+    status_{Status::Success},
+    state_{CommandBufferState::Reset},
+    pass_{Pass::None},
+    access_{allocator},
+    ctx_{},
+    first_cmd_{nullptr},
+    last_cmd_{nullptr},
+    passes_{allocator}
+  {
   }
 
-  bool is_in_compute_pass() const
+  template <typename T>
+  bool push_array(Span<T> & dst, Span<T const> src)
   {
-    return state == CommandEncoderState::ComputePass;
+    T * data;
+    if (!pool_.nalloc(src.size(), data))
+    {
+      return false;
+    }
+
+    mem::copy(src, data);
+    dst = Span<T>{data, src.size()};
+    return true;
   }
 
-  bool is_in_pass() const
+  template <typename Cmd>
+  Cmd * push(Cmd const & cmd)
   {
-    return is_in_render_pass() || is_in_compute_pass();
+    Cmd * p_cmd;
+    if (!pool_.nalloc(1, p_cmd))
+    {
+      return nullptr;
+    }
+
+    new (p_cmd) Cmd{cmd};
+
+    if (last_cmd_ == nullptr)
+    {
+      first_cmd_ = (cmd::Command *) p_cmd;
+      last_cmd_  = (cmd::Command *) p_cmd;
+      return;
+    }
+
+    last_cmd_->next = (Cmd *) p_cmd;
+    last_cmd_       = (Cmd *) p_cmd;
   }
 
-  bool is_recording() const
-  {
-    return state == CommandEncoderState::Begin ||
-           state == CommandEncoderState::RenderPass ||
-           state == CommandEncoderState::ComputePass;
-  }
+  virtual void begin() override;
 
-  void validate_render_pass_compatible(gpu::GraphicsPipeline pipeline);
+  virtual Status end() override;
 
-  void access_image(Image & image, VkPipelineStageFlags stages,
-                    VkAccessFlags access, VkImageLayout layout,
-                    u64 pass_timestamp);
-
-  void access_buffer(Buffer & buffer, VkPipelineStageFlags stages,
-                     VkAccessFlags access, u64 pass_timestamp);
-
-  void insert_barrier(ImageBarrier const & barrier);
-
-  void insert_barrier(BufferBarrier const & barrier);
-
-  void insert_barrier(MemoryBarrier const & barrier);
-
-  void access_compute_bindings(DescriptorSet const & set, u64 pass_timestamp);
-
-  void access_graphics_bindings(DescriptorSet const & set, u64 pass_timestamp);
-
-  void clear_context()
-  {
-    state = CommandEncoderState::Begin;
-    render_ctx.clear();
-    compute_ctx.clear();
-  }
-  */
+  virtual void reset() override;
 
   virtual void reset_timestamp_query(gpu::TimestampQuery query,
                                      Slice32             range) override;
@@ -1172,52 +1269,106 @@ struct CommandEncoder final : gpu::CommandEncoder
 
 struct CommandBuffer final : gpu::CommandBuffer
 {
-  Device *        dev       = nullptr;
-  VkCommandPool   vk_pool   = nullptr;
-  VkCommandBuffer vk_buffer = nullptr;
-  Status          status    = Status::Success;
+  Device *              dev_;
+  VkCommandPool         vk_pool_;
+  VkCommandBuffer       vk_buffer_;
+  Status                status_;
+  CommandBufferState    state_;
+  EncoderResourceStates resource_states_;
 
-  virtual void encode(gpu::CommandEncoder & encoder) override;
+  CommandBuffer(Device * dev, VkCommandPool vk_pool, VkCommandBuffer vk_buffer,
+                AllocatorRef allocator) :
+    dev_{dev},
+    vk_pool_{vk_pool},
+    vk_buffer_{vk_buffer},
+    status_{Status::Success},
+    state_{CommandBufferState::Reset},
+    resource_states_{allocator}
+  {
+  }
+
+  virtual void begin() override;
+
+  virtual Status end() override;
+
+  virtual void reset() override;
+
+  virtual void record(gpu::CommandEncoder & encoder) override;
+
+  void commit_resource_states();
 };
 
 struct QueueScope
 {
-  u32 tail_frame    = 0;
-  u32 current_frame = 0;
-  u32 ring_index    = 0;
+  u64                                             buffering_;
+  u64                                             tail_frame_;
+  u64                                             current_frame_;
+  u64                                             ring_index_;
+  SmallVec<VkSemaphore, gpu::MAX_FRAME_BUFFERING> acquire_semaphores_;
+  SmallVec<VkSemaphore, gpu::MAX_FRAME_BUFFERING> submit_semaphores_;
+  SmallVec<VkFence, gpu::MAX_FRAME_BUFFERING>     submit_fences_;
 
-  SmallBitVec<usize, gpu::MAX_FRAME_BUFFERING>    has_acquire        = {};
-  SmallVec<VkSemaphore, gpu::MAX_FRAME_BUFFERING> acquire_semaphores = {};
-  SmallVec<VkSemaphore, gpu::MAX_FRAME_BUFFERING> submit_semaphores  = {};
-  SmallVec<VkFence, gpu::MAX_FRAME_BUFFERING>     submit_fences      = {};
-
-  u32 buffering() const;
+  QueueScope(u64                                             buffering,
+             SmallVec<VkSemaphore, gpu::MAX_FRAME_BUFFERING> acquire_semaphores,
+             SmallVec<VkSemaphore, gpu::MAX_FRAME_BUFFERING> submit_semaphores,
+             SmallVec<VkFence, gpu::MAX_FRAME_BUFFERING>     submit_fences) :
+    buffering_{buffering},
+    tail_frame_{0},
+    current_frame_{0},
+    ring_index_{0},
+    acquire_semaphores_{std::move(acquire_semaphores)},
+    submit_semaphores_{std::move(submit_semaphores)},
+    submit_fences_{std::move(submit_fences)}
+  {
+  }
 };
 
 struct Device final : gpu::Device
 {
-  AllocatorRef       allocator     = {};
-  Instance *         instance      = nullptr;
-  PhysicalDevice     phy_dev       = {};
-  DeviceTable        vk_table      = {};
-  VmaVulkanFunctions vma_table     = {};
-  VkDevice           vk_dev        = nullptr;
-  u32                queue_family  = 0;
-  VkQueue            vk_queue      = nullptr;
-  VmaAllocator       vma_allocator = nullptr;
-  Vec<u8>            scratch       = {};
+  AllocatorRef         allocator_;
+  Instance *           instance_;
+  PhysicalDevice       phy_dev_;
+  DeviceTable          vk_table_;
+  VmaVulkanFunctions   vma_table_;
+  VkDevice             vk_dev_;
+  u32                  queue_family_;
+  VkQueue              vk_queue_;
+  VmaAllocator         vma_allocator_;
+  Vec<u8>              scratch_;
+  DeviceResourceStates resource_states_;
+
+  Device(AllocatorRef allocator, Instance * instance, PhysicalDevice phy_dev,
+         DeviceTable vk_table, VmaVulkanFunctions vma_table, VkDevice vk_dev,
+         u32 queue_family, VkQueue vk_queue, VmaAllocator vma_allocator,
+         Vec<u8> scratch) :
+    allocator_{allocator},
+    instance_{instance},
+    phy_dev_{phy_dev},
+    vk_table_{vk_table},
+    vma_table_{vma_table},
+    vk_dev_{vk_dev},
+    queue_family_{queue_family},
+    vk_queue_{vk_queue},
+    vma_allocator_{vma_allocator},
+    scratch_{std::move(scratch)},
+    resource_states_{allocator}
+  {
+  }
 
   void set_resource_name(Str label, void const * resource, VkObjectType type,
                          VkDebugReportObjectTypeEXT debug_type);
 
-  Status init_frame_context(u32 buffering);
+  AliasId allocate_alias_id();
+
+  void release_alias_id(AliasId id);
+
+  // [ ] impl
+  // [ ] after allocating ids for any resource, their states must be reset
+  DescriptorSetId allocate_descriptor_set_id();
+
+  void release_descriptor_set_id(DescriptorSetId id);
 
   void uninit();
-
-  virtual gpu::DeviceProperties get_properties() override;
-
-  virtual Result<gpu::FormatProperties, Status>
-    get_format_properties(gpu::Format format) override;
 
   virtual Result<gpu::Buffer, Status>
     create_buffer(gpu::BufferInfo const & info) override;
@@ -1256,23 +1407,22 @@ struct Device final : gpu::Device
     create_graphics_pipeline(gpu::GraphicsPipelineInfo const & info) override;
 
   virtual Result<gpu::Swapchain, Status>
-    create_swapchain(gpu::Surface               surface,
-                     gpu::SwapchainInfo const & info) override;
+    create_swapchain(gpu::SwapchainInfo const & info) override;
 
   virtual Result<gpu::TimestampQuery, Status>
-    create_timestamp_query(u32 count) override;
+    create_timestamp_query(gpu::TimestampQueryInfo const & info) override;
 
   virtual Result<gpu::StatisticsQuery, Status>
-    create_statistics_query(u32 count) override;
+    create_statistics_query(gpu::StatisticsQueryInfo const & info) override;
 
   virtual Result<gpu::CommandEncoderPtr, Status>
-    create_command_encoder() override;
+    create_command_encoder(gpu::CommandEncoderInfo const & info) override;
 
   virtual Result<gpu::CommandBufferPtr, Status>
-    create_command_buffer() override;
+    create_command_buffer(gpu::CommandBufferInfo const & info) override;
 
   virtual Result<gpu::QueueScope, Status>
-    create_queue_scope(u32 buffering) override;
+    create_queue_scope(gpu::QueueScopeInfo const & info) override;
 
   virtual void uninit(gpu::Buffer buffer) override;
 
@@ -1310,8 +1460,10 @@ struct Device final : gpu::Device
 
   virtual void uninit(gpu::QueueScope scope) override;
 
-  virtual gpu::QueueScopeInfo
-    get_queue_scope_info(gpu::QueueScope scope) override;
+  virtual gpu::DeviceProperties get_properties() override;
+
+  virtual Result<gpu::FormatProperties, Status>
+    get_format_properties(gpu::Format format) override;
 
   virtual Result<Span<u8>, Status> get_memory_map(gpu::Buffer buffer) override;
 
@@ -1333,6 +1485,9 @@ struct Device final : gpu::Device
 
   virtual void
     update_descriptor_set(gpu::DescriptorSetUpdate const & update) override;
+
+  virtual gpu::QueueScopeState
+    get_queue_scope_state(gpu::QueueScope scope) override;
 
   virtual Result<Void, Status> wait_idle() override;
 
@@ -1356,10 +1511,6 @@ struct Device final : gpu::Device
     invalidate_swapchain(gpu::Swapchain             swapchain,
                          gpu::SwapchainInfo const & info) override;
 
-  // virtual Result<Void, Status> begin_frame(gpu::Swapchain swapchain) override;
-
-  // virtual Result<Void, Status> submit_frame(gpu::Swapchain swapchain) override;
-
   virtual Result<Void, Status>
     get_timestamp_query_result(gpu::TimestampQuery query, Slice32 range,
                                Vec<u64> & timestamps) override;
@@ -1368,7 +1519,9 @@ struct Device final : gpu::Device
     gpu::StatisticsQuery query, Slice32 range,
     Vec<gpu::PipelineStatistics> & statistics) override;
 
-  virtual u64 commit(gpu::CommandBuffer & buffer) override;
+  virtual Result<gpu::Swapchain, Status>
+    submit(Span<gpu::CommandBufferPtr const> buffers, gpu::QueueScope scope,
+           gpu::Swapchain swapchain) override;
 };
 
 }    // namespace vk

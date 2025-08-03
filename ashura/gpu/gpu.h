@@ -32,11 +32,11 @@ typedef struct ComputePipeline_T *     ComputePipeline;
 typedef struct GraphicsPipeline_T *    GraphicsPipeline;
 typedef struct TimestampQuery_T *      TimestampQuery;
 typedef struct StatisticsQuery_T *     StatisticsQuery;
-typedef struct CommandEncoder *        CommandEncoderPtr;
-typedef struct CommandBuffer *         CommandBufferPtr;
 typedef struct Surface_T *             Surface;
 typedef struct Swapchain_T *           Swapchain;
 typedef struct QueueScope_T *          QueueScope;
+typedef struct CommandEncoder *        CommandEncoderPtr;
+typedef struct CommandBuffer *         CommandBufferPtr;
 typedef struct Device *                DevicePtr;
 typedef struct Instance *              InstancePtr;
 
@@ -790,16 +790,16 @@ struct FormatProperties
 
 struct ImageSubresourceRange
 {
-  ImageAspects aspects    = ImageAspects::None;
-  Slice32      mip_levels = {};
-  Slice32      layers     = {};
+  ImageAspects aspects      = ImageAspects::None;
+  Slice32      mip_levels   = {};
+  Slice32      array_layers = {};
 };
 
 struct ImageSubresourceLayers
 {
-  ImageAspects aspects   = ImageAspects::None;
-  u32          mip_level = 0;
-  Slice32      layers    = {};
+  ImageAspects aspects      = ImageAspects::None;
+  u32          mip_level    = 0;
+  Slice32      array_layers = {};
 };
 
 struct MemoryGroupInfo
@@ -930,7 +930,7 @@ struct DescriptorSetUpdate
 {
   DescriptorSet             set           = nullptr;
   u32                       binding       = 0;
-  u32                       element       = 0;
+  u32                       first_element = 0;
   Span<ImageBinding const>  images        = {};
   Span<BufferView const>    texel_buffers = {};
   Span<BufferBinding const> buffers       = {};
@@ -1071,6 +1071,47 @@ struct GraphicsPipelineInfo
   PipelineCache      cache               = nullptr;
 };
 
+struct SwapchainInfo
+{
+  Str            label               = {};
+  Surface        surface             = nullptr;
+  SurfaceFormat  format              = {};
+  ImageUsage     usage               = ImageUsage::None;
+  u32            preferred_buffering = 0;
+  PresentMode    present_mode        = PresentMode::Immediate;
+  u32x2          preferred_extent    = {};
+  CompositeAlpha composite_alpha     = CompositeAlpha::None;
+  Swapchain      old                 = nullptr;
+};
+
+struct QueueScopeInfo
+{
+  Str label     = {};
+  u32 buffering = 0;
+};
+
+struct StatisticsQueryInfo
+{
+  Str label = {};
+  u32 count = 0;
+};
+
+struct TimestampQueryInfo
+{
+  Str label = {};
+  u32 count = 0;
+};
+
+struct CommandBufferInfo
+{
+  Str label = {};
+};
+
+struct CommandEncoderInfo
+{
+  Str label = {};
+};
+
 struct DispatchCommand
 {
   u32 x = 0;
@@ -1160,31 +1201,6 @@ struct SurfaceCapabilities
   CompositeAlpha composite_alpha = CompositeAlpha::None;
 };
 
-struct SwapchainInfo
-{
-  Str            label               = {};
-  SurfaceFormat  format              = {};
-  ImageUsage     usage               = ImageUsage::None;
-  u32            preferred_buffering = 0;
-  PresentMode    present_mode        = PresentMode::Immediate;
-  u32x2          preferred_extent    = {};
-  CompositeAlpha composite_alpha     = CompositeAlpha::None;
-  Swapchain      old                 = nullptr;
-};
-
-/// @param generation increases everytime the swapchain for the surface is
-/// recreated or re-configured
-/// @param images swapchain images, calling ref or unref on them will cause a
-/// panic as they are only meant to exist for the lifetime of the frame. avoid
-/// storing pointers to its data members.
-struct SwapchainState
-{
-  u32x2             extent        = {};
-  SurfaceFormat     format        = {};
-  Span<Image const> images        = {};
-  Option<u32>       current_image = none;
-};
-
 struct PipelineStatistics
 {
   u64 input_assembly_vertices     = 0;
@@ -1218,6 +1234,27 @@ struct DeviceProperties
   u32        max_compute_shared_memory_size     = 0;
 };
 
+/// @param generation increases everytime the swapchain for the surface is
+/// recreated or re-configured
+/// @param images swapchain images, calling ref or unref on them will cause a
+/// panic as they are only meant to exist for the lifetime of the frame. avoid
+/// storing pointers to its data members.
+struct SwapchainState
+{
+  u32x2             extent        = {};
+  SurfaceFormat     format        = {};
+  Span<Image const> images        = {};
+  Option<u32>       current_image = none;
+};
+
+struct QueueScopeState
+{
+  u64 tail_frame    = 0;
+  u64 current_frame = 0;
+  u64 ring_index    = 0;
+  u64 buffering     = 0;
+};
+
 struct RenderingAttachment
 {
   ImageView    view         = nullptr;
@@ -1239,6 +1276,12 @@ struct RenderingInfo
 
 struct CommandEncoder
 {
+  virtual void begin() = 0;
+
+  virtual Status end() = 0;
+
+  virtual void reset() = 0;
+
   virtual void reset_timestamp_query(TimestampQuery query, Slice32 range) = 0;
 
   virtual void reset_statistics_query(StatisticsQuery query, Slice32 range) = 0;
@@ -1324,55 +1367,17 @@ struct CommandEncoder
 
 struct CommandBuffer
 {
-  // [ ] processing deletion
-  // [ ] how to sequence encode->commit->submit with swapchain
-  //
-  // encode:
-  //
-  // commit:
-  //  - get immutable copy of current state
-  //  - copy the state to a local one
-  //  - update the local state
-  //  - record to command buffer
-  //  - return u64 of state index
-  //
-  //
-  // - in between acquiring state and modifying it, another thread might do the same, and we'd have state conflicts
-  //
-  // - we can store the encoder ids, when resolving state conflicts, we need to use the latest modified one across the encoders.
-  //
-  // - if they were running concurrently, we need to raise an error about conflicts
-  //
-  //
-  //
-  //
-  //
-  // --- synchronizing state changes between multiple threads?
-  //
-  //
-  //
-  // submit:
-  //
-  //
-  //
-  virtual void encode(CommandEncoder & encoder) = 0;
-};
+  virtual void begin() = 0;
 
-struct QueueScopeInfo
-{
-  u32 tail_frame    = 0;
-  u32 current_frame = 0;
-  u32 ring_index    = 0;
-  u32 buffering     = 0;
+  virtual Status end() = 0;
+
+  virtual void reset() = 0;
+
+  virtual void record(CommandEncoder & encoder) = 0;
 };
 
 struct Device
 {
-  virtual DeviceProperties get_properties() = 0;
-
-  virtual Result<FormatProperties, Status>
-    get_format_properties(Format format) = 0;
-
   virtual Result<Buffer, Status> create_buffer(BufferInfo const & info) = 0;
 
   virtual Result<BufferView, Status>
@@ -1406,18 +1411,22 @@ struct Device
     create_graphics_pipeline(GraphicsPipelineInfo const & info) = 0;
 
   virtual Result<Swapchain, Status>
-    create_swapchain(Surface surface, SwapchainInfo const & info) = 0;
+    create_swapchain(SwapchainInfo const & info) = 0;
 
-  virtual Result<TimestampQuery, Status> create_timestamp_query(u32 count) = 0;
+  virtual Result<TimestampQuery, Status>
+    create_timestamp_query(TimestampQueryInfo const & info) = 0;
 
   virtual Result<StatisticsQuery, Status>
-    create_statistics_query(u32 count) = 0;
+    create_statistics_query(StatisticsQueryInfo const & info) = 0;
 
-  virtual Result<CommandEncoderPtr, Status> create_command_encoder() = 0;
+  virtual Result<CommandEncoderPtr, Status>
+    create_command_encoder(CommandEncoderInfo const & info) = 0;
 
-  virtual Result<CommandBufferPtr, Status> create_command_buffer() = 0;
+  virtual Result<CommandBufferPtr, Status>
+    create_command_buffer(CommandBufferInfo const & info) = 0;
 
-  virtual Result<QueueScope, Status> create_queue_scope(u32 buffering) = 0;
+  virtual Result<QueueScope, Status>
+    create_queue_scope(QueueScopeInfo const & info) = 0;
 
   virtual void uninit(Buffer buffer) = 0;
 
@@ -1455,7 +1464,10 @@ struct Device
 
   virtual void uninit(QueueScope scope) = 0;
 
-  virtual QueueScopeInfo get_queue_scope_info(QueueScope scope) = 0;
+  virtual DeviceProperties get_properties() = 0;
+
+  virtual Result<FormatProperties, Status>
+    get_format_properties(Format format) = 0;
 
   virtual Result<Span<u8>, Status> get_memory_map(Buffer buffer) = 0;
 
@@ -1475,6 +1487,8 @@ struct Device
     merge_pipeline_cache(PipelineCache dst, Span<PipelineCache const> srcs) = 0;
 
   virtual void update_descriptor_set(DescriptorSetUpdate const & update) = 0;
+
+  virtual QueueScopeState get_queue_scope_state(QueueScope scope) = 0;
 
   virtual Result<Void, Status> wait_idle() = 0;
 
@@ -1503,14 +1517,9 @@ struct Device
     get_statistics_query_result(StatisticsQuery query, Slice32 range,
                                 Vec<PipelineStatistics> & statistics) = 0;
 
-  // virtual Result<Void, Status> begin_frame(Swapchain swapchain) = 0;
-
-  // virtual Result<Void, Status> submit_frame(Swapchain swapchain) = 0;
-
-  virtual u64 enqueue(CommandBuffer & buffer) = 0;
-
-  virtual void submit(CommandBuffer & buffer, QueueScope scope,
-                      Swapchain swapchain) = 0;
+  virtual Result<Swapchain, Status> submit(Span<CommandBufferPtr const> buffers,
+                                           QueueScope                   scope,
+                                           Swapchain swapchain) = 0;
 };
 
 struct Instance
@@ -1528,12 +1537,11 @@ struct Instance
   virtual void uninit(Surface surface) = 0;
 };
 
-Result<Dyn<Instance *>, Status> create_vulkan_instance(AllocatorRef allocator,
-                                                       bool enable_validation);
+Result<Dyn<InstancePtr>, Status> create_vulkan_instance(AllocatorRef allocator,
+                                                        bool enable_validation);
 
 /// REQUIRED LIMITS AND PROPERTIES
 
-inline constexpr u32         MAX_LABEL_SIZE                       = 256;
 inline constexpr u32         MAX_IMAGE_EXTENT_1D                  = 8'192;
 inline constexpr u32         MAX_IMAGE_EXTENT_2D                  = 8'192;
 inline constexpr u32         MAX_IMAGE_EXTENT_3D                  = 2'048;
@@ -1566,7 +1574,6 @@ inline constexpr SampleCount REQUIRED_COLOR_SAMPLE_COUNTS =
 inline constexpr SampleCount REQUIRED_DEPTH_SAMPLE_COUNTS =
   SampleCount::C1 | SampleCount::C2 | SampleCount::C4;
 
-typedef InplaceVec<char, MAX_LABEL_SIZE> Label;
 }    // namespace gpu
 
 inline void format(fmt::Sink sink, fmt::Spec, gpu::Status const & status)
