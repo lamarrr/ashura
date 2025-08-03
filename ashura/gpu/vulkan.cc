@@ -2845,8 +2845,6 @@ Result<gpu::MemoryGroup, Status>
 
   CHECK(allocator_->nalloc(1, group), "");
 
-  // [ ] add clear_memory_group and rebind_group
-
   new (group) MemoryGroup{.vma_allocation = vma_allocation,
                           .alignment      = 0,
                           .map            = vma_allocation_info.pMappedData,
@@ -3748,30 +3746,49 @@ Result<gpu::GraphicsPipeline, Status>
   return Ok{(gpu::GraphicsPipeline) pipeline};
 }
 
-Result<gpu::Swapchain, Status>
-  Device::create_swapchain(gpu::SwapchainInfo const & info)
+Result<Void, Status> recreate_swapchain(Device * d, Swapchain * swapchain)
 {
+  auto info = std::move(swapchain->preference);
   CHECK(info.preferred_extent.x() > 0, "");
   CHECK(info.preferred_extent.y() > 0, "");
   CHECK(info.preferred_buffering <= gpu::MAX_SWAPCHAIN_IMAGES, "");
 
-  auto vk_surface    = (VkSurfaceKHR) info.surface;
-  auto old_swapchain = (Swapchain *) info.old;
+  // SmallVec<VkSemaphore, gpu::MAX_FRAME_BUFFERING> acquire_semaphores{
+  //   allocator_};
+  // set_resource_name(acq_sem_label, acquire_sem, VK_OBJECT_TYPE_SEMAPHORE,
+  //                   VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT);
 
-  defer old_swapchain_{[&] {
-    if (old_swapchain != nullptr)
+  // acquire_semaphores.push(acquire_sem).unwrap();
+
+  // auto acq_sem_label =
+  //   ssformat<256>(allocator_, "{}:QueueScope.AcquireSemaphore:{}"_str,
+  //                 info.label, i)
+  //     .unwrap();
+
+  // for (auto sem : acquire_semaphores)
+  // {
+  //   vk_table_.DestroySemaphore(vk_dev_, sem, nullptr);
+  // }
+
+  // [ ] semaphores
+
+  auto vk_surface       = (VkSurfaceKHR) info.surface;
+  auto old_vk_swapchain = swapchain->vk;
+
+  defer old_vk_swapchain_{[&] {
+    if (old_vk_swapchain != nullptr)
     {
-      uninit((gpu::Swapchain) old_swapchain);
+      d->vk_table_.DestroySwapchainKHR(d->vk_dev_, old_vk_swapchain, nullptr);
     }
   }};
 
   VkSurfaceCapabilitiesKHR surface_capabilities;
-  auto result = instance_->vk_table_.GetPhysicalDeviceSurfaceCapabilitiesKHR(
-    phy_dev_.vk_phy_dev, vk_surface, &surface_capabilities);
+  auto result = d->instance_->vk_table_.GetPhysicalDeviceSurfaceCapabilitiesKHR(
+    d->phy_dev_.vk_phy_dev, vk_surface, &surface_capabilities);
 
   if (result != VK_SUCCESS)
   {
-    old_swapchain = nullptr;
+    old_vk_swapchain = nullptr;
     return Err{(Status) result};
   }
 
@@ -3785,13 +3802,7 @@ Result<gpu::Swapchain, Status>
   if (surface_capabilities.currentExtent.width == 0 ||
       surface_capabilities.currentExtent.height == 0)
   {
-    uninit(info.old);
-
-    Swapchain * swapchain;
-    if (!allocator_->nalloc(1, swapchain))
-    {
-      return Err{Status::OutOfHostMemory};
-    }
+    swapchain->~Swapchain();
 
     new (swapchain) Swapchain{
       .vk              = nullptr,
@@ -3805,10 +3816,11 @@ Result<gpu::Swapchain, Status>
       .usage           = info.usage,
       .present_mode    = info.present_mode,
       .extent          = {0, 0},
-      .composite_alpha = info.composite_alpha
+      .composite_alpha = info.composite_alpha,
+      .preference      = std::move(info)
     };
 
-    return Ok{(gpu::Swapchain) swapchain};
+    return Ok{};
   }
 
   VkExtent2D vk_extent;
@@ -3859,31 +3871,33 @@ Result<gpu::Swapchain, Status>
     .compositeAlpha        = (VkCompositeAlphaFlagBitsKHR) info.composite_alpha,
     .presentMode           = (VkPresentModeKHR) info.present_mode,
     .clipped               = VK_TRUE,
-    .oldSwapchain = old_swapchain == nullptr ? nullptr : old_swapchain->vk};
+    .oldSwapchain          = old_vk_swapchain};
 
   VkSwapchainKHR vk;
 
-  result = vk_table_.CreateSwapchainKHR(vk_dev_, &create_info, nullptr, &vk);
+  result =
+    d->vk_table_.CreateSwapchainKHR(d->vk_dev_, &create_info, nullptr, &vk);
 
   if (result != VK_SUCCESS)
   {
-    old_swapchain = nullptr;
+    old_vk_swapchain = nullptr;
     return Err{(Status) result};
   }
 
   defer vk_{[&] {
     if (vk != nullptr)
     {
-      vk_table_.DestroySwapchainKHR(vk_dev_, vk, nullptr);
+      d->vk_table_.DestroySwapchainKHR(d->vk_dev_, vk, nullptr);
     }
   }};
 
   u32 num_images;
-  result = vk_table_.GetSwapchainImagesKHR(vk_dev_, vk, &num_images, nullptr);
+  result =
+    d->vk_table_.GetSwapchainImagesKHR(d->vk_dev_, vk, &num_images, nullptr);
 
   if (result != VK_SUCCESS)
   {
-    old_swapchain = nullptr;
+    old_vk_swapchain = nullptr;
     return Err{(Status) result};
   }
 
@@ -3892,18 +3906,21 @@ Result<gpu::Swapchain, Status>
   InplaceVec<VkImage, gpu::MAX_SWAPCHAIN_IMAGES> vk_images;
   vk_images.resize(num_images).unwrap();
 
-  result =
-    vk_table_.GetSwapchainImagesKHR(vk_dev_, vk, &num_images, vk_images.data());
+  result = d->vk_table_.GetSwapchainImagesKHR(d->vk_dev_, vk, &num_images,
+                                              vk_images.data());
 
   if (result != VK_SUCCESS)
   {
-    old_swapchain = nullptr;
+    old_vk_swapchain = nullptr;
     return Err{(Status) result};
   }
 
+  // [ ] creete faux memory group and bind images to it
+  // [ ] need to create alias id for swapchain images, destroy previous one and create new one, so we can sync
+
   for (auto [vk, image] : zip(vk_images, images))
   {
-    CHECK(allocator_->nalloc(1, image), "");
+    CHECK(d->allocator_->nalloc(1, image), "");
 
     new (image) Image{
       .type               = gpu::ImageType::Type2D,
@@ -3919,25 +3936,20 @@ Result<gpu::Swapchain, Status>
   }
 
   auto swapchain_label =
-    ssformat<256>(allocator_, "{}:Swapchain"_str, info.label).unwrap();
+    ssformat<256>(d->allocator_, "{}:Swapchain"_str, info.label).unwrap();
 
-  set_resource_name(swapchain_label, vk, VK_OBJECT_TYPE_SWAPCHAIN_KHR,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_SWAPCHAIN_KHR_EXT);
+  d->set_resource_name(swapchain_label, vk, VK_OBJECT_TYPE_SWAPCHAIN_KHR,
+                       VK_DEBUG_REPORT_OBJECT_TYPE_SWAPCHAIN_KHR_EXT);
   for (auto [i, image] : enumerate(images))
   {
     auto label =
-      ssformat<256>(allocator_, "{}:Swapchain.Image:{}"_str, info.label, i)
+      ssformat<256>(d->allocator_, "{}:Swapchain.Image:{}"_str, info.label, i)
         .unwrap();
-    set_resource_name(label, image->vk, VK_OBJECT_TYPE_IMAGE,
-                      VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT);
+    d->set_resource_name(label, image->vk, VK_OBJECT_TYPE_IMAGE,
+                         VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT);
   }
 
-  Swapchain * swapchain;
-  if (!allocator_->nalloc(1, swapchain))
-  {
-    old_swapchain = nullptr;
-    return Err{Status::OutOfHostMemory};
-  }
+  swapchain->~Swapchain();
 
   new (swapchain) Swapchain{
     .vk              = vk,
@@ -3951,10 +3963,57 @@ Result<gpu::Swapchain, Status>
     .usage           = info.usage,
     .present_mode    = info.present_mode,
     .extent          = {vk_extent.width, vk_extent.height},
-    .composite_alpha = info.composite_alpha
+    .composite_alpha = info.composite_alpha,
+    .preference      = std::move(info)
   };
 
-  return Ok{(gpu::Swapchain) swapchain};
+  return Ok{};
+}
+
+Result<gpu::Swapchain, Status>
+  Device::create_swapchain(gpu::SwapchainInfo const & info)
+{
+  Vec<char> label{allocator_};
+  if (!label.extend(info.label))
+  {
+    return Err{Status::OutOfHostMemory};
+  }
+
+  SwapchainPreference pref{.label               = std::move(label),
+                           .surface             = info.surface,
+                           .format              = info.format,
+                           .usage               = info.usage,
+                           .preferred_buffering = info.preferred_buffering,
+                           .present_mode        = info.present_mode,
+                           .preferred_extent    = info.preferred_extent,
+                           .composite_alpha     = info.composite_alpha};
+
+  Swapchain * shim;
+  if (!allocator_->nalloc(1, shim))
+  {
+    return Err{Status::OutOfHostMemory};
+  }
+
+  defer shim_{[&] {
+    if (shim != nullptr)
+    {
+      uninit((gpu::Swapchain) shim);
+    }
+  }};
+
+  new (shim) Swapchain{.preference = std::move(pref)};
+
+  auto result = recreate_swapchain(this, shim);
+
+  if (!result)
+  {
+    return Err{result.err()};
+  }
+
+  gpu::Swapchain swapchain = (gpu::Swapchain) shim;
+  shim                     = nullptr;
+
+  return Ok{swapchain};
 }
 
 Result<gpu::TimestampQuery, Status>
@@ -4113,17 +4172,10 @@ Result<gpu::CommandBufferPtr, Status>
 Result<gpu::QueueScope, Status>
   Device::create_queue_scope(gpu::QueueScopeInfo const & info)
 {
-  SmallVec<VkSemaphore, gpu::MAX_FRAME_BUFFERING> acquire_semaphores{
-    allocator_};
   SmallVec<VkSemaphore, gpu::MAX_FRAME_BUFFERING> submit_semaphores{allocator_};
   SmallVec<VkFence, gpu::MAX_FRAME_BUFFERING>     submit_fences{allocator_};
 
   defer _{[&] {
-    for (auto sem : acquire_semaphores)
-    {
-      vk_table_.DestroySemaphore(vk_dev_, sem, nullptr);
-    }
-
     for (auto sem : submit_semaphores)
     {
       vk_table_.DestroySemaphore(vk_dev_, sem, nullptr);
@@ -4146,10 +4198,6 @@ Result<gpu::QueueScope, Status>
 
   for (auto i : range(info.buffering))
   {
-    auto acq_sem_label =
-      ssformat<256>(allocator_, "{}:QueueScope.AcquireSemaphore:{}"_str,
-                    info.label, i)
-        .unwrap();
     auto sbm_sem_label =
       ssformat<256>(allocator_, "{}:QueueScope.SubmitSemaphore:{}"_str,
                     info.label, i)
@@ -4166,11 +4214,6 @@ Result<gpu::QueueScope, Status>
     {
       return Err{(Status) result};
     }
-
-    set_resource_name(acq_sem_label, acquire_sem, VK_OBJECT_TYPE_SEMAPHORE,
-                      VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT);
-
-    acquire_semaphores.push(acquire_sem).unwrap();
 
     VkSemaphore submit_sem;
 
@@ -4199,11 +4242,28 @@ Result<gpu::QueueScope, Status>
     return Err{Status::OutOfDeviceMemory};
   }
 
-  new (scope)
-    QueueScope{info.buffering, std::move(acquire_semaphores),
-               std::move(submit_semaphores), std::move(submit_fences)};
+  new (scope) QueueScope{info.buffering, std::move(submit_semaphores),
+                         std::move(submit_fences)};
 
   return Ok{(gpu::QueueScope) scope};
+}
+
+AliasId Device::allocate_alias_id()
+{
+}
+
+void Device::release_alias_id(AliasId id)
+{
+}
+
+// [ ] impl
+// [ ] after allocating ids for any resource, their states must be reset
+DescriptorSetId Device::allocate_descriptor_set_id()
+{
+}
+
+void Device::release_descriptor_set_id(DescriptorSetId id)
+{
 }
 
 void Device::uninit()
@@ -4466,6 +4526,11 @@ void Device::uninit(gpu::Swapchain swapchain_)
     return;
   }
 
+  for (auto sem : swapchain->acquire_semaphores)
+  {
+    vk_table_.DestroySemaphore(vk_dev_, sem, nullptr);
+  }
+
   vk_table_.DestroySwapchainKHR(vk_dev_, swapchain->vk, nullptr);
   swapchain->~Swapchain();
   allocator_->ndealloc(1, swapchain);
@@ -4520,11 +4585,6 @@ void Device::uninit(gpu::QueueScope scope_)
   if (scope == nullptr)
   {
     return;
-  }
-
-  for (auto sem : scope->acquire_semaphores_)
-  {
-    vk_table_.DestroySemaphore(vk_dev_, sem, nullptr);
   }
 
   for (auto sem : scope->submit_semaphores_)
@@ -5021,25 +5081,14 @@ Result<gpu::SwapchainState, Status>
   auto * swapchain = (Swapchain *) swapchain_;
 
   gpu::SwapchainState state{
-    .extent        = swapchain->extent,
-    .format        = swapchain->format,
-    .images        = swapchain->images.view().reinterpret<gpu::Image>(),
-    .current_image = swapchain->current_image};
+    .extent          = swapchain->extent,
+    .format          = swapchain->format,
+    .present_mode    = swapchain->present_mode,
+    .composite_alpha = swapchain->composite_alpha,
+    .images          = swapchain->images.view().reinterpret<gpu::Image>(),
+    .current_image   = swapchain->current_image};
 
   return Ok{state};
-}
-
-Result<Void, Status>
-  Device::invalidate_swapchain(gpu::Swapchain             swapchain_,
-                               gpu::SwapchainInfo const & info)
-{
-  // [ ] fix
-  CHECK(info.preferred_extent.x() > 0, "");
-  CHECK(info.preferred_extent.y() > 0, "");
-  auto * swapchain      = (Swapchain *) swapchain_;
-  swapchain->is_optimal = false;
-  // swapchain->info        = info;
-  return Ok{Void{}};
 }
 
 Result<Void, Status>
@@ -5103,29 +5152,68 @@ Result<Void, Status>
   return Ok{};
 }
 
-Result<gpu::Swapchain, Status>
-  Device::submit(Span<gpu::CommandBufferPtr const> buffers_,
-                 gpu::QueueScope scope_, gpu::Swapchain swapchain_)
+Result<Void, Status> Device::acquire_next(gpu::Swapchain swapchain_)
+{
+  CHECK(swapchain_ != nullptr, "");
+  auto swapchain = (Swapchain *) swapchain_;
+
+  VkResult result = VK_SUCCESS;
+
+  if (swapchain->is_out_of_date || !swapchain->is_optimal ||
+      swapchain->vk == nullptr)
+  {
+    // await all pending submitted operations on the device possibly using
+    // the swapchain, to avoid destroying whilst in use
+    result = vk_table_.QueueWaitIdle(vk_queue_);
+    if (result != VK_SUCCESS)
+    {
+      return Err{(Status) result};
+    }
+
+    recreate_swapchain(this, swapchain).unwrap();
+  }
+
+  if (!swapchain->is_zero_sized)
+  {
+    u32 next_image;
+    result = vk_table_.AcquireNextImageKHR(
+      vk_dev_, swapchain->vk, U64_MAX,
+      swapchain->acquire_semaphores[swapchain->ring_index], nullptr,
+      &next_image);
+
+    if (result == VK_SUBOPTIMAL_KHR)
+    {
+      swapchain->is_optimal = false;
+    }
+    else
+    {
+      return Err{(Status) result};
+    }
+
+    swapchain->current_image     = next_image;
+    swapchain->current_semaphore = swapchain->ring_index;
+    swapchain->ring_index =
+      (swapchain->ring_index + 1) % size32(swapchain->images);
+  }
+
+  return Ok{};
+}
+
+Result<Void, Status> Device::submit(gpu::CommandBufferPtr buffer_,
+                                    gpu::QueueScope       scope_)
 {
   char              reserved_[512];
   FallbackAllocator scratch{Arena::from(reserved_), allocator_};
 
-  // [ ] implement
-  CHECK(!buffers_.is_empty(), "");
-  for (auto buffer_ : buffers_)
-  {
-    CHECK(buffer_ != nullptr, "");
-    auto * buffer = (CommandBuffer *) buffer_;
-    CHECK(buffer->state_ == CommandBufferState::Recorded, "");
-  }
+  CHECK(buffer_ != nullptr, "");
+  auto * buffer = (CommandBuffer *) buffer_;
+  CHECK(buffer->state_ == CommandBufferState::Recorded, "");
   CHECK(scope_ != nullptr, "");
 
-  auto scope     = (QueueScope *) scope_;
-  auto swapchain = (Swapchain *) swapchain_;
+  auto scope = (QueueScope *) scope_;
 
-  auto submit_fence      = scope->submit_fences_[scope->ring_index_];
-  auto submit_semaphore  = scope->submit_semaphores_[scope->ring_index_];
-  auto acquire_semaphore = scope->acquire_semaphores_[scope->ring_index_];
+  auto submit_fence     = scope->submit_fences_[scope->ring_index_];
+  auto submit_semaphore = scope->submit_semaphores_[scope->ring_index_];
 
   // wait to re-use sync primitives
   auto result =
@@ -5137,84 +5225,24 @@ Result<gpu::Swapchain, Status>
 
   CHECK(result == VK_SUCCESS, "");
 
-  bool has_acquire = false;
-
-  if (swapchain != nullptr)
-  {
-    if (swapchain->is_out_of_date || !swapchain->is_optimal ||
-        swapchain->vk == nullptr)
-    {
-      // await all pending submitted operations on the device possibly using
-      // the swapchain, to avoid destroying whilst in use
-      result = vk_table_.QueueWaitIdle(vk_queue_);
-      CHECK(result == VK_SUCCESS, "");
-
-      // [ ] fix params
-      swapchain =
-        (Swapchain *) create_swapchain(
-          gpu::SwapchainInfo{.surface = (gpu::Surface) swapchain->vk_surface,
-                             .format  = swapchain->format,
-                             .usage   = swapchain->usage,
-                             .preferred_buffering = 0,
-                             .present_mode        = swapchain->present_mode,
-                             .preferred_extent    = {},
-                             .composite_alpha     = swapchain->composite_alpha,
-                             .old                 = (gpu::Swapchain) swapchain})
-          .unwrap();
-    }
-
-    if (!swapchain->is_zero_sized)
-    {
-      u32 next_image;
-      result = vk_table_.AcquireNextImageKHR(
-        vk_dev_, swapchain->vk, U64_MAX,
-        scope->acquire_semaphores_[scope->ring_index_], nullptr, &next_image);
-
-      if (result == VK_SUBOPTIMAL_KHR)
-      {
-        swapchain->is_optimal = false;
-      }
-      else
-      {
-        CHECK(result == VK_SUCCESS, "");
-      }
-
-      has_acquire              = true;
-      swapchain->current_image = next_image;
-    }
-  }
-
+  auto swapchain     = buffer->swapchain_;
   auto is_presenting = swapchain != nullptr && !swapchain->is_out_of_date &&
                        !swapchain->is_zero_sized;
-
-  // [ ] swapchain images neeed to be transitioned; add a present command to the commandbuffer
-  //
-
-  // if (was_acquired)
-  // {
-  //   // enc.access_image(swapchain->image_impls[swapchain->current_image],
-  //   //                  VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_ACCESS_NONE,
-  //   //                  VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-  // }
-
-  Vec<VkCommandBuffer> vk_buffers{scratch};
-
-  for (auto buff_ : buffers_)
-  {
-    auto buff = (CommandBuffer *) buff_;
-    vk_buffers.push(buff->vk_).unwrap();
-  }
+  auto acquire_semaphore =
+    is_presenting ?
+      swapchain->acquire_semaphores[swapchain->current_semaphore.unwrap()] :
+      nullptr;
 
   VkPipelineStageFlags wait_stages = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
 
   auto submit_info = VkSubmitInfo{
     .sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
     .pNext                = nullptr,
-    .waitSemaphoreCount   = has_acquire ? 1U : 0U,
-    .pWaitSemaphores      = has_acquire ? &acquire_semaphore : nullptr,
-    .pWaitDstStageMask    = has_acquire ? &wait_stages : nullptr,
-    .commandBufferCount   = size32(vk_buffers),
-    .pCommandBuffers      = vk_buffers.data(),
+    .waitSemaphoreCount   = is_presenting ? 1U : 0U,
+    .pWaitSemaphores      = is_presenting ? &acquire_semaphore : nullptr,
+    .pWaitDstStageMask    = is_presenting ? &wait_stages : nullptr,
+    .commandBufferCount   = 1,
+    .pCommandBuffers      = &buffer->vk_,
     .signalSemaphoreCount = is_presenting ? 1U : 0U,
     .pSignalSemaphores    = is_presenting ? &submit_semaphore : nullptr};
 
@@ -5222,12 +5250,8 @@ Result<gpu::Swapchain, Status>
 
   CHECK(result == VK_SUCCESS, "");
 
-  // ctx.swapchain = swapchain;
-  // enc.state = CommandEncoderState::End;
+  buffer->state_ = CommandBufferState::Submitted;
 
-  // - advance frame, even if invalidation occured. frame is marked as missed
-  // but has no side effect on the flow. so no need for resubmitting as previous
-  // commands could have been executed.
   scope->current_frame_++;
   scope->tail_frame_ = (scope->current_frame_ < scope->buffering_) ?
                          0 :
@@ -5262,11 +5286,7 @@ Result<gpu::Swapchain, Status>
     }
   }
 
-  for (auto buffer_ : buffers_)
-  {
-    auto * buffer  = (CommandBuffer *) buffer_;
-    buffer->state_ = CommandBufferState::Submitted;
-  }
+  return Ok{};
 }
 
 void CommandEncoder::begin()
@@ -5290,12 +5310,13 @@ void CommandEncoder::reset()
         "");
   // [ ] implement shrink for pool
   pool_.reclaim();
-  status_    = Status::Success;
-  state_     = CommandBufferState::Reset;
-  pass_      = Pass::None;
-  ctx_       = {};
+  status_ = Status::Success;
+  state_  = CommandBufferState::Reset;
+  pass_   = Pass::None;
+  ctx_.clear();
   first_cmd_ = nullptr;
   last_cmd_  = nullptr;
+  swapchain_ = nullptr;
   passes_.shrink().unwrap();
   passes_.clear();
 }
@@ -6376,7 +6397,7 @@ void CommandEncoder::bind_compute_pipeline(gpu::ComputePipeline pipeline)
   ctx_.compute_pipeline = cmd;
 }
 
-void  validate_pipeline_compatible(
+void validate_pipeline_compatible(
   gpu::GraphicsPipeline                pipeline_,
   Span<gpu::RenderingAttachment const> color_attachments,
   Option<gpu::RenderingAttachment>     depth_attachment,
@@ -6498,6 +6519,8 @@ void CommandEncoder::bind_descriptor_sets(
 
   descriptor_sets.leak();
   dynamic_offsets.leak();
+
+  // [ ] sync-on-bind for all bindings
 
   ctx_.descriptor_sets = cmd;
 }
@@ -6786,6 +6809,27 @@ void CommandEncoder::draw_indexed_indirect(gpu::Buffer buffer_, u64 offset,
   // VK_ACCESS_INDIRECT_COMMAND_READ_BIT, ctx.pass_timestamp);
 }
 
+void CommandEncoder::present(gpu::Swapchain swapchain_)
+{
+  CHECK(state_ == CommandBufferState::Recording, "");
+
+  CHECK(swapchain_ != nullptr, "");
+  CHECK(this->swapchain_ == nullptr, "");
+
+  auto swapchain = (Swapchain *) swapchain_;
+  CHECK(!swapchain->is_out_of_date, "");
+  this->swapchain_ = swapchain;
+
+  if (!swapchain->is_zero_sized)
+  {
+    // [ ] swapchain images neeed to be transitioned; add a present command to the commandbuffer
+    // [ ] will all the invariants hold against zero-sized swapchains? command encoding especially
+    access_.access(swapchain->images[swapchain->current_image.unwrap()],
+                   VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_ACCESS_NONE,
+                   VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+  }
+}
+
 void CommandBuffer::begin()
 {
   CHECK(state_ == CommandBufferState::Reset, "");
@@ -6829,157 +6873,157 @@ void CommandBuffer::reset()
   state_ = CommandBufferState::Reset;
 }
 
-ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
-                                     cmd::ResetTimestampQuery const & cmd)
+ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
+                              cmd::ResetTimestampQuery const & cmd)
 {
   t.CmdResetQueryPool(vk, cmd.query, cmd.range.offset, cmd.range.span);
 }
 
-ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
-                                     cmd::ResetStatisticsQuery const & cmd)
+ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
+                              cmd::ResetStatisticsQuery const & cmd)
 {
   t.CmdResetQueryPool(vk, cmd.query, cmd.range.offset, cmd.range.span);
 }
 
-ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
-                                     cmd::WriteTimestamp const & cmd)
+ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
+                              cmd::WriteTimestamp const & cmd)
 {
   t.CmdWriteTimestamp(vk, cmd.stages, cmd.query, cmd.index);
 }
 
-ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
-                                     cmd::BeginStatistics const & cmd)
+ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
+                              cmd::BeginStatistics const & cmd)
 {
   t.CmdBeginQuery(vk, cmd.query, cmd.index, 0);
 }
 
-ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
-                                     cmd::EndStatistics const & cmd)
+ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
+                              cmd::EndStatistics const & cmd)
 {
   t.CmdEndQuery(vk, cmd.query, cmd.index);
 }
 
-ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
-                                     cmd::BeginDebugMarker const & cmd)
+ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
+                              cmd::BeginDebugMarker const & cmd)
 {
   t.CmdDebugMarkerBeginEXT(vk, &cmd.info);
 }
 
-ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
-                                     cmd::EndDebugMarker const &)
+ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
+                              cmd::EndDebugMarker const &)
 {
   t.CmdDebugMarkerEndEXT(vk);
 }
 
-ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
-                                     cmd::FillBuffer const & cmd)
+ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
+                              cmd::FillBuffer const & cmd)
 {
   t.CmdFillBuffer(vk, cmd.dst, cmd.range.offset, cmd.range.span, cmd.data);
 }
 
-ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
-                                     cmd::CopyBuffer const & cmd)
+ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
+                              cmd::CopyBuffer const & cmd)
 {
   t.CmdCopyBuffer(vk, cmd.src, cmd.dst, size32(cmd.copies), cmd.copies.data());
 }
 
-ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
-                                     cmd::UpdateBuffer const & cmd)
+ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
+                              cmd::UpdateBuffer const & cmd)
 {
   t.CmdUpdateBuffer(vk, cmd.dst, cmd.dst_offset, size64(cmd.src),
                     cmd.src.data());
 }
 
-ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
-                                     cmd::ClearColorImage const & cmd)
+ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
+                              cmd::ClearColorImage const & cmd)
 {
   t.CmdClearColorImage(vk, cmd.dst, cmd.dst_layout, &cmd.value,
                        size32(cmd.ranges), cmd.ranges.data());
 }
 
-ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
-                                     cmd::ClearDepthStencilImage const & cmd)
+ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
+                              cmd::ClearDepthStencilImage const & cmd)
 {
   t.CmdClearDepthStencilImage(vk, cmd.dst, cmd.dst_layout, &cmd.value,
                               size32(cmd.ranges), cmd.ranges.data());
 }
 
-ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
-                                     cmd::CopyImage const & cmd)
+ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
+                              cmd::CopyImage const & cmd)
 {
   t.CmdCopyImage(vk, cmd.src, cmd.src_layout, cmd.dst, cmd.dst_layout,
                  size32(cmd.copies), cmd.copies.data());
 }
 
-ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
-                                     cmd::CopyBufferToImage const & cmd)
+ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
+                              cmd::CopyBufferToImage const & cmd)
 {
   t.CmdCopyBufferToImage(vk, cmd.src, cmd.dst, cmd.dst_layout,
                          size32(cmd.copies), cmd.copies.data());
 }
 
-ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
-                                     cmd::BlitImage const & cmd)
+ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
+                              cmd::BlitImage const & cmd)
 {
   t.CmdBlitImage(vk, cmd.src, cmd.src_layout, cmd.dst, cmd.dst_layout,
                  size32(cmd.blits), cmd.blits.data(), cmd.filter);
 }
 
-ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
-                                     cmd::ResolveImage const & cmd)
+ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
+                              cmd::ResolveImage const & cmd)
 {
   t.CmdResolveImage(vk, cmd.src, cmd.src_layout, cmd.dst, cmd.dst_layout,
                     size32(cmd.resolves), cmd.resolves.data());
 }
 
-ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
-                                     cmd::BeginRendering const & cmd)
+ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
+                              cmd::BeginRendering const & cmd)
 {
   t.CmdBeginRenderingKHR(vk, &cmd.info);
 }
 
-ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
-                                     cmd::EndRendering const &)
+ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
+                              cmd::EndRendering const &)
 {
   t.CmdEndRenderingKHR(vk);
 }
 
-ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
-                                     cmd::BindPipeline const & cmd)
+ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
+                              cmd::BindPipeline const & cmd)
 {
   t.CmdBindPipeline(vk, cmd.bind_point, cmd.pipeline);
 }
 
-ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
-                                     cmd::BindDescriptorSets const & cmd)
+ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
+                              cmd::BindDescriptorSets const & cmd)
 {
   t.CmdBindDescriptorSets(vk, cmd.bind_point, cmd.layout, 0, size32(cmd.sets),
                           cmd.sets.data(), size32(cmd.dynamic_offsets),
                           cmd.dynamic_offsets.data());
 }
 
-ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
-                                     cmd::PushConstants const & cmd)
+ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
+                              cmd::PushConstants const & cmd)
 {
   t.CmdPushConstants(vk, cmd.layout, VK_SHADER_STAGE_ALL, 0,
                      size32(cmd.constant), cmd.constant.data());
 }
 
-ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
-                                     cmd::Dispatch const & cmd)
+ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
+                              cmd::Dispatch const & cmd)
 {
   t.CmdDispatch(vk, cmd.group_count.x(), cmd.group_count.y(),
                 cmd.group_count.z());
 }
 
-ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
-                                     cmd::DispatchIndirect const & cmd)
+ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
+                              cmd::DispatchIndirect const & cmd)
 {
   t.CmdDispatchIndirect(vk, cmd.buffer, cmd.offset);
 }
 
-ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
-                                     cmd::SetGraphicsState const & cmd)
+ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
+                              cmd::SetGraphicsState const & cmd)
 {
   auto & s = cmd.state;
 
@@ -7035,41 +7079,41 @@ ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
   t.CmdSetDepthBoundsTestEnableEXT(vk, s.depth_bounds_test_enable);
 }
 
-ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
-                                     cmd::BindVertexBuffers const & cmd)
+ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
+                              cmd::BindVertexBuffers const & cmd)
 {
   t.CmdBindVertexBuffers(vk, 0, size32(cmd.buffers), cmd.buffers.data(),
                          cmd.offsets.data());
 }
 
-ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
-                                     cmd::BindIndexBuffer const & cmd)
+ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
+                              cmd::BindIndexBuffer const & cmd)
 {
   t.CmdBindIndexBuffer(vk, cmd.buffer, cmd.offset, cmd.index_type);
 }
 
-ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
-                                     cmd::Draw const & cmd)
+ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
+                              cmd::Draw const & cmd)
 {
   t.CmdDraw(vk, cmd.vertices.span, cmd.instances.span, cmd.vertices.offset,
             cmd.instances.offset);
 }
 
-ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
-                                     cmd::DrawIndexed const & cmd)
+ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
+                              cmd::DrawIndexed const & cmd)
 {
   t.CmdDrawIndexed(vk, cmd.indices.span, cmd.instances.span, cmd.indices.offset,
                    cmd.vertex_offset, cmd.instances.offset);
 }
 
-ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
-                                     cmd::DrawIndirect const & cmd)
+ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
+                              cmd::DrawIndirect const & cmd)
 {
   t.CmdDrawIndirect(vk, cmd.buffer, cmd.offset, cmd.draw_count, cmd.stride);
 }
 
-ASH_FORCE_INLINE inline void command(DeviceTable const & t, VkCommandBuffer vk,
-                                     cmd::DrawIndexedIndirect const & cmd)
+ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
+                              cmd::DrawIndexedIndirect const & cmd)
 {
   t.CmdDrawIndexedIndirect(vk, cmd.buffer, cmd.offset, cmd.draw_count,
                            cmd.stride);

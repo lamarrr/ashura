@@ -472,9 +472,18 @@ struct PhysicalDevice
   VkPhysicalDeviceMemoryProperties vk_memory_properties = {};
 };
 
-/// @param is_optimal false when vulkan returns that the surface is suboptimal
-/// or the description is updated by the user
-///
+struct SwapchainPreference
+{
+  Vec<char>           label               = {};
+  gpu::Surface        surface             = nullptr;
+  gpu::SurfaceFormat  format              = {};
+  gpu::ImageUsage     usage               = gpu::ImageUsage::None;
+  u32                 preferred_buffering = 0;
+  gpu::PresentMode    present_mode        = gpu::PresentMode::Immediate;
+  u32x2               preferred_extent    = {};
+  gpu::CompositeAlpha composite_alpha     = gpu::CompositeAlpha::None;
+};
+
 /// @param is_out_of_date can't present anymore
 /// @param is_optimal recommended but not necessary to resize
 /// @param is_zero_sized swapchain is not receiving presentation requests,
@@ -487,7 +496,14 @@ struct Swapchain
 
   InplaceVec<Image *, gpu::MAX_SWAPCHAIN_IMAGES> images = {};
 
+  // [ ] create, uninit
+  InplaceVec<VkSemaphore, gpu::MAX_SWAPCHAIN_IMAGES> acquire_semaphores = {};
+
+  u32 ring_index = 0;
+
   Option<u32> current_image = none;
+
+  Option<u32> current_semaphore = none;
 
   bool is_out_of_date = true;
 
@@ -504,17 +520,19 @@ struct Swapchain
   u32x2 extent = {};
 
   gpu::CompositeAlpha composite_alpha = gpu::CompositeAlpha::None;
+
+  SwapchainPreference preference = {};
 };
 
-#define ASH_VK_CAST(Handle)                           \
-  ASH_FORCE_INLINE inline Handle * ptr(gpu::Handle p) \
-  {                                                   \
-    return reinterpret_cast<Handle *>(p);             \
-  }                                                   \
-                                                      \
-  ASH_FORCE_INLINE inline Handle & ref(gpu::Handle p) \
-  {                                                   \
-    return *ptr(p);                                   \
+#define ASH_VK_CAST(Handle)                    \
+  ASH_FORCE_INLINE Handle * ptr(gpu::Handle p) \
+  {                                            \
+    return reinterpret_cast<Handle *>(p);      \
+  }                                            \
+                                               \
+  ASH_FORCE_INLINE Handle & ref(gpu::Handle p) \
+  {                                            \
+    return *ptr(p);                            \
   }
 
 ASH_VK_CAST(Buffer)
@@ -1054,6 +1072,37 @@ enum class CommandBufferState : u8
   Submitted = 3
 };
 
+// [ ] remove all default-init; ctx_ = {};
+struct PassContext
+{
+  GraphicsPipeline * graphics_pipeline = nullptr;
+
+  GraphicsPipeline * compute_pipeline = nullptr;
+
+  InplaceVec<gpu::RenderingAttachment, gpu::MAX_PIPELINE_COLOR_ATTACHMENTS>
+    color_attachments = {};
+
+  Option<gpu::RenderingAttachment> depth_attachment = none;
+
+  Option<gpu::RenderingAttachment> stencil_attachment = none;
+
+  InplaceVec<DescriptorSet *, gpu::MAX_PIPELINE_DESCRIPTOR_SETS>
+    descriptor_sets = {};
+
+  InplaceVec<Buffer *, gpu::MAX_VERTEX_ATTRIBUTES> vertex_buffers = {};
+
+  Buffer * index_buffer = nullptr;
+
+  PassContext()                                = default;
+  PassContext(PassContext const &)             = delete;
+  PassContext(PassContext &&)                  = delete;
+  PassContext & operator=(PassContext const &) = delete;
+  PassContext & operator=(PassContext &&)      = delete;
+  ~PassContext()                               = default;
+
+  void clear();
+};
+
 struct CommandEncoder final : gpu::CommandEncoder
 {
   enum class Pass : u8
@@ -1068,21 +1117,16 @@ struct CommandEncoder final : gpu::CommandEncoder
     u32 commands = 0;
   };
 
-  struct Ctx
-  {
-    // [ ] remove all default-init
-    void clear();
-  };
-
   Device *           dev_;
   ArenaPool          pool_;
   Status             status_;
   CommandBufferState state_;
   Pass               pass_;
   AccessEncoder      access_;
-  Ctx                ctx_;
+  PassContext        ctx_;
   cmd::Command *     first_cmd_;
   cmd::Command *     last_cmd_;
+  Swapchain *        swapchain_;
   Vec<Entry>         passes_;
 
   CommandEncoder(Device * dev, AllocatorRef allocator) :
@@ -1095,6 +1139,7 @@ struct CommandEncoder final : gpu::CommandEncoder
     ctx_{},
     first_cmd_{nullptr},
     last_cmd_{nullptr},
+    swapchain_{nullptr},
     passes_{allocator}
   {
   }
@@ -1214,6 +1259,8 @@ struct CommandEncoder final : gpu::CommandEncoder
 
   virtual void draw_indexed_indirect(gpu::Buffer buffer, u64 offset,
                                      u32 draw_count, u32 stride) override;
+
+  virtual void present(gpu::Swapchain swapchain) override;
 };
 
 struct CommandBuffer final : gpu::CommandBuffer
@@ -1221,6 +1268,7 @@ struct CommandBuffer final : gpu::CommandBuffer
   Device *              dev_;
   VkCommandPool         vk_pool_;
   VkCommandBuffer       vk_;
+  Swapchain *           swapchain_;
   Status                status_;
   CommandBufferState    state_;
   EncoderResourceStates resource_states_;
@@ -1230,6 +1278,7 @@ struct CommandBuffer final : gpu::CommandBuffer
     dev_{dev},
     vk_pool_{vk_pool},
     vk_{vk_buffer},
+    swapchain_{nullptr},
     status_{Status::Success},
     state_{CommandBufferState::Reset},
     resource_states_{allocator}
@@ -1253,19 +1302,16 @@ struct QueueScope
   u64                                             tail_frame_;
   u64                                             current_frame_;
   u64                                             ring_index_;
-  SmallVec<VkSemaphore, gpu::MAX_FRAME_BUFFERING> acquire_semaphores_;
   SmallVec<VkSemaphore, gpu::MAX_FRAME_BUFFERING> submit_semaphores_;
   SmallVec<VkFence, gpu::MAX_FRAME_BUFFERING>     submit_fences_;
 
   QueueScope(u64                                             buffering,
-             SmallVec<VkSemaphore, gpu::MAX_FRAME_BUFFERING> acquire_semaphores,
              SmallVec<VkSemaphore, gpu::MAX_FRAME_BUFFERING> submit_semaphores,
              SmallVec<VkFence, gpu::MAX_FRAME_BUFFERING>     submit_fences) :
     buffering_{buffering},
     tail_frame_{0},
     current_frame_{0},
     ring_index_{0},
-    acquire_semaphores_{std::move(acquire_semaphores)},
     submit_semaphores_{std::move(submit_semaphores)},
     submit_fences_{std::move(submit_fences)}
   {
@@ -1311,8 +1357,6 @@ struct Device final : gpu::Device
 
   void release_alias_id(AliasId id);
 
-  // [ ] impl
-  // [ ] after allocating ids for any resource, their states must be reset
   DescriptorSetId allocate_descriptor_set_id();
 
   void release_descriptor_set_id(DescriptorSetId id);
@@ -1457,10 +1501,6 @@ struct Device final : gpu::Device
     get_swapchain_state(gpu::Swapchain swapchain) override;
 
   virtual Result<Void, Status>
-    invalidate_swapchain(gpu::Swapchain             swapchain,
-                         gpu::SwapchainInfo const & info) override;
-
-  virtual Result<Void, Status>
     get_timestamp_query_result(gpu::TimestampQuery query, Slice32 range,
                                Vec<u64> & timestamps) override;
 
@@ -1468,9 +1508,10 @@ struct Device final : gpu::Device
     gpu::StatisticsQuery query, Slice32 range,
     Vec<gpu::PipelineStatistics> & statistics) override;
 
-  virtual Result<gpu::Swapchain, Status>
-    submit(Span<gpu::CommandBufferPtr const> buffers, gpu::QueueScope scope,
-           gpu::Swapchain swapchain) override;
+  virtual Result<Void, Status> acquire_next(gpu::Swapchain swapchain) override;
+
+  virtual Result<Void, Status> submit(gpu::CommandBufferPtr buffer,
+                                      gpu::QueueScope       scope) override;
 };
 
 }    // namespace vk

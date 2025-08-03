@@ -1081,7 +1081,6 @@ struct SwapchainInfo
   PresentMode    present_mode        = PresentMode::Immediate;
   u32x2          preferred_extent    = {};
   CompositeAlpha composite_alpha     = CompositeAlpha::None;
-  Swapchain      old                 = nullptr;
 };
 
 struct QueueScopeInfo
@@ -1241,10 +1240,12 @@ struct DeviceProperties
 /// storing pointers to its data members.
 struct SwapchainState
 {
-  u32x2             extent        = {};
-  SurfaceFormat     format        = {};
-  Span<Image const> images        = {};
-  Option<u32>       current_image = none;
+  u32x2             extent          = {};
+  SurfaceFormat     format          = {};
+  PresentMode       present_mode    = PresentMode::Immediate;
+  CompositeAlpha    composite_alpha = CompositeAlpha::None;
+  Span<Image const> images          = {};
+  Option<u32>       current_image   = none;
 };
 
 struct QueueScopeState
@@ -1363,6 +1364,8 @@ struct CommandEncoder
 
   virtual void draw_indexed_indirect(Buffer buffer, u64 offset, u32 draw_count,
                                      u32 stride) = 0;
+
+  virtual void present(Swapchain swapchain) = 0;
 };
 
 struct CommandBuffer
@@ -1507,9 +1510,6 @@ struct Device
     get_swapchain_state(Swapchain swapchain) = 0;
 
   virtual Result<Void, Status>
-    invalidate_swapchain(Swapchain swapchain, SwapchainInfo const & info) = 0;
-
-  virtual Result<Void, Status>
     get_timestamp_query_result(TimestampQuery query, Slice32 range,
                                Vec<u64> & timestamps) = 0;
 
@@ -1517,9 +1517,10 @@ struct Device
     get_statistics_query_result(StatisticsQuery query, Slice32 range,
                                 Vec<PipelineStatistics> & statistics) = 0;
 
-  virtual Result<Swapchain, Status> submit(Span<CommandBufferPtr const> buffers,
-                                           QueueScope                   scope,
-                                           Swapchain swapchain) = 0;
+  virtual Result<Void, Status> acquire_next(Swapchain swapchain) = 0;
+
+  virtual Result<Void, Status> submit(CommandBufferPtr buffer,
+                                      QueueScope       scope) = 0;
 };
 
 struct Instance
