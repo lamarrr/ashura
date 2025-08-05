@@ -151,9 +151,13 @@ ASH_FORCE_INLINE void nontemporal_store(T & dst, T data)
 
 enum class Locality : i32
 {
+  // 0: None, the data can be removed from the cache after the access.
   None = 0,
+  // 1: Low, L3 cache, leave the data in the L3 cache level after the access.
   L1   = 1,
+  // 2: Moderate, L2 cache, leave the data in L2 and L3 cache levels after the access.
   L2   = 2,
+  // 3: High, L1 cache, leave the data in the L1, L2, and L3 cache levels after the access.
   L3   = 3
 };
 
