@@ -168,7 +168,7 @@ FetchContent_Declare(
 FetchContent_Declare(
   harfbuzz
   GIT_REPOSITORY https://github.com/harfbuzz/harfbuzz.git
-  GIT_TAG 11.2.1)
+  GIT_TAG 11.3.2)
 
 FetchContent_Declare(
   Freetype
