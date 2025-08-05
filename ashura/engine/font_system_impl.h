@@ -8,10 +8,10 @@ namespace ash
 
 struct FontSystemImpl : FontSystem
 {
-  AllocatorRef                allocator_;
-  SparseVec<Vec<Dyn<Font *>>> fonts_;
-  Vec<TextSegment>            segments_;
-  hb_buffer_t *               hb_buffer_;
+  AllocatorRef           allocator_;
+  SparseVec<Dyn<Font *>> fonts_;
+  Vec<TextSegment>       segments_;
+  hb_buffer_t *          hb_buffer_;
 
   explicit FontSystemImpl(AllocatorRef allocator, hb_buffer_t * hb_buffer) :
     allocator_{allocator},
