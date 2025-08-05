@@ -293,7 +293,7 @@ struct GpuQueries
 {
   f32 time_period_;
 
-  gpu::TimeStampQuery timestamps_ = nullptr;
+  gpu::TimestampQuery timestamps_ = nullptr;
 
   u32 timespans_capacity_;
 
@@ -314,7 +314,7 @@ struct GpuQueries
                            u32 num_statistics);
 
   GpuQueries(AllocatorRef allocator, f32 time_period,
-             gpu::TimeStampQuery timestamps, u32 timespans_capacity,
+             gpu::TimestampQuery timestamps, u32 timespans_capacity,
              gpu::StatisticsQuery statistics, u32 statistics_capacity) :
     time_period_{time_period},
     timestamps_{timestamps},

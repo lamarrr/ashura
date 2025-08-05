@@ -17,7 +17,7 @@ struct WindowImpl
   SDL_Window *                                  win       = nullptr;
   gpu::Surface                                  surface   = nullptr;
   SDL_WindowID                                  id        = 0;
-  SparseVec<Vec<Fn<void(WindowEvent const &)>>> listeners = {};
+  SparseVec< Fn<void(WindowEvent const &)>> listeners = {};
   gpu::Instance *                               instance  = nullptr;
   Fn<WindowRegion(u32x2)> hit_test = [](u32x2) { return WindowRegion::Normal; };
 
