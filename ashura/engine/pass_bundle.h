@@ -1,7 +1,8 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
+#include "ashura/engine/passes/bezier_stencil.h"
 #include "ashura/engine/passes/blur.h"
-#include "ashura/engine/passes/contour_stencil.h"
+#include "ashura/engine/passes/fill_stencil.h"
 #include "ashura/engine/passes/ngon.h"
 #include "ashura/engine/passes/pbr.h"
 #include "ashura/engine/passes/quad.h"
@@ -13,25 +14,27 @@ namespace ash
 
 struct PassBundle
 {
-  ref<BlurPass>           blur;
-  ref<ContourStencilPass> contour_stencil;
-  ref<NgonPass>           ngon;
-  ref<PBRPass>            pbr;
-  ref<SdfPass>            sdf;
-  ref<QuadPass>           quad;
-  Vec<Dyn<Pass *>>        all;
+  ref<SdfPass>           sdf;
+  ref<QuadPass>          quad;
+  ref<NgonPass>          ngon;
+  ref<FillStencilPass>   fill_stencil;
+  ref<BezierStencilPass> bezier_stencil;
+  ref<BlurPass>          blur;
+  ref<PBRPass>           pbr;
+  Vec<Dyn<Pass *>>       all;
 
   static PassBundle create(AllocatorRef allocator);
 
-  PassBundle(BlurPass & blur, ContourStencilPass & contour_stencil,
-             NgonPass & ngon, PBRPass & pbr, SdfPass & sdf, QuadPass & quad,
-             Vec<Dyn<Pass *>> all) :
-    blur{blur},
-    contour_stencil{contour_stencil},
-    ngon{ngon},
-    pbr{pbr},
+  PassBundle(SdfPass & sdf, QuadPass & quad, NgonPass & ngon,
+             FillStencilPass & fill_stencil, BezierStencilPass & bezier_stencil,
+             BlurPass & blur, PBRPass & pbr, Vec<Dyn<Pass *>> all) :
     sdf{sdf},
     quad{quad},
+    ngon{ngon},
+    fill_stencil{fill_stencil},
+    bezier_stencil{bezier_stencil},
+    blur{blur},
+    pbr{pbr},
     all{std::move(all)}
   {
   }

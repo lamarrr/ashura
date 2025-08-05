@@ -6,31 +6,35 @@ namespace ash
 
 PassBundle PassBundle::create(AllocatorRef allocator)
 {
-  Dyn blur            = dyn(allocator, BlurPass{allocator}).unwrap();
-  Dyn contour_stencil = dyn(allocator, ContourStencilPass{allocator}).unwrap();
-  Dyn ngon            = dyn(allocator, NgonPass{allocator}).unwrap();
-  Dyn pbr             = dyn(allocator, PBRPass{allocator}).unwrap();
-  Dyn sdf             = dyn(allocator, SdfPass{allocator}).unwrap();
-  Dyn quad            = dyn(allocator, QuadPass{allocator}).unwrap();
+  Dyn sdf            = dyn(allocator, SdfPass{allocator}).unwrap();
+  Dyn quad           = dyn(allocator, QuadPass{allocator}).unwrap();
+  Dyn ngon           = dyn(allocator, NgonPass{allocator}).unwrap();
+  Dyn fill_stencil   = dyn(allocator, FillStencilPass{allocator}).unwrap();
+  Dyn bezier_stencil = dyn(allocator, BezierStencilPass{allocator}).unwrap();
+  Dyn blur           = dyn(allocator, BlurPass{allocator}).unwrap();
+  Dyn pbr            = dyn(allocator, PBRPass{allocator}).unwrap();
 
-  auto * pblur            = blur.get();
-  auto * pngon            = ngon.get();
-  auto * ppbr             = pbr.get();
-  auto * psdf             = sdf.get();
-  auto * pquad            = quad.get();
-  auto * pcontour_stencil = contour_stencil.get();
+  auto * psdf            = sdf.get();
+  auto * pquad           = quad.get();
+  auto * pngon           = ngon.get();
+  auto * pfill_stencil   = fill_stencil.get();
+  auto * pbezier_stencil = bezier_stencil.get();
+  auto * pblur           = blur.get();
+  auto * ppbr            = pbr.get();
 
   Vec<Dyn<Pass *>> all{allocator};
 
-  all.push(cast<Pass *>(std::move(blur))).unwrap();
-  all.push(cast<Pass *>(std::move(ngon))).unwrap();
-  all.push(cast<Pass *>(std::move(pbr))).unwrap();
   all.push(cast<Pass *>(std::move(sdf))).unwrap();
-  all.push(cast<Pass *>(std::move(contour_stencil))).unwrap();
   all.push(cast<Pass *>(std::move(quad))).unwrap();
+  all.push(cast<Pass *>(std::move(ngon))).unwrap();
+  all.push(cast<Pass *>(std::move(fill_stencil))).unwrap();
+  all.push(cast<Pass *>(std::move(bezier_stencil))).unwrap();
+  all.push(cast<Pass *>(std::move(blur))).unwrap();
+  all.push(cast<Pass *>(std::move(pbr))).unwrap();
 
-  return PassBundle{*pblur, *pcontour_stencil, *pngon, *ppbr, *psdf,
-                    *pquad, std::move(all)};
+  return PassBundle{*psdf,          *pquad,           *pngon,
+                    *pfill_stencil, *pbezier_stencil, *pblur,
+                    *ppbr,          std::move(all)};
 }
 
 void PassBundle::acquire()

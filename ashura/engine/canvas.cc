@@ -7,21 +7,21 @@
 namespace ash
 {
 
-void path::rect(Vec<Vec2> & vtx, Vec2 extent, Vec2 center)
+void path::rect(Vec<f32x2> & vtx, f32x2 extent, f32x2 center)
 {
-  Vec2 const coords[] = {
-    Vec2{-0.5, -0.5}
-    * extent + center, Vec2{0.5,  -0.5}
+  f32x2 const coords[] = {
+    f32x2{-0.5, -0.5}
+    * extent + center, f32x2{0.5,  -0.5}
     * extent + center,
-    Vec2{0.5,  0.5 }
-    * extent + center, Vec2{-0.5, 0.5 }
+    f32x2{0.5,  0.5 }
+    * extent + center, f32x2{-0.5, 0.5 }
     * extent + center
   };
 
   vtx.extend(coords).unwrap();
 }
 
-void path::arc(Vec<Vec2> & vtx, Vec2 extent, Vec2 center, f32 start, f32 stop,
+void path::arc(Vec<f32x2> & vtx, f32x2 radii, f32x2 center, f32 start, f32 turn,
                usize segments)
 {
   if (segments < 2)
@@ -33,15 +33,15 @@ void path::arc(Vec<Vec2> & vtx, Vec2 extent, Vec2 center, f32 start, f32 stop,
 
   vtx.extend_uninit(segments).unwrap();
 
-  f32 const step = (stop - start) / (segments - 1);
+  f32 const step = turn / (segments - 1);
 
   for (usize i = 0; i < segments; i++)
   {
-    vtx[first + i] = (rotor(i * step) - 0.5F) * extent + center;
+    vtx[first + i] = (rotor(start + i * step) - 0.5F) * 2 * radii + center;
   }
 }
 
-void path::circle(Vec<Vec2> & vtx, Vec2 extent, Vec2 center, usize segments)
+void path::circle(Vec<f32x2> & vtx, f32x2 extent, f32x2 center, usize segments)
 {
   if (segments < 4)
   {
@@ -60,8 +60,8 @@ void path::circle(Vec<Vec2> & vtx, Vec2 extent, Vec2 center, usize segments)
   }
 }
 
-void path::squircle(Vec<Vec2> & vtx, Vec2 extent, Vec2 center, f32 elasticity,
-                    usize segments)
+void path::squircle(Vec<f32x2> & vtx, f32x2 extent, f32x2 center,
+                    f32 elasticity, usize segments)
 {
   if (segments < 32)
   {
@@ -72,17 +72,25 @@ void path::squircle(Vec<Vec2> & vtx, Vec2 extent, Vec2 center, f32 elasticity,
 
   elasticity = clamp(elasticity * 0.5F, 0.0F, 0.5F);
 
-  path::cubic_bezier(vtx, extent, center, {0, -0.5F}, {elasticity, -0.5F},
-                     {0.5F, -0.5F}, {0.5F, 0}, n);
-  path::cubic_bezier(vtx, extent, center, {0.5F, 0}, {0.5F, elasticity},
-                     {0.5F, 0.5F}, {0, 0.5F}, n);
-  path::cubic_bezier(vtx, extent, center, {0, 0.5F}, {-elasticity, 0.5F},
-                     {-0.5F, 0.5F}, {-0.5F, 0}, n);
-  path::cubic_bezier(vtx, extent, center, {-0.5F, 0}, {-0.5F, -elasticity},
-                     {-0.5F, -0.5F}, {0, -0.5F}, n);
+  path::cubic_bezier(vtx, center + extent * f32x2{0, -0.5F},
+                     center + extent * f32x2{elasticity, -0.5F},
+                     center + extent * f32x2{0.5F, -0.5F},
+                     center + extent * f32x2{0.5F, 0}, n);
+  path::cubic_bezier(vtx, center + extent * f32x2{0.5F, 0},
+                     center + extent * f32x2{0.5F, elasticity},
+                     center + extent * f32x2{0.5F, 0.5F},
+                     center + extent * f32x2{0, 0.5F}, n);
+  path::cubic_bezier(vtx, center + extent * f32x2{0, 0.5F},
+                     center + extent * f32x2{-elasticity, 0.5F},
+                     center + extent * f32x2{-0.5F, 0.5F},
+                     center + extent * f32x2{-0.5F, 0}, n);
+  path::cubic_bezier(vtx, center + extent * f32x2{-0.5F, 0},
+                     center + extent * f32x2{-0.5F, -elasticity},
+                     center + extent * f32x2{-0.5F, -0.5F},
+                     center + extent * f32x2{0, -0.5F}, n);
 }
 
-void path::rrect(Vec<Vec2> & vtx, Vec2 extent, Vec2 center, Vec4 radii,
+void path::rrect(Vec<f32x2> & vtx, f32x2 extent, f32x2 center, f32x4 radii,
                  usize segments)
 {
   if (segments < 8)
@@ -90,17 +98,17 @@ void path::rrect(Vec<Vec2> & vtx, Vec2 extent, Vec2 center, Vec4 radii,
     return;
   }
 
-  radii.x = clamp(radii.x, 0.0F, 1.0F);
-  radii.y = clamp(radii.y, 0.0F, 1.0F);
-  radii.z = clamp(radii.z, 0.0F, 1.0F);
-  radii.w = clamp(radii.w, 0.0F, 1.0F);
+  radii = radii.max(f32x4::zero());
 
+  // [ ] fix
   /// clipping
-  radii.y          = min(radii.y, 1.0F - radii.x);
-  f32 max_radius_z = min(1.0F - radii.x, 0.5F - radii.y);
-  radii.z          = min(radii.z, max_radius_z);
-  f32 max_radius_w = min(max_radius_z, 0.5F - radii.z);
-  radii.w          = min(radii.w, max_radius_w);
+  /*
+  radii.y()          = min(radii.y(), 1.0F - radii.x());
+  f32 max_radius_z = min(1.0F - radii.x(), 0.5F - radii.y());
+  radii.z()          = min(radii.z(), max_radius_z);
+  f32 max_radius_w = min(max_radius_z, 0.5F - radii.z());
+  radii.w()          = min(radii.w(), max_radius_w);
+  */
 
   auto const curve_segments = (segments - 8) >> 2;
   f32 const  step =
@@ -111,88 +119,54 @@ void path::rrect(Vec<Vec2> & vtx, Vec2 extent, Vec2 center, Vec4 radii,
 
   usize i = 0;
 
-  vtx[first + i++] = Vec2{0.5F, 0.5F - radii.z};
+  vtx[first + i++] = f32x2{0.5F, 0.5F - radii.z()};
 
   for (usize s = 0; s < curve_segments; s++)
   {
     vtx[first + i++] =
-      ((0.5F - radii.z) + radii.z * rotor(s * step)) * extent + center;
+      ((0.5F - radii.z()) + radii.z() * rotor(s * step)) * extent + center;
   }
 
-  vtx[first + i++] = Vec2{0.5F - radii.z, 0.5F} * extent + center;
+  vtx[first + i++] = f32x2{0.5F - radii.z(), 0.5F} * extent + center;
 
-  vtx[first + i++] = Vec2{-0.5F + radii.w, 0.5F} * extent + center;
+  vtx[first + i++] = f32x2{-0.5F + radii.w(), 0.5F} * extent + center;
 
   for (usize s = 0; s < curve_segments; s++)
   {
-    vtx[first + i++] = (Vec2{-0.5F + radii.w, 0.5F - radii.w} +
-                        radii.w * rotor(PI * 0.5F + s * step)) *
+    vtx[first + i++] = (f32x2{-0.5F + radii.w(), 0.5F - radii.w()} +
+                        radii.w() * rotor(PI * 0.5F + s * step)) *
                          extent +
                        center;
   }
 
-  vtx[first + i++] = Vec2{-0.5F, 0.5F - radii.w} * extent + center;
+  vtx[first + i++] = f32x2{-0.5F, 0.5F - radii.w()} * extent + center;
 
-  vtx[first + i++] = Vec2{-0.5F, -0.5F + radii.x} * extent + center;
+  vtx[first + i++] = f32x2{-0.5F, -0.5F + radii.x()} * extent + center;
 
   for (usize s = 0; s < curve_segments; s++)
   {
     vtx[first + i++] =
-      ((-0.5F + radii.x) + radii.x * rotor(PI + s * step)) * extent + center;
+      ((-0.5F + radii.x()) + radii.x() * rotor(PI + s * step)) * extent +
+      center;
   }
 
-  vtx[first + i++] = Vec2{-0.5F + radii.x, -0.5F} * extent + center;
+  vtx[first + i++] = f32x2{-0.5F + radii.x(), -0.5F} * extent + center;
 
-  vtx[first + i++] = Vec2{0.5F - radii.y, -0.5F} * extent + center;
+  vtx[first + i++] = f32x2{0.5F - radii.y(), -0.5F} * extent + center;
 
   for (usize s = 0; s < curve_segments; s++)
   {
-    vtx[first + i++] = (Vec2{0.5F - radii.y, (-0.5F + radii.y)} +
-                        radii.y * rotor(PI * 1.5F + s * step)) *
+    vtx[first + i++] = (f32x2{0.5F - radii.y(), (-0.5F + radii.y())} +
+                        radii.y() * rotor(PI * 1.5F + s * step)) *
                          extent +
                        center;
   }
 
-  vtx[first + i++] = Vec2{0.5F, -0.5F + radii.y};
+  vtx[first + i++] = f32x2{0.5F, -0.5F + radii.y()};
 }
 
-void path::brect(Vec<Vec2> & vtx, Vec2 extent, Vec2 center, Vec4 slant)
-{
-  slant.x = clamp(slant.x, 0.0F, 1.0F);
-  slant.y = clamp(slant.y, 0.0F, 1.0F);
-  slant.z = clamp(slant.z, 0.0F, 1.0F);
-  slant.w = clamp(slant.w, 0.0F, 1.0F);
-
-  slant.y          = min(slant.y, 1 - slant.x);
-  f32 max_radius_z = min(1 - slant.x, 1 - slant.y);
-  slant.z          = min(slant.z, max_radius_z);
-  f32 max_radius_w = min(max_radius_z, 1 - slant.z);
-  slant.w          = min(slant.w, max_radius_w);
-
-  Vec2 const vertices[] = {
-    Vec2{-0.5F + slant.x, -0.5F          }
-    * extent + center,
-    Vec2{0.5F - slant.y,  -0.5F          }
-    * extent + center,
-    Vec2{0.5F,            -0.5F + slant.y}
-    * extent + center,
-    Vec2{0.5F,            0.5F - slant.z }
-    * extent + center,
-    Vec2{0.5F - slant.z,  0.5F           }
-    * extent + center,
-    Vec2{-0.5F + slant.w, 0.5F           }
-    * extent + center,
-    Vec2{-0.5F,           0.5F - slant.w }
-    * extent + center,
-    Vec2{-0.5F,           -0.5F + slant.x}
-    * extent + center
-  };
-
-  vtx.extend(vertices).unwrap();
-}
-
-void path::bezier(Vec<Vec2> & vtx, Vec2 extent, Vec2 center, Vec2 cp0, Vec2 cp1,
-                  Vec2 cp2, usize segments)
+void path::bezier(Vec<f32x2> & vtx, f32x2 cp0, f32x2 cp1, f32x2 cp2,
+                  usize segments)
 {
   if (segments < 3)
   {
@@ -207,15 +181,13 @@ void path::bezier(Vec<Vec2> & vtx, Vec2 extent, Vec2 center, Vec2 cp0, Vec2 cp1,
 
   for (usize i = 0; i < segments; i++)
   {
-    vtx[first + i] = Vec2{ash::bezier(cp0.x, cp1.x, cp2.x, step * i),
-                          ash::bezier(cp0.y, cp1.y, cp2.y, step * i)} *
-                       extent +
-                     center;
+    vtx[first + i] = f32x2{ash::bezier(cp0.x(), cp1.x(), cp2.x(), step * i),
+                           ash::bezier(cp0.y(), cp1.y(), cp2.y(), step * i)};
   }
 }
 
-void path::cubic_bezier(Vec<Vec2> & vtx, Vec2 extent, Vec2 center, Vec2 cp0,
-                        Vec2 cp1, Vec2 cp2, Vec2 cp3, usize segments)
+void path::cubic_bezier(Vec<f32x2> & vtx, f32x2 cp0, f32x2 cp1, f32x2 cp2,
+                        f32x2 cp3, usize segments)
 {
   if (segments < 4)
   {
@@ -231,15 +203,13 @@ void path::cubic_bezier(Vec<Vec2> & vtx, Vec2 extent, Vec2 center, Vec2 cp0,
   for (usize i = 0; i < segments; i++)
   {
     vtx[first + i] =
-      Vec2{ash::cubic_bezier(cp0.x, cp1.x, cp2.x, cp3.x, step * i),
-           ash::cubic_bezier(cp0.y, cp1.y, cp2.y, cp3.y, step * i)} *
-        extent +
-      center;
+      f32x2{ash::cubic_bezier(cp0.x(), cp1.x(), cp2.x(), cp3.x(), step * i),
+            ash::cubic_bezier(cp0.y(), cp1.y(), cp2.y(), cp3.y(), step * i)};
   }
 }
 
-void path::catmull_rom(Vec<Vec2> & vtx, Vec2 extent, Vec2 center, Vec2 cp0,
-                       Vec2 cp1, Vec2 cp2, Vec2 cp3, usize segments)
+void path::catmull_rom(Vec<f32x2> & vtx, f32x2 cp0, f32x2 cp1, f32x2 cp2,
+                       f32x2 cp3, usize segments)
 {
   if (segments < 4)
   {
@@ -255,15 +225,13 @@ void path::catmull_rom(Vec<Vec2> & vtx, Vec2 extent, Vec2 center, Vec2 cp0,
   for (usize i = 0; i < segments; i++)
   {
     vtx[beg + i] =
-      Vec2{ash::cubic_bezier(cp0.x, cp1.x, cp2.x, cp3.x, step * i),
-           ash::cubic_bezier(cp0.y, cp1.y, cp2.y, cp3.y, step * i)} *
-        extent +
-      center;
+      f32x2{ash::cubic_bezier(cp0.x(), cp1.x(), cp2.x(), cp3.x(), step * i),
+            ash::cubic_bezier(cp0.y(), cp1.y(), cp2.y(), cp3.y(), step * i)};
   }
 }
 
 template <typename I>
-void triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> & vertices,
+void triangulate_stroke(Span<f32x2 const> points, Vec<f32x2> & vertices,
                         Vec<I> & indices, f32 thickness)
 {
   if (points.size() < 2)
@@ -279,22 +247,22 @@ void triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> & vertices,
   vertices.extend_uninit(num_vertices).unwrap();
   indices.extend_uninit(num_indices).unwrap();
 
-  Vec2 * vtx  = vertices.data() + first_vtx;
+  auto * vtx  = vertices.data() + first_vtx;
   I *    idx  = indices.data() + first_idx;
   I      ivtx = 0;
 
   for (I i = 0; i < num_points - 1; i++)
   {
-    Vec2 const p0    = points[i];
-    Vec2 const p1    = points[i + 1];
-    Vec2 const d     = p1 - p0;
-    f32 const  alpha = atanf(d.y / d.x);
+    auto const p0    = points[i];
+    auto const p1    = points[i + 1];
+    auto const d     = p1 - p0;
+    auto const alpha = atan2f(d.y(), d.x());
 
     // parallel angle
-    Vec2 const down = (thickness * 0.5F) * rotor(alpha + PI * 0.5F);
+    auto const down = (thickness * 0.5F) * rotor(alpha + PI * 0.5F);
 
     // perpendicular angle
-    Vec2 const up = -down;
+    auto const up = -down;
 
     vtx[0] = p0 + up;
     vtx[1] = p0 + down;
@@ -325,13 +293,13 @@ void triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> & vertices,
   }
 }
 
-void path::triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> & vertices,
+void path::triangulate_stroke(Span<f32x2 const> points, Vec<f32x2> & vertices,
                               Vec<u16> & indices, f32 thickness)
 {
   ::ash::triangulate_stroke(points, vertices, indices, thickness);
 }
 
-void path::triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> & vertices,
+void path::triangulate_stroke(Span<f32x2 const> points, Vec<f32x2> & vertices,
                               Vec<u32> & indices, f32 thickness)
 {
   ::ash::triangulate_stroke(points, vertices, indices, thickness);
@@ -402,7 +370,7 @@ Canvas & Canvas::begin_recording(
   Span<ColorTexture const>             color_textures,
   Span<Option<ColorMsaaTexture> const> msaa_color_textures,
   Span<DepthStencilTexture const>      depth_stencil_textures,
-  gpu::Viewport const & viewport, Vec2 extent, Vec2U framebuffer_extent)
+  gpu::Viewport const & viewport, f32x2 extent, u32x2 framebuffer_extent)
 {
   reset();
 
@@ -415,34 +383,34 @@ Canvas & Canvas::begin_recording(
   viewport_            = viewport;
   extent_              = extent;
   framebuffer_extent_  = framebuffer_extent;
-  framebuffer_uv_base_ = 1 / as_vec2(framebuffer_extent);
+  framebuffer_uv_base_ = 1 / framebuffer_extent.to<f32>();
 
-  if (extent_.x == 0 | extent_.y == 0)
+  if (extent_.x() == 0 | extent_.y() == 0)
   {
     aspect_ratio_ = 1;
   }
   else
   {
-    aspect_ratio_ = extent_.x / extent_.y;
+    aspect_ratio_ = extent_.x() / extent_.y();
   }
 
-  virtual_scale_ = viewport_.extent.x / extent.x;
+  virtual_scale_ = viewport_.extent.x() / extent.x();
 
   // (-0.5w, +0.5w) (-0.5w, +0.5h) -> (-1, +1), (-1, +1)
-  world_to_ndc_ = scale3d(vec3(2 / extent_, 1));
+  world_to_ndc_ = scale3d((2 / extent_).append(1));
 
   ndc_to_viewport_ =
     // -0.5 extent, +0.5 => 0, extent
-    translate3d(vec3(0.5F * extent_, 0.0F)) *
+    translate3d((0.5F * extent_).append(0.0F)) *
     // -1, +1 => -0.5 extent, +0.5 half_extent
-    scale3d(vec3(0.5F * extent_, 1.0F));
+    scale3d((0.5F * extent_).append(1.0F));
 
   // viewport coordinate to framebuffer coordinate
   viewport_to_fb_ =
     // 0, framebuffer-space extent -> viewport.offset, viewport.offset + framebuffer-space extent
-    translate3d(vec3(viewport_.offset, 0.0F)) *
+    translate3d(viewport_.offset.append(0.0F)) *
     // 0, viewport-space extent -> 0, framebuffer-space extent
-    scale3d(vec3(Vec2::splat(virtual_scale_), 1.0F));
+    scale3d(f32x2::splat(virtual_scale_).append(1.0F));
 
   world_to_fb_ = viewport_to_fb_ * ndc_to_viewport_ * world_to_ndc_;
 
@@ -470,10 +438,10 @@ Canvas & Canvas::reset()
   framebuffer_uv_base_ = {};
   aspect_ratio_        = 1;
   virtual_scale_       = 1;
-  world_to_ndc_        = Affine4::IDENTITY;
-  ndc_to_viewport_     = Affine4::IDENTITY;
-  viewport_to_fb_      = Affine4::IDENTITY;
-  world_to_fb_         = Affine4::IDENTITY;
+  world_to_ndc_        = affinef32x4::identity();
+  ndc_to_viewport_     = affinef32x4::identity();
+  viewport_to_fb_      = affinef32x4::identity();
+  world_to_fb_         = affinef32x4::identity();
   encoder_             = none;
   frame_arena_.reclaim();
   return *this;
@@ -487,13 +455,11 @@ RectU Canvas::clip_to_scissor(CRect const & clip) const
                  .extent = clip.extent * virtual_scale_};
 
   scissor_f =
-    Rect::range(clamp_vec(scissor_f.offset, Vec2::splat(0.0F), MAX_CLIP.extent),
-                clamp_vec(scissor_f.end(), Vec2::splat(0.0F), MAX_CLIP.extent));
+    Rect::range(scissor_f.offset.clamp(f32x2::splat(0.0F), MAX_CLIP.extent),
+                scissor_f.end().clamp(f32x2::splat(0.0F), MAX_CLIP.extent));
 
-  return RectU::range(
-    clamp_vec(as_vec2u(scissor_f.begin()), Vec2U::splat(0),
-              framebuffer_extent_),
-    clamp_vec(as_vec2u(scissor_f.end()), Vec2U::splat(0), framebuffer_extent_));
+  return RectU::range(scissor_f.begin().to<u32>().min(framebuffer_extent_),
+                      scissor_f.end().to<u32>().min(framebuffer_extent_));
 }
 
 u32 Canvas::num_targets() const
@@ -501,9 +467,39 @@ u32 Canvas::num_targets() const
   return size32(color_textures_);
 }
 
-Canvas & Canvas::clear_target()
+Canvas & Canvas::clear_target(gpu::Color color)
 {
-  // [ ] impl
+  pass([image      = color_textures_[target_],
+        msaa_image = msaa_color_textures_[target_],
+        color](FrameGraph & frame_graph, PassBundle &) {
+    frame_graph.add_pass(
+      "Target:Clear"_str,
+      [image, msaa_image, color](FrameGraph &, gpu::CommandEncoder & encoder) {
+        encoder.clear_color_image(
+          image.image, color,
+          span({
+            gpu::ImageSubresourceRange{
+                                       .aspects           = gpu::ImageAspects::Color,
+                                       .first_mip_level   = 0,
+                                       .num_mip_levels    = gpu::REMAINING_MIP_LEVELS,
+                                       .first_array_layer = 0,
+                                       .num_array_layers  = gpu::REMAINING_ARRAY_LAYERS}
+        }));
+
+        msaa_image.match([&](auto & image) {
+          encoder.clear_color_image(
+            image.image, color,
+            span({
+              gpu::ImageSubresourceRange{
+                                         .aspects           = gpu::ImageAspects::Color,
+                                         .first_mip_level   = 0,
+                                         .num_mip_levels    = gpu::REMAINING_MIP_LEVELS,
+                                         .first_array_layer = 0,
+                                         .num_array_layers  = gpu::REMAINING_ARRAY_LAYERS}
+          }));
+        });
+      });
+  });
   return *this;
 }
 
@@ -524,9 +520,29 @@ u32 Canvas::num_stencils() const
   return size32(depth_stencil_textures_);
 }
 
-Canvas & Canvas::clear_stencil()
+Canvas & Canvas::clear_stencil(u32 stencil_value)
 {
-  // [ ] impl
+  stencil_.match([this, stencil_value](auto s) {
+    pass([image = depth_stencil_textures_[s.v0],
+          stencil_value](FrameGraph & frame_graph, PassBundle &) {
+      frame_graph.add_pass(
+        "Stencil:Clear"_str,
+        [image, stencil_value](FrameGraph &, gpu::CommandEncoder & encoder) {
+          encoder.clear_depth_stencil_image(
+            image.image,
+            gpu::DepthStencil{
+              .stencil = stencil_value
+          },
+            span({gpu::ImageSubresourceRange{
+              .aspects           = gpu::ImageAspects::Stencil,
+              .first_mip_level   = 0,
+              .num_mip_levels    = gpu::REMAINING_MIP_LEVELS,
+              .first_array_layer = 0,
+              .num_array_layers  = gpu::REMAINING_ARRAY_LAYERS}}));
+        });
+    });
+  });
+
   return *this;
 }
 
@@ -542,24 +558,24 @@ Option<Tuple<u32, PassStencil>> Canvas::stencil() const
   return stencil_;
 }
 
-constexpr Mat4 object_to_world(Mat4 const & transform, CRect const & area)
+constexpr f32x4x4 object_to_world(f32x4x4 const & transform, CRect const & area)
 {
-  return transform * translate3d(vec3(area.center, 0)) *
-         scale3d(vec3(area.extent, 1));
+  return transform * translate3d(area.center.append(0)) *
+         scale3d(area.extent.append(1));
 }
 
 Canvas & Canvas::circle(ShapeInfo const & info_)
 {
-  auto info          = info_;
-  info.area.extent.x = max(info.area.extent.x, info.area.extent.y);
-  info.radii         = Vec4::splat(info.area.extent.x * 0.5F);
+  auto info            = info_;
+  info.area.extent.x() = max(info.area.extent.x(), info.area.extent.y());
+  info.radii           = f32x4::splat(info.area.extent.x() * 0.5F);
   return sdf_shape_(info, shader::sdf::ShapeType::RRect);
 }
 
 Canvas & Canvas::rect(ShapeInfo const & info_)
 {
   auto info  = info_;
-  info.radii = Vec4::splat(0);
+  info.radii = f32x4::splat(0);
   return sdf_shape_(info, shader::sdf::ShapeType::RRect);
 }
 
@@ -606,7 +622,7 @@ Canvas & Canvas::sdf_shape_(ShapeInfo const &      info,
       .viewport       = viewport_,
       .samplers       = sys->gpu.samplers_,
       .textures       = sys->gpu.textures_,
-      .world_to_ndc   = world_to_ndc_,
+      .world_to_ndc   = static_cast<f32x4x4>(world_to_ndc_),
       .shape          = shape,
       .transform      = object_to_world(info.transform, bbox),
       .material       = material,
@@ -646,7 +662,7 @@ Canvas & Canvas::ngon_shape_(ShapeInfo const & info, Span<f32x2 const> vertices,
     .viewport       = viewport_,
     .samplers       = sys->gpu.samplers_,
     .textures       = sys->gpu.textures_,
-    .world_to_ndc   = world_to_ndc_,
+    .world_to_ndc   = static_cast<f32x4x4>(world_to_ndc_),
     .transform      = object_to_world(info.transform, info.area),
     .vertices       = vertices,
     .indices        = indices,
@@ -658,33 +674,21 @@ Canvas & Canvas::ngon_shape_(ShapeInfo const & info, Span<f32x2 const> vertices,
 
 Canvas & Canvas::rrect(ShapeInfo const & info_)
 {
-  auto       info       = info_;
-  auto const max_radius = 0.5F * min(info.area.extent.x, info.area.extent.y);
-  info.radii.x          = min(info.radii.x, max_radius);
-  info.radii.y          = min(info.radii.y, max_radius);
-  info.radii.z          = min(info.radii.z, max_radius);
-  info.radii.w          = min(info.radii.w, max_radius);
-
+  auto       info = info_;
+  auto const max_radius =
+    0.5F * min(info.area.extent.x(), info.area.extent.y());
+  info.radii = info.radii.min(max_radius);
   return sdf_shape_(info, shader::sdf::ShapeType::RRect);
 }
 
 Canvas & Canvas::squircle(ShapeInfo const & info_)
 {
-  auto       info       = info_;
-  auto const max_radius = 0.5F * min(info.area.extent.x, info.area.extent.y);
-  info.radii.x          = min(info.radii.x, max_radius);
+  auto       info = info_;
+  auto const max_radius =
+    0.5F * min(info.area.extent.x(), info.area.extent.y());
+  info.radii.x() = min(info.radii.x(), max_radius);
 
   return sdf_shape_(info, shader::sdf::ShapeType::Squircle);
-}
-
-Canvas & Canvas::bevel_rect(ShapeInfo const & info)
-{
-  Vec<f32x2> vertices{frame_arena_};
-  Vec<u32>   indices{frame_arena_};
-
-  path::brect(vertices, info.area.extent, info.area.center, info.radii);
-  path::triangulate_convex(indices, 0, vertices.size());
-  return ngon_shape_(info, vertices, indices);
 }
 
 Canvas & Canvas::nine_slice(ShapeInfo const & info, NineSlice const & slice)
@@ -693,7 +697,7 @@ Canvas & Canvas::nine_slice(ShapeInfo const & info, NineSlice const & slice)
   return *this;
 }
 
-Canvas & Canvas::triangles(ShapeInfo const & info, Span<Vec2 const> points)
+Canvas & Canvas::triangles(ShapeInfo const & info, Span<f32x2 const> points)
 {
   if (points.size() < 3)
   {
@@ -706,7 +710,7 @@ Canvas & Canvas::triangles(ShapeInfo const & info, Span<Vec2 const> points)
   return triangles(info, points, indices);
 }
 
-Canvas & Canvas::triangles(ShapeInfo const & info, Span<Vec2 const> points,
+Canvas & Canvas::triangles(ShapeInfo const & info, Span<f32x2 const> points,
                            Span<u32 const> indices)
 {
   if (points.size() < 3)
@@ -717,7 +721,7 @@ Canvas & Canvas::triangles(ShapeInfo const & info, Span<Vec2 const> points,
   return ngon_shape_(info, points, indices);
 }
 
-Canvas & Canvas::line(ShapeInfo const & info, Span<Vec2 const> points)
+Canvas & Canvas::line(ShapeInfo const & info, Span<f32x2 const> points)
 {
   if (points.size() < 2)
   {
@@ -734,29 +738,27 @@ Canvas & Canvas::line(ShapeInfo const & info, Span<Vec2 const> points)
 Canvas & Canvas::blur(ShapeInfo const & info_)
 {
   auto info            = info_;
-  auto max_radius      = 0.5F * min(info.area.extent.x, info.area.extent.y);
-  info.radii.x         = min(info.radii.x, max_radius);
-  info.radii.y         = min(info.radii.y, max_radius);
-  info.radii.z         = min(info.radii.z, max_radius);
-  info.radii.w         = min(info.radii.w, max_radius);
+  auto max_radius      = 0.5F * min(info.area.extent.x(), info.area.extent.y());
+  info.radii           = info.radii.min(max_radius);
   auto const world_xfm = object_to_world(info.transform, info.area);
   auto const fb_xfm    = world_to_fb_ * world_xfm;
-  auto const tl        = transform(fb_xfm, Vec3{-0.5, -0.5, 0.0}).xy();
-  auto const tr        = transform(fb_xfm, Vec3{0.5, -0.5, 0.0}).xy();
-  auto const bl        = transform(fb_xfm, Vec3{-0.5, 0.5, 0.0}).xy();
-  auto const br        = transform(fb_xfm, Vec3{0.5, 0.5, 0.0}).xy();
+  auto const tl        = transform(fb_xfm, f32x3{-0.5, -0.5, 0.0}).xy();
+  auto const tr        = transform(fb_xfm, f32x3{0.5, -0.5, 0.0}).xy();
+  auto const bl        = transform(fb_xfm, f32x3{-0.5, 0.5, 0.0}).xy();
+  auto const br        = transform(fb_xfm, f32x3{0.5, 0.5, 0.0}).xy();
   auto const bounding  = CRect::bounding(tl, tr, bl, br);
 
   auto const area =
     RectU::range(
-      as_vec2u(clamp_vec(bounding.begin(), Vec2::splat(0), MAX_CLIP.extent)),
-      as_vec2u(clamp_vec(bounding.end(), Vec2::splat(0), MAX_CLIP.extent)))
+      bounding.begin().clamp(f32x2::splat(0), MAX_CLIP.extent).to<u32>(),
+      bounding.end().clamp(f32x2::splat(0), MAX_CLIP.extent).to<u32>())
       .clamp_to_extent(framebuffer_extent_);
 
-  auto spread_radius = as_vec2u(
-    Vec2::splat(clamp(info.feather * virtual_scale_, 0.0F, MAX_CLIP_DISTANCE)));
+  auto spread_radius =
+    f32x2::splat(clamp(info.feather * virtual_scale_, 0.0F, MAX_CLIP_DISTANCE))
+      .to<u32>();
 
-  if (!area.is_visible() || !spread_radius.is_visible())
+  if (!area.is_visible() || spread_radius.any_zero())
   {
     return *this;
   }
@@ -765,12 +767,12 @@ Canvas & Canvas::blur(ShapeInfo const & info_)
   static constexpr u32 MAX_PASSES        = 16;
 
   spread_radius =
-    clamp_vec(spread_radius, Vec2U::splat(1U), Vec2U::splat(MAX_SPREAD_RADIUS));
+    spread_radius.clamp(u32x2::splat(1U), u32x2::splat(MAX_SPREAD_RADIUS));
 
-  auto const major_spread_radius = max(spread_radius.x, spread_radius.y);
-  auto const padding      = Vec2U::splat(max(major_spread_radius + 8, 16U));
-  auto const padded_begin = sat_sub(area.begin(), padding);
-  auto const padded_end   = sat_add(area.end(), padding);
+  auto const major_spread_radius = max(spread_radius.x(), spread_radius.y());
+  auto const padding      = u32x2::splat(max(major_spread_radius + 8, 16U));
+  auto const padded_begin = area.begin().sat_sub(padding);
+  auto const padded_end   = area.end().sat_add(padding);
   auto const padded_area =
     RectU::range(padded_begin, padded_end).clamp_to_extent(framebuffer_extent_);
   auto const num_passes = clamp(major_spread_radius, 1U, MAX_PASSES);
@@ -780,6 +782,7 @@ Canvas & Canvas::blur(ShapeInfo const & info_)
     return *this;
   }
 
+  // [ ] blur of a specific layer?
   auto const main_fb      = color_textures_[0];
   auto const scratch_fb0  = color_textures_[1];
   auto const scratch_fb1  = color_textures_[2];
@@ -791,10 +794,11 @@ Canvas & Canvas::blur(ShapeInfo const & info_)
   pass([info, main_fb, scratch_fb0, scratch_fb1, padded_area, num_passes,
         spread_radius, area, viewport = this->viewport_,
         scissor      = clip_to_scissor(info.clip),
-        world_to_ndc = this->world_to_ndc_, pass_stencil,
-        stencil_tex](FrameGraph & fg, PassBundle & passes) {
-    fg.add_pass(
-      "Blur.TextureCopy"_str, [main_fb, scratch_fb0, scratch_fb1, padded_area](
+        world_to_ndc = this->world_to_ndc_, pass_stencil, stencil_tex,
+        frame_arena  = &frame_arena_](FrameGraph & frame_graph,
+                                     PassBundle & passes) {
+    frame_graph.add_pass(
+      "Blur:TextureCopy"_str, [main_fb, scratch_fb0, scratch_fb1, padded_area](
                                 FrameGraph &, gpu::CommandEncoder & enc) {
         // copy to scratch texture 0 & 1. This is to prevent texture-spilling when ping-ponging between the two textures
         enc.blit_image(
@@ -845,36 +849,37 @@ Canvas & Canvas::blur(ShapeInfo const & info_)
       auto const src_tex = textures[src];
       auto const dst_tex = textures[dst];
       auto const spread =
-        clamp_vec(Vec2U::splat(i), Vec2U::splat(1U), spread_radius);
-      auto const base = 1 / as_vec2(src_tex.extent().xy());
-      auto const blur = shader::blur::Blur{.uv0 = as_vec2(area.begin()) * base,
-                                           .uv1 = as_vec2(area.end()) * base,
-                                           .radius  = as_vec2(spread) * base,
+        u32x2::splat(i).clamp(u32x2::splat(1U), spread_radius);
+      auto const base = 1 / src_tex.extent().xy().to<f32>();
+      auto const blur = shader::blur::Blur{.uv0 = area.begin().to<f32>() * base,
+                                           .uv1 = area.end().to<f32>() * base,
+                                           .radius  = spread.to<f32>() * base,
                                            .sampler = SamplerId::LinearClamped,
                                            .tex     = src_tex.texture_id};
 
-      auto const blur_id = fg.push_ssbo(span({blur}));
+      auto const blur_id = frame_graph.push_ssbo(span({blur}));
 
-      fg.add_pass("Blur.Downsample"_str,
-                  [blur_id, &passes, src_tex, dst_tex, padded_area,
-                   viewport](FrameGraph & fg, gpu::CommandEncoder & enc) {
-                    auto blur = fg.get(blur_id);
+      frame_graph.add_pass(
+        "Blur:Downsample"_str,
+        [blur_id, &passes, src_tex, dst_tex, padded_area,
+         viewport](FrameGraph & frame_graph, gpu::CommandEncoder & enc) {
+          auto blur = frame_graph.get(blur_id);
 
-                    passes.blur->encode(
-                      enc, BlurPassParams{
-                             .framebuffer = Framebuffer{.color      = dst_tex,
-                                                        .color_msaa = {},
-                                                        .depth_stencil = {}},
-                             .stencil     = none,
-                             .scissor     = padded_area,
-                             .viewport    = viewport,
-                             .samplers    = sys->gpu.samplers_,
-                             .textures    = src_tex.texture,
-                             .blurs       = blur,
-                             .instances   = {0, 1},
-                             .upsample    = false
-                    });
-                  });
+          passes.blur->encode(enc,
+                              BlurPassParams{
+                                .framebuffer = Framebuffer{.color = dst_tex,
+                                                           .color_msaa    = {},
+                                                           .depth_stencil = {}},
+                                .stencil     = none,
+                                .scissor     = padded_area,
+                                .viewport    = viewport,
+                                .samplers    = sys->gpu.samplers_,
+                                .textures    = src_tex.texture,
+                                .blurs       = blur,
+                                .instances   = {0, 1},
+                                .upsample    = false
+          });
+        });
     }
 
     // upsample pass
@@ -885,54 +890,53 @@ Canvas & Canvas::blur(ShapeInfo const & info_)
       auto const src_tex = textures[src];
       auto const dst_tex = textures[dst];
       auto const spread =
-        clamp_vec(Vec2U::splat(i), Vec2U::splat(1U), spread_radius);
-      auto const base = 1 / as_vec2(src_tex.extent().xy());
-      auto const blur = shader::blur::Blur{.uv0 = as_vec2(area.begin()) * base,
-                                           .uv1 = as_vec2(area.end()) * base,
-                                           .radius  = as_vec2(spread) * base,
+        u32x2::splat(i).clamp(u32x2::splat(1U), spread_radius);
+      auto const base = 1 / src_tex.extent().xy().to<f32>();
+      auto const blur = shader::blur::Blur{.uv0 = area.begin().to<f32>() * base,
+                                           .uv1 = area.end().to<f32>() * base,
+                                           .radius  = spread.to<f32>() * base,
                                            .sampler = SamplerId::LinearClamped,
                                            .tex     = src_tex.texture_id};
 
-      auto const blur_id = fg.push_ssbo(span({blur}));
+      auto const blur_id = frame_graph.push_ssbo(span({blur}));
 
-      fg.add_pass("Blur.Upsample"_str,
-                  [blur_id, &passes, src_tex, dst_tex, padded_area,
-                   viewport](FrameGraph & fg, gpu::CommandEncoder & enc) {
-                    auto blur = fg.get(blur_id);
+      frame_graph.add_pass(
+        "Blur:Upsample"_str,
+        [blur_id, &passes, src_tex, dst_tex, padded_area,
+         viewport](FrameGraph & frame_graph, gpu::CommandEncoder & enc) {
+          auto blur = frame_graph.get(blur_id);
 
-                    passes.blur->encode(
-                      enc, BlurPassParams{
-                             .framebuffer = Framebuffer{.color      = dst_tex,
-                                                        .color_msaa = {},
-                                                        .depth_stencil = {}},
-                             .stencil     = none,
-                             .scissor     = padded_area,
-                             .viewport    = viewport,
-                             .samplers    = sys->gpu.samplers_,
-                             .textures    = src_tex.texture,
-                             .blurs       = blur,
-                             .instances   = {0, 1},
-                             .upsample    = true
-                    });
-                  });
+          passes.blur->encode(enc,
+                              BlurPassParams{
+                                .framebuffer = Framebuffer{.color = dst_tex,
+                                                           .color_msaa    = {},
+                                                           .depth_stencil = {}},
+                                .stencil     = none,
+                                .scissor     = padded_area,
+                                .viewport    = viewport,
+                                .samplers    = sys->gpu.samplers_,
+                                .textures    = src_tex.texture,
+                                .blurs       = blur,
+                                .instances   = {0, 1},
+                                .upsample    = true
+          });
+        });
     }
 
     // the last output was to scratch 1
     CHECK(dst == 1, "");
 
     // final pass: draw from scratch 1 to main, use stencil if any
-    // [ ] how will layering work with this?; tint
-    // [ ] we can apply tint in another pass
 
     {
       auto const src_tex  = textures[dst];
-      auto const base     = 1 / as_vec2(src_tex.extent().xy());
+      auto const base     = 1 / src_tex.extent().xy().to<f32>();
       auto const material = shader::sdf::FlatMaterial{
         .tint       = shader::quad::FlatMaterial{.top            = info.tint.top_,
                                                  .bottom         = info.tint.bottom_,
                                                  .gradient_rotor = info.tint.rotor_,
-                                                 .uv0 = as_vec2(area.begin()) * base,
-                                                 .uv1 = as_vec2(area.end()) * base,
+                                                 .uv0 = area.begin().to<f32>() * base,
+                                                 .uv1 = area.end().to<f32>() * base,
                                                  .gradient_center = info.tint.center_,
                                                  .sampler = SamplerId::LinearClamped,
                                                  .texture = src_tex.texture_id},
@@ -948,7 +952,6 @@ Canvas & Canvas::blur(ShapeInfo const & info_)
                            .shade_type       = ShadeType::Flood,
                            .type             = shader::sdf::ShapeType::RRect};
 
-      // [ ] msaa? is it handled in other encoders? no!
       auto const item =
         SdfEncoder::Item<shader::sdf::Shape, shader::sdf::FlatMaterial>{
           .framebuffer    = {.color         = main_fb,
@@ -959,47 +962,237 @@ Canvas & Canvas::blur(ShapeInfo const & info_)
           .viewport       = viewport,
           .samplers       = sys->gpu.samplers_,
           .textures       = src_tex.texture,
-          .world_to_ndc   = world_to_ndc,
+          .world_to_ndc   = static_cast<f32x4x4>(world_to_ndc),
           .shape          = shape,
           .transform      = info.transform,
           .material       = material,
           .shader_variant = ShaderVariantId::Base
       };
 
-      // [ ] change allocator
-      auto const encoder = SdfEncoder{default_allocator, item};
+      auto const encoder = SdfEncoder{*frame_arena, item};
 
-      encoder.pass(fg, passes);
+      encoder.pass(frame_graph, passes);
     }
   });
 
   return *this;
 }
 
-Canvas & Canvas::contour_stencil_(u32 stencil, u32 write_mask,
-                                  Contour2D const & contour)
+Canvas & Canvas::contour_stencil_(u32 stencil, u32 write_mask, bool tesselate,
+                                  Span<f32x2 const>           control_points,
+                                  Span<ContourEdgeType const> edge_types,
+                                  Span<u16 const> subdivision_counts,
+                                  bool invert, FillRule fill_rule,
+                                  f32x4x4 const & transform, CRect const & clip)
 {
-  // [ ] copy contour
+  if (edge_types.is_empty() || control_points.is_empty())
+  {
+    return *this;
+  }
+  // [ ] move scratch textures into FrameGraph
 
-  // [ ] Vec2 uv0, uv1, uv2; screen-space
-  // [ ] f32 in
-  // [ ] f32 out
+  if (!tesselate)
+  {
+    // [ ] make triangle list; no vertices
+    Vec<f32x2> vertices{frame_arena_};
+    vertices.extend(control_points).unwrap();
+    Vec<u32> indices{frame_arena_};
 
-  pass("Contour"_str,
-       [contour](FrameGraph & fg, PassBundle & passes, Canvas const & canvas,
-                 Framebuffer const & fb, Span<ColorTexture const> colors,
-                 Span<DepthStencilTexture const> depth_stencils) {
-         // fg.push_ssbo(contour.points.as_u8());
-         // fg.push_ssbo(contour.points.as_u8());
-         // [ ] lerp  with an always-filled triangle
-       });
+    // edge fills
+    {
+      u32 first_cp = 0;
 
-  return *this;
-}
+      for (u32 i = 0; i < size32(edge_types); i++)
+      {
+        auto type    = edge_types[i];
+        auto num_cps = num_control_points(type);
+        auto last_cp = first_cp + (num_cps - 1);
 
-Canvas & Canvas::contour()
-{
-  // [ ] optimizations: convex
+        // [ ] fix triangle indices to fan-based?
+
+        if (i != 0)
+        {
+          u32 const triangles[] = {0, first_cp, last_cp};
+          indices.extend(triangles).unwrap();
+        }
+
+        first_cp = last_cp;
+      }
+    }
+
+    auto num_straight_indices = size32(indices);
+
+    // bezier fills
+    {
+      u32 first_cp = 0;
+
+      for (u32 i = 0; i < size32(edge_types); i++)
+      {
+        auto type    = edge_types[i];
+        auto num_cps = num_control_points(type);
+        auto last_cp = first_cp + (num_cps - 1);
+
+        switch (type)
+        {
+          case ContourEdgeType::Line:
+          {
+          }
+          break;
+          case ContourEdgeType::Arc:
+          {
+            CHECK(false, "Unsupported");
+          }
+          break;
+          case ContourEdgeType::Bezier:
+          {
+            u32 const cps[] = {first_cp, first_cp + 1, first_cp + 2};
+            indices.extend(cps).unwrap();
+          }
+          break;
+          case ContourEdgeType::CubicBezier:
+          {
+            CHECK(false, "Unsupported");
+          }
+          break;
+
+          default:
+          {
+          }
+          break;
+        }
+
+        first_cp = last_cp;
+      }
+    }
+
+    auto                       num_inside_bezier_indices = size32(indices);
+    Vec<shader::BezierRegions> regions{frame_arena_};
+
+    regions
+      .extend(span({shader::BezierRegions::All, shader::BezierRegions::Inside}))
+      .unwrap();
+
+    Vec<u32> region_index_counts{frame_arena_};
+    region_index_counts
+      .extend(span({num_straight_indices, num_inside_bezier_indices}))
+      .unwrap();
+
+    auto item = BezierStencilEncoder::Item{
+      .stencil             = depth_stencil_textures_[stencil],
+      .write_mask          = write_mask,
+      .scissor             = clip_to_scissor(clip),
+      .viewport            = viewport_,
+      .fill_rule           = fill_rule,
+      .invert              = invert,
+      .world_to_ndc        = static_cast<f32x4x4>(world_to_ndc_),
+      .transform           = transform,
+      .vertices            = vertices,
+      .indices             = indices,
+      .regions             = regions,
+      .region_index_counts = region_index_counts};
+
+    BezierStencilEncoder encoder{frame_arena_, item};
+
+    encoder.pass(frame_graph_, passes_);
+  }
+  else
+  {
+    // [ ] can't be batched due to using all stencil bits?
+
+    Vec<f32x2> vertices{frame_arena_};
+    Vec<u32>   indices{frame_arena_};
+
+    u32 first_cp = 0;
+
+    CHECK(subdivision_counts.size() == edge_types.size(), "");
+
+    for (u32 i = 0; i < size32(edge_types); i++)
+    {
+      auto type             = edge_types[i];
+      auto num_cps          = num_control_points(type);
+      auto last_cp          = first_cp + (num_cps - 1);
+      auto num_subdivisions = subdivision_counts[i];
+
+      switch (type)
+      {
+        case ContourEdgeType::Arc:
+        {
+          auto cp0    = control_points[first_cp];
+          auto center = control_points[first_cp + 1];
+          auto cp2    = control_points[first_cp + 2];
+
+          auto v0    = cp0 - center;
+          auto v1    = cp2 - center;
+          auto radii = v0.length();
+
+          auto start = std::atan2(v0.y(), v0.x());
+          auto end   = std::atan2(v1.y(), v1.x());
+
+          auto turn = end - start;
+
+          // turn angle (CCW)
+          if (turn < 0)
+          {
+            turn += 2.0F * PI;    // normalizew to [0, 2PI]
+          }
+
+          path::arc(vertices, f32x2::splat(radii), center, start, turn,
+                    num_subdivisions);
+        }
+        break;
+        case ContourEdgeType::Bezier:
+        {
+          path::cubic_bezier(vertices, control_points[first_cp],
+                             control_points[first_cp + 1],
+                             control_points[first_cp + 2],
+                             control_points[first_cp + 3], num_subdivisions);
+        }
+        break;
+        case ContourEdgeType::CubicBezier:
+        {
+          path::bezier(vertices, control_points[first_cp],
+                       control_points[first_cp + 1],
+                       control_points[first_cp + 2], num_subdivisions);
+        }
+        break;
+        case ContourEdgeType::Line:
+        {
+          vertices
+            .extend(
+              span({control_points[first_cp], control_points[first_cp + 1]}))
+            .unwrap();
+        }
+        break;
+        default:
+          break;
+      }
+
+      first_cp = last_cp;
+    }
+
+    path::triangulate_convex(indices, 0, size32(vertices));
+
+    auto index_counts = span({size32(indices)});
+
+    auto item = FillStencilEncoder::Item{
+      .stencil      = depth_stencil_textures_[stencil],
+      .write_mask   = write_mask,
+      .scissor      = clip_to_scissor(clip),
+      .viewport     = viewport_,
+      .fill_rule    = fill_rule,
+      .invert       = invert,
+      .world_to_ndc = static_cast<f32x4x4>(world_to_ndc_),
+      .transform    = transform,
+      .vertices     = vertices,
+      .indices      = indices,
+      .index_counts = index_counts};
+
+    FillStencilEncoder encoder{frame_arena_, item};
+
+    // [ ] clear current encoder
+    encoder.pass(frame_graph_, passes_);
+  }
+
   return *this;
 }
 
