@@ -1519,8 +1519,8 @@ struct Device
 
   virtual Result<Void, Status> acquire_next(Swapchain swapchain) = 0;
 
-  virtual Result<Void, Status> submit(CommandBufferPtr buffer,
-                                      QueueScope       scope) = 0;
+  virtual Result<Void, Status> submit(CommandBuffer & buffer,
+                                      QueueScope      scope) = 0;
 };
 
 struct Instance

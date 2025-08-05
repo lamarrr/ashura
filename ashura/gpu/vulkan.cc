@@ -639,59 +639,35 @@ constexpr SyncResourceType
   }
 }
 
-MemAccess Hazard::latest_acccess() const
+void HazardBarriers::clear()
 {
-  switch (type)
-  {
-    case HazardType::None:
-      return MemAccess{.stages = VK_PIPELINE_STAGE_NONE,
-                       .access = VK_ACCESS_NONE};
-    case HazardType::Reads:
-      return MemAccess{.stages = reads.stages, .access = reads.access};
-    case HazardType::Write:
-      return MemAccess{.stages = write.stages, .access = write.access};
-    case HazardType::ReadsAfterWrite:
-      return MemAccess{.stages = reads.stages, .access = reads.access};
-  }
-}
-
-void HazardBarriers::begin_pass()
-{
-  if (passes_.is_empty())
-  {
-    passes_.push(Entry{}).unwrap();
-  }
-
-  passes_.push(passes_.last()).unwrap();
-}
-
-void HazardBarriers::end_pass()
-{
+  buffers_.clear();
+  buffer_stages_.clear();
+  images_.clear();
+  image_stages_.clear();
+  mem_.clear();
+  mem_stages_.clear();
 }
 
 void HazardBarriers::buffer(VkPipelineStageFlags src, VkPipelineStageFlags dst,
                             VkBufferMemoryBarrier buffer)
 {
-  // [ ] shouldn't stages be merged?
-  stage_.push(Stage{.src = src, .dst = dst}).unwrap();
-  buffer_.push(buffer).unwrap();
-  passes_.last().buffers++;
+  buffer_stages_.push(Stage{.src = src, .dst = dst}).unwrap();
+  buffers_.push(buffer).unwrap();
 }
 
 void HazardBarriers::image(VkPipelineStageFlags src, VkPipelineStageFlags dst,
                            VkImageMemoryBarrier image)
 {
-  stage_.push(Stage{.src = src, .dst = dst}).unwrap();
-  image_.push(image).unwrap();
-  passes_.last().images++;
+  image_stages_.push(Stage{.src = src, .dst = dst}).unwrap();
+  images_.push(image).unwrap();
 }
 
 void HazardBarriers::mem(VkPipelineStageFlags src, VkPipelineStageFlags dst,
                          VkMemoryBarrier memory)
 {
-  stage_.push(Stage{.src = src, .dst = dst}).unwrap();
+  mem_stages_.push(Stage{.src = src, .dst = dst}).unwrap();
   mem_.push(memory).unwrap();
-  passes_.last().memory++;
 }
 
 // layout transitions are considered write operations even if only a read
@@ -767,7 +743,7 @@ void EncoderResourceStates::access(Image const &     image,
   auto has_read = has_read_access(access.access);
   auto element  = image.memory.element;
 
-  auto [has_changed, last_accessed, state, hazard] = memory_[alias_id];
+  auto [hazard, _, last_accessed] = memory_[alias_id];
 
   // it was already accessed, resources are only allowed to be in one state for a pass
   if (last_accessed != U32_MAX && last_accessed == pass)
@@ -778,38 +754,49 @@ void EncoderResourceStates::access(Image const &     image,
 
   last_accessed = pass;
 
-  auto new_state = ImageMemState{.element = element, .layout = layout};
+  auto mark = [&](HazardType type, MemAccess previous) {
+    hazard = Hazard{
+      .type     = type,
+      .latest   = access,
+      .previous = previous,
+      .state    = ImageMemState{.element = element, .layout = layout}
+    };
+    memory_.dense.v1.set_bit(memory_.to_index(alias_id));
+  };
 
-  auto mark = [&](Hazard const & h) {
-    state  = new_state;
-    hazard = h;
-    memory_.dense.v0.set(memory_.to_index(alias_id), true);
+  auto mark_combined = [&](HazardType type, MemAccess previous,
+                           MemAccess latest) {
+    hazard = Hazard{
+      .type     = type,
+      .latest   = latest,
+      .previous = previous,
+      .state    = ImageMemState{.element = element, .layout = layout}
+    };
+    memory_.dense.v1.set_bit(memory_.to_index(alias_id));
   };
 
   auto discard = [&]() {
-    auto old_access = hazard.latest_acccess();
-    barrier(old_access, access, barriers);
-    barrier(image, old_access, VK_IMAGE_LAYOUT_UNDEFINED, access, layout,
+    barrier(image, hazard.latest, VK_IMAGE_LAYOUT_UNDEFINED, access, layout,
             barriers);
 
-    mark(Hazard{.type = HazardType::Write, .reads = {}, .write = access});
+    mark(HazardType::Write, {});
   };
 
-  state.match(
+  hazard.state.match(
     [&](None) {
       discard();
       return;
     },
     [&](BufferMemState const &) {
+      // hard memory barrier for aliasing
+      barrier(hazard.latest, access, barriers);
       discard();
       return;
     },
     [&](ImageMemState const & h) {
       auto current_layout   = h.layout;
       auto needs_transition = current_layout != layout;
-      auto has_write      = has_write_access(access.access) || needs_transition;
-      auto previous_reads = hazard.reads;
-      auto previous_write = hazard.write;
+      auto has_write = has_write_access(access.access) || needs_transition;
 
       auto barrier = [&](MemAccess const & from) {
         this->barrier(image, from, current_layout, access, layout, barriers);
@@ -828,8 +815,7 @@ void EncoderResourceStates::access(Image const &     image,
           // no sync needed, no accessor before this
           if (has_write)
           {
-            mark(
-              Hazard{.type = HazardType::Write, .reads = {}, .write = access});
+            mark(HazardType::Write, {});
 
             if (needs_transition)
             {
@@ -844,8 +830,7 @@ void EncoderResourceStates::access(Image const &     image,
 
           if (has_read)
           {
-            mark(
-              Hazard{.type = HazardType::Reads, .reads = access, .write = {}});
+            mark(HazardType::Reads, {});
 
             return;
           }
@@ -854,14 +839,15 @@ void EncoderResourceStates::access(Image const &     image,
         }
         case HazardType::Reads:
         {
+          auto previous_reads = hazard.latest;
+
           if (has_write)
           {
             // wait till done reading before modifying
             // reset access sequence since all stages following this write need to
             // wait on this write
 
-            mark(
-              Hazard{.type = HazardType::Write, .reads = {}, .write = access});
+            mark(HazardType::Write, {});
 
             barrier(previous_reads);
 
@@ -873,12 +859,10 @@ void EncoderResourceStates::access(Image const &     image,
             // combine all subsequent reads, so the next writer knows to wait on all
             // combined reads to complete
 
-            mark(Hazard{
-              .type  = HazardType::Reads,
-              .reads = {.stages = previous_reads.stages | access.stages,
-                        .access = previous_reads.access | access.access},
-              .write = {}
-            });
+            mark_combined(
+              HazardType::Reads, {},
+              MemAccess{.stages = previous_reads.stages | access.stages,
+                        .access = previous_reads.access | access.access});
 
             return;
           }
@@ -887,14 +871,15 @@ void EncoderResourceStates::access(Image const &     image,
         }
         case HazardType::Write:
         {
+          auto previous_write = hazard.latest;
+
           if (has_write)
           {
             // wait till done writing before modifying
             // remove previous write since this access already waits on another
             // access to complete and the next access will have to wait on this
             // access
-            mark(
-              Hazard{.type = HazardType::Write, .reads = {}, .write = access});
+            mark(HazardType::Write, {});
 
             barrier(previous_write);
 
@@ -904,10 +889,7 @@ void EncoderResourceStates::access(Image const &     image,
           if (has_read)
           {
             // wait till all write stages are done
-
-            mark(Hazard{.type  = HazardType::ReadsAfterWrite,
-                        .reads = access,
-                        .write = previous_write});
+            mark(HazardType::ReadsAfterWrite, previous_write);
 
             barrier(previous_write);
 
@@ -918,14 +900,15 @@ void EncoderResourceStates::access(Image const &     image,
         }
         case HazardType::ReadsAfterWrite:
         {
+          auto previous_reads = hazard.latest;
+          auto previous_write = hazard.previous;
+
           if (has_write)
           {
             // wait for all reading stages only
             // stages can be reset and point only to the latest write stage, since
             // they all need to wait for this write anyway.
-
-            mark(
-              Hazard{.type = HazardType::Write, .reads = {}, .write = access});
+            mark(HazardType::Write, {});
 
             barrier(previous_reads);
 
@@ -949,21 +932,15 @@ void EncoderResourceStates::access(Image const &     image,
 
             if (implictly_merged)
             {
-              mark(Hazard{
-                .type  = HazardType::ReadsAfterWrite,
-                .reads = {.stages = previous_reads.stages | access.stages,
-                          .access = previous_reads.access | access.access},
-                .write = previous_write
-              });
+              mark_combined(HazardType::ReadsAfterWrite, previous_write,
+                            {.stages = previous_reads.stages | access.stages,
+                             .access = previous_reads.access | access.access});
               return;
             }
 
-            mark(Hazard{
-              .type  = HazardType::ReadsAfterWrite,
-              .reads = {.stages = previous_reads.stages | access.stages,
-                        .access = previous_reads.access | access.access},
-              .write = previous_write
-            });
+            mark_combined(HazardType::ReadsAfterWrite, previous_write,
+                          {.stages = previous_reads.stages | access.stages,
+                           .access = previous_reads.access | access.access});
 
             barrier(previous_write);
 
@@ -999,7 +976,7 @@ void EncoderResourceStates::access(Buffer const &    buffer,
   auto has_read  = has_read_access(access.access);
   auto element   = buffer.memory.element;
 
-  auto [has_changed, last_accessed, state, hazard] = memory_[alias_id];
+  auto [hazard, _, last_accessed] = memory_[alias_id];
 
   // it was already accessed, resources are only allowed to be in one state for a pass
   if (last_accessed != U32_MAX && last_accessed == pass)
@@ -1010,31 +987,35 @@ void EncoderResourceStates::access(Buffer const &    buffer,
 
   last_accessed = pass;
 
-  auto new_state = BufferMemState{.element = element};
+  auto mark = [&](HazardType type, MemAccess previous) {
+    hazard = Hazard{.type     = type,
+                    .latest   = access,
+                    .previous = previous,
+                    .state    = BufferMemState{.element = element}};
+    memory_.dense.v1.set_bit(memory_.to_index(alias_id));
+  };
 
-  auto mark = [&](Hazard const & h) {
-    state  = new_state;
-    hazard = h;
-    memory_.dense.v0.set(memory_.to_index(alias_id), true);
+  auto mark_combined = [&](HazardType type, MemAccess previous,
+                           MemAccess latest) {
+    hazard = Hazard{.type     = type,
+                    .latest   = latest,
+                    .previous = previous,
+                    .state    = ImageMemState{.element = element}};
+    memory_.dense.v1.set_bit(memory_.to_index(alias_id));
   };
 
   auto discard = [&]() {
-    auto old_access = hazard.latest_acccess();
-    barrier(old_access, access, barriers);
-    barrier(buffer, old_access, access, barriers);
+    barrier(buffer, hazard.latest, access, barriers);
 
-    mark(Hazard{.type = HazardType::Write, .reads = {}, .write = access});
+    mark(HazardType::Write, {});
   };
 
-  state.match(
+  hazard.state.match(
     [&](None) {
       discard();
       return;
     },
     [&](BufferMemState const & h) {
-      auto previous_reads = hazard.reads;
-      auto previous_write = hazard.write;
-
       auto barrier = [&](MemAccess const & from) {
         this->barrier(buffer, from, access, barriers);
       };
@@ -1051,16 +1032,14 @@ void EncoderResourceStates::access(Buffer const &    buffer,
         {
           if (has_write)
           {
-            mark(
-              Hazard{.type = HazardType::Write, .reads = {}, .write = access});
+            mark(HazardType::Write, {});
 
             return;
           }
 
           if (has_read)
           {
-            mark(
-              Hazard{.type = HazardType::Reads, .reads = access, .write = {}});
+            mark(HazardType::Reads, {});
 
             return;
           }
@@ -1070,13 +1049,14 @@ void EncoderResourceStates::access(Buffer const &    buffer,
 
         case HazardType::Reads:
         {
+          auto previous_reads = hazard.latest;
+
           if (has_write)
           {
             // wait till done reading before modifying
             // reset access sequence since all stages following this write need to
             // wait on this write
-            mark(
-              Hazard{.type = HazardType::Write, .reads = {}, .write = access});
+            mark(HazardType::Write, {});
 
             barrier(previous_reads);
 
@@ -1088,12 +1068,9 @@ void EncoderResourceStates::access(Buffer const &    buffer,
             // combine all subsequent reads, so the next writer knows to wait on all
             // combined reads to complete
 
-            mark(Hazard{
-              .type  = HazardType::Reads,
-              .reads = {.stages = previous_reads.stages | access.stages,
-                        .access = previous_reads.access | access.access},
-              .write = {}
-            });
+            mark_combined(HazardType::Reads, {},
+                          {.stages = previous_reads.stages | access.stages,
+                           .access = previous_reads.access | access.access});
 
             return;
           }
@@ -1102,14 +1079,15 @@ void EncoderResourceStates::access(Buffer const &    buffer,
         }
         case HazardType::Write:
         {
+          auto previous_write = hazard.latest;
+
           if (has_write)
           {
             // wait till done writing before modifying
             // remove previous write since this access already waits on another
             // access to complete and the next access will have to wait on this
             // access
-            mark(
-              Hazard{.type = HazardType::Write, .reads = {}, .write = access});
+            mark(HazardType::Write, {});
 
             barrier(previous_write);
 
@@ -1119,9 +1097,7 @@ void EncoderResourceStates::access(Buffer const &    buffer,
           if (has_read)
           {
             // wait till all write stages are done
-            mark(Hazard{.type  = HazardType::ReadsAfterWrite,
-                        .reads = access,
-                        .write = previous_write});
+            mark(HazardType::ReadsAfterWrite, previous_write);
 
             barrier(previous_write);
 
@@ -1132,14 +1108,16 @@ void EncoderResourceStates::access(Buffer const &    buffer,
         }
         case HazardType::ReadsAfterWrite:
         {
+          auto previous_reads = hazard.latest;
+          auto previous_write = hazard.previous;
+
           if (has_write)
           {
             // wait for all reading stages only
             // stages can be reset and point only to the latest write stage, since
             // they all need to wait for this write anyway.
 
-            mark(
-              Hazard{.type = HazardType::Write, .reads = {}, .write = access});
+            mark(HazardType::Write, {});
 
             barrier(previous_reads);
 
@@ -1162,21 +1140,15 @@ void EncoderResourceStates::access(Buffer const &    buffer,
 
             if (implicitly_merged)
             {
-              mark(Hazard{
-                .type  = HazardType::ReadsAfterWrite,
-                .reads = {.stages = previous_reads.stages | access.stages,
-                          .access = previous_reads.access | access.access},
-                .write = previous_write
-              });
+              mark_combined(HazardType::ReadsAfterWrite, previous_write,
+                            {.stages = previous_reads.stages | access.stages,
+                             .access = previous_reads.access | access.access});
               return;
             }
 
-            mark(Hazard{
-              .type  = HazardType::ReadsAfterWrite,
-              .reads = {.stages = previous_reads.stages | access.stages,
-                        .access = previous_reads.access | access.access},
-              .write = previous_write
-            });
+            mark_combined(HazardType::ReadsAfterWrite, previous_write,
+                          {.stages = previous_reads.stages | access.stages,
+                           .access = previous_reads.access | access.access});
 
             barrier(previous_write);
 
@@ -1191,6 +1163,8 @@ void EncoderResourceStates::access(Buffer const &    buffer,
       }
     },
     [&](ImageMemState const &) {
+      // hard memory barrier for aliasing
+      barrier(hazard.latest, access, barriers);
       discard();
       return;
     });
@@ -1200,7 +1174,7 @@ void EncoderResourceStates::access(DescriptorSet const & set, u32 pass,
                                    VkPipelineStageFlags shader_stages,
                                    HazardBarriers &     barriers)
 {
-  auto [last_accessed] = descriptor_set_[set.id];
+  auto [last_accessed] = descriptor_sets_[set.id];
 
   /// if it is a read-only descriptor set we don't need to synchronize after the first synchronization pass; resources can be in only one state for a pass
   if (!set.is_mutating && pass != 0 && last_accessed != U32_MAX &&
@@ -1254,23 +1228,24 @@ void EncoderResourceStates::rebuild(DeviceResourceStates const & upstream)
 {
   memory_.clear();
 
-  memory_.reserve(upstream.memory_.size()).unwrap();
+  memory_.id_to_index_.extend(upstream.memory_.id_to_index_).unwrap();
+  memory_.index_to_id_.extend(upstream.memory_.index_to_id_).unwrap();
 
-  for (auto [i, state] : zip(range(upstream.memory_.size()), upstream.memory_))
-  {
-    auto id = upstream.memory_.to_id(i);
-    memory_.id_to_index_.push(i).unwrap();
-    memory_.index_to_id_.push(id).unwrap();      // [ ] fix
-    memory_.dense.v0.push(false).unwrap();       // was modified
-    memory_.dense.v1.push(U32_MAX).unwrap();     // last_accessed
-    memory_.dense.v2.push(state.v0).unwrap();    // memory state
-    memory_.dense.v3.push(Hazard{.type = HazardType::None})
-      .unwrap();    // hazard type
-  }
+  // memory hazard
+  memory_.dense.v0.extend(upstream.memory_.dense.v0).unwrap();
+  // was modified
+  memory_.dense.v1.resize(upstream.memory_.dense.v0.size()).unwrap();
+  // last_accessed
+  memory_.dense.v2.resize_uninit(upstream.memory_.dense.v0.size()).unwrap();
 
-  // [ ] if image id is re-used we need to reset
-  // [ ] deletion update & deletion queue management
-  // [ ] if resource is created after begin call and added to the command buffer?; what about if a destroyed resource is accesed?; id-reuse?
+  fill(memory_.dense.v2.view(), U32_MAX);
+
+  descriptor_sets_.clear();
+
+  descriptor_sets_.id_to_index_.extend(upstream.descriptor_sets_.id_to_index_)
+    .unwrap();
+  descriptor_sets_.index_to_id_.extend(upstream.descriptor_sets_.index_to_id_)
+    .unwrap();
 }
 
 void EncoderResourceStates::commit(DeviceResourceStates & upstream)
@@ -1278,14 +1253,14 @@ void EncoderResourceStates::commit(DeviceResourceStates & upstream)
   for (auto [i, m] : zip(range(memory_.size()), memory_))
   {
     // if resource was modified
-    if (m.v0) [[unlikely]]
+    if (m.v1) [[unlikely]]
     {
-      upstream.memory_[memory_.to_id(i)].v0 = m.v2;
+      upstream.memory_[memory_.to_id(i)].v0 = m.v0;
     }
   }
 }
 
-u32 AccessEncoder::begin_pass()
+u32 CommandTracker::begin_pass()
 {
   auto index = size32(passes_);
 
@@ -1299,35 +1274,63 @@ u32 AccessEncoder::begin_pass()
   return index;
 }
 
-void AccessEncoder::end_pass()
+void CommandTracker::command(cmd::Command * cmd)
+{
+  if (last_cmd_ == nullptr)
+  {
+    first_cmd_ = cmd;
+    last_cmd_  = cmd;
+    return;
+  }
+
+  last_cmd_->next = cmd;
+  last_cmd_       = cmd;
+
+  passes_.last().commands++;
+}
+
+void CommandTracker::end_pass()
 {
 }
 
-void AccessEncoder::access(Buffer * buffer, VkPipelineStageFlags stages,
+void CommandTracker::track(Buffer * buffer, VkPipelineStageFlags stages,
                            VkAccessFlags access)
 {
   buffers_.push(buffer, stages, access).unwrap();
   passes_.last().buffers++;
 }
 
-void AccessEncoder::access(Image * image, VkPipelineStageFlags stages,
+void CommandTracker::track(Image * image, VkPipelineStageFlags stages,
                            VkAccessFlags access, VkImageLayout layout)
 {
   images_.push(image, stages, access, layout).unwrap();
   passes_.last().images++;
 }
 
-void AccessEncoder::access(ImageView * image, VkPipelineStageFlags stages,
+void CommandTracker::track(ImageView * image, VkPipelineStageFlags stages,
                            VkAccessFlags access, VkImageLayout layout)
 {
-  this->access(image->image, stages, access, layout);
+  track(image->image, stages, access, layout);
 }
 
-void AccessEncoder::access(DescriptorSet * set, VkShaderStageFlags stages,
-                           VkAccessFlags access)
+void CommandTracker::track(DescriptorSet * set, VkShaderStageFlags stages)
 {
-  descriptor_sets_.push(set, stages, access).unwrap();
+  descriptor_sets_.push(set, stages).unwrap();
   passes_.last().descriptor_sets++;
+}
+
+void CommandTracker::reset()
+{
+  buffers_.shrink().unwrap();
+  buffers_.clear();
+  images_.shrink().unwrap();
+  images_.clear();
+  descriptor_sets_.shrink().unwrap();
+  descriptor_sets_.clear();
+  passes_.shrink().unwrap();
+  passes_.clear();
+  first_cmd_ = nullptr;
+  last_cmd_  = nullptr;
 }
 
 constexpr bool is_image_view_type_compatible(gpu::ImageType     image_type,
@@ -2284,16 +2287,9 @@ Result<gpu::Device *, Status>
     return Err{Status::OutOfHostMemory};
   }
 
-  new (dev) Device{allocator,
-                   this,
-                   selected_dev,
-                   vk_dev_table,
-                   vma_table,
-                   vk_dev,
-                   selected_queue_family,
-                   vk_queue,
-                   vma_allocator,
-                   Vec<u8>{allocator}};
+  new (dev) Device{allocator,    this,   selected_dev,          vk_dev_table,
+                   vma_table,    vk_dev, selected_queue_family, vk_queue,
+                   vma_allocator};
 
   vma_allocator = nullptr;
   vk_dev        = nullptr;
@@ -2849,6 +2845,65 @@ Result<gpu::MemoryGroup, Status>
                           .alignment      = 0,
                           .map            = vma_allocation_info.pMappedData,
                           .alias_offsets  = std::move(alias_offsets),
+                          .alias_ids      = std::move(alias_ids)};
+
+  return Ok{(gpu::MemoryGroup) group};
+}
+
+Result<gpu::MemoryGroup, Status>
+  Device::create_shim_memory_group(gpu::MemoryGroupInfo const & info)
+{
+  CHECK(info.aliases.size() > 1, "");
+  auto num_aliases = size32(info.aliases) - 1;
+
+  for (auto i : range(num_aliases))
+  {
+    auto alias_begin = info.aliases[i];
+    auto alias_end   = info.aliases[i + 1];
+
+    for (auto & resource :
+         info.resources.slice(Slice::range(alias_begin, alias_end)))
+    {
+      resource.match([&](gpu::Buffer) { CHECK(false, ""); },
+                     [&](gpu::Image p) {
+                       auto image = (Image *) p;
+                       CHECK(image->memory.memory_group == nullptr, "");
+                     });
+    }
+  }
+
+  SmallVec<AliasId> alias_ids{allocator_};
+
+  for (auto i : range(num_aliases))
+  {
+    auto first_alias = info.aliases[i];
+    auto alias_end   = info.aliases[i + 1];
+
+    for (auto [ialias, resource] :
+         enumerate(info.resources.slice(Slice::range(first_alias, alias_end))))
+    {
+      VkResult result = VK_SUCCESS;
+      resource.match([&](gpu::Buffer) { CHECK(false, ""); },
+                     [&](gpu::Image p) {
+                       auto image            = ptr(p);
+                       image->memory.alias   = i;
+                       image->memory.element = ialias;
+                     });
+
+      CHECK(result == VK_SUCCESS, "");
+    }
+
+    alias_ids.push(allocate_alias_id()).unwrap();
+  }
+
+  MemoryGroup * group;
+
+  CHECK(allocator_->nalloc(1, group), "");
+
+  new (group) MemoryGroup{.vma_allocation = nullptr,
+                          .alignment      = 0,
+                          .map            = nullptr,
+                          .alias_offsets  = {},
                           .alias_ids      = std::move(alias_ids)};
 
   return Ok{(gpu::MemoryGroup) group};
@@ -3739,7 +3794,8 @@ Result<gpu::GraphicsPipeline, Status>
                      .num_sets            = size32(info.descriptor_set_layouts),
                      .depth_fmt           = info.depth_format,
                      .stencil_fmt         = info.stencil_format,
-                     .sample_count = info.rasterization_state.sample_count};
+                     .sample_count = info.rasterization_state.sample_count,
+                     .num_vertex_attributes = size32(info.vertex_attributes)};
 
   pipeline->color_fmts.extend(info.color_formats).unwrap();
 
@@ -3752,25 +3808,6 @@ Result<Void, Status> recreate_swapchain(Device * d, Swapchain * swapchain)
   CHECK(info.preferred_extent.x() > 0, "");
   CHECK(info.preferred_extent.y() > 0, "");
   CHECK(info.preferred_buffering <= gpu::MAX_SWAPCHAIN_IMAGES, "");
-
-  // SmallVec<VkSemaphore, gpu::MAX_FRAME_BUFFERING> acquire_semaphores{
-  //   allocator_};
-  // set_resource_name(acq_sem_label, acquire_sem, VK_OBJECT_TYPE_SEMAPHORE,
-  //                   VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT);
-
-  // acquire_semaphores.push(acquire_sem).unwrap();
-
-  // auto acq_sem_label =
-  //   ssformat<256>(allocator_, "{}:QueueScope.AcquireSemaphore:{}"_str,
-  //                 info.label, i)
-  //     .unwrap();
-
-  // for (auto sem : acquire_semaphores)
-  // {
-  //   vk_table_.DestroySemaphore(vk_dev_, sem, nullptr);
-  // }
-
-  // [ ] semaphores
 
   auto vk_surface       = (VkSurfaceKHR) info.surface;
   auto old_vk_swapchain = swapchain->vk;
@@ -3802,24 +3839,7 @@ Result<Void, Status> recreate_swapchain(Device * d, Swapchain * swapchain)
   if (surface_capabilities.currentExtent.width == 0 ||
       surface_capabilities.currentExtent.height == 0)
   {
-    swapchain->~Swapchain();
-
-    new (swapchain) Swapchain{
-      .vk              = nullptr,
-      .vk_surface      = vk_surface,
-      .images          = {},
-      .current_image   = none,
-      .is_out_of_date  = false,
-      .is_optimal      = true,
-      .is_zero_sized   = true,
-      .format          = info.format,
-      .usage           = info.usage,
-      .present_mode    = info.present_mode,
-      .extent          = {0, 0},
-      .composite_alpha = info.composite_alpha,
-      .preference      = std::move(info)
-    };
-
+    swapchain->is_deferred = true;
     return Ok{};
   }
 
@@ -3895,44 +3915,51 @@ Result<Void, Status> recreate_swapchain(Device * d, Swapchain * swapchain)
   result =
     d->vk_table_.GetSwapchainImagesKHR(d->vk_dev_, vk, &num_images, nullptr);
 
-  if (result != VK_SUCCESS)
-  {
-    old_vk_swapchain = nullptr;
-    return Err{(Status) result};
-  }
+  CHECK(result == VK_SUCCESS, "");
 
-  InplaceVec<Image *, gpu::MAX_SWAPCHAIN_IMAGES> images;
-  images.resize(num_images).unwrap();
   InplaceVec<VkImage, gpu::MAX_SWAPCHAIN_IMAGES> vk_images;
   vk_images.resize(num_images).unwrap();
 
   result = d->vk_table_.GetSwapchainImagesKHR(d->vk_dev_, vk, &num_images,
                                               vk_images.data());
 
-  if (result != VK_SUCCESS)
-  {
-    old_vk_swapchain = nullptr;
-    return Err{(Status) result};
-  }
+  CHECK(result == VK_SUCCESS, "");
 
-  // [ ] creete faux memory group and bind images to it
-  // [ ] need to create alias id for swapchain images, destroy previous one and create new one, so we can sync
+  VkSemaphoreCreateInfo sem_info{.sType =
+                                   VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+                                 .pNext = nullptr,
+                                 .flags = 0};
 
-  for (auto [vk, image] : zip(vk_images, images))
+  InplaceVec<Image *, gpu::MAX_SWAPCHAIN_IMAGES> images;
+  images.resize(num_images).unwrap();
+  InplaceVec<VkSemaphore, gpu::MAX_SWAPCHAIN_IMAGES> acquire_semaphores;
+  acquire_semaphores.resize(num_images).unwrap();
+
+  for (auto [i, vk, image, acquire_semaphore] :
+       zip(range(vk_images.size()), vk_images, images, acquire_semaphores))
   {
     CHECK(d->allocator_->nalloc(1, image), "");
 
     new (image) Image{
+      .vk                 = vk,
       .type               = gpu::ImageType::Type2D,
+      .usage              = info.usage,
       .aspects            = gpu::ImageAspects::Color,
+      .sample_count       = gpu::SampleCount::C1,
+      .extent             = {vk_extent.width, vk_extent.height, 1},
       .mip_levels         = 1,
       .array_layers       = 1,
       .is_swapchain_image = true,
       .memory             = MemoryInfo{.memory_group = nullptr,
-                                       .alias        = 0,
-                                       .element      = 0,
-                                       .type         = gpu::MemoryType::Unique}
+                             .alias        = 0,
+                             .element      = 0,
+                             .type         = gpu::MemoryType::Group}
     };
+
+    auto result = d->vk_table_.CreateSemaphore(d->vk_dev_, &sem_info, nullptr,
+                                               &acquire_semaphore);
+
+    CHECK(result == VK_SUCCESS, "");
   }
 
   auto swapchain_label =
@@ -3940,31 +3967,65 @@ Result<Void, Status> recreate_swapchain(Device * d, Swapchain * swapchain)
 
   d->set_resource_name(swapchain_label, vk, VK_OBJECT_TYPE_SWAPCHAIN_KHR,
                        VK_DEBUG_REPORT_OBJECT_TYPE_SWAPCHAIN_KHR_EXT);
-  for (auto [i, image] : enumerate(images))
+  for (auto [i, image, acquire_semaphore] :
+       zip(range(images.size()), images, acquire_semaphores))
   {
     auto label =
       ssformat<256>(d->allocator_, "{}:Swapchain.Image:{}"_str, info.label, i)
         .unwrap();
     d->set_resource_name(label, image->vk, VK_OBJECT_TYPE_IMAGE,
                          VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT);
+
+    auto acq_sem_label =
+      ssformat<256>(d->allocator_, "{}:QueueScope.AcquireSemaphore:{}"_str,
+                    info.label, i)
+        .unwrap();
+
+    d->set_resource_name(acq_sem_label, acquire_semaphore,
+                         VK_OBJECT_TYPE_SEMAPHORE,
+                         VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT);
   }
 
+  InplaceVec<Enum<gpu::Buffer, gpu::Image>, gpu::MAX_SWAPCHAIN_IMAGES>
+                                                 group_resources;
+  InplaceVec<u32, gpu::MAX_SWAPCHAIN_IMAGES + 1> aliases;
+
+  aliases.push(0U).unwrap();
+
+  for (auto [i, image] : enumerate<u32>(images))
+  {
+    group_resources.push((gpu::Image) image).unwrap();
+    aliases.push(i + 1).unwrap();
+  }
+
+  auto group_info =
+    gpu::MemoryGroupInfo{.resources = group_resources, .aliases = aliases};
+
+  auto memory_group =
+    (MemoryGroup *) d->create_shim_memory_group(group_info).unwrap();
+
+  // [ ] we are destroying the swapchain...
+  old_vk_swapchain = nullptr;
+  d->uninit((gpu::Swapchain) swapchain);
   swapchain->~Swapchain();
 
   new (swapchain) Swapchain{
-    .vk              = vk,
-    .vk_surface      = vk_surface,
-    .images          = std::move(images),
-    .current_image   = none,
-    .is_out_of_date  = false,
-    .is_optimal      = true,
-    .is_zero_sized   = false,
-    .format          = info.format,
-    .usage           = info.usage,
-    .present_mode    = info.present_mode,
-    .extent          = {vk_extent.width, vk_extent.height},
-    .composite_alpha = info.composite_alpha,
-    .preference      = std::move(info)
+    .vk                 = vk,
+    .vk_surface         = vk_surface,
+    .images             = std::move(images),
+    .acquire_semaphores = std::move(acquire_semaphores),
+    .memory_group       = memory_group,
+    .current_image      = none,
+    .current_semaphore  = none,
+    .is_deferred        = false,
+    .is_out_of_date     = false,
+    .is_optimal         = true,
+    .format             = info.format,
+    .usage              = info.usage,
+    .present_mode       = info.present_mode,
+    .extent             = {vk_extent.width, vk_extent.height},
+    .composite_alpha    = info.composite_alpha,
+    .preference         = std::move(info)
   };
 
   return Ok{};
@@ -4001,7 +4062,24 @@ Result<gpu::Swapchain, Status>
     }
   }};
 
-  new (shim) Swapchain{.preference = std::move(pref)};
+  new (shim) Swapchain{
+    .vk                 = nullptr,
+    .vk_surface         = nullptr,
+    .images             = {},
+    .acquire_semaphores = {},
+    .memory_group       = nullptr,
+    .current_image      = none,
+    .current_semaphore  = none,
+    .is_deferred        = false,
+    .is_out_of_date     = false,
+    .is_optimal         = true,
+    .format             = info.format,
+    .usage              = info.usage,
+    .present_mode       = info.present_mode,
+    .extent             = {0, 0},
+    .composite_alpha    = info.composite_alpha,
+    .preference         = std::move(pref)
+  };
 
   auto result = recreate_swapchain(this, shim);
 
@@ -4250,24 +4328,36 @@ Result<gpu::QueueScope, Status>
 
 AliasId Device::allocate_alias_id()
 {
+  WriteGuard guard{resource_states_.lock_};
+  auto       id = resource_states_.memory_.push(Hazard{}).unwrap();
+  return static_cast<AliasId>(id);
+  // [ ] if resource is created after begin call and added to the command buffer?; what about if a destroyed resource is accesed?; id-reuse?
 }
 
 void Device::release_alias_id(AliasId id)
 {
+  WriteGuard guard{resource_states_.lock_};
+  resource_states_.memory_.erase(id);
+  return;
 }
 
-// [ ] impl
-// [ ] after allocating ids for any resource, their states must be reset
 DescriptorSetId Device::allocate_descriptor_set_id()
 {
+  WriteGuard guard{resource_states_.lock_};
+  auto       id = resource_states_.descriptor_sets_.push().unwrap();
+  return static_cast<DescriptorSetId>(id);
 }
 
 void Device::release_descriptor_set_id(DescriptorSetId id)
 {
+  WriteGuard guard{resource_states_.lock_};
+  resource_states_.descriptor_sets_.erase(id);
+  return;
 }
 
 void Device::uninit()
 {
+  // [ ] impl
 }
 
 void Device::uninit(gpu::Buffer buffer_)
@@ -4315,7 +4405,7 @@ void Device::uninit(gpu::BufferView buffer_view_)
     return;
   }
 
-  for (auto loc : buffer_view->bind_locations)
+  for (auto & loc : buffer_view->bind_locations)
   {
     loc.set->bindings[loc.binding].sync_resources[v2][loc.element] =
       (BufferView *) nullptr;
@@ -4392,7 +4482,10 @@ void Device::uninit(gpu::MemoryGroup group_)
     return;
   }
 
-  vmaFreeMemory(vma_allocator_, group->vma_allocation);
+  if (group->vma_allocation != nullptr)
+  {
+    vmaFreeMemory(vma_allocator_, group->vma_allocation);
+  }
 
   for (auto alias_id : group->alias_ids)
   {
@@ -4526,12 +4619,20 @@ void Device::uninit(gpu::Swapchain swapchain_)
     return;
   }
 
+  for (auto image : swapchain->images)
+  {
+    uninit((gpu::Image) image);
+  }
+
   for (auto sem : swapchain->acquire_semaphores)
   {
     vk_table_.DestroySemaphore(vk_dev_, sem, nullptr);
   }
 
   vk_table_.DestroySwapchainKHR(vk_dev_, swapchain->vk, nullptr);
+
+  uninit((gpu::MemoryGroup) swapchain->memory_group);
+
   swapchain->~Swapchain();
   allocator_->ndealloc(1, swapchain);
 }
@@ -5160,7 +5261,7 @@ Result<Void, Status> Device::acquire_next(gpu::Swapchain swapchain_)
   VkResult result = VK_SUCCESS;
 
   if (swapchain->is_out_of_date || !swapchain->is_optimal ||
-      swapchain->vk == nullptr)
+      swapchain->is_deferred)
   {
     // await all pending submitted operations on the device possibly using
     // the swapchain, to avoid destroying whilst in use
@@ -5173,7 +5274,7 @@ Result<Void, Status> Device::acquire_next(gpu::Swapchain swapchain_)
     recreate_swapchain(this, swapchain).unwrap();
   }
 
-  if (!swapchain->is_zero_sized)
+  if (!swapchain->is_deferred)
   {
     u32 next_image;
     result = vk_table_.AcquireNextImageKHR(
@@ -5199,15 +5300,14 @@ Result<Void, Status> Device::acquire_next(gpu::Swapchain swapchain_)
   return Ok{};
 }
 
-Result<Void, Status> Device::submit(gpu::CommandBufferPtr buffer_,
-                                    gpu::QueueScope       scope_)
+Result<Void, Status> Device::submit(gpu::CommandBuffer & buffer_,
+                                    gpu::QueueScope      scope_)
 {
   char              reserved_[512];
   FallbackAllocator scratch{Arena::from(reserved_), allocator_};
 
-  CHECK(buffer_ != nullptr, "");
-  auto * buffer = (CommandBuffer *) buffer_;
-  CHECK(buffer->state_ == CommandBufferState::Recorded, "");
+  auto & buffer = (CommandBuffer &) buffer_;
+  CHECK(buffer.state_ == CommandBufferState::Recorded, "");
   CHECK(scope_ != nullptr, "");
 
   auto scope = (QueueScope *) scope_;
@@ -5225,9 +5325,9 @@ Result<Void, Status> Device::submit(gpu::CommandBufferPtr buffer_,
 
   CHECK(result == VK_SUCCESS, "");
 
-  auto swapchain     = buffer->swapchain_;
+  auto swapchain     = buffer.swapchain_;
   auto is_presenting = swapchain != nullptr && !swapchain->is_out_of_date &&
-                       !swapchain->is_zero_sized;
+                       !swapchain->is_deferred;
   auto acquire_semaphore =
     is_presenting ?
       swapchain->acquire_semaphores[swapchain->current_semaphore.unwrap()] :
@@ -5242,7 +5342,7 @@ Result<Void, Status> Device::submit(gpu::CommandBufferPtr buffer_,
     .pWaitSemaphores      = is_presenting ? &acquire_semaphore : nullptr,
     .pWaitDstStageMask    = is_presenting ? &wait_stages : nullptr,
     .commandBufferCount   = 1,
-    .pCommandBuffers      = &buffer->vk_,
+    .pCommandBuffers      = &buffer.vk_,
     .signalSemaphoreCount = is_presenting ? 1U : 0U,
     .pSignalSemaphores    = is_presenting ? &submit_semaphore : nullptr};
 
@@ -5250,7 +5350,10 @@ Result<Void, Status> Device::submit(gpu::CommandBufferPtr buffer_,
 
   CHECK(result == VK_SUCCESS, "");
 
-  buffer->state_ = CommandBufferState::Submitted;
+  buffer.state_ = CommandBufferState::Submitted;
+
+  // commit the updated state of the resources
+  buffer.commit_resource_states();
 
   scope->current_frame_++;
   scope->tail_frame_ = (scope->current_frame_ < scope->buffering_) ?
@@ -5289,15 +5392,32 @@ Result<Void, Status> Device::submit(gpu::CommandBufferPtr buffer_,
   return Ok{};
 }
 
+void PassContext::clear()
+{
+  graphics_pipeline = nullptr;
+  compute_pipeline  = nullptr;
+  color_attachments.clear();
+  depth_attachment   = none;
+  stencil_attachment = none;
+  descriptor_sets.clear();
+  vertex_buffers.clear();
+  index_buffer        = nullptr;
+  index_type          = gpu::IndexType::U16;
+  index_buffer_offset = 0;
+  has_graphics_state  = false;
+}
+
 void CommandEncoder::begin()
 {
   CHECK(state_ == CommandBufferState::Reset, "");
   state_ = CommandBufferState::Recording;
+  tracker_.begin_pass();
 }
 
 Status CommandEncoder::end()
 {
   CHECK(state_ == CommandBufferState::Recording, "");
+  CHECK(pass_ == Pass::None, "");
   state_ = CommandBufferState::Recorded;
   return status_;
 }
@@ -5308,17 +5428,14 @@ void CommandEncoder::reset()
           state_ == CommandBufferState::Recorded ||
           state_ == CommandBufferState::Submitted,
         "");
-  // [ ] implement shrink for pool
+  pool_.shrink();
   pool_.reclaim();
   status_ = Status::Success;
   state_  = CommandBufferState::Reset;
   pass_   = Pass::None;
+  tracker_.reset();
   ctx_.clear();
-  first_cmd_ = nullptr;
-  last_cmd_  = nullptr;
   swapchain_ = nullptr;
-  passes_.shrink().unwrap();
-  passes_.clear();
 }
 
 #define PRELUDE()                                           \
@@ -5331,6 +5448,13 @@ void CommandEncoder::reset()
 #define CMD(...)                             \
   auto * cmd = push(__VA_ARGS__);            \
   if (cmd == nullptr)                        \
+  {                                          \
+    this->status_ = Status::OutOfHostMemory; \
+    return;                                  \
+  }
+
+#define MEMTRY(...)                          \
+  if (!(__VA_ARGS__))                        \
   {                                          \
     this->status_ = Status::OutOfHostMemory; \
     return;                                  \
@@ -5387,11 +5511,7 @@ void CommandEncoder::begin_debug_marker(Str region_name_, f32x4 color)
   CHECK(pass_ == Pass::None, "");
 
   Vec<char> region_name{pool_};
-  if (!region_name.extend_uninit(region_name_.size() + 1))
-  {
-    status_ = Status::OutOfHostMemory;
-    return;
-  }
+  MEMTRY(region_name.extend_uninit(region_name_.size() + 1));
 
   mem::copy(region_name_, region_name.data());
 
@@ -5429,10 +5549,10 @@ void CommandEncoder::fill_buffer(gpu::Buffer dst_, Slice64 range, u32 data)
 
   CMD(cmd::FillBuffer{.dst = dst->vk, .range = range, .data = data});
 
-  access_.begin_pass();
-  access_.access(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  tracker_.begin_pass();
+  tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                  VK_ACCESS_TRANSFER_WRITE_BIT);
-  access_.end_pass();
+  tracker_.end_pass();
 }
 
 void CommandEncoder::copy_buffer(gpu::Buffer src_, gpu::Buffer dst_,
@@ -5458,11 +5578,7 @@ void CommandEncoder::copy_buffer(gpu::Buffer src_, gpu::Buffer dst_,
 
   Vec<VkBufferCopy> copies{pool_};
 
-  if (!copies.resize_uninit(copies_.size()))
-  {
-    status_ = Status::OutOfHostMemory;
-    return;
-  }
+  MEMTRY(copies.resize_uninit(copies_.size()));
 
   for (auto [vk, copy] : zip(copies, copies_))
   {
@@ -5475,12 +5591,12 @@ void CommandEncoder::copy_buffer(gpu::Buffer src_, gpu::Buffer dst_,
 
   copies.leak();
 
-  access_.begin_pass();
-  access_.access(src, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  tracker_.begin_pass();
+  tracker_.track(src, VK_PIPELINE_STAGE_TRANSFER_BIT,
                  VK_ACCESS_TRANSFER_READ_BIT);
-  access_.access(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                  VK_ACCESS_TRANSFER_WRITE_BIT);
-  access_.end_pass();
+  tracker_.end_pass();
 }
 
 void CommandEncoder::update_buffer(Span<u8 const> src_, u64 dst_offset,
@@ -5499,20 +5615,16 @@ void CommandEncoder::update_buffer(Span<u8 const> src_, u64 dst_offset,
 
   Vec<u8> src{pool_};
 
-  if (!src.extend(src_))
-  {
-    status_ = Status::OutOfHostMemory;
-    return;
-  }
+  MEMTRY(src.extend(src_));
 
   CMD(cmd::UpdateBuffer{.src = src, .dst_offset = dst_offset, .dst = dst->vk});
 
   src.leak();
 
-  access_.begin_pass();
-  access_.access(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  tracker_.begin_pass();
+  tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                  VK_ACCESS_TRANSFER_WRITE_BIT);
-  access_.end_pass();
+  tracker_.end_pass();
 }
 
 void CommandEncoder::clear_color_image(
@@ -5537,11 +5649,7 @@ void CommandEncoder::clear_color_image(
 
   Vec<VkImageSubresourceRange> ranges{pool_};
 
-  if (!ranges.extend_uninit(ranges_.size()))
-  {
-    status_ = Status::OutOfHostMemory;
-    return;
-  }
+  MEMTRY(ranges.extend_uninit(ranges_.size()));
 
   for (auto [vk, range] : zip(ranges, ranges_))
   {
@@ -5561,11 +5669,11 @@ void CommandEncoder::clear_color_image(
 
   ranges.leak();
 
-  access_.begin_pass();
-  access_.access(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  tracker_.begin_pass();
+  tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                  VK_ACCESS_TRANSFER_WRITE_BIT,
                  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-  access_.end_pass();
+  tracker_.end_pass();
 }
 
 void CommandEncoder::clear_depth_stencil_image(
@@ -5590,11 +5698,7 @@ void CommandEncoder::clear_depth_stencil_image(
 
   Vec<VkImageSubresourceRange> ranges{pool_};
 
-  if (!ranges.extend_uninit(ranges_.size()))
-  {
-    status_ = Status::OutOfHostMemory;
-    return;
-  }
+  MEMTRY(ranges.extend_uninit(ranges_.size()));
 
   for (auto [vk, range] : zip(ranges, ranges_))
   {
@@ -5617,11 +5721,11 @@ void CommandEncoder::clear_depth_stencil_image(
 
   ranges.leak();
 
-  access_.begin_pass();
-  access_.access(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  tracker_.begin_pass();
+  tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                  VK_ACCESS_TRANSFER_WRITE_BIT,
                  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-  access_.end_pass();
+  tracker_.end_pass();
 }
 
 void CommandEncoder::copy_image(gpu::Image src_, gpu::Image dst_,
@@ -5674,11 +5778,7 @@ void CommandEncoder::copy_image(gpu::Image src_, gpu::Image dst_,
 
   Vec<VkImageCopy> copies{pool_};
 
-  if (!copies.extend_uninit(copies_.size()))
-  {
-    status_ = Status::OutOfHostMemory;
-    return;
-  }
+  MEMTRY(copies.extend_uninit(copies_.size()));
 
   for (auto [vk, copy] : zip(copies, copies_))
   {
@@ -5715,14 +5815,14 @@ void CommandEncoder::copy_image(gpu::Image src_, gpu::Image dst_,
 
   copies.leak();
 
-  access_.begin_pass();
-  access_.access(src, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  tracker_.begin_pass();
+  tracker_.track(src, VK_PIPELINE_STAGE_TRANSFER_BIT,
                  VK_ACCESS_TRANSFER_READ_BIT,
                  VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-  access_.access(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                  VK_ACCESS_TRANSFER_WRITE_BIT,
                  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-  access_.end_pass();
+  tracker_.end_pass();
 }
 
 void CommandEncoder::copy_buffer_to_image(
@@ -5764,11 +5864,7 @@ void CommandEncoder::copy_buffer_to_image(
 
   Vec<VkBufferImageCopy> copies{pool_};
 
-  if (!copies.extend_uninit(copies_.size()))
-  {
-    status_ = Status::OutOfHostMemory;
-    return;
-  }
+  MEMTRY(copies.extend_uninit(copies_.size()));
 
   for (auto [vk, copy] : zip(copies, copies_))
   {
@@ -5798,13 +5894,13 @@ void CommandEncoder::copy_buffer_to_image(
 
   copies.leak();
 
-  access_.begin_pass();
-  access_.access(src, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  tracker_.begin_pass();
+  tracker_.track(src, VK_PIPELINE_STAGE_TRANSFER_BIT,
                  VK_ACCESS_TRANSFER_READ_BIT);
-  access_.access(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                  VK_ACCESS_TRANSFER_WRITE_BIT,
                  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-  access_.end_pass();
+  tracker_.end_pass();
 }
 
 void CommandEncoder::blit_image(gpu::Image src_, gpu::Image dst_,
@@ -5853,11 +5949,7 @@ void CommandEncoder::blit_image(gpu::Image src_, gpu::Image dst_,
 
   Vec<VkImageBlit> blits{pool_};
 
-  if (!blits.resize_uninit(blits_.size()))
-  {
-    status_ = Status::OutOfHostMemory;
-    return;
-  }
+  MEMTRY(blits.resize_uninit(blits_.size()));
 
   for (auto [vk, blit] : zip(blits, blits_))
   {
@@ -5898,14 +5990,14 @@ void CommandEncoder::blit_image(gpu::Image src_, gpu::Image dst_,
 
   blits.leak();
 
-  access_.begin_pass();
-  access_.access(src, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  tracker_.begin_pass();
+  tracker_.track(src, VK_PIPELINE_STAGE_TRANSFER_BIT,
                  VK_ACCESS_TRANSFER_READ_BIT,
                  VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-  access_.access(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                  VK_ACCESS_TRANSFER_WRITE_BIT,
                  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-  access_.end_pass();
+  tracker_.end_pass();
 }
 
 void CommandEncoder::resolve_image(gpu::Image src_, gpu::Image dst_,
@@ -5962,11 +6054,7 @@ void CommandEncoder::resolve_image(gpu::Image src_, gpu::Image dst_,
 
   Vec<VkImageResolve> resolves{pool_};
 
-  if (!resolves.resize_uninit(resolves_.size()))
-  {
-    status_ = Status::OutOfHostMemory;
-    return;
-  }
+  MEMTRY(resolves.resize_uninit(resolves_.size()));
 
   for (auto [vk, resolve] : zip(resolves, resolves_))
   {
@@ -6004,14 +6092,14 @@ void CommandEncoder::resolve_image(gpu::Image src_, gpu::Image dst_,
 
   resolves.leak();
 
-  access_.begin_pass();
-  access_.access(src, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  tracker_.begin_pass();
+  tracker_.track(src, VK_PIPELINE_STAGE_TRANSFER_BIT,
                  VK_ACCESS_TRANSFER_READ_BIT,
                  VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-  access_.access(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                  VK_ACCESS_TRANSFER_WRITE_BIT,
                  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-  access_.end_pass();
+  tracker_.end_pass();
 }
 
 void CommandEncoder::begin_compute_pass()
@@ -6021,7 +6109,7 @@ void CommandEncoder::begin_compute_pass()
 
   pass_ = Pass::Compute;
 
-  access_.begin_pass();
+  tracker_.begin_pass();
 }
 
 void CommandEncoder::end_compute_pass()
@@ -6030,7 +6118,7 @@ void CommandEncoder::end_compute_pass()
   CHECK(pass_ == Pass::Compute, "");
 
   pass_ = Pass::None;
-  access_.end_pass();
+  tracker_.end_pass();
 }
 
 void validate_attachment(gpu::RenderingAttachment const & info,
@@ -6160,11 +6248,7 @@ void CommandEncoder::begin_rendering(gpu::RenderingInfo const & info)
   constexpr VkImageLayout READ_DEPTH_STENCIL_LAYOUT =
     VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
 
-  if (!color_attachments.resize_uninit(info.color_attachments.size()))
-  {
-    status_ = Status::OutOfHostMemory;
-    return;
-  }
+  MEMTRY(color_attachments.resize_uninit(info.color_attachments.size()));
 
   for (auto [vk, attachment] : zip(color_attachments, info.color_attachments))
   {
@@ -6189,11 +6273,8 @@ void CommandEncoder::begin_rendering(gpu::RenderingInfo const & info)
       .clearValue         = clear_value};
   }
 
-  if (!depth_attachment.resize_uninit(info.depth_attachment.is_some() ? 1 : 0))
-  {
-    status_ = Status::OutOfHostMemory;
-    return;
-  }
+  MEMTRY(
+    depth_attachment.resize_uninit(info.depth_attachment.is_some() ? 1 : 0));
 
   for (auto [vk, attachment] : zip(depth_attachment, info.depth_attachment))
   {
@@ -6224,12 +6305,8 @@ void CommandEncoder::begin_rendering(gpu::RenderingInfo const & info)
       .clearValue         = clear_value};
   }
 
-  if (!stencil_attachment.resize_uninit(info.stencil_attachment.is_some() ? 1 :
-                                                                            0))
-  {
-    status_ = Status::OutOfHostMemory;
-    return;
-  }
+  MEMTRY(stencil_attachment.resize_uninit(
+    info.stencil_attachment.is_some() ? 1 : 0));
 
   for (auto [vk, attachment] : zip(stencil_attachment, info.stencil_attachment))
   {
@@ -6284,9 +6361,17 @@ void CommandEncoder::begin_rendering(gpu::RenderingInfo const & info)
   stencil_attachment.leak();
 
   pass_ = Pass::Render;
-  ctx_  = Ctx{.rendering = cmd};
+  ctx_.clear();
 
-  access_.begin_pass();
+  for (auto & attachment : info.color_attachments)
+  {
+    ctx_.color_attachments.push(attachment).unwrap();
+  }
+
+  ctx_.depth_attachment   = info.depth_attachment;
+  ctx_.stencil_attachment = info.stencil_attachment;
+
+  tracker_.begin_pass();
 
   for (auto & attachment : info.color_attachments)
   {
@@ -6301,12 +6386,12 @@ void CommandEncoder::begin_rendering(gpu::RenderingInfo const & info)
 
     if (attachment.view != nullptr)
     {
-      access_.access(ptr(attachment.view), stages, access, COLOR_LAYOUT);
+      tracker_.track(ptr(attachment.view), stages, access, COLOR_LAYOUT);
     }
 
     if (attachment.resolve != nullptr)
     {
-      access_.access(ptr(attachment.resolve), RESOLVE_STAGE,
+      tracker_.track(ptr(attachment.resolve), RESOLVE_STAGE,
                      RESOLVE_COLOR_DST_ACCESS, RESOLVE_COLOR_LAYOUT);
     }
   }
@@ -6330,12 +6415,12 @@ void CommandEncoder::begin_rendering(gpu::RenderingInfo const & info)
 
     if (attachment.view != nullptr)
     {
-      access_.access(ptr(attachment.view), stages, access, layout);
+      tracker_.track(ptr(attachment.view), stages, access, layout);
     }
 
     if (attachment.resolve != nullptr)
     {
-      access_.access(ptr(attachment.resolve), RESOLVE_STAGE,
+      tracker_.track(ptr(attachment.resolve), RESOLVE_STAGE,
                      RESOLVE_DEPTH_STENCIL_DST_ACCESS |
                        RESOLVE_DEPTH_STENCIL_SRC_ACCESS,
                      RESOLVE_DEPTH_STENCIL_LAYOUT);
@@ -6361,12 +6446,12 @@ void CommandEncoder::begin_rendering(gpu::RenderingInfo const & info)
 
     if (attachment.view != nullptr)
     {
-      access_.access(ptr(attachment.view), stages, access, layout);
+      tracker_.track(ptr(attachment.view), stages, access, layout);
     }
 
     if (attachment.resolve != nullptr)
     {
-      access_.access(ptr(attachment.resolve), RESOLVE_STAGE,
+      tracker_.track(ptr(attachment.resolve), RESOLVE_STAGE,
                      RESOLVE_DEPTH_STENCIL_DST_ACCESS,
                      RESOLVE_DEPTH_STENCIL_LAYOUT);
     }
@@ -6380,31 +6465,30 @@ void CommandEncoder::end_rendering()
 
   CMD(cmd::EndRendering{});
 
-  ctx_  = Ctx{};
+  ctx_.clear();
   pass_ = Pass::None;
 
-  access_.end_pass();
+  tracker_.end_pass();
 }
 
-void CommandEncoder::bind_compute_pipeline(gpu::ComputePipeline pipeline)
+void CommandEncoder::bind_compute_pipeline(gpu::ComputePipeline pipeline_)
 {
   PRELUDE();
   CHECK(pass_ == Pass::Compute, "");
+  auto pipeline = ptr(pipeline_);
 
   CMD(cmd::BindPipeline{.bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS,
-                        .pipeline   = ptr(pipeline)->vk});
+                        .pipeline   = pipeline->vk});
 
-  ctx_.compute_pipeline = cmd;
+  ctx_.compute_pipeline = pipeline;
 }
 
 void validate_pipeline_compatible(
-  gpu::GraphicsPipeline                pipeline_,
+  GraphicsPipeline *                   pipeline,
   Span<gpu::RenderingAttachment const> color_attachments,
   Option<gpu::RenderingAttachment>     depth_attachment,
   Option<gpu::RenderingAttachment>     stencil_attachment)
 {
-  GraphicsPipeline * pipeline = (GraphicsPipeline *) pipeline_;
-
   CHECK(pipeline->color_fmts.size() == color_attachments.size(), "");
   CHECK(!(pipeline->depth_fmt.is_none() && depth_attachment.is_some()), "");
   CHECK(!(pipeline->stencil_fmt.is_none() && depth_attachment.is_some()), "");
@@ -6432,18 +6516,18 @@ void validate_pipeline_compatible(
   });
 }
 
-void CommandEncoder::bind_graphics_pipeline(gpu::GraphicsPipeline pipeline)
+void CommandEncoder::bind_graphics_pipeline(gpu::GraphicsPipeline pipeline_)
 {
   PRELUDE();
   CHECK(pass_ == Pass::Render, "");
-  CHECK(ctx_.rendering != nullptr, "");
-  // [ ] fill
-  validate_pipeline_compatible(pipeline, {}, {}, {});
+  auto pipeline = ptr(pipeline_);
+  validate_pipeline_compatible(pipeline, ctx_.color_attachments,
+                               ctx_.depth_attachment, ctx_.stencil_attachment);
 
   CMD(cmd::BindPipeline{.bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS,
-                        .pipeline   = ptr(pipeline)->vk});
+                        .pipeline   = pipeline->vk});
 
-  ctx_.graphics_pipeline = cmd;
+  ctx_.graphics_pipeline = pipeline;
 }
 
 void CommandEncoder::bind_descriptor_sets(
@@ -6467,16 +6551,13 @@ void CommandEncoder::bind_descriptor_sets(
     case Pass::Render:
     {
       CHECK(ctx_.graphics_pipeline != nullptr, "");
-      // auto pipeline = ptr(ctx_.graphics_pipeline->pipeline);
-      // CHECK(pipeline->num_sets == descriptor_sets_.size(), "");
-      // [ ] check that descriptor layout maches
+      CHECK(ctx_.graphics_pipeline->num_sets == descriptor_sets_.size(), "");
     }
     break;
     case Pass::Compute:
     {
       CHECK(ctx_.compute_pipeline != nullptr, "");
-      // auto pipeline = ptr(ctx_.compute_pipeline->pipeline);
-      // CHECK(pipeline->num_sets == descriptor_sets_.size(), "");
+      CHECK(ctx_.compute_pipeline->num_sets == descriptor_sets_.size(), "");
     }
     break;
     default:
@@ -6485,11 +6566,7 @@ void CommandEncoder::bind_descriptor_sets(
 
   Vec<VkDescriptorSet> descriptor_sets{pool_};
 
-  if (!descriptor_sets.resize_uninit(descriptor_sets_.size()))
-  {
-    status_ = Status::OutOfHostMemory;
-    return;
-  }
+  MEMTRY(descriptor_sets.resize_uninit(descriptor_sets_.size()));
 
   for (auto [vk, set_] : zip(descriptor_sets, descriptor_sets_))
   {
@@ -6497,32 +6574,54 @@ void CommandEncoder::bind_descriptor_sets(
     vk         = set->vk;
   }
 
-  // compute_ctx.sets.clear();
-  // for (auto set : descriptor_sets)
-  // {
-  //   compute_ctx.sets.push((DescriptorSet *) set).unwrap();
-  // }
-
   Vec<u32> dynamic_offsets{pool_};
 
-  if (!dynamic_offsets.extend(dynamic_offsets_))
+  MEMTRY(dynamic_offsets.extend(dynamic_offsets_));
+
+  VkPipelineBindPoint  bind_point = VK_PIPELINE_BIND_POINT_MAX_ENUM;
+  VkPipelineLayout     layout     = nullptr;
+  VkPipelineStageFlags stages     = VK_SHADER_STAGE_ALL;
+
+  switch (pass_)
   {
-    status_ = Status::OutOfHostMemory;
-    return;
+    case Pass::Render:
+    {
+      bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS;
+      layout     = ctx_.graphics_pipeline->vk_layout;
+      stages     = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
+               VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    }
+    break;
+    case Pass::Compute:
+    {
+      bind_point = VK_PIPELINE_BIND_POINT_COMPUTE;
+      layout     = ctx_.compute_pipeline->vk_layout;
+      stages     = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+    }
+    break;
+    default:
+      break;
   }
 
-  CMD(cmd::BindDescriptorSets{.bind_point = {},    // [ ] impl
-                              .layout     = {},    // [ ] inpl
-                              .sets       = descriptor_sets,
-
+  CMD(cmd::BindDescriptorSets{.bind_point      = bind_point,
+                              .layout          = layout,
+                              .sets            = descriptor_sets,
                               .dynamic_offsets = dynamic_offsets});
 
   descriptor_sets.leak();
   dynamic_offsets.leak();
 
-  // [ ] sync-on-bind for all bindings
+  ctx_.descriptor_sets.clear();
 
-  ctx_.descriptor_sets = cmd;
+  for (auto set_ : descriptor_sets_)
+  {
+    ctx_.descriptor_sets.push(ptr(set_)).unwrap();
+  }
+
+  for (auto set : descriptor_sets_)
+  {
+    tracker_.track(ptr(set), stages);
+  }
 }
 
 void CommandEncoder::push_constants(Span<u8 const> constants_)
@@ -6537,15 +6636,15 @@ void CommandEncoder::push_constants(Span<u8 const> constants_)
     case Pass::Render:
     {
       CHECK(ctx_.graphics_pipeline != nullptr, "");
-      // auto pipeline = ptr(ctx_.graphics_pipeline->pipeline);
-      // CHECK(constants_.size() == pipeline->push_constants_size, "");
+      CHECK(constants_.size() == ctx_.graphics_pipeline->push_constants_size,
+            "");
     }
     break;
     case Pass::Compute:
     {
       CHECK(ctx_.compute_pipeline != nullptr, "");
-      // auto pipeline = ptr(ctx_.compute_pipeline->pipeline);
-      // CHECK(constants_.size() == pipeline->push_constants_size, "");
+      CHECK(constants_.size() == ctx_.compute_pipeline->push_constants_size,
+            "");
     }
     break;
     default:
@@ -6554,16 +6653,29 @@ void CommandEncoder::push_constants(Span<u8 const> constants_)
 
   Vec<u8> constants{pool_};
 
-  if (!constants.extend(constants_))
+  MEMTRY(constants.extend(constants_));
+
+  VkPipelineLayout layout = nullptr;
+
+  switch (pass_)
   {
-    status_ = Status::OutOfHostMemory;
-    return;
+    case Pass::Render:
+    {
+      layout = ctx_.graphics_pipeline->vk_layout;
+    }
+    break;
+    case Pass::Compute:
+    {
+      layout = ctx_.compute_pipeline->vk_layout;
+    }
+    break;
+    default:
+      break;
   }
 
-  constants.leak();
+  CMD(cmd::PushConstants{.layout = layout, .constant = constants});
 
-  CMD(cmd::PushConstants{.layout   = {},    // [ ] impl
-                         .constant = constants});
+  constants.leak();
 }
 
 void CommandEncoder::dispatch(u32x3 group_count)
@@ -6583,11 +6695,6 @@ void CommandEncoder::dispatch(u32x3 group_count)
         "");
 
   CMD(cmd::Dispatch{.group_count = group_count});
-
-  for (auto set : ctx_.descriptor_sets->sets)
-  {
-    // access_.access(set, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
-  }
 }
 
 void CommandEncoder::dispatch_indirect(gpu::Buffer buffer_, u64 offset)
@@ -6605,14 +6712,10 @@ void CommandEncoder::dispatch_indirect(gpu::Buffer buffer_, u64 offset)
                                alignof(gpu::DispatchCommand)),
         "");
 
-  // [ ] descriptor set bounds checks
-
   CMD(cmd::DispatchIndirect{.buffer = buffer->vk, .offset = offset});
 
-  for (auto set : ctx_.descriptor_sets->sets)
-  {
-    access_.access(set, DescriptorSetState::ComputeShaderView);
-  }
+  tracker_.track(buffer, VK_SHADER_STAGE_COMPUTE_BIT,
+                 VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
 }
 
 void CommandEncoder::set_graphics_state(gpu::GraphicsState const & state)
@@ -6627,7 +6730,7 @@ void CommandEncoder::set_graphics_state(gpu::GraphicsState const & state)
 
   CMD(cmd::SetGraphicsState{.state = state});
 
-  ctx_.graphics_state = cmd;
+  ctx_.has_graphics_state = true;
 }
 
 void CommandEncoder::bind_vertex_buffers(
@@ -6637,22 +6740,22 @@ void CommandEncoder::bind_vertex_buffers(
   CHECK(pass_ == Pass::Render, "");
   CHECK(!vertex_buffers_.is_empty(), "");
   CHECK(vertex_buffers_.size() <= gpu::MAX_VERTEX_ATTRIBUTES, "");
+  CHECK(ctx_.graphics_pipeline != nullptr, "");
+  CHECK(vertex_buffers_.size() == ctx_.graphics_pipeline->num_vertex_attributes,
+        "");
   CHECK(offsets_.size() == vertex_buffers_.size(), "");
 
   for (auto [buff_, off] : zip(vertex_buffers_, offsets_))
   {
     auto * buff = (Buffer *) buff_;
+    CHECK(buff_ != nullptr, "");
     CHECK(is_valid_buffer_access(buff->size, Slice64{off, 1}, 1, 1), "");
     CHECK(has_bits(buff->usage, gpu::BufferUsage::VertexBuffer), "");
   }
 
   Vec<VkBuffer> vertex_buffers{pool_};
 
-  if (!vertex_buffers.resize_uninit(vertex_buffers_.size()))
-  {
-    status_ = Status::OutOfHostMemory;
-    return;
-  }
+  MEMTRY(vertex_buffers.resize_uninit(vertex_buffers_.size()));
 
   for (auto [vk, buff_] : zip(vertex_buffers, vertex_buffers_))
   {
@@ -6662,21 +6765,25 @@ void CommandEncoder::bind_vertex_buffers(
 
   Vec<u64> offsets{pool_};
 
-  if (!offsets.extend(offsets_))
-  {
-    status_ = Status::OutOfHostMemory;
-    return;
-  }
+  MEMTRY(offsets.extend(offsets_));
 
   CMD(cmd::BindVertexBuffers{.buffers = vertex_buffers, .offsets = offsets});
 
   vertex_buffers.leak();
   offsets.leak();
 
-  //  access_buffer(*c.buffer, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
-  // VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT, ctx.pass_timestamp);
+  for (auto buff_ : vertex_buffers_)
+  {
+    tracker_.track(ptr(buff_), VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
+                   VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT);
+  }
 
-  ctx_.vertex_buffer = cmd;
+  ctx_.vertex_buffers.clear();
+
+  for (auto buff_ : vertex_buffers_)
+  {
+    ctx_.vertex_buffers.push(ptr(buff_)).unwrap();
+  }
 }
 
 void CommandEncoder::bind_index_buffer(gpu::Buffer index_buffer_, u64 offset,
@@ -6685,6 +6792,7 @@ void CommandEncoder::bind_index_buffer(gpu::Buffer index_buffer_, u64 offset,
   PRELUDE();
   CHECK(pass_ == Pass::Render, "");
   CHECK(index_buffer_ != nullptr, "");
+  CHECK(ctx_.graphics_pipeline != nullptr, "");
 
   auto * index_buffer = (Buffer *) index_buffer_;
   auto   index_size   = index_type_size(index_type);
@@ -6698,9 +6806,12 @@ void CommandEncoder::bind_index_buffer(gpu::Buffer index_buffer_, u64 offset,
                            .offset     = offset,
                            .index_type = (VkIndexType) index_type});
 
-  //  access_buffer(*c.buffer, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
-  // VK_ACCESS_INDEX_READ_BIT, ctx.pass_timestamp);
-  ctx_.index_buffer = cmd;
+  tracker_.track(index_buffer, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
+                 VK_ACCESS_INDEX_READ_BIT);
+
+  ctx_.index_buffer        = index_buffer;
+  ctx_.index_type          = index_type;
+  ctx_.index_buffer_offset = offset;
 }
 
 void CommandEncoder::draw(Slice32 vertices, Slice32 instances)
@@ -6708,16 +6819,13 @@ void CommandEncoder::draw(Slice32 vertices, Slice32 instances)
   PRELUDE();
   CHECK(pass_ == Pass::Render, "");
   CHECK(ctx_.graphics_pipeline != nullptr, "");
-  CHECK(ctx_.graphics_state != nullptr, "");
+  CHECK(ctx_.has_graphics_state, "");
+  CHECK(ctx_.graphics_pipeline->num_vertex_attributes ==
+          ctx_.vertex_buffers.size(),
+        "");
+  CHECK(ctx_.graphics_pipeline->num_sets == ctx_.descriptor_sets.size(), "");
 
   CMD(cmd::Draw{.vertices = vertices, .instances = instances});
-
-  // [ ] move to bind-time
-  // [ ] idx buffer, vtx buffer, manage aliasing
-  for (auto set : ctx_.descriptor_sets->sets)
-  {
-    access_.access(set, DescriptorSetState::GraphicsShaderView);
-  }
 }
 
 void CommandEncoder::draw_indexed(Slice32 indices, Slice32 instances,
@@ -6726,26 +6834,24 @@ void CommandEncoder::draw_indexed(Slice32 indices, Slice32 instances,
   PRELUDE();
   CHECK(pass_ == Pass::Render, "");
   CHECK(ctx_.graphics_pipeline != nullptr, "");
-  CHECK(ctx_.graphics_state != nullptr, "");
+  CHECK(ctx_.has_graphics_state, "");
+  CHECK(ctx_.graphics_pipeline->num_vertex_attributes ==
+          ctx_.vertex_buffers.size(),
+        "");
+  CHECK(ctx_.graphics_pipeline->num_sets == ctx_.descriptor_sets.size(), "");
+  CHECK(ctx_.index_buffer != nullptr, "");
 
-  /* [ ] if bound
-  u64 const index_size = index_type_size(ctx.index_type);
-  CHECK((ctx.index_buffer_offset + first_index * index_size) <
-          ctx.index_buffer->size,
+  auto index_size = index_type_size(ctx_.index_type);
+  CHECK(is_valid_buffer_access(
+          ctx_.index_buffer->size,
+          Slice64{ctx_.index_buffer_offset + indices.offset * index_size,
+                  indices.span * index_size},
+          index_size, index_size),
         "");
-  CHECK((ctx.index_buffer_offset + (first_index + num_indices) * index_size) <=
-          ctx.index_buffer->size,
-        "");
-  */
 
   CMD(cmd::DrawIndexed{.indices       = indices,
                        .instances     = instances,
                        .vertex_offset = vertex_offset});
-
-  for (auto set : ctx_.descriptor_sets->sets)
-  {
-    access_.access(set, DescriptorSetState::GraphicsShaderView);
-  }
 }
 
 void CommandEncoder::draw_indirect(gpu::Buffer buffer_, u64 offset,
@@ -6754,7 +6860,11 @@ void CommandEncoder::draw_indirect(gpu::Buffer buffer_, u64 offset,
   PRELUDE();
   CHECK(pass_ == Pass::Render, "");
   CHECK(ctx_.graphics_pipeline != nullptr, "");
-  CHECK(ctx_.graphics_state != nullptr, "");
+  CHECK(ctx_.has_graphics_state, "");
+  CHECK(ctx_.graphics_pipeline->num_vertex_attributes ==
+          ctx_.vertex_buffers.size(),
+        "");
+  CHECK(ctx_.graphics_pipeline->num_sets == ctx_.descriptor_sets.size(), "");
 
   auto * buffer = (Buffer *) buffer_;
 
@@ -6769,13 +6879,8 @@ void CommandEncoder::draw_indirect(gpu::Buffer buffer_, u64 offset,
                         .draw_count = draw_count,
                         .stride     = stride});
 
-  // access_buffer(*c.buffer, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
-  // VK_ACCESS_INDIRECT_COMMAND_READ_BIT, ctx.pass_timestamp);
-
-  for (auto set : ctx_.descriptor_sets->sets)
-  {
-    access_.access(set, DescriptorSetState::GraphicsShaderView);
-  }
+  tracker_.track(buffer, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
+                 VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
 }
 
 void CommandEncoder::draw_indexed_indirect(gpu::Buffer buffer_, u64 offset,
@@ -6784,7 +6889,12 @@ void CommandEncoder::draw_indexed_indirect(gpu::Buffer buffer_, u64 offset,
   PRELUDE();
   CHECK(pass_ == Pass::Render, "");
   CHECK(ctx_.graphics_pipeline != nullptr, "");
-  CHECK(ctx_.graphics_state != nullptr, "");
+  CHECK(ctx_.has_graphics_state, "");
+  CHECK(ctx_.graphics_pipeline->num_vertex_attributes ==
+          ctx_.vertex_buffers.size(),
+        "");
+  CHECK(ctx_.graphics_pipeline->num_sets == ctx_.descriptor_sets.size(), "");
+  CHECK(ctx_.index_buffer != nullptr, "");
 
   auto * buffer = (Buffer *) buffer_;
 
@@ -6799,14 +6909,8 @@ void CommandEncoder::draw_indexed_indirect(gpu::Buffer buffer_, u64 offset,
                                .draw_count = draw_count,
                                .stride     = stride});
 
-  for (auto set : ctx_.descriptor_sets->sets)
-  {
-    access_.access(set, DescriptorSetState::GraphicsShaderView);
-  }
-
-  // [ ] access idx, vtx buffer
-  //  access_buffer(*c.buffer, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
-  // VK_ACCESS_INDIRECT_COMMAND_READ_BIT, ctx.pass_timestamp);
+  tracker_.track(buffer, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
+                 VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
 }
 
 void CommandEncoder::present(gpu::Swapchain swapchain_)
@@ -6814,17 +6918,17 @@ void CommandEncoder::present(gpu::Swapchain swapchain_)
   CHECK(state_ == CommandBufferState::Recording, "");
 
   CHECK(swapchain_ != nullptr, "");
-  CHECK(this->swapchain_ == nullptr, "");
+  CHECK(this->swapchain_ == nullptr,
+        "Can only present one swapchain on a Command Encoder/Command Buffer");
 
   auto swapchain = (Swapchain *) swapchain_;
-  CHECK(!swapchain->is_out_of_date, "");
+  CHECK(!swapchain->is_out_of_date,
+        "Attempted to present to out-of-date swapchain");
   this->swapchain_ = swapchain;
 
-  if (!swapchain->is_zero_sized)
+  if (!swapchain->is_deferred)
   {
-    // [ ] swapchain images neeed to be transitioned; add a present command to the commandbuffer
-    // [ ] will all the invariants hold against zero-sized swapchains? command encoding especially
-    access_.access(swapchain->images[swapchain->current_image.unwrap()],
+    tracker_.track(swapchain->images[swapchain->current_image.unwrap()],
                    VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_ACCESS_NONE,
                    VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
   }
@@ -6873,157 +6977,157 @@ void CommandBuffer::reset()
   state_ = CommandBufferState::Reset;
 }
 
-ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
-                              cmd::ResetTimestampQuery const & cmd)
+ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
+                             cmd::ResetTimestampQuery const & cmd)
 {
   t.CmdResetQueryPool(vk, cmd.query, cmd.range.offset, cmd.range.span);
 }
 
-ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
-                              cmd::ResetStatisticsQuery const & cmd)
+ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
+                             cmd::ResetStatisticsQuery const & cmd)
 {
   t.CmdResetQueryPool(vk, cmd.query, cmd.range.offset, cmd.range.span);
 }
 
-ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
-                              cmd::WriteTimestamp const & cmd)
+ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
+                             cmd::WriteTimestamp const & cmd)
 {
   t.CmdWriteTimestamp(vk, cmd.stages, cmd.query, cmd.index);
 }
 
-ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
-                              cmd::BeginStatistics const & cmd)
+ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
+                             cmd::BeginStatistics const & cmd)
 {
   t.CmdBeginQuery(vk, cmd.query, cmd.index, 0);
 }
 
-ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
-                              cmd::EndStatistics const & cmd)
+ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
+                             cmd::EndStatistics const & cmd)
 {
   t.CmdEndQuery(vk, cmd.query, cmd.index);
 }
 
-ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
-                              cmd::BeginDebugMarker const & cmd)
+ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
+                             cmd::BeginDebugMarker const & cmd)
 {
   t.CmdDebugMarkerBeginEXT(vk, &cmd.info);
 }
 
-ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
-                              cmd::EndDebugMarker const &)
+ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
+                             cmd::EndDebugMarker const &)
 {
   t.CmdDebugMarkerEndEXT(vk);
 }
 
-ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
-                              cmd::FillBuffer const & cmd)
+ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
+                             cmd::FillBuffer const & cmd)
 {
   t.CmdFillBuffer(vk, cmd.dst, cmd.range.offset, cmd.range.span, cmd.data);
 }
 
-ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
-                              cmd::CopyBuffer const & cmd)
+ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
+                             cmd::CopyBuffer const & cmd)
 {
   t.CmdCopyBuffer(vk, cmd.src, cmd.dst, size32(cmd.copies), cmd.copies.data());
 }
 
-ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
-                              cmd::UpdateBuffer const & cmd)
+ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
+                             cmd::UpdateBuffer const & cmd)
 {
   t.CmdUpdateBuffer(vk, cmd.dst, cmd.dst_offset, size64(cmd.src),
                     cmd.src.data());
 }
 
-ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
-                              cmd::ClearColorImage const & cmd)
+ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
+                             cmd::ClearColorImage const & cmd)
 {
   t.CmdClearColorImage(vk, cmd.dst, cmd.dst_layout, &cmd.value,
                        size32(cmd.ranges), cmd.ranges.data());
 }
 
-ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
-                              cmd::ClearDepthStencilImage const & cmd)
+ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
+                             cmd::ClearDepthStencilImage const & cmd)
 {
   t.CmdClearDepthStencilImage(vk, cmd.dst, cmd.dst_layout, &cmd.value,
                               size32(cmd.ranges), cmd.ranges.data());
 }
 
-ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
-                              cmd::CopyImage const & cmd)
+ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
+                             cmd::CopyImage const & cmd)
 {
   t.CmdCopyImage(vk, cmd.src, cmd.src_layout, cmd.dst, cmd.dst_layout,
                  size32(cmd.copies), cmd.copies.data());
 }
 
-ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
-                              cmd::CopyBufferToImage const & cmd)
+ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
+                             cmd::CopyBufferToImage const & cmd)
 {
   t.CmdCopyBufferToImage(vk, cmd.src, cmd.dst, cmd.dst_layout,
                          size32(cmd.copies), cmd.copies.data());
 }
 
-ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
-                              cmd::BlitImage const & cmd)
+ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
+                             cmd::BlitImage const & cmd)
 {
   t.CmdBlitImage(vk, cmd.src, cmd.src_layout, cmd.dst, cmd.dst_layout,
                  size32(cmd.blits), cmd.blits.data(), cmd.filter);
 }
 
-ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
-                              cmd::ResolveImage const & cmd)
+ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
+                             cmd::ResolveImage const & cmd)
 {
   t.CmdResolveImage(vk, cmd.src, cmd.src_layout, cmd.dst, cmd.dst_layout,
                     size32(cmd.resolves), cmd.resolves.data());
 }
 
-ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
-                              cmd::BeginRendering const & cmd)
+ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
+                             cmd::BeginRendering const & cmd)
 {
   t.CmdBeginRenderingKHR(vk, &cmd.info);
 }
 
-ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
-                              cmd::EndRendering const &)
+ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
+                             cmd::EndRendering const &)
 {
   t.CmdEndRenderingKHR(vk);
 }
 
-ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
-                              cmd::BindPipeline const & cmd)
+ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
+                             cmd::BindPipeline const & cmd)
 {
   t.CmdBindPipeline(vk, cmd.bind_point, cmd.pipeline);
 }
 
-ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
-                              cmd::BindDescriptorSets const & cmd)
+ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
+                             cmd::BindDescriptorSets const & cmd)
 {
   t.CmdBindDescriptorSets(vk, cmd.bind_point, cmd.layout, 0, size32(cmd.sets),
                           cmd.sets.data(), size32(cmd.dynamic_offsets),
                           cmd.dynamic_offsets.data());
 }
 
-ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
-                              cmd::PushConstants const & cmd)
+ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
+                             cmd::PushConstants const & cmd)
 {
   t.CmdPushConstants(vk, cmd.layout, VK_SHADER_STAGE_ALL, 0,
                      size32(cmd.constant), cmd.constant.data());
 }
 
-ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
-                              cmd::Dispatch const & cmd)
+ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
+                             cmd::Dispatch const & cmd)
 {
   t.CmdDispatch(vk, cmd.group_count.x(), cmd.group_count.y(),
                 cmd.group_count.z());
 }
 
-ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
-                              cmd::DispatchIndirect const & cmd)
+ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
+                             cmd::DispatchIndirect const & cmd)
 {
   t.CmdDispatchIndirect(vk, cmd.buffer, cmd.offset);
 }
 
-ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
-                              cmd::SetGraphicsState const & cmd)
+ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
+                             cmd::SetGraphicsState const & cmd)
 {
   auto & s = cmd.state;
 
@@ -7079,58 +7183,58 @@ ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
   t.CmdSetDepthBoundsTestEnableEXT(vk, s.depth_bounds_test_enable);
 }
 
-ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
-                              cmd::BindVertexBuffers const & cmd)
+ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
+                             cmd::BindVertexBuffers const & cmd)
 {
   t.CmdBindVertexBuffers(vk, 0, size32(cmd.buffers), cmd.buffers.data(),
                          cmd.offsets.data());
 }
 
-ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
-                              cmd::BindIndexBuffer const & cmd)
+ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
+                             cmd::BindIndexBuffer const & cmd)
 {
   t.CmdBindIndexBuffer(vk, cmd.buffer, cmd.offset, cmd.index_type);
 }
 
-ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
-                              cmd::Draw const & cmd)
+ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
+                             cmd::Draw const & cmd)
 {
   t.CmdDraw(vk, cmd.vertices.span, cmd.instances.span, cmd.vertices.offset,
             cmd.instances.offset);
 }
 
-ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
-                              cmd::DrawIndexed const & cmd)
+ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
+                             cmd::DrawIndexed const & cmd)
 {
   t.CmdDrawIndexed(vk, cmd.indices.span, cmd.instances.span, cmd.indices.offset,
                    cmd.vertex_offset, cmd.instances.offset);
 }
 
-ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
-                              cmd::DrawIndirect const & cmd)
+ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
+                             cmd::DrawIndirect const & cmd)
 {
   t.CmdDrawIndirect(vk, cmd.buffer, cmd.offset, cmd.draw_count, cmd.stride);
 }
 
-ASH_FORCE_INLINE void command(DeviceTable const & t, VkCommandBuffer vk,
-                              cmd::DrawIndexedIndirect const & cmd)
+ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
+                             cmd::DrawIndexedIndirect const & cmd)
 {
   t.CmdDrawIndexedIndirect(vk, cmd.buffer, cmd.offset, cmd.draw_count,
                            cmd.stride);
 }
 
-inline cmd::Command * commands(DeviceTable const & t, VkCommandBuffer vk,
+inline cmd::Command * encode_n(DeviceTable const & t, VkCommandBuffer vk,
                                cmd::Command * cmd_, usize n)
 {
 #define CMD_CASE(type)               \
   case cmd::Type::type:              \
   {                                  \
     auto * cmd = (cmd::type *) cmd_; \
-    command(t, vk, *cmd);            \
+    encode(t, vk, *cmd);             \
   }                                  \
   break;
 
-  while (cmd_ != nullptr && n != 0)
+  while (n != 0)
   {
     switch (cmd_->type)
     {
@@ -7173,17 +7277,87 @@ inline cmd::Command * commands(DeviceTable const & t, VkCommandBuffer vk,
   return cmd_;
 }
 
+void issue_barriers(DeviceTable const & t, VkCommandBuffer cmd,
+                    HazardBarriers const & barriers)
+{
+  for (auto [barr, stage] : zip(barriers.mem_, barriers.mem_stages_))
+  {
+    t.CmdPipelineBarrier(cmd, stage.src, stage.dst, 0, 1, &barr, 0, nullptr, 0,
+                         nullptr);
+  }
+
+  for (auto [barr, stage] : zip(barriers.buffers_, barriers.buffer_stages_))
+  {
+    t.CmdPipelineBarrier(cmd, stage.src, stage.dst, 0, 0, nullptr, 1, &barr, 0,
+                         nullptr);
+  }
+
+  for (auto [barr, stage] : zip(barriers.images_, barriers.image_stages_))
+  {
+    t.CmdPipelineBarrier(cmd, stage.src, stage.dst, 0, 0, nullptr, 0, nullptr,
+                         1, &barr);
+  }
+}
+
 void CommandBuffer::record(gpu::CommandEncoder & encoder_)
 {
   CHECK(state_ == CommandBufferState::Recording, "");
+  auto & encoder = (CommandEncoder &) encoder_;
 
-  // [ ] encode into command buffer and transition states
-  // [ ] we need to issue hard memory barrier after encoding is done, semaphores won't ensure visibility
+  if (encoder.tracker_.passes_.is_empty())
+  {
+    return;
+  }
+
+  HazardBarriers barriers{pool_};
+  auto *         next_command = encoder.tracker_.first_cmd_;
+
+  for (auto [ipass, begin] : enumerate(encoder.tracker_.passes_.view().slice(
+         0, encoder.tracker_.passes_.size() - 1)))
+  {
+    auto const & end = encoder.tracker_.passes_[ipass + 1];
+
+    auto commands = Slice32::range(begin.commands, end.commands);
+    auto buffers  = Slice32::range(begin.buffers, end.buffers);
+    auto images   = Slice32::range(begin.images, end.images);
+    auto descriptor_sets =
+      Slice32::range(begin.descriptor_sets, end.descriptor_sets);
+
+    for (auto [buffer, stages, access] :
+         encoder.tracker_.buffers_.view().slice(buffers))
+    {
+      resource_states_.access(*buffer,
+                              MemAccess{.stages = stages, .access = access},
+                              ipass, barriers);
+    }
+
+    for (auto [image, stages, access, layout] :
+         encoder.tracker_.images_.view().slice(images))
+    {
+      resource_states_.access(*image,
+                              MemAccess{.stages = stages, .access = access},
+                              layout, ipass, barriers);
+    }
+
+    for (auto [descriptor_set, stages] :
+         encoder.tracker_.descriptor_sets_.view().slice(descriptor_sets))
+    {
+      resource_states_.access(*descriptor_set, stages, ipass, barriers);
+    }
+
+    issue_barriers(dev_->vk_table_, vk_, barriers);
+    barriers.clear();
+
+    next_command = encode_n(dev_->vk_table_, vk_, next_command, commands.span);
+
+    // [ ] is this complete
+  }
+
+  // [ ] what needs to be done from here? reset context? state?
 }
 
 void CommandBuffer::commit_resource_states()
 {
-  // [ ] at point of submission, write back resource states
   {
     WriteGuard guard{dev_->resource_states_.lock_};
     resource_states_.commit(dev_->resource_states_);
