@@ -114,7 +114,7 @@ struct ClipBoardImpl : ClipBoard
 struct WindowSystemImpl : WindowSystem
 {
   AllocatorRef                                  allocator;
-  SparseVec<Vec<Fn<void(SystemEvent const &)>>> listeners;
+  SparseVec<Fn<void(SystemEvent const &)>> listeners;
   ClipBoardImpl                                 clipboard;
   SDL_Cursor *                                  cursor;
 
