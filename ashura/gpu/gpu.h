@@ -1370,6 +1370,12 @@ struct CommandEncoder
 
 struct CommandBuffer
 {
+  /// @brief Begins the command buffer, preparing it for recording.
+  // It is at this point that the command buffer fetches the latest states of the resources from the device.
+  /// @warning resources created after calling `begin()` must not be accessed via this command buffer.
+  // This is because the command buffer would not have captured the resource' state.
+  /// @warning resources destroyed before or during recording must also not be accessed by both
+  /// the command buffer and encoders
   virtual void begin() = 0;
 
   virtual Status end() = 0;

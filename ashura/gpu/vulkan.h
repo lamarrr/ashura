@@ -769,10 +769,10 @@ struct alignas(8) BindDescriptorSets
 
 struct alignas(8) PushConstants
 {
-  Type const       type     = Type::PushConstants;
-  Command *        next     = nullptr;
-  VkPipelineLayout layout   = nullptr;
-  Span<u8 const>   constant = {};
+  Type const       type      = Type::PushConstants;
+  Command *        next      = nullptr;
+  VkPipelineLayout layout    = nullptr;
+  Span<u8 const>   constants = {};
 };
 
 struct alignas(8) Dispatch
@@ -1396,8 +1396,11 @@ struct Device final : gpu::Device
   virtual Result<gpu::GraphicsPipeline, Status>
     create_graphics_pipeline(gpu::GraphicsPipelineInfo const & info) override;
 
-  virtual Result<gpu::Swapchain, Status>
+virtual Result<gpu::Swapchain, Status>
     create_swapchain(gpu::SwapchainInfo const & info) override;
+
+    Result<Void, Status>
+    recreate_swapchain(Swapchain * swapchain)  ;
 
   virtual Result<gpu::TimestampQuery, Status>
     create_timestamp_query(gpu::TimestampQueryInfo const & info) override;
@@ -1437,6 +1440,8 @@ struct Device final : gpu::Device
   virtual void uninit(gpu::ComputePipeline pipeline) override;
 
   virtual void uninit(gpu::GraphicsPipeline pipeline) override;
+
+  void release(Swapchain & swapchain);
 
   virtual void uninit(gpu::Swapchain swapchain) override;
 

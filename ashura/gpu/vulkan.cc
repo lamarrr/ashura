@@ -293,45 +293,6 @@ void load_vma_table(InstanceTable const & instance_table,
 #undef SET_VMA_DEV
 }
 
-constexpr bool has_read_access(VkAccessFlags access)
-{
-  return has_any_bit(
-    access,
-    (VkAccessFlags) (VK_ACCESS_INDIRECT_COMMAND_READ_BIT |
-                     VK_ACCESS_INDEX_READ_BIT |
-                     VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT |
-                     VK_ACCESS_UNIFORM_READ_BIT |
-                     VK_ACCESS_INPUT_ATTACHMENT_READ_BIT |
-                     VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT |
-                     VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
-                     VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
-                     VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_HOST_READ_BIT |
-                     VK_ACCESS_MEMORY_READ_BIT |
-                     VK_ACCESS_TRANSFORM_FEEDBACK_COUNTER_READ_BIT_EXT |
-                     VK_ACCESS_CONDITIONAL_RENDERING_READ_BIT_EXT |
-                     VK_ACCESS_COLOR_ATTACHMENT_READ_NONCOHERENT_BIT_EXT |
-                     VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR |
-                     VK_ACCESS_FRAGMENT_DENSITY_MAP_READ_BIT_EXT |
-                     VK_ACCESS_FRAGMENT_SHADING_RATE_ATTACHMENT_READ_BIT_KHR |
-                     VK_ACCESS_COMMAND_PREPROCESS_READ_BIT_NV));
-}
-
-constexpr bool has_write_access(VkAccessFlags access)
-{
-  return has_any_bit(
-    access,
-    (VkAccessFlags) (VK_ACCESS_SHADER_WRITE_BIT |
-                     VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
-                     VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |
-                     VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_HOST_WRITE_BIT |
-                     VK_ACCESS_MEMORY_WRITE_BIT |
-                     VK_ACCESS_TRANSFORM_FEEDBACK_WRITE_BIT_EXT |
-                     VK_ACCESS_TRANSFORM_FEEDBACK_COUNTER_WRITE_BIT_EXT |
-                     VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR |
-                     VK_ACCESS_COMMAND_PREPROCESS_WRITE_BIT_NV |
-                     VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_NV));
-}
-
 Layout64 MemoryGroup::layout() const
 {
   return alias_offsets.is_empty() ?
@@ -731,6 +692,45 @@ void EncoderResourceStates::barrier(MemAccess const & old_state,
                 .pNext         = nullptr,
                 .srcAccessMask = old_state.access,
                 .dstAccessMask = new_state.access});
+}
+
+constexpr bool has_read_access(VkAccessFlags access)
+{
+  return has_any_bit(
+    access,
+    (VkAccessFlags) (VK_ACCESS_INDIRECT_COMMAND_READ_BIT |
+                     VK_ACCESS_INDEX_READ_BIT |
+                     VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT |
+                     VK_ACCESS_UNIFORM_READ_BIT |
+                     VK_ACCESS_INPUT_ATTACHMENT_READ_BIT |
+                     VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT |
+                     VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
+                     VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
+                     VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_HOST_READ_BIT |
+                     VK_ACCESS_MEMORY_READ_BIT |
+                     VK_ACCESS_TRANSFORM_FEEDBACK_COUNTER_READ_BIT_EXT |
+                     VK_ACCESS_CONDITIONAL_RENDERING_READ_BIT_EXT |
+                     VK_ACCESS_COLOR_ATTACHMENT_READ_NONCOHERENT_BIT_EXT |
+                     VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR |
+                     VK_ACCESS_FRAGMENT_DENSITY_MAP_READ_BIT_EXT |
+                     VK_ACCESS_FRAGMENT_SHADING_RATE_ATTACHMENT_READ_BIT_KHR |
+                     VK_ACCESS_COMMAND_PREPROCESS_READ_BIT_NV));
+}
+
+constexpr bool has_write_access(VkAccessFlags access)
+{
+  return has_any_bit(
+    access,
+    (VkAccessFlags) (VK_ACCESS_SHADER_WRITE_BIT |
+                     VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
+                     VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |
+                     VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_HOST_WRITE_BIT |
+                     VK_ACCESS_MEMORY_WRITE_BIT |
+                     VK_ACCESS_TRANSFORM_FEEDBACK_WRITE_BIT_EXT |
+                     VK_ACCESS_TRANSFORM_FEEDBACK_COUNTER_WRITE_BIT_EXT |
+                     VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR |
+                     VK_ACCESS_COMMAND_PREPROCESS_WRITE_BIT_NV |
+                     VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_NV));
 }
 
 void EncoderResourceStates::access(Image const &     image,
@@ -2313,8 +2313,6 @@ void Instance::uninit(gpu::Device * device_)
   }
 
   dev->uninit();
-  vmaDestroyAllocator(dev->vma_allocator_);
-  dev->vk_table_.DestroyDevice(dev->vk_dev_, nullptr);
   allocator_->ndealloc(1, dev);
 }
 
@@ -3802,7 +3800,7 @@ Result<gpu::GraphicsPipeline, Status>
   return Ok{(gpu::GraphicsPipeline) pipeline};
 }
 
-Result<Void, Status> recreate_swapchain(Device * d, Swapchain * swapchain)
+Result<Void, Status> Device::recreate_swapchain(Swapchain * swapchain)
 {
   auto info = std::move(swapchain->preference);
   CHECK(info.preferred_extent.x() > 0, "");
@@ -3815,13 +3813,13 @@ Result<Void, Status> recreate_swapchain(Device * d, Swapchain * swapchain)
   defer old_vk_swapchain_{[&] {
     if (old_vk_swapchain != nullptr)
     {
-      d->vk_table_.DestroySwapchainKHR(d->vk_dev_, old_vk_swapchain, nullptr);
+      vk_table_.DestroySwapchainKHR(vk_dev_, old_vk_swapchain, nullptr);
     }
   }};
 
   VkSurfaceCapabilitiesKHR surface_capabilities;
-  auto result = d->instance_->vk_table_.GetPhysicalDeviceSurfaceCapabilitiesKHR(
-    d->phy_dev_.vk_phy_dev, vk_surface, &surface_capabilities);
+  auto result = instance_->vk_table_.GetPhysicalDeviceSurfaceCapabilitiesKHR(
+    phy_dev_.vk_phy_dev, vk_surface, &surface_capabilities);
 
   if (result != VK_SUCCESS)
   {
@@ -3895,8 +3893,7 @@ Result<Void, Status> recreate_swapchain(Device * d, Swapchain * swapchain)
 
   VkSwapchainKHR vk;
 
-  result =
-    d->vk_table_.CreateSwapchainKHR(d->vk_dev_, &create_info, nullptr, &vk);
+  result = vk_table_.CreateSwapchainKHR(vk_dev_, &create_info, nullptr, &vk);
 
   if (result != VK_SUCCESS)
   {
@@ -3907,21 +3904,20 @@ Result<Void, Status> recreate_swapchain(Device * d, Swapchain * swapchain)
   defer vk_{[&] {
     if (vk != nullptr)
     {
-      d->vk_table_.DestroySwapchainKHR(d->vk_dev_, vk, nullptr);
+      vk_table_.DestroySwapchainKHR(vk_dev_, vk, nullptr);
     }
   }};
 
   u32 num_images;
-  result =
-    d->vk_table_.GetSwapchainImagesKHR(d->vk_dev_, vk, &num_images, nullptr);
+  result = vk_table_.GetSwapchainImagesKHR(vk_dev_, vk, &num_images, nullptr);
 
   CHECK(result == VK_SUCCESS, "");
 
   InplaceVec<VkImage, gpu::MAX_SWAPCHAIN_IMAGES> vk_images;
   vk_images.resize(num_images).unwrap();
 
-  result = d->vk_table_.GetSwapchainImagesKHR(d->vk_dev_, vk, &num_images,
-                                              vk_images.data());
+  result =
+    vk_table_.GetSwapchainImagesKHR(vk_dev_, vk, &num_images, vk_images.data());
 
   CHECK(result == VK_SUCCESS, "");
 
@@ -3938,7 +3934,7 @@ Result<Void, Status> recreate_swapchain(Device * d, Swapchain * swapchain)
   for (auto [i, vk, image, acquire_semaphore] :
        zip(range(vk_images.size()), vk_images, images, acquire_semaphores))
   {
-    CHECK(d->allocator_->nalloc(1, image), "");
+    CHECK(allocator_->nalloc(1, image), "");
 
     new (image) Image{
       .vk                 = vk,
@@ -3956,34 +3952,34 @@ Result<Void, Status> recreate_swapchain(Device * d, Swapchain * swapchain)
                              .type         = gpu::MemoryType::Group}
     };
 
-    auto result = d->vk_table_.CreateSemaphore(d->vk_dev_, &sem_info, nullptr,
-                                               &acquire_semaphore);
+    auto result = vk_table_.CreateSemaphore(vk_dev_, &sem_info, nullptr,
+                                            &acquire_semaphore);
 
     CHECK(result == VK_SUCCESS, "");
   }
 
   auto swapchain_label =
-    ssformat<256>(d->allocator_, "{}:Swapchain"_str, info.label).unwrap();
+    ssformat<256>(allocator_, "{}:Swapchain"_str, info.label).unwrap();
 
-  d->set_resource_name(swapchain_label, vk, VK_OBJECT_TYPE_SWAPCHAIN_KHR,
-                       VK_DEBUG_REPORT_OBJECT_TYPE_SWAPCHAIN_KHR_EXT);
+  set_resource_name(swapchain_label, vk, VK_OBJECT_TYPE_SWAPCHAIN_KHR,
+                    VK_DEBUG_REPORT_OBJECT_TYPE_SWAPCHAIN_KHR_EXT);
   for (auto [i, image, acquire_semaphore] :
        zip(range(images.size()), images, acquire_semaphores))
   {
     auto label =
-      ssformat<256>(d->allocator_, "{}:Swapchain.Image:{}"_str, info.label, i)
+      ssformat<256>(allocator_, "{}:Swapchain.Image:{}"_str, info.label, i)
         .unwrap();
-    d->set_resource_name(label, image->vk, VK_OBJECT_TYPE_IMAGE,
-                         VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT);
+    set_resource_name(label, image->vk, VK_OBJECT_TYPE_IMAGE,
+                      VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT);
 
     auto acq_sem_label =
-      ssformat<256>(d->allocator_, "{}:QueueScope.AcquireSemaphore:{}"_str,
+      ssformat<256>(allocator_, "{}:QueueScope.AcquireSemaphore:{}"_str,
                     info.label, i)
         .unwrap();
 
-    d->set_resource_name(acq_sem_label, acquire_semaphore,
-                         VK_OBJECT_TYPE_SEMAPHORE,
-                         VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT);
+    set_resource_name(acq_sem_label, acquire_semaphore,
+                      VK_OBJECT_TYPE_SEMAPHORE,
+                      VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT);
   }
 
   InplaceVec<Enum<gpu::Buffer, gpu::Image>, gpu::MAX_SWAPCHAIN_IMAGES>
@@ -4002,11 +3998,9 @@ Result<Void, Status> recreate_swapchain(Device * d, Swapchain * swapchain)
     gpu::MemoryGroupInfo{.resources = group_resources, .aliases = aliases};
 
   auto memory_group =
-    (MemoryGroup *) d->create_shim_memory_group(group_info).unwrap();
+    (MemoryGroup *) create_shim_memory_group(group_info).unwrap();
 
-  // [ ] we are destroying the swapchain...
-  old_vk_swapchain = nullptr;
-  d->uninit((gpu::Swapchain) swapchain);
+  release(*swapchain);
   swapchain->~Swapchain();
 
   new (swapchain) Swapchain{
@@ -4027,6 +4021,9 @@ Result<Void, Status> recreate_swapchain(Device * d, Swapchain * swapchain)
     .composite_alpha    = info.composite_alpha,
     .preference         = std::move(info)
   };
+
+  old_vk_swapchain = nullptr;
+  vk               = nullptr;
 
   return Ok{};
 }
@@ -4081,7 +4078,7 @@ Result<gpu::Swapchain, Status>
     .preference         = std::move(pref)
   };
 
-  auto result = recreate_swapchain(this, shim);
+  auto result = recreate_swapchain(shim);
 
   if (!result)
   {
@@ -4331,7 +4328,6 @@ AliasId Device::allocate_alias_id()
   WriteGuard guard{resource_states_.lock_};
   auto       id = resource_states_.memory_.push(Hazard{}).unwrap();
   return static_cast<AliasId>(id);
-  // [ ] if resource is created after begin call and added to the command buffer?; what about if a destroyed resource is accesed?; id-reuse?
 }
 
 void Device::release_alias_id(AliasId id)
@@ -4357,7 +4353,8 @@ void Device::release_descriptor_set_id(DescriptorSetId id)
 
 void Device::uninit()
 {
-  // [ ] impl
+  vmaDestroyAllocator(vma_allocator_);
+  vk_table_.DestroyDevice(vk_dev_, nullptr);
 }
 
 void Device::uninit(gpu::Buffer buffer_)
@@ -4610,6 +4607,23 @@ void Device::uninit(gpu::GraphicsPipeline pipeline_)
   allocator_->ndealloc(1, pipeline);
 }
 
+void Device::release(Swapchain & swapchain)
+{
+  for (auto image : swapchain.images)
+  {
+    uninit((gpu::Image) image);
+  }
+
+  for (auto sem : swapchain.acquire_semaphores)
+  {
+    vk_table_.DestroySemaphore(vk_dev_, sem, nullptr);
+  }
+
+  vk_table_.DestroySwapchainKHR(vk_dev_, swapchain.vk, nullptr);
+
+  uninit((gpu::MemoryGroup) swapchain.memory_group);
+}
+
 void Device::uninit(gpu::Swapchain swapchain_)
 {
   auto * swapchain = (Swapchain *) swapchain_;
@@ -4619,19 +4633,7 @@ void Device::uninit(gpu::Swapchain swapchain_)
     return;
   }
 
-  for (auto image : swapchain->images)
-  {
-    uninit((gpu::Image) image);
-  }
-
-  for (auto sem : swapchain->acquire_semaphores)
-  {
-    vk_table_.DestroySemaphore(vk_dev_, sem, nullptr);
-  }
-
-  vk_table_.DestroySwapchainKHR(vk_dev_, swapchain->vk, nullptr);
-
-  uninit((gpu::MemoryGroup) swapchain->memory_group);
+  release(*swapchain);
 
   swapchain->~Swapchain();
   allocator_->ndealloc(1, swapchain);
@@ -5271,7 +5273,7 @@ Result<Void, Status> Device::acquire_next(gpu::Swapchain swapchain_)
       return Err{(Status) result};
     }
 
-    recreate_swapchain(this, swapchain).unwrap();
+    recreate_swapchain(swapchain).unwrap();
   }
 
   if (!swapchain->is_deferred)
@@ -5308,6 +5310,7 @@ Result<Void, Status> Device::submit(gpu::CommandBuffer & buffer_,
 
   auto & buffer = (CommandBuffer &) buffer_;
   CHECK(buffer.state_ == CommandBufferState::Recorded, "");
+  CHECK(buffer.status_ == Status::Success, "");
   CHECK(scope_ != nullptr, "");
 
   auto scope = (QueueScope *) scope_;
@@ -5446,7 +5449,7 @@ void CommandEncoder::reset()
   }
 
 #define CMD(...)                             \
-  auto * cmd = push(__VA_ARGS__);            \
+  auto * cmd = push(vk::cmd::__VA_ARGS__);   \
   if (cmd == nullptr)                        \
   {                                          \
     this->status_ = Status::OutOfHostMemory; \
@@ -5466,7 +5469,7 @@ void CommandEncoder::reset_timestamp_query(gpu::TimestampQuery query,
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
 
-  CMD(cmd::ResetTimestampQuery{.query = (VkQueryPool) query, .range = range});
+  CMD(ResetTimestampQuery{.query = (VkQueryPool) query, .range = range});
 }
 
 void CommandEncoder::reset_statistics_query(gpu::StatisticsQuery query,
@@ -5475,7 +5478,7 @@ void CommandEncoder::reset_statistics_query(gpu::StatisticsQuery query,
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
 
-  CMD(cmd::ResetStatisticsQuery{.query = (VkQueryPool) query, .range = range});
+  CMD(ResetStatisticsQuery{.query = (VkQueryPool) query, .range = range});
 }
 
 void CommandEncoder::write_timestamp(gpu::TimestampQuery query,
@@ -5484,9 +5487,9 @@ void CommandEncoder::write_timestamp(gpu::TimestampQuery query,
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
 
-  CMD(cmd::WriteTimestamp{.query  = (VkQueryPool) query,
-                          .stages = (VkPipelineStageFlagBits) stage,
-                          .index  = index});
+  CMD(WriteTimestamp{.query  = (VkQueryPool) query,
+                     .stages = (VkPipelineStageFlagBits) stage,
+                     .index  = index});
 }
 
 void CommandEncoder::begin_statistics(gpu::StatisticsQuery query, u32 index)
@@ -5494,7 +5497,7 @@ void CommandEncoder::begin_statistics(gpu::StatisticsQuery query, u32 index)
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
 
-  CMD(cmd::BeginStatistics{.query = (VkQueryPool) query, .index = index});
+  CMD(BeginStatistics{.query = (VkQueryPool) query, .index = index});
 }
 
 void CommandEncoder::end_statistics(gpu::StatisticsQuery query, u32 index)
@@ -5502,7 +5505,7 @@ void CommandEncoder::end_statistics(gpu::StatisticsQuery query, u32 index)
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
 
-  CMD(cmd::EndStatistics{.query = (VkQueryPool) query, .index = index});
+  CMD(EndStatistics{.query = (VkQueryPool) query, .index = index});
 }
 
 void CommandEncoder::begin_debug_marker(Str region_name_, f32x4 color)
@@ -5510,23 +5513,22 @@ void CommandEncoder::begin_debug_marker(Str region_name_, f32x4 color)
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
 
+  VkDebugMarkerMarkerInfoEXT info{
+    .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_MARKER_INFO_EXT,
+    .pNext       = nullptr,
+    .pMarkerName = nullptr,
+    .color       = {color.x(), color.y(), color.z(), color.w()}
+  };
+
+  CMD(BeginDebugMarker{.info = info});
+
   Vec<char> region_name{pool_};
   MEMTRY(region_name.extend_uninit(region_name_.size() + 1));
 
   mem::copy(region_name_, region_name.data());
 
-  region_name.last() = '\0';
-
-  VkDebugMarkerMarkerInfoEXT info{
-    .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_MARKER_INFO_EXT,
-    .pNext       = nullptr,
-    .pMarkerName = region_name.data(),
-    .color       = {color.x(), color.y(), color.z(), color.w()}
-  };
-
-  CMD(cmd::BeginDebugMarker{.info = info});
-
-  region_name.leak();
+  region_name.last()    = '\0';
+  cmd->info.pMarkerName = region_name.leak().data();
 }
 
 void CommandEncoder::end_debug_marker()
@@ -5534,7 +5536,7 @@ void CommandEncoder::end_debug_marker()
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
 
-  CMD(cmd::EndDebugMarker{});
+  CMD(EndDebugMarker{});
 }
 
 void CommandEncoder::fill_buffer(gpu::Buffer dst_, Slice64 range, u32 data)
@@ -5547,7 +5549,7 @@ void CommandEncoder::fill_buffer(gpu::Buffer dst_, Slice64 range, u32 data)
   CHECK(has_bits(dst->usage, gpu::BufferUsage::TransferDst), "");
   CHECK(is_valid_buffer_access(dst->size, range, 4, 4), "");
 
-  CMD(cmd::FillBuffer{.dst = dst->vk, .range = range, .data = data});
+  CMD(FillBuffer{.dst = dst->vk, .range = range, .data = data});
 
   tracker_.begin_pass();
   tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -5576,6 +5578,8 @@ void CommandEncoder::copy_buffer(gpu::Buffer src_, gpu::Buffer dst_,
           "");
   }
 
+  CMD(CopyBuffer{.src = src->vk, .dst = dst->vk, .copies{}});
+
   Vec<VkBufferCopy> copies{pool_};
 
   MEMTRY(copies.resize_uninit(copies_.size()));
@@ -5587,9 +5591,7 @@ void CommandEncoder::copy_buffer(gpu::Buffer src_, gpu::Buffer dst_,
                       .size      = copy.src_range.span};
   }
 
-  CMD(cmd::CopyBuffer{.src = src->vk, .dst = dst->vk, .copies = copies});
-
-  copies.leak();
+  cmd->copies = copies.leak();
 
   tracker_.begin_pass();
   tracker_.track(src, VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -5613,13 +5615,13 @@ void CommandEncoder::update_buffer(Span<u8 const> src_, u64 dst_offset,
   CHECK(is_valid_buffer_access(dst->size, Slice64{dst_offset, copy_size}, 4, 4),
         "");
 
+  CMD(UpdateBuffer{.src = {}, .dst_offset = dst_offset, .dst = dst->vk});
+
   Vec<u8> src{pool_};
 
   MEMTRY(src.extend(src_));
 
-  CMD(cmd::UpdateBuffer{.src = src, .dst_offset = dst_offset, .dst = dst->vk});
-
-  src.leak();
+  cmd->src = src.leak();
 
   tracker_.begin_pass();
   tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -5647,6 +5649,12 @@ void CommandEncoder::clear_color_image(
           "");
   }
 
+  CMD(ClearColorImage{
+    .dst        = dst->vk,
+    .dst_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+    .value  = {.uint32{value.u32[0], value.u32[1], value.u32[2], value.u32[3]}},
+    .ranges = {}});
+
   Vec<VkImageSubresourceRange> ranges{pool_};
 
   MEMTRY(ranges.extend_uninit(ranges_.size()));
@@ -5661,13 +5669,7 @@ void CommandEncoder::clear_color_image(
                               .layerCount     = range.array_layers.span};
   }
 
-  CMD(cmd::ClearColorImage{
-    .dst        = dst->vk,
-    .dst_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-    .value  = {.uint32{value.u32[0], value.u32[1], value.u32[2], value.u32[3]}},
-    .ranges = ranges});
-
-  ranges.leak();
+  cmd->ranges = ranges.leak();
 
   tracker_.begin_pass();
   tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -5696,6 +5698,14 @@ void CommandEncoder::clear_depth_stencil_image(
           "");
   }
 
+  VkClearDepthStencilValue vk_depth_stencil{.depth   = value.depth,
+                                            .stencil = value.stencil};
+
+  CMD(ClearDepthStencilImage{.dst        = dst->vk,
+                             .dst_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                             .value      = vk_depth_stencil,
+                             .ranges     = {}});
+
   Vec<VkImageSubresourceRange> ranges{pool_};
 
   MEMTRY(ranges.extend_uninit(ranges_.size()));
@@ -5710,16 +5720,7 @@ void CommandEncoder::clear_depth_stencil_image(
                               .layerCount     = range.array_layers.span};
   }
 
-  VkClearDepthStencilValue vk_depth_stencil{.depth   = value.depth,
-                                            .stencil = value.stencil};
-
-  CMD(cmd::ClearDepthStencilImage{.dst = dst->vk,
-                                  .dst_layout =
-                                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                  .value  = vk_depth_stencil,
-                                  .ranges = ranges});
-
-  ranges.leak();
+  cmd->ranges = ranges.leak();
 
   tracker_.begin_pass();
   tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -5776,6 +5777,12 @@ void CommandEncoder::copy_image(gpu::Image src_, gpu::Image dst_,
           "");
   }
 
+  CMD(CopyImage{.src        = src->vk,
+                .src_layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                .dst        = dst->vk,
+                .dst_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                .copies     = {}});
+
   Vec<VkImageCopy> copies{pool_};
 
   MEMTRY(copies.extend_uninit(copies_.size()));
@@ -5807,13 +5814,7 @@ void CommandEncoder::copy_image(gpu::Image src_, gpu::Image dst_,
                      .extent         = extent};
   }
 
-  CMD(cmd::CopyImage{.src        = src->vk,
-                     .src_layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                     .dst        = dst->vk,
-                     .dst_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                     .copies     = copies});
-
-  copies.leak();
+  cmd->copies = copies.leak();
 
   tracker_.begin_pass();
   tracker_.track(src, VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -5862,6 +5863,11 @@ void CommandEncoder::copy_buffer_to_image(
     CHECK(copy.image_area.end().z() <= dst_extent.z(), "");
   }
 
+  CMD(CopyBufferToImage{.src        = src->vk,
+                        .dst        = dst->vk,
+                        .dst_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                        .copies     = {}});
+
   Vec<VkBufferImageCopy> copies{pool_};
 
   MEMTRY(copies.extend_uninit(copies_.size()));
@@ -5887,12 +5893,7 @@ void CommandEncoder::copy_buffer_to_image(
     };
   }
 
-  CMD(cmd::CopyBufferToImage{.src        = src->vk,
-                             .dst        = dst->vk,
-                             .dst_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                             .copies     = copies});
-
-  copies.leak();
+  cmd->copies = copies.leak();
 
   tracker_.begin_pass();
   tracker_.track(src, VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -5947,6 +5948,13 @@ void CommandEncoder::blit_image(gpu::Image src_, gpu::Image dst_,
     CHECK(blit.dst_area.end().z() <= dst_extent.z(), "");
   }
 
+  CMD(BlitImage{.src        = src->vk,
+                .src_layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                .dst        = dst->vk,
+                .dst_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                .blits      = {},
+                .filter     = (VkFilter) filter});
+
   Vec<VkImageBlit> blits{pool_};
 
   MEMTRY(blits.resize_uninit(blits_.size()));
@@ -5981,14 +5989,7 @@ void CommandEncoder::blit_image(gpu::Image src_, gpu::Image dst_,
     };
   }
 
-  CMD(cmd::BlitImage{.src        = src->vk,
-                     .src_layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                     .dst        = dst->vk,
-                     .dst_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                     .blits      = blits,
-                     .filter     = (VkFilter) filter});
-
-  blits.leak();
+  cmd->blits = blits.leak();
 
   tracker_.begin_pass();
   tracker_.track(src, VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -6052,6 +6053,12 @@ void CommandEncoder::resolve_image(gpu::Image src_, gpu::Image dst_,
           "");
   }
 
+  CMD(ResolveImage{.src        = src->vk,
+                   .src_layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                   .dst        = dst->vk,
+                   .dst_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                   .resolves   = {}});
+
   Vec<VkImageResolve> resolves{pool_};
 
   MEMTRY(resolves.resize_uninit(resolves_.size()));
@@ -6084,13 +6091,7 @@ void CommandEncoder::resolve_image(gpu::Image src_, gpu::Image dst_,
                         .extent         = extent};
   }
 
-  CMD(cmd::ResolveImage{.src        = src->vk,
-                        .src_layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                        .dst        = dst->vk,
-                        .dst_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                        .resolves   = resolves});
-
-  resolves.leak();
+  cmd->resolves = resolves.leak();
 
   tracker_.begin_pass();
   tracker_.track(src, VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -6214,9 +6215,29 @@ void CommandEncoder::begin_rendering(gpu::RenderingInfo const & info)
                         gpu::ImageUsage::DepthStencilAttachment);
   });
 
+  CMD(BeginRendering{
+    .info = VkRenderingInfoKHR{
+                               .sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR,
+                               .pNext = nullptr,
+                               .flags = {},
+                               .renderArea =
+        VkRect2D{.offset = VkOffset2D{.x = (i32) info.render_area.offset.x(),
+                                      .y = (i32) info.render_area.offset.y()},
+                 .extent = VkExtent2D{.width  = info.render_area.extent.x(),
+                                      .height = info.render_area.extent.y()}},
+                               .layerCount           = info.num_layers,
+                               .viewMask             = 0,
+                               .colorAttachmentCount = 0,
+                               .pColorAttachments    = nullptr,
+                               .pDepthAttachment     = nullptr,
+                               .pStencilAttachment   = nullptr}
+  });
+
   Vec<VkRenderingAttachmentInfo> color_attachments{pool_};
   Vec<VkRenderingAttachmentInfo> depth_attachment{pool_};
   Vec<VkRenderingAttachmentInfo> stencil_attachment{pool_};
+
+  MEMTRY(color_attachments.resize_uninit(info.color_attachments.size()));
 
   constexpr VkImageLayout COLOR_LAYOUT =
     VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
@@ -6247,8 +6268,6 @@ void CommandEncoder::begin_rendering(gpu::RenderingInfo const & info)
     VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
   constexpr VkImageLayout READ_DEPTH_STENCIL_LAYOUT =
     VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
-
-  MEMTRY(color_attachments.resize_uninit(info.color_attachments.size()));
 
   for (auto [vk, attachment] : zip(color_attachments, info.color_attachments))
   {
@@ -6338,27 +6357,10 @@ void CommandEncoder::begin_rendering(gpu::RenderingInfo const & info)
       .clearValue         = clear_value};
   }
 
-  CMD(cmd::BeginRendering{
-    .info = VkRenderingInfoKHR{
-                               .sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR,
-                               .pNext = nullptr,
-                               .flags = {},
-                               .renderArea =
-        VkRect2D{.offset = VkOffset2D{.x = (i32) info.render_area.offset.x(),
-                                      .y = (i32) info.render_area.offset.y()},
-                 .extent = VkExtent2D{.width  = info.render_area.extent.x(),
-                                      .height = info.render_area.extent.y()}},
-                               .layerCount           = info.num_layers,
-                               .viewMask             = 0,
-                               .colorAttachmentCount = size32(color_attachments),
-                               .pColorAttachments    = color_attachments.data(),
-                               .pDepthAttachment     = depth_attachment.data(),
-                               .pStencilAttachment   = stencil_attachment.data()}
-  });
-
-  color_attachments.leak();
-  depth_attachment.leak();
-  stencil_attachment.leak();
+  cmd->info.colorAttachmentCount = color_attachments.size();
+  cmd->info.pColorAttachments    = color_attachments.leak().data();
+  cmd->info.pDepthAttachment     = depth_attachment.leak().data();
+  cmd->info.pStencilAttachment   = stencil_attachment.leak().data();
 
   pass_ = Pass::Render;
   ctx_.clear();
@@ -6463,7 +6465,7 @@ void CommandEncoder::end_rendering()
   PRELUDE();
   CHECK(pass_ == Pass::Render, "");
 
-  CMD(cmd::EndRendering{});
+  CMD(EndRendering{});
 
   ctx_.clear();
   pass_ = Pass::None;
@@ -6477,8 +6479,8 @@ void CommandEncoder::bind_compute_pipeline(gpu::ComputePipeline pipeline_)
   CHECK(pass_ == Pass::Compute, "");
   auto pipeline = ptr(pipeline_);
 
-  CMD(cmd::BindPipeline{.bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS,
-                        .pipeline   = pipeline->vk});
+  CMD(BindPipeline{.bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS,
+                   .pipeline   = pipeline->vk});
 
   ctx_.compute_pipeline = pipeline;
 }
@@ -6524,8 +6526,8 @@ void CommandEncoder::bind_graphics_pipeline(gpu::GraphicsPipeline pipeline_)
   validate_pipeline_compatible(pipeline, ctx_.color_attachments,
                                ctx_.depth_attachment, ctx_.stencil_attachment);
 
-  CMD(cmd::BindPipeline{.bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS,
-                        .pipeline   = pipeline->vk});
+  CMD(BindPipeline{.bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS,
+                   .pipeline   = pipeline->vk});
 
   ctx_.graphics_pipeline = pipeline;
 }
@@ -6564,20 +6566,6 @@ void CommandEncoder::bind_descriptor_sets(
       break;
   }
 
-  Vec<VkDescriptorSet> descriptor_sets{pool_};
-
-  MEMTRY(descriptor_sets.resize_uninit(descriptor_sets_.size()));
-
-  for (auto [vk, set_] : zip(descriptor_sets, descriptor_sets_))
-  {
-    auto * set = (DescriptorSet *) set_;
-    vk         = set->vk;
-  }
-
-  Vec<u32> dynamic_offsets{pool_};
-
-  MEMTRY(dynamic_offsets.extend(dynamic_offsets_));
-
   VkPipelineBindPoint  bind_point = VK_PIPELINE_BIND_POINT_MAX_ENUM;
   VkPipelineLayout     layout     = nullptr;
   VkPipelineStageFlags stages     = VK_SHADER_STAGE_ALL;
@@ -6603,13 +6591,27 @@ void CommandEncoder::bind_descriptor_sets(
       break;
   }
 
-  CMD(cmd::BindDescriptorSets{.bind_point      = bind_point,
-                              .layout          = layout,
-                              .sets            = descriptor_sets,
-                              .dynamic_offsets = dynamic_offsets});
+  CMD(BindDescriptorSets{.bind_point      = bind_point,
+                         .layout          = layout,
+                         .sets            = {},
+                         .dynamic_offsets = {}});
 
-  descriptor_sets.leak();
-  dynamic_offsets.leak();
+  Vec<VkDescriptorSet> descriptor_sets{pool_};
+
+  MEMTRY(descriptor_sets.resize_uninit(descriptor_sets_.size()));
+
+  for (auto [vk, set_] : zip(descriptor_sets, descriptor_sets_))
+  {
+    auto * set = (DescriptorSet *) set_;
+    vk         = set->vk;
+  }
+
+  Vec<u32> dynamic_offsets{pool_};
+
+  MEMTRY(dynamic_offsets.extend(dynamic_offsets_));
+
+  cmd->sets            = descriptor_sets.leak();
+  cmd->dynamic_offsets = dynamic_offsets.leak();
 
   ctx_.descriptor_sets.clear();
 
@@ -6651,10 +6653,6 @@ void CommandEncoder::push_constants(Span<u8 const> constants_)
       break;
   }
 
-  Vec<u8> constants{pool_};
-
-  MEMTRY(constants.extend(constants_));
-
   VkPipelineLayout layout = nullptr;
 
   switch (pass_)
@@ -6673,9 +6671,13 @@ void CommandEncoder::push_constants(Span<u8 const> constants_)
       break;
   }
 
-  CMD(cmd::PushConstants{.layout = layout, .constant = constants});
+  CMD(PushConstants{.layout = layout, .constants = {}});
 
-  constants.leak();
+  Vec<u8> constants{pool_};
+
+  MEMTRY(constants.extend(constants_));
+
+  cmd->constants = constants.leak();
 }
 
 void CommandEncoder::dispatch(u32x3 group_count)
@@ -6694,7 +6696,7 @@ void CommandEncoder::dispatch(u32x3 group_count)
           dev_->phy_dev_.vk_properties.limits.maxComputeWorkGroupCount[2],
         "");
 
-  CMD(cmd::Dispatch{.group_count = group_count});
+  CMD(Dispatch{.group_count = group_count});
 }
 
 void CommandEncoder::dispatch_indirect(gpu::Buffer buffer_, u64 offset)
@@ -6712,7 +6714,7 @@ void CommandEncoder::dispatch_indirect(gpu::Buffer buffer_, u64 offset)
                                alignof(gpu::DispatchCommand)),
         "");
 
-  CMD(cmd::DispatchIndirect{.buffer = buffer->vk, .offset = offset});
+  CMD(DispatchIndirect{.buffer = buffer->vk, .offset = offset});
 
   tracker_.track(buffer, VK_SHADER_STAGE_COMPUTE_BIT,
                  VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
@@ -6728,7 +6730,7 @@ void CommandEncoder::set_graphics_state(gpu::GraphicsState const & state)
   CHECK(state.viewport.max_depth >= 0.0F, "");
   CHECK(state.viewport.max_depth <= 1.0F, "");
 
-  CMD(cmd::SetGraphicsState{.state = state});
+  CMD(SetGraphicsState{.state = state});
 
   ctx_.has_graphics_state = true;
 }
@@ -6753,6 +6755,8 @@ void CommandEncoder::bind_vertex_buffers(
     CHECK(has_bits(buff->usage, gpu::BufferUsage::VertexBuffer), "");
   }
 
+  CMD(BindVertexBuffers{.buffers = {}, .offsets = {}});
+
   Vec<VkBuffer> vertex_buffers{pool_};
 
   MEMTRY(vertex_buffers.resize_uninit(vertex_buffers_.size()));
@@ -6767,10 +6771,8 @@ void CommandEncoder::bind_vertex_buffers(
 
   MEMTRY(offsets.extend(offsets_));
 
-  CMD(cmd::BindVertexBuffers{.buffers = vertex_buffers, .offsets = offsets});
-
-  vertex_buffers.leak();
-  offsets.leak();
+  cmd->buffers = vertex_buffers.leak();
+  cmd->offsets = offsets.leak();
 
   for (auto buff_ : vertex_buffers_)
   {
@@ -6802,9 +6804,9 @@ void CommandEncoder::bind_index_buffer(gpu::Buffer index_buffer_, u64 offset,
                                index_size, index_size),
         "");
 
-  CMD(cmd::BindIndexBuffer{.buffer     = index_buffer->vk,
-                           .offset     = offset,
-                           .index_type = (VkIndexType) index_type});
+  CMD(BindIndexBuffer{.buffer     = index_buffer->vk,
+                      .offset     = offset,
+                      .index_type = (VkIndexType) index_type});
 
   tracker_.track(index_buffer, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
                  VK_ACCESS_INDEX_READ_BIT);
@@ -6825,7 +6827,7 @@ void CommandEncoder::draw(Slice32 vertices, Slice32 instances)
         "");
   CHECK(ctx_.graphics_pipeline->num_sets == ctx_.descriptor_sets.size(), "");
 
-  CMD(cmd::Draw{.vertices = vertices, .instances = instances});
+  CMD(Draw{.vertices = vertices, .instances = instances});
 }
 
 void CommandEncoder::draw_indexed(Slice32 indices, Slice32 instances,
@@ -6849,9 +6851,9 @@ void CommandEncoder::draw_indexed(Slice32 indices, Slice32 instances,
           index_size, index_size),
         "");
 
-  CMD(cmd::DrawIndexed{.indices       = indices,
-                       .instances     = instances,
-                       .vertex_offset = vertex_offset});
+  CMD(DrawIndexed{.indices       = indices,
+                  .instances     = instances,
+                  .vertex_offset = vertex_offset});
 }
 
 void CommandEncoder::draw_indirect(gpu::Buffer buffer_, u64 offset,
@@ -6874,10 +6876,10 @@ void CommandEncoder::draw_indirect(gpu::Buffer buffer_, u64 offset,
           buffer->size, Slice64{offset, (u64) draw_count * (u64) stride}, 4, 4),
         "");
 
-  CMD(cmd::DrawIndirect{.buffer     = buffer->vk,
-                        .offset     = offset,
-                        .draw_count = draw_count,
-                        .stride     = stride});
+  CMD(DrawIndirect{.buffer     = buffer->vk,
+                   .offset     = offset,
+                   .draw_count = draw_count,
+                   .stride     = stride});
 
   tracker_.track(buffer, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
                  VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
@@ -6904,10 +6906,10 @@ void CommandEncoder::draw_indexed_indirect(gpu::Buffer buffer_, u64 offset,
         "");
   CHECK(stride >= sizeof(gpu::DrawIndexedCommand), "");
 
-  CMD(cmd::DrawIndexedIndirect{.buffer     = buffer->vk,
-                               .offset     = offset,
-                               .draw_count = draw_count,
-                               .stride     = stride});
+  CMD(DrawIndexedIndirect{.buffer     = buffer->vk,
+                          .offset     = offset,
+                          .draw_count = draw_count,
+                          .stride     = stride});
 
   tracker_.track(buffer, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
                  VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
@@ -6977,157 +6979,157 @@ void CommandBuffer::reset()
   state_ = CommandBufferState::Reset;
 }
 
-ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
-                             cmd::ResetTimestampQuery const & cmd)
+ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
+                          cmd::ResetTimestampQuery const & cmd)
 {
   t.CmdResetQueryPool(vk, cmd.query, cmd.range.offset, cmd.range.span);
 }
 
-ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
-                             cmd::ResetStatisticsQuery const & cmd)
+ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
+                          cmd::ResetStatisticsQuery const & cmd)
 {
   t.CmdResetQueryPool(vk, cmd.query, cmd.range.offset, cmd.range.span);
 }
 
-ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
-                             cmd::WriteTimestamp const & cmd)
+ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
+                          cmd::WriteTimestamp const & cmd)
 {
   t.CmdWriteTimestamp(vk, cmd.stages, cmd.query, cmd.index);
 }
 
-ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
-                             cmd::BeginStatistics const & cmd)
+ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
+                          cmd::BeginStatistics const & cmd)
 {
   t.CmdBeginQuery(vk, cmd.query, cmd.index, 0);
 }
 
-ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
-                             cmd::EndStatistics const & cmd)
+ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
+                          cmd::EndStatistics const & cmd)
 {
   t.CmdEndQuery(vk, cmd.query, cmd.index);
 }
 
-ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
-                             cmd::BeginDebugMarker const & cmd)
+ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
+                          cmd::BeginDebugMarker const & cmd)
 {
   t.CmdDebugMarkerBeginEXT(vk, &cmd.info);
 }
 
-ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
-                             cmd::EndDebugMarker const &)
+ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
+                          cmd::EndDebugMarker const &)
 {
   t.CmdDebugMarkerEndEXT(vk);
 }
 
-ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
-                             cmd::FillBuffer const & cmd)
+ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
+                          cmd::FillBuffer const & cmd)
 {
   t.CmdFillBuffer(vk, cmd.dst, cmd.range.offset, cmd.range.span, cmd.data);
 }
 
-ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
-                             cmd::CopyBuffer const & cmd)
+ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
+                          cmd::CopyBuffer const & cmd)
 {
   t.CmdCopyBuffer(vk, cmd.src, cmd.dst, size32(cmd.copies), cmd.copies.data());
 }
 
-ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
-                             cmd::UpdateBuffer const & cmd)
+ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
+                          cmd::UpdateBuffer const & cmd)
 {
   t.CmdUpdateBuffer(vk, cmd.dst, cmd.dst_offset, size64(cmd.src),
                     cmd.src.data());
 }
 
-ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
-                             cmd::ClearColorImage const & cmd)
+ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
+                          cmd::ClearColorImage const & cmd)
 {
   t.CmdClearColorImage(vk, cmd.dst, cmd.dst_layout, &cmd.value,
                        size32(cmd.ranges), cmd.ranges.data());
 }
 
-ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
-                             cmd::ClearDepthStencilImage const & cmd)
+ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
+                          cmd::ClearDepthStencilImage const & cmd)
 {
   t.CmdClearDepthStencilImage(vk, cmd.dst, cmd.dst_layout, &cmd.value,
                               size32(cmd.ranges), cmd.ranges.data());
 }
 
-ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
-                             cmd::CopyImage const & cmd)
+ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
+                          cmd::CopyImage const & cmd)
 {
   t.CmdCopyImage(vk, cmd.src, cmd.src_layout, cmd.dst, cmd.dst_layout,
                  size32(cmd.copies), cmd.copies.data());
 }
 
-ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
-                             cmd::CopyBufferToImage const & cmd)
+ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
+                          cmd::CopyBufferToImage const & cmd)
 {
   t.CmdCopyBufferToImage(vk, cmd.src, cmd.dst, cmd.dst_layout,
                          size32(cmd.copies), cmd.copies.data());
 }
 
-ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
-                             cmd::BlitImage const & cmd)
+ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
+                          cmd::BlitImage const & cmd)
 {
   t.CmdBlitImage(vk, cmd.src, cmd.src_layout, cmd.dst, cmd.dst_layout,
                  size32(cmd.blits), cmd.blits.data(), cmd.filter);
 }
 
-ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
-                             cmd::ResolveImage const & cmd)
+ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
+                          cmd::ResolveImage const & cmd)
 {
   t.CmdResolveImage(vk, cmd.src, cmd.src_layout, cmd.dst, cmd.dst_layout,
                     size32(cmd.resolves), cmd.resolves.data());
 }
 
-ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
-                             cmd::BeginRendering const & cmd)
+ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
+                          cmd::BeginRendering const & cmd)
 {
   t.CmdBeginRenderingKHR(vk, &cmd.info);
 }
 
-ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
-                             cmd::EndRendering const &)
+ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
+                          cmd::EndRendering const &)
 {
   t.CmdEndRenderingKHR(vk);
 }
 
-ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
-                             cmd::BindPipeline const & cmd)
+ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
+                          cmd::BindPipeline const & cmd)
 {
   t.CmdBindPipeline(vk, cmd.bind_point, cmd.pipeline);
 }
 
-ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
-                             cmd::BindDescriptorSets const & cmd)
+ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
+                          cmd::BindDescriptorSets const & cmd)
 {
   t.CmdBindDescriptorSets(vk, cmd.bind_point, cmd.layout, 0, size32(cmd.sets),
                           cmd.sets.data(), size32(cmd.dynamic_offsets),
                           cmd.dynamic_offsets.data());
 }
 
-ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
-                             cmd::PushConstants const & cmd)
+ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
+                          cmd::PushConstants const & cmd)
 {
   t.CmdPushConstants(vk, cmd.layout, VK_SHADER_STAGE_ALL, 0,
-                     size32(cmd.constant), cmd.constant.data());
+                     size32(cmd.constants), cmd.constants.data());
 }
 
-ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
-                             cmd::Dispatch const & cmd)
+ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
+                          cmd::Dispatch const & cmd)
 {
   t.CmdDispatch(vk, cmd.group_count.x(), cmd.group_count.y(),
                 cmd.group_count.z());
 }
 
-ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
-                             cmd::DispatchIndirect const & cmd)
+ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
+                          cmd::DispatchIndirect const & cmd)
 {
   t.CmdDispatchIndirect(vk, cmd.buffer, cmd.offset);
 }
 
-ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
-                             cmd::SetGraphicsState const & cmd)
+ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
+                          cmd::SetGraphicsState const & cmd)
 {
   auto & s = cmd.state;
 
@@ -7183,41 +7185,41 @@ ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
   t.CmdSetDepthBoundsTestEnableEXT(vk, s.depth_bounds_test_enable);
 }
 
-ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
-                             cmd::BindVertexBuffers const & cmd)
+ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
+                          cmd::BindVertexBuffers const & cmd)
 {
   t.CmdBindVertexBuffers(vk, 0, size32(cmd.buffers), cmd.buffers.data(),
                          cmd.offsets.data());
 }
 
-ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
-                             cmd::BindIndexBuffer const & cmd)
+ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
+                          cmd::BindIndexBuffer const & cmd)
 {
   t.CmdBindIndexBuffer(vk, cmd.buffer, cmd.offset, cmd.index_type);
 }
 
-ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
-                             cmd::Draw const & cmd)
+ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
+                          cmd::Draw const & cmd)
 {
   t.CmdDraw(vk, cmd.vertices.span, cmd.instances.span, cmd.vertices.offset,
             cmd.instances.offset);
 }
 
-ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
-                             cmd::DrawIndexed const & cmd)
+ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
+                          cmd::DrawIndexed const & cmd)
 {
   t.CmdDrawIndexed(vk, cmd.indices.span, cmd.instances.span, cmd.indices.offset,
                    cmd.vertex_offset, cmd.instances.offset);
 }
 
-ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
-                             cmd::DrawIndirect const & cmd)
+ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
+                          cmd::DrawIndirect const & cmd)
 {
   t.CmdDrawIndirect(vk, cmd.buffer, cmd.offset, cmd.draw_count, cmd.stride);
 }
 
-ASH_FORCE_INLINE void encode(DeviceTable const & t, VkCommandBuffer vk,
-                             cmd::DrawIndexedIndirect const & cmd)
+ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
+                          cmd::DrawIndexedIndirect const & cmd)
 {
   t.CmdDrawIndexedIndirect(vk, cmd.buffer, cmd.offset, cmd.draw_count,
                            cmd.stride);
@@ -7230,7 +7232,7 @@ inline cmd::Command * encode_n(DeviceTable const & t, VkCommandBuffer vk,
   case cmd::Type::type:              \
   {                                  \
     auto * cmd = (cmd::type *) cmd_; \
-    encode(t, vk, *cmd);             \
+    enc(t, vk, *cmd);                \
   }                                  \
   break;
 
@@ -7270,6 +7272,7 @@ inline cmd::Command * encode_n(DeviceTable const & t, VkCommandBuffer vk,
       CMD_CASE(DrawIndexedIndirect);
     }
 
+    mem::prefetch(cmd_->next, mem::Access::Read, mem::Locality::None);
     cmd_ = cmd_->next;
     n--;
   }
@@ -7349,11 +7352,7 @@ void CommandBuffer::record(gpu::CommandEncoder & encoder_)
     barriers.clear();
 
     next_command = encode_n(dev_->vk_table_, vk_, next_command, commands.span);
-
-    // [ ] is this complete
   }
-
-  // [ ] what needs to be done from here? reset context? state?
 }
 
 void CommandBuffer::commit_resource_states()
