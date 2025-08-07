@@ -1568,7 +1568,6 @@ inline constexpr u32         MAX_PIPELINE_COLOR_ATTACHMENTS       = 8;
 inline constexpr u32         MAX_DESCRIPTOR_SET_DESCRIPTORS       = 4'096;
 inline constexpr u32         MAX_BINDING_DESCRIPTORS              = 4'096;
 inline constexpr u32         MAX_DESCRIPTOR_SET_BINDINGS          = 16;
-inline constexpr u32         MAX_FRAME_BUFFERING                  = 4;
 inline constexpr u32         MAX_SWAPCHAIN_IMAGES                 = 4;
 inline constexpr u64         MAX_UNIFORM_BUFFER_RANGE             = 65'536;
 inline constexpr f32         MAX_SAMPLER_ANISOTROPY               = 16;

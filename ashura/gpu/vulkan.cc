@@ -1792,9 +1792,6 @@ Result<gpu::Device *, Status>
 {
   constexpr u32 MAX_QUEUE_FAMILIES = 16;
 
-  // CHECK(buffering > 0, "");
-  // CHECK(buffering <= gpu::MAX_FRAME_BUFFERING, "");
-
   u32  num_devs;
   auto result =
     vk_table_.EnumeratePhysicalDevices(vk_instance_, &num_devs, nullptr);
@@ -4247,8 +4244,8 @@ Result<gpu::CommandBufferPtr, Status>
 Result<gpu::QueueScope, Status>
   Device::create_queue_scope(gpu::QueueScopeInfo const & info)
 {
-  SmallVec<VkSemaphore, gpu::MAX_FRAME_BUFFERING> submit_semaphores{allocator_};
-  SmallVec<VkFence, gpu::MAX_FRAME_BUFFERING>     submit_fences{allocator_};
+  SmallVec<VkSemaphore, 4> submit_semaphores{allocator_};
+  SmallVec<VkFence, 4>     submit_fences{allocator_};
 
   defer _{[&] {
     for (auto sem : submit_semaphores)

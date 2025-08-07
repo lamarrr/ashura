@@ -1293,16 +1293,15 @@ struct CommandBuffer final : gpu::CommandBuffer
 
 struct QueueScope
 {
-  u64                                             buffering_;
-  u64                                             tail_frame_;
-  u64                                             current_frame_;
-  u64                                             ring_index_;
-  SmallVec<VkSemaphore, gpu::MAX_FRAME_BUFFERING> submit_semaphores_;
-  SmallVec<VkFence, gpu::MAX_FRAME_BUFFERING>     submit_fences_;
+  u64                      buffering_;
+  u64                      tail_frame_;
+  u64                      current_frame_;
+  u64                      ring_index_;
+  SmallVec<VkSemaphore, 4> submit_semaphores_;
+  SmallVec<VkFence, 4>     submit_fences_;
 
-  QueueScope(u64                                             buffering,
-             SmallVec<VkSemaphore, gpu::MAX_FRAME_BUFFERING> submit_semaphores,
-             SmallVec<VkFence, gpu::MAX_FRAME_BUFFERING>     submit_fences) :
+  QueueScope(u64 buffering, SmallVec<VkSemaphore, 4> submit_semaphores,
+             SmallVec<VkFence, 4> submit_fences) :
     buffering_{buffering},
     tail_frame_{0},
     current_frame_{0},
