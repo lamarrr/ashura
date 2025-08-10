@@ -4859,6 +4859,7 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
         {
           continue;
         }
+        CHECK(buffer->memory.memory_group != nullptr, "");
         CHECK(has_bits(buffer->usage, descriptor_buffer_usage(binding.type)),
               "");
         CHECK(is_valid_buffer_access(buffer->size, b.range,
@@ -4876,6 +4877,7 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
         {
           continue;
         }
+        CHECK(view->buffer->memory.memory_group != nullptr, "");
         CHECK(
           has_bits(view->buffer->usage, descriptor_buffer_usage(binding.type)),
           "");
@@ -4892,6 +4894,7 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
           continue;
         }
         auto * image = (Image *) view->image;
+        CHECK(image->memory.memory_group != nullptr, "");
         CHECK(has_bits(image->usage, descriptor_image_usage(binding.type)), "");
         CHECK(image->sample_count == gpu::SampleCount::C1, "");
       }
