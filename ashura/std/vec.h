@@ -15,7 +15,7 @@ namespace ash
 /// @brief Minimum alignment of the Vec types. This fits into 1 AVX-512 lane.
 /// Only InplaceVec doesn't use this alignment as it is usually in-place and
 /// compacted along with other struct members/stack variables.
-inline constexpr usize MIN_VEC_ALIGNMENT = 64;
+inline constexpr usize SIMD_ALIGNMENT = 64;
 
 struct DoubleGrowth
 {
@@ -35,7 +35,7 @@ struct HalfGrowth
 
 using Growth = DoubleGrowth;
 
-template <typename T>
+template <typename T, usize MinAlignment = SIMD_ALIGNMENT>
 requires (NonConst<T>)
 struct [[nodiscard]] Vec
 {
@@ -44,7 +44,7 @@ struct [[nodiscard]] Vec
   using Iter = SpanIter<T>;
   using View = Span<T>;
 
-  static constexpr usize ALIGNMENT = max(alignof(Type), MIN_VEC_ALIGNMENT);
+  static constexpr usize ALIGNMENT = max(MinAlignment, alignof(Type));
 
   Type *       storage_   = nullptr;
   usize        size_      = 0;
@@ -623,7 +623,8 @@ constexpr Result<Vec<T>> vec_move(AllocatorRef allocator, Span<T> data)
 
 /// @brief A Vec with a small inline-reserved storage
 /// @warning SmallVec does not have stable addressing
-template <typename T, usize InlineCapacity = 8>
+template <typename T, usize InlineCapacity = 8,
+          usize MinAlignment = SIMD_ALIGNMENT>
 requires (NonConst<T> && InlineCapacity > 0)
 struct [[nodiscard]] SmallVec
 {
@@ -632,7 +633,7 @@ struct [[nodiscard]] SmallVec
   using Iter = SpanIter<T>;
   using View = Span<T>;
 
-  static constexpr usize ALIGNMENT = max(alignof(Type), MIN_VEC_ALIGNMENT);
+  static constexpr usize ALIGNMENT       = max(MinAlignment, alignof(Type));
   static constexpr usize INLINE_CAPACITY = InlineCapacity;
 
   using InlineStorage = InplaceStorage<ALIGNMENT, sizeof(T) * INLINE_CAPACITY>;
@@ -1251,7 +1252,7 @@ struct [[nodiscard]] SmallVec
 /// invalidation. The elements are never relocated during their lifetime. It can
 /// only pop elements and add elements while within its capacity. It also never
 /// reallocates nor grow in capacity.
-template <typename T>
+template <typename T, usize MinAlignment = SIMD_ALIGNMENT>
 requires (NonConst<T>)
 struct [[nodiscard]] PinVec
 {
@@ -1260,7 +1261,7 @@ struct [[nodiscard]] PinVec
   using Iter = SpanIter<T>;
   using View = Span<T>;
 
-  static constexpr usize ALIGNMENT = max(alignof(Type), MIN_VEC_ALIGNMENT);
+  static constexpr usize ALIGNMENT = max(MinAlignment, alignof(Type));
 
   Type *       storage_;
   usize        size_;
@@ -1548,17 +1549,17 @@ struct [[nodiscard]] PinVec
   }
 };
 
-template <typename T, usize Capacity, usize Alignment = alignof(T)>
+template <typename T, usize Capacity, usize MinAlignment = alignof(T)>
 requires (NonConst<T>)
 struct [[nodiscard]] InplaceVec
-  : InplaceStorage<Alignment, sizeof(T) * Capacity>
+  : InplaceStorage<max(MinAlignment, alignof(T)), sizeof(T) * Capacity>
 {
   using Type = T;
   using Repr = T;
   using Iter = SpanIter<T>;
   using View = Span<T>;
 
-  static constexpr usize ALIGNMENT = Alignment;
+  static constexpr usize ALIGNMENT = max(MinAlignment, alignof(T));
   static constexpr usize CAPACITY  = Capacity;
 
   usize size_ = 0;
