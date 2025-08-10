@@ -5526,7 +5526,7 @@ void CommandEncoder::begin_debug_marker(Str region_name_, f32x4 color)
 
   CMD(BeginDebugMarker{.info = info});
 
-  Vec<char> region_name{pool_};
+  Vec<char, 0> region_name{pool_};
   MEMTRY(region_name.extend_uninit(region_name_.size() + 1));
 
   mem::copy(region_name_, region_name.data());
@@ -5584,7 +5584,7 @@ void CommandEncoder::copy_buffer(gpu::Buffer src_, gpu::Buffer dst_,
 
   CMD(CopyBuffer{.src = src->vk, .dst = dst->vk, .copies{}});
 
-  Vec<VkBufferCopy> copies{pool_};
+  Vec<VkBufferCopy, 0> copies{pool_};
 
   MEMTRY(copies.resize_uninit(copies_.size()));
 
@@ -5621,7 +5621,7 @@ void CommandEncoder::update_buffer(Span<u8 const> src_, u64 dst_offset,
 
   CMD(UpdateBuffer{.src = {}, .dst_offset = dst_offset, .dst = dst->vk});
 
-  Vec<u8> src{pool_};
+  Vec<u8, 0> src{pool_};
 
   MEMTRY(src.extend(src_));
 
@@ -5659,7 +5659,7 @@ void CommandEncoder::clear_color_image(
     .value  = {.uint32{value.u32[0], value.u32[1], value.u32[2], value.u32[3]}},
     .ranges = {}});
 
-  Vec<VkImageSubresourceRange> ranges{pool_};
+  Vec<VkImageSubresourceRange, 0> ranges{pool_};
 
   MEMTRY(ranges.extend_uninit(ranges_.size()));
 
@@ -5710,7 +5710,7 @@ void CommandEncoder::clear_depth_stencil_image(
                              .value      = vk_depth_stencil,
                              .ranges     = {}});
 
-  Vec<VkImageSubresourceRange> ranges{pool_};
+  Vec<VkImageSubresourceRange, 0> ranges{pool_};
 
   MEMTRY(ranges.extend_uninit(ranges_.size()));
 
@@ -5787,7 +5787,7 @@ void CommandEncoder::copy_image(gpu::Image src_, gpu::Image dst_,
                 .dst_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                 .copies     = {}});
 
-  Vec<VkImageCopy> copies{pool_};
+  Vec<VkImageCopy, 0> copies{pool_};
 
   MEMTRY(copies.extend_uninit(copies_.size()));
 
@@ -5872,7 +5872,7 @@ void CommandEncoder::copy_buffer_to_image(
                         .dst_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                         .copies     = {}});
 
-  Vec<VkBufferImageCopy> copies{pool_};
+  Vec<VkBufferImageCopy, 0> copies{pool_};
 
   MEMTRY(copies.extend_uninit(copies_.size()));
 
@@ -5959,7 +5959,7 @@ void CommandEncoder::blit_image(gpu::Image src_, gpu::Image dst_,
                 .blits      = {},
                 .filter     = (VkFilter) filter});
 
-  Vec<VkImageBlit> blits{pool_};
+  Vec<VkImageBlit, 0> blits{pool_};
 
   MEMTRY(blits.resize_uninit(blits_.size()));
 
@@ -6063,7 +6063,7 @@ void CommandEncoder::resolve_image(gpu::Image src_, gpu::Image dst_,
                    .dst_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                    .resolves   = {}});
 
-  Vec<VkImageResolve> resolves{pool_};
+  Vec<VkImageResolve, 0> resolves{pool_};
 
   MEMTRY(resolves.resize_uninit(resolves_.size()));
 
@@ -6237,9 +6237,9 @@ void CommandEncoder::begin_rendering(gpu::RenderingInfo const & info)
                                .pStencilAttachment   = nullptr}
   });
 
-  Vec<VkRenderingAttachmentInfo> color_attachments{pool_};
-  Vec<VkRenderingAttachmentInfo> depth_attachment{pool_};
-  Vec<VkRenderingAttachmentInfo> stencil_attachment{pool_};
+  Vec<VkRenderingAttachmentInfo, 0> color_attachments{pool_};
+  Vec<VkRenderingAttachmentInfo, 0> depth_attachment{pool_};
+  Vec<VkRenderingAttachmentInfo, 0> stencil_attachment{pool_};
 
   MEMTRY(color_attachments.resize_uninit(info.color_attachments.size()));
 
@@ -6600,7 +6600,7 @@ void CommandEncoder::bind_descriptor_sets(
                          .sets            = {},
                          .dynamic_offsets = {}});
 
-  Vec<VkDescriptorSet> descriptor_sets{pool_};
+  Vec<VkDescriptorSet, 0> descriptor_sets{pool_};
 
   MEMTRY(descriptor_sets.resize_uninit(descriptor_sets_.size()));
 
@@ -6610,7 +6610,7 @@ void CommandEncoder::bind_descriptor_sets(
     vk         = set->vk;
   }
 
-  Vec<u32> dynamic_offsets{pool_};
+  Vec<u32, 0> dynamic_offsets{pool_};
 
   MEMTRY(dynamic_offsets.extend(dynamic_offsets_));
 
@@ -6761,7 +6761,7 @@ void CommandEncoder::bind_vertex_buffers(
 
   CMD(BindVertexBuffers{.buffers = {}, .offsets = {}});
 
-  Vec<VkBuffer> vertex_buffers{pool_};
+  Vec<VkBuffer, 0> vertex_buffers{pool_};
 
   MEMTRY(vertex_buffers.resize_uninit(vertex_buffers_.size()));
 
@@ -6771,7 +6771,7 @@ void CommandEncoder::bind_vertex_buffers(
     vk          = buff->vk;
   }
 
-  Vec<u64> offsets{pool_};
+  Vec<u64, 0> offsets{pool_};
 
   MEMTRY(offsets.extend(offsets_));
 
@@ -6962,14 +6962,19 @@ void CommandBuffer::begin()
   state_ = CommandBufferState::Recording;
 }
 
-Status CommandBuffer::end()
+Result<Void, Status> CommandBuffer::end()
 {
   CHECK(state_ == CommandBufferState::Recording, "");
 
   dev_->vk_table_.EndCommandBuffer(vk_);
 
   state_ = CommandBufferState::Recorded;
-  return status_;
+  if (status_ != Status::Success)
+  {
+    return Err{status_};
+  }
+
+  return Ok{};
 }
 
 void CommandBuffer::reset()
