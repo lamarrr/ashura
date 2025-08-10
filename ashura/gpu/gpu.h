@@ -35,10 +35,10 @@ typedef struct StatisticsQuery_T *     StatisticsQuery;
 typedef struct Surface_T *             Surface;
 typedef struct Swapchain_T *           Swapchain;
 typedef struct QueueScope_T *          QueueScope;
-typedef struct CommandEncoder *        CommandEncoderPtr;
-typedef struct CommandBuffer *         CommandBufferPtr;
-typedef struct Device *                DevicePtr;
-typedef struct Instance *              InstancePtr;
+typedef struct ICommandEncoder *       CommandEncoder;
+typedef struct ICommandBuffer *        CommandBuffer;
+typedef struct IDevice *               Device;
+typedef struct IInstance *             Instance;
 
 enum class ObjectType : u32
 {
@@ -738,11 +738,11 @@ enum class MemoryType : u8
   Group  = 1
 };
 
-using Object = Enum<InstancePtr, DevicePtr, CommandEncoderPtr, CommandBufferPtr,
-                    Buffer, BufferView, Image, ImageView, MemoryGroup, Sampler,
-                    Shader, DescriptorSetLayout, DescriptorSet, PipelineCache,
-                    ComputePipeline, GraphicsPipeline, TimestampQuery,
-                    StatisticsQuery, Surface, Swapchain, QueueScope>;
+using Object =
+  Enum<Instance, Device, CommandEncoder, CommandBuffer, Buffer, BufferView,
+       Image, ImageView, MemoryGroup, Sampler, Shader, DescriptorSetLayout,
+       DescriptorSet, PipelineCache, ComputePipeline, GraphicsPipeline,
+       TimestampQuery, StatisticsQuery, Surface, Swapchain, QueueScope>;
 
 struct SurfaceFormat
 {
@@ -804,6 +804,7 @@ struct ImageSubresourceLayers
 
 struct MemoryGroupInfo
 {
+  Str                             label     = {};
   Span<Enum<Buffer, Image> const> resources = {};
   Span<u32 const>                 aliases   = {};
 };
@@ -1275,11 +1276,11 @@ struct RenderingInfo
   Option<RenderingAttachment>     stencil_attachment = none;
 };
 
-struct CommandEncoder
+struct ICommandEncoder
 {
   virtual void begin() = 0;
 
-  virtual Status end() = 0;
+  virtual Result<Void, Status> end() = 0;
 
   virtual void reset() = 0;
 
@@ -1368,7 +1369,7 @@ struct CommandEncoder
   virtual void present(Swapchain swapchain) = 0;
 };
 
-struct CommandBuffer
+struct ICommandBuffer
 {
   /// @brief Begins the command buffer, preparing it for recording.
   // It is at this point that the command buffer fetches the latest states of the resources from the device.
@@ -1378,14 +1379,14 @@ struct CommandBuffer
   /// the command buffer and encoders
   virtual void begin() = 0;
 
-  virtual Status end() = 0;
+  virtual Result<Void, Status> end() = 0;
 
   virtual void reset() = 0;
 
-  virtual void record(CommandEncoder & encoder) = 0;
+  virtual void record(CommandEncoder encoder) = 0;
 };
 
-struct Device
+struct IDevice
 {
   virtual Result<Buffer, Status> create_buffer(BufferInfo const & info) = 0;
 
@@ -1428,10 +1429,10 @@ struct Device
   virtual Result<StatisticsQuery, Status>
     create_statistics_query(StatisticsQueryInfo const & info) = 0;
 
-  virtual Result<CommandEncoderPtr, Status>
+  virtual Result<CommandEncoder, Status>
     create_command_encoder(CommandEncoderInfo const & info) = 0;
 
-  virtual Result<CommandBufferPtr, Status>
+  virtual Result<CommandBuffer, Status>
     create_command_buffer(CommandBufferInfo const & info) = 0;
 
   virtual Result<QueueScope, Status>
@@ -1467,9 +1468,9 @@ struct Device
 
   virtual void uninit(StatisticsQuery query) = 0;
 
-  virtual void uninit(CommandEncoderPtr encoder) = 0;
+  virtual void uninit(CommandEncoder encoder) = 0;
 
-  virtual void uninit(CommandBufferPtr buffer) = 0;
+  virtual void uninit(CommandBuffer buffer) = 0;
 
   virtual void uninit(QueueScope scope) = 0;
 
@@ -1525,27 +1526,27 @@ struct Device
 
   virtual Result<Void, Status> acquire_next(Swapchain swapchain) = 0;
 
-  virtual Result<Void, Status> submit(CommandBuffer & buffer,
-                                      QueueScope      scope) = 0;
+  virtual Result<Void, Status> submit(CommandBuffer buffer,
+                                      QueueScope    scope) = 0;
 };
 
-struct Instance
+struct IInstance
 {
-  virtual ~Instance() = default;
+  virtual ~IInstance() = default;
 
-  virtual Result<DevicePtr, Status>
+  virtual Result<Device, Status>
     create_device(AllocatorRef           allocator,
                   Span<DeviceType const> preferred_types) = 0;
 
   virtual Backend get_backend() = 0;
 
-  virtual void uninit(DevicePtr device) = 0;
+  virtual void uninit(Device device) = 0;
 
   virtual void uninit(Surface surface) = 0;
 };
 
-Result<Dyn<InstancePtr>, Status> create_vulkan_instance(AllocatorRef allocator,
-                                                        bool enable_validation);
+Result<Dyn<Instance>, Status> create_vulkan_instance(AllocatorRef allocator,
+                                                     bool enable_validation);
 
 /// REQUIRED LIMITS AND PROPERTIES
 

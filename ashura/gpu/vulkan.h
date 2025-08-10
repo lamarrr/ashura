@@ -422,7 +422,7 @@ struct GraphicsPipeline
   u32 num_vertex_attributes = 0;
 };
 
-struct Instance final : gpu::Instance
+struct Instance final : gpu::IInstance
 {
   AllocatorRef allocator_;
 
@@ -452,13 +452,13 @@ struct Instance final : gpu::Instance
   Instance & operator=(Instance &&)      = delete;
   virtual ~Instance() override;
 
-  virtual Result<gpu::Device *, Status>
+  virtual Result<gpu::Device, Status>
     create_device(AllocatorRef                allocator,
                   Span<gpu::DeviceType const> preferred_types) override;
 
   virtual gpu::Backend get_backend() override;
 
-  virtual void uninit(gpu::Device * device) override;
+  virtual void uninit(gpu::Device device) override;
 
   virtual void uninit(gpu::Surface surface) override;
 };
@@ -1115,7 +1115,7 @@ struct PassContext
   void clear();
 };
 
-struct CommandEncoder final : gpu::CommandEncoder
+struct CommandEncoder final : gpu::ICommandEncoder
 {
   enum class Pass : u8
   {
@@ -1161,7 +1161,7 @@ struct CommandEncoder final : gpu::CommandEncoder
 
   virtual void begin() override;
 
-  virtual Status end() override;
+  virtual Result<Void, Status> end() override;
 
   virtual void reset() override;
 
@@ -1256,7 +1256,7 @@ struct CommandEncoder final : gpu::CommandEncoder
   virtual void present(gpu::Swapchain swapchain) override;
 };
 
-struct CommandBuffer final : gpu::CommandBuffer
+struct CommandBuffer final : gpu::ICommandBuffer
 {
   Device *              dev_;
   VkCommandPool         vk_pool_;
@@ -1282,11 +1282,11 @@ struct CommandBuffer final : gpu::CommandBuffer
 
   virtual void begin() override;
 
-  virtual Status end() override;
+  virtual Result<Void, Status> end() override;
 
   virtual void reset() override;
 
-  virtual void record(gpu::CommandEncoder & encoder) override;
+  virtual void record(gpu::CommandEncoder encoder) override;
 
   void commit_resource_states();
 };
@@ -1312,7 +1312,7 @@ struct QueueScope
   }
 };
 
-struct Device final : gpu::Device
+struct Device final : gpu::IDevice
 {
   AllocatorRef         allocator_;
   Instance *           instance_;
@@ -1406,10 +1406,10 @@ struct Device final : gpu::Device
   virtual Result<gpu::StatisticsQuery, Status>
     create_statistics_query(gpu::StatisticsQueryInfo const & info) override;
 
-  virtual Result<gpu::CommandEncoderPtr, Status>
+  virtual Result<gpu::CommandEncoder, Status>
     create_command_encoder(gpu::CommandEncoderInfo const & info) override;
 
-  virtual Result<gpu::CommandBufferPtr, Status>
+  virtual Result<gpu::CommandBuffer, Status>
     create_command_buffer(gpu::CommandBufferInfo const & info) override;
 
   virtual Result<gpu::QueueScope, Status>
@@ -1447,9 +1447,9 @@ struct Device final : gpu::Device
 
   virtual void uninit(gpu::StatisticsQuery query) override;
 
-  virtual void uninit(gpu::CommandEncoderPtr encoder) override;
+  virtual void uninit(gpu::CommandEncoder encoder) override;
 
-  virtual void uninit(gpu::CommandBufferPtr buffer) override;
+  virtual void uninit(gpu::CommandBuffer buffer) override;
 
   virtual void uninit(gpu::QueueScope scope) override;
 
@@ -1510,8 +1510,8 @@ struct Device final : gpu::Device
 
   virtual Result<Void, Status> acquire_next(gpu::Swapchain swapchain) override;
 
-  virtual Result<Void, Status> submit(gpu::CommandBuffer & buffer,
-                                      gpu::QueueScope      scope) override;
+  virtual Result<Void, Status> submit(gpu::CommandBuffer buffer,
+                                      gpu::QueueScope    scope) override;
 };
 
 }    // namespace vk

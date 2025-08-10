@@ -1455,8 +1455,8 @@ static VkBool32 VKAPI_ATTR VKAPI_CALL
   return VK_FALSE;
 }
 
-Result<Dyn<gpu::Instance *>, Status> create_instance(AllocatorRef allocator,
-                                                     bool enable_validation)
+Result<Dyn<gpu::Instance>, Status> create_instance(AllocatorRef allocator,
+                                                   bool enable_validation)
 {
   u32  num_exts;
   auto result =
@@ -1704,14 +1704,14 @@ Result<Dyn<gpu::Instance *>, Status> create_instance(AllocatorRef allocator,
 
   vk_instance = nullptr;
 
-  return Ok{cast<gpu::Instance *>(std::move(instance.v()))};
+  return Ok{cast<gpu::Instance>(std::move(instance.v()))};
 }
 }    // namespace vk
 
 namespace gpu
 {
 
-Result<Dyn<gpu::Instance *>, Status>
+Result<Dyn<gpu::Instance>, Status>
   create_vulkan_instance(AllocatorRef allocator, bool enable_validation)
 {
   return vk::create_instance(allocator, enable_validation);
@@ -1786,7 +1786,7 @@ void check_device_features(VkPhysicalDeviceFeatures feat)
   CHECK(feat.pipelineStatisticsQuery == VK_TRUE, "");
 }
 
-Result<gpu::Device *, Status>
+Result<gpu::Device, Status>
   Instance::create_device(AllocatorRef                allocator,
                           Span<gpu::DeviceType const> preferred_types)
 {
@@ -2292,7 +2292,7 @@ Result<gpu::Device *, Status>
   vk_dev        = nullptr;
   dev           = nullptr;
 
-  return Ok<gpu::Device *>{dev};
+  return Ok<gpu::Device>{dev};
 }
 
 gpu::Backend Instance::get_backend()
@@ -2300,7 +2300,7 @@ gpu::Backend Instance::get_backend()
   return gpu::Backend::Vulkan;
 }
 
-void Instance::uninit(gpu::Device * device_)
+void Instance::uninit(gpu::Device device_)
 {
   auto * dev = (Device *) device_;
 
@@ -4156,7 +4156,7 @@ Result<gpu::StatisticsQuery, Status>
   return Ok{(gpu::StatisticsQuery) vk_pool};
 }
 
-Result<gpu::CommandEncoderPtr, Status>
+Result<gpu::CommandEncoder, Status>
   Device::create_command_encoder(gpu::CommandEncoderInfo const &)
 {
   CommandEncoder * enc;
@@ -4168,10 +4168,10 @@ Result<gpu::CommandEncoderPtr, Status>
 
   new (enc) CommandEncoder{this, allocator_};
 
-  return Ok{(gpu::CommandEncoderPtr) enc};
+  return Ok{(gpu::CommandEncoder) enc};
 }
 
-Result<gpu::CommandBufferPtr, Status>
+Result<gpu::CommandBuffer, Status>
   Device::create_command_buffer(gpu::CommandBufferInfo const & info)
 {
   VkCommandPoolCreateInfo pool_create_info{
@@ -4238,7 +4238,7 @@ Result<gpu::CommandBufferPtr, Status>
   vk_pool = nullptr;
   vk      = nullptr;
 
-  return Ok{(gpu::CommandBufferPtr) buff};
+  return Ok{(gpu::CommandBuffer) buff};
 }
 
 Result<gpu::QueueScope, Status>
@@ -4650,7 +4650,7 @@ void Device::uninit(gpu::StatisticsQuery query_)
   vk_table_.DestroyQueryPool(vk_dev_, vk_pool, nullptr);
 }
 
-void Device::uninit(gpu::CommandEncoder * enc_)
+void Device::uninit(gpu::CommandEncoder enc_)
 {
   auto enc = (CommandEncoder *) enc_;
 
@@ -4663,7 +4663,7 @@ void Device::uninit(gpu::CommandEncoder * enc_)
   allocator_->ndealloc(1, enc);
 }
 
-void Device::uninit(gpu::CommandBuffer * buff_)
+void Device::uninit(gpu::CommandBuffer buff_)
 {
   auto buff = (CommandBuffer *) buff_;
   if (buff == nullptr)
@@ -5299,15 +5299,16 @@ Result<Void, Status> Device::acquire_next(gpu::Swapchain swapchain_)
   return Ok{};
 }
 
-Result<Void, Status> Device::submit(gpu::CommandBuffer & buffer_,
-                                    gpu::QueueScope      scope_)
+Result<Void, Status> Device::submit(gpu::CommandBuffer buffer_,
+                                    gpu::QueueScope    scope_)
 {
   char              reserved_[512];
   FallbackAllocator scratch{Arena::from(reserved_), allocator_};
 
-  auto & buffer = (CommandBuffer &) buffer_;
-  CHECK(buffer.state_ == CommandBufferState::Recorded, "");
-  CHECK(buffer.status_ == Status::Success, "");
+  auto * buffer = (CommandBuffer *) buffer_;
+  CHECK(buffer != nullptr, "");
+  CHECK(buffer->state_ == CommandBufferState::Recorded, "");
+  CHECK(buffer->status_ == Status::Success, "");
   CHECK(scope_ != nullptr, "");
 
   auto scope = (QueueScope *) scope_;
@@ -5325,7 +5326,7 @@ Result<Void, Status> Device::submit(gpu::CommandBuffer & buffer_,
 
   CHECK(result == VK_SUCCESS, "");
 
-  auto swapchain     = buffer.swapchain_;
+  auto swapchain     = buffer->swapchain_;
   auto is_presenting = swapchain != nullptr && !swapchain->is_out_of_date &&
                        !swapchain->is_deferred;
   auto acquire_semaphore =
@@ -5342,7 +5343,7 @@ Result<Void, Status> Device::submit(gpu::CommandBuffer & buffer_,
     .pWaitSemaphores      = is_presenting ? &acquire_semaphore : nullptr,
     .pWaitDstStageMask    = is_presenting ? &wait_stages : nullptr,
     .commandBufferCount   = 1,
-    .pCommandBuffers      = &buffer.vk_,
+    .pCommandBuffers      = &buffer->vk_,
     .signalSemaphoreCount = is_presenting ? 1U : 0U,
     .pSignalSemaphores    = is_presenting ? &submit_semaphore : nullptr};
 
@@ -5350,10 +5351,10 @@ Result<Void, Status> Device::submit(gpu::CommandBuffer & buffer_,
 
   CHECK(result == VK_SUCCESS, "");
 
-  buffer.state_ = CommandBufferState::Submitted;
+  buffer->state_ = CommandBufferState::Submitted;
 
   // commit the updated state of the resources
-  buffer.commit_resource_states();
+  buffer->commit_resource_states();
 
   scope->current_frame_++;
   scope->tail_frame_ = (scope->current_frame_ < scope->buffering_) ?
@@ -5414,12 +5415,18 @@ void CommandEncoder::begin()
   tracker_.begin_pass();
 }
 
-Status CommandEncoder::end()
+Result<Void, Status> CommandEncoder::end()
 {
   CHECK(state_ == CommandBufferState::Recording, "");
   CHECK(pass_ == Pass::None, "");
   state_ = CommandBufferState::Recorded;
-  return status_;
+
+  if (status_ != Status::Success)
+  {
+    return Err{status_};
+  }
+
+  return Ok{};
 }
 
 void CommandEncoder::reset()
@@ -7299,23 +7306,24 @@ void issue_barriers(DeviceTable const & t, VkCommandBuffer cmd,
   }
 }
 
-void CommandBuffer::record(gpu::CommandEncoder & encoder_)
+void CommandBuffer::record(gpu::CommandEncoder encoder_)
 {
   CHECK(state_ == CommandBufferState::Recording, "");
-  auto & encoder = (CommandEncoder &) encoder_;
+  auto * encoder = (CommandEncoder *) encoder_;
+  CHECK(encoder != nullptr, "");
 
-  if (encoder.tracker_.passes_.is_empty())
+  if (encoder->tracker_.passes_.is_empty())
   {
     return;
   }
 
   HazardBarriers barriers{pool_};
-  auto *         next_command = encoder.tracker_.first_cmd_;
+  auto *         next_command = encoder->tracker_.first_cmd_;
 
-  for (auto [ipass, begin] : enumerate(encoder.tracker_.passes_.view().slice(
-         0, encoder.tracker_.passes_.size() - 1)))
+  for (auto [ipass, begin] : enumerate(encoder->tracker_.passes_.view().slice(
+         0, encoder->tracker_.passes_.size() - 1)))
   {
-    auto const & end = encoder.tracker_.passes_[ipass + 1];
+    auto const & end = encoder->tracker_.passes_[ipass + 1];
 
     auto commands = Slice32::range(begin.commands, end.commands);
     auto buffers  = Slice32::range(begin.buffers, end.buffers);
@@ -7324,7 +7332,7 @@ void CommandBuffer::record(gpu::CommandEncoder & encoder_)
       Slice32::range(begin.descriptor_sets, end.descriptor_sets);
 
     for (auto [buffer, stages, access] :
-         encoder.tracker_.buffers_.view().slice(buffers))
+         encoder->tracker_.buffers_.view().slice(buffers))
     {
       resource_states_.access(*buffer,
                               MemAccess{.stages = stages, .access = access},
@@ -7332,7 +7340,7 @@ void CommandBuffer::record(gpu::CommandEncoder & encoder_)
     }
 
     for (auto [image, stages, access, layout] :
-         encoder.tracker_.images_.view().slice(images))
+         encoder->tracker_.images_.view().slice(images))
     {
       resource_states_.access(*image,
                               MemAccess{.stages = stages, .access = access},
@@ -7340,7 +7348,7 @@ void CommandBuffer::record(gpu::CommandEncoder & encoder_)
     }
 
     for (auto [descriptor_set, stages] :
-         encoder.tracker_.descriptor_sets_.view().slice(descriptor_sets))
+         encoder->tracker_.descriptor_sets_.view().slice(descriptor_sets))
     {
       resource_states_.access(*descriptor_set, stages, ipass, barriers);
     }
