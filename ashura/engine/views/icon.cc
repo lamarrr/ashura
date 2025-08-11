@@ -9,14 +9,14 @@ namespace ui
 {
 
 Icon::Icon(Str32 text, TextStyle const & style, FontStyle const & font,
-           AllocatorRef allocator) :
+           Allocator allocator) :
   text_{allocator}
 {
   text_.text(text).run(style, font);
 }
 
 Icon::Icon(Str8 text, TextStyle const & style, FontStyle const & font,
-           AllocatorRef allocator) :
+           Allocator allocator) :
   text_{allocator}
 {
   text_.text(text).run(style, font);

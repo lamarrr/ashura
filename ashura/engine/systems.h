@@ -83,9 +83,9 @@ struct Shader
 
 struct FileSystem
 {
-  AllocatorRef allocator_;
+  Allocator allocator_;
 
-  explicit FileSystem(AllocatorRef allocator) : allocator_{allocator}
+  explicit FileSystem(Allocator allocator) : allocator_{allocator}
   {
   }
 
@@ -103,10 +103,10 @@ struct FileSystem
 struct ImageSystem
 {
   gpu::Format      format_ = gpu::Format::B8G8R8A8_UNORM;
-  AllocatorRef     allocator_;
+  Allocator     allocator_;
   SparseVec<Image> images_{};
 
-  explicit ImageSystem(AllocatorRef allocator) :
+  explicit ImageSystem(Allocator allocator) :
     allocator_{allocator},
     images_{allocator}
   {
@@ -144,7 +144,7 @@ struct ImageSystem
 
 struct FontSystem
 {
-  static Dyn<FontSystem *> create(AllocatorRef allocator);
+  static Dyn<FontSystem *> create(Allocator allocator);
 
   virtual ~FontSystem() = default;
 
@@ -179,10 +179,10 @@ struct FontSystem
 
 struct ShaderSystem
 {
-  AllocatorRef      allocator_;
+  Allocator      allocator_;
   SparseVec<Shader> shaders_;
 
-  ShaderSystem(AllocatorRef allocator) :
+  ShaderSystem(Allocator allocator) :
     allocator_{allocator},
     shaders_{allocator}
   {

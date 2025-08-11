@@ -151,7 +151,7 @@ struct System
     Vec<u16>     parent;
     Vec<Slice16> children;
 
-    Nodes(AllocatorRef allocator) :
+    Nodes(Allocator allocator) :
       depth{allocator},
       parent{allocator},
       children{allocator}
@@ -174,7 +174,7 @@ struct System
     Vec<Option<TextInputInfo>> input;
     BitVec<u64>                is_viewport;
 
-    Attrs(AllocatorRef allocator) :
+    Attrs(Allocator allocator) :
       tab_idx{allocator},
       viewports{allocator},
       hidden{allocator},
@@ -271,7 +271,7 @@ struct System
   Option<Cursor>        cursor;
   f32                   scroll_delta;
 
-  explicit System(AllocatorRef allocator) :
+  explicit System(Allocator allocator) :
     root_view{none},
     frame{0},
     next_id{0},

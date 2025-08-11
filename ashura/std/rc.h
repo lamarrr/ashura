@@ -8,12 +8,12 @@
 namespace ash
 {
 
-typedef Fn<usize(AllocatorRef, i32)> AliasOp;
+typedef Fn<usize(Allocator, i32)> AliasOp;
 
 /// @param allocator the allocator used to allocate the object
 /// @param direction the reference operation, 0 (get ref count), 1 (increase ref count), -1 (decrease ref count)
 /// @returns the previous alias count
-static constexpr usize rc_noop(AllocatorRef allocator, i32 op)
+static constexpr usize rc_noop(Allocator allocator, i32 op)
 {
   (void) allocator;
   (void) op;
@@ -36,10 +36,10 @@ struct [[nodiscard]] Rc
   typedef H Handle;
 
   H            handle_;
-  AllocatorRef allocator_;
+  Allocator allocator_;
   AliasOp      alias_;
 
-  constexpr Rc(H handle, AllocatorRef allocator, AliasOp alias) :
+  constexpr Rc(H handle, Allocator allocator, AliasOp alias) :
     handle_{handle},
     allocator_{allocator},
     alias_{alias}
@@ -145,7 +145,7 @@ struct RcObject
   AliasCount alias_count{};
   T          v0;
 
-  static constexpr usize rc_op(RcObject * obj, AllocatorRef allocator, i32 op)
+  static constexpr usize rc_op(RcObject * obj, Allocator allocator, i32 op)
   {
     switch (op)
     {
@@ -174,7 +174,7 @@ struct RcObject
 };
 
 template <typename T, typename... Args>
-constexpr Result<Rc<T *>, Void> rc(Inplace, AllocatorRef allocator,
+constexpr Result<Rc<T *>, Void> rc(Inplace, Allocator allocator,
                                    Args &&... args)
 {
   RcObject<T> * obj;
@@ -192,7 +192,7 @@ constexpr Result<Rc<T *>, Void> rc(Inplace, AllocatorRef allocator,
 }
 
 template <typename T>
-constexpr Result<Rc<T *>, Void> rc(AllocatorRef allocator, T object)
+constexpr Result<Rc<T *>, Void> rc(Allocator allocator, T object)
 {
   return rc<T>(inplace, allocator, static_cast<T &&>(object));
 }

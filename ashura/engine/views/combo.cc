@@ -34,14 +34,14 @@ Cursor ComboItem::cursor(f32x2, f32x2)
 }
 
 TextComboItem::TextComboItem(Str32 text, TextStyle const & style,
-                             FontStyle const & font, AllocatorRef allocator) :
+                             FontStyle const & font, Allocator allocator) :
   text_{text, style, font, allocator}
 {
   text_.copyable(false);
 }
 
 TextComboItem::TextComboItem(Str8 text, TextStyle const & style,
-                             FontStyle const & font, AllocatorRef allocator) :
+                             FontStyle const & font, Allocator allocator) :
   text_{text, style, font, allocator}
 {
   text_.copyable(false);
@@ -170,7 +170,7 @@ void TextComboItem::render(Canvas & canvas, RenderInfo const & info)
                 .clip         = info.clip});
 }
 
-Combo::Combo(AllocatorRef allocator) : Flex{allocator}
+Combo::Combo(Allocator allocator) : Flex{allocator}
 {
   Flex::axis(Axis::Y)
     .main_align(MainAlign::Start)

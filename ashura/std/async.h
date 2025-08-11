@@ -522,14 +522,14 @@ struct StopTokenState
 /// @param num_stages: number of stages represented by this semaphore
 /// @return Semaphore
 ///
-inline Result<Semaphore> semaphore(AllocatorRef allocator, u64 num_stages)
+inline Result<RcSemaphore> semaphore(Allocator allocator, u64 num_stages)
 {
-  return rc<SemaphoreState>(inplace, allocator, num_stages);
+  return rc<ISemaphore>(inplace, allocator, num_stages);
 }
 
 typedef Rc<StopTokenState *> StopToken;
 
-inline Result<StopToken> stop_token(AllocatorRef allocator)
+inline Result<StopToken> stop_token(Allocator allocator)
 {
   return rc<StopTokenState>(inplace, allocator);
 }
@@ -1116,7 +1116,7 @@ struct Scheduler
   /// @param worker_thread_sleep maximum sleep time for the worker threads.
   /// enables responsiveness. `.size()` represents the number of worker threads
   /// to create.
-  static Dyn<Scheduler *> create(AllocatorRef            allocator,
+  static Dyn<Scheduler *> create(Allocator               allocator,
                                  std::thread::id         main_thread_id,
                                  Span<nanoseconds const> dedicated_thread_sleep,
                                  Span<nanoseconds const> worker_thread_sleep);

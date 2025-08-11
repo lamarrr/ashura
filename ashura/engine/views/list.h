@@ -15,10 +15,10 @@ namespace ui
 /// @brief An infinitely scrollable List of elements.
 struct List : View
 {
-  typedef Fn<Option<Dyn<View *>>(AllocatorRef, usize i)> Generator;
+  typedef Fn<Option<Dyn<View *>>(Allocator, usize i)> Generator;
 
   static constexpr auto DEFAULT_GENERATOR =
-    [](AllocatorRef, usize) -> Option<Dyn<View *>> { return none; };
+    [](Allocator, usize) -> Option<Dyn<View *>> { return none; };
 
   struct State
   {
@@ -69,10 +69,10 @@ struct List : View
     Frame item_frame = Frame{}.abs(1, 1);
   } style_;
 
-  AllocatorRef allocator_;
+  Allocator allocator_;
 
   List(Generator    generator = DEFAULT_GENERATOR,
-       AllocatorRef allocator = default_allocator);
+       Allocator allocator = default_allocator);
 
   List & generator(Generator generator);
 

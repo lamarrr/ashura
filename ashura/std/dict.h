@@ -137,11 +137,11 @@ struct [[nodiscard]] Dict
   usize        num_probes_;
   usize        num_entries_;
   Distance     max_probe_dist_;
-  AllocatorRef allocator_;
+  Allocator allocator_;
   Hasher       hasher_;
   KeyCmp       cmp_;
 
-  constexpr Dict(AllocatorRef allocator = {}, Hasher hasher = {},
+  constexpr Dict(Allocator allocator = {}, Hasher hasher = {},
                  KeyCmp cmp = {}) :
     probe_dists_{nullptr},
     probes_{nullptr},
@@ -223,7 +223,6 @@ struct [[nodiscard]] Dict
     num_probes_     = 0;
     num_entries_    = 0;
     max_probe_dist_ = 0;
-    allocator_      = {};
   }
 
   constexpr void clear()

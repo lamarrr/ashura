@@ -7,7 +7,7 @@
 namespace ash
 {
 
-SdfPass::SdfPass(AllocatorRef allocator) : variants_{allocator}
+SdfPass::SdfPass(Allocator allocator) : variants_{allocator}
 {
 }
 

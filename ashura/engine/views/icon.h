@@ -25,14 +25,14 @@ struct Icon : View
        FontStyle const & font      = FontStyle{.font        = theme.icon_font,
                                                .height      = theme.body_font_height,
                                                .line_height = theme.line_height},
-       AllocatorRef      allocator = default_allocator);
+       Allocator      allocator = default_allocator);
 
   Icon(Str8              text,
        TextStyle const & style     = TextStyle{.color = theme.on_surface},
        FontStyle const & font      = FontStyle{.font        = theme.icon_font,
                                                .height      = theme.body_font_height,
                                                .line_height = theme.line_height},
-       AllocatorRef      allocator = default_allocator);
+       Allocator      allocator = default_allocator);
 
   Icon(Icon const &)             = delete;
   Icon(Icon &&)                  = default;

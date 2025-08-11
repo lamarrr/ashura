@@ -29,7 +29,7 @@ struct FillStencilPass final : Pass
 {
   gpu::GraphicsPipeline pipeline_;
 
-  FillStencilPass(AllocatorRef);
+  FillStencilPass(Allocator);
   FillStencilPass(FillStencilPass const &)             = delete;
   FillStencilPass(FillStencilPass &&)                  = default;
   FillStencilPass & operator=(FillStencilPass const &) = delete;

@@ -34,14 +34,14 @@ struct Text : View
        FontStyle const & font      = FontStyle{.font        = theme.body_font,
                                                .height      = theme.body_font_height,
                                                .line_height = theme.line_height},
-       AllocatorRef      allocator = default_allocator);
+       Allocator      allocator = default_allocator);
 
   Text(Str8              text,
        TextStyle const & style     = TextStyle{.color = theme.on_surface},
        FontStyle const & font      = FontStyle{.font        = theme.body_font,
                                                .height      = theme.body_font_height,
                                                .line_height = theme.line_height},
-       AllocatorRef      allocator = default_allocator);
+       Allocator      allocator = default_allocator);
 
   Text(Text const &)             = delete;
   Text(Text &&)                  = default;

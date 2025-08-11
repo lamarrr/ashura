@@ -321,7 +321,7 @@ struct Canvas
   // are done executing
   ArenaPool frame_arena_;
 
-  explicit Canvas(AllocatorRef allocator, FrameGraph & frame_graph,
+  explicit Canvas(Allocator allocator, FrameGraph & frame_graph,
                   PassBundle & passes) :
     color_textures_{},
     msaa_color_textures_{},

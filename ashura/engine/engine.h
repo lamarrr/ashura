@@ -45,12 +45,12 @@ struct EngineCfg
 
   Vec<char> pipeline_cache{};
 
-  static Result<EngineCfg> parse(AllocatorRef allocator, Vec<u8> & json);
+  static Result<EngineCfg> parse(Allocator allocator, Vec<u8> & json);
 };
 
 struct Engine
 {
-  AllocatorRef allocator;
+  Allocator allocator;
 
   Dyn<Logger *> logger;
 
@@ -96,10 +96,10 @@ struct Engine
 
   nanoseconds min_frame_interval;
 
-  static Dyn<Engine *> create(AllocatorRef allocator, Str config_path,
+  static Dyn<Engine *> create(Allocator allocator, Str config_path,
                               Str working_dir);
 
-  Engine(AllocatorRef allocator, Dyn<Logger *> logger,
+  Engine(Allocator allocator, Dyn<Logger *> logger,
          Dyn<Scheduler *> scheduler, FileSystem file_sys,
          Dyn<gpu::Instance *> instance, gpu::Device & device, GpuSystem gpu_sys,
          ImageSystem image_sys, Dyn<FontSystem *> font_sys,

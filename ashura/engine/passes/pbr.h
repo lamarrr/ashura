@@ -36,7 +36,7 @@ struct PBRPass final : Pass
 
   SparseVec<Tuple<Str, Pipeline>> variants_;
 
-  PBRPass(AllocatorRef);
+  PBRPass(Allocator);
 
   PBRPass(PBRPass const &)             = delete;
   PBRPass(PBRPass &&)                  = default;

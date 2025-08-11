@@ -29,7 +29,7 @@ struct BezierStencilPass final : Pass
 {
   gpu::GraphicsPipeline pipeline_ = nullptr;
 
-  BezierStencilPass(AllocatorRef);
+  BezierStencilPass(Allocator);
 
   BezierStencilPass(BezierStencilPass const &)             = delete;
   BezierStencilPass(BezierStencilPass &&)                  = default;

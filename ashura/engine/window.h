@@ -17,7 +17,7 @@ typedef struct Window_T * Window;
 
 struct WindowSystem
 {
-  static Dyn<WindowSystem *> create_SDL(AllocatorRef allocator);
+  static Dyn<WindowSystem *> create_SDL(Allocator allocator);
 
   virtual ~WindowSystem() = default;
 

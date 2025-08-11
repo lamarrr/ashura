@@ -111,14 +111,14 @@ struct TextButton : Button
     FontStyle const & font      = FontStyle{.font        = theme.body_font,
                                             .height      = theme.body_font_height,
                                             .line_height = theme.line_height},
-    AllocatorRef      allocator = default_allocator);
+    Allocator      allocator = default_allocator);
 
   TextButton(
     Str8 text, TextStyle const & style = TextStyle{.color = theme.on_surface},
     FontStyle const & font      = FontStyle{.font        = theme.body_font,
                                             .height      = theme.body_font_height,
                                             .line_height = theme.line_height},
-    AllocatorRef      allocator = default_allocator);
+    Allocator      allocator = default_allocator);
 
   TextButton(TextButton const &)             = delete;
   TextButton(TextButton &&)                  = default;

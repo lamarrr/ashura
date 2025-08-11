@@ -27,7 +27,7 @@ struct QuadPass final : Pass
 {
   SparseVec<Tuple<Str, gpu::GraphicsPipeline>> variants_;
 
-  QuadPass(AllocatorRef);
+  QuadPass(Allocator);
 
   QuadPass(QuadPass const &)             = delete;
   QuadPass(QuadPass &&)                  = default;

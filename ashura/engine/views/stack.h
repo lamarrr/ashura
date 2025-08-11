@@ -23,7 +23,7 @@ struct Stack : View
 
   Vec<ref<View>> items_;
 
-  Stack(AllocatorRef allocator = default_allocator);
+  Stack(Allocator allocator = default_allocator);
   Stack(Stack const &)             = delete;
   Stack(Stack &&)                  = default;
   Stack & operator=(Stack const &) = delete;

@@ -424,7 +424,7 @@ struct GraphicsPipeline
 
 struct Instance final : gpu::IInstance
 {
-  AllocatorRef allocator_;
+  Allocator allocator_;
 
   InstanceTable vk_table_;
 
@@ -434,7 +434,7 @@ struct Instance final : gpu::IInstance
 
   bool validation_enabled_;
 
-  explicit Instance(AllocatorRef allocator, InstanceTable table,
+  explicit Instance(Allocator allocator, InstanceTable table,
                     VkInstance               instance,
                     VkDebugUtilsMessengerEXT debug_messenger,
                     bool                     validation_enabled) :
@@ -453,7 +453,7 @@ struct Instance final : gpu::IInstance
   virtual ~Instance() override;
 
   virtual Result<gpu::Device, Status>
-    create_device(AllocatorRef                allocator,
+    create_device(Allocator                   allocator,
                   Span<gpu::DeviceType const> preferred_types) override;
 
   virtual gpu::Backend get_backend() override;
@@ -911,7 +911,7 @@ struct HazardBarriers
   Vec<VkMemoryBarrier>       mem_;
   Vec<Stage>                 mem_stages_;
 
-  HazardBarriers(AllocatorRef allocator) :
+  HazardBarriers(Allocator allocator) :
     buffers_{allocator},
     buffer_stages_{allocator},
     images_{allocator},
@@ -945,7 +945,7 @@ struct DeviceResourceStates
                 descriptor_sets_;
   ReadWriteLock lock_;
 
-  DeviceResourceStates(AllocatorRef allocator) :
+  DeviceResourceStates(Allocator allocator) :
     memory_{allocator},
     descriptor_sets_{allocator},
     lock_{}
@@ -977,7 +977,7 @@ struct EncoderResourceStates
     >
     descriptor_sets_;
 
-  EncoderResourceStates(AllocatorRef allocator) :
+  EncoderResourceStates(Allocator allocator) :
     memory_{allocator},
     descriptor_sets_{allocator}
   {
@@ -1041,7 +1041,7 @@ struct CommandTracker
   cmd::Command *                                  first_cmd_;
   cmd::Command *                                  last_cmd_;
 
-  CommandTracker(AllocatorRef allocator) :
+  CommandTracker(Allocator allocator) :
     buffers_{allocator},
     images_{allocator},
     descriptor_sets_{allocator},
@@ -1133,7 +1133,7 @@ struct CommandEncoder final : gpu::ICommandEncoder
   PassContext        ctx_;
   Swapchain *        swapchain_;
 
-  CommandEncoder(Device * dev, AllocatorRef allocator) :
+  CommandEncoder(Device * dev, Allocator allocator) :
     dev_{dev},
     pool_{allocator},
     status_{Status::Success},
@@ -1268,7 +1268,7 @@ struct CommandBuffer final : gpu::ICommandBuffer
   ArenaPool             pool_;
 
   CommandBuffer(Device * dev, VkCommandPool vk_pool, VkCommandBuffer vk_buffer,
-                AllocatorRef allocator) :
+                Allocator allocator) :
     dev_{dev},
     vk_pool_{vk_pool},
     vk_{vk_buffer},
@@ -1314,7 +1314,7 @@ struct QueueScope
 
 struct Device final : gpu::IDevice
 {
-  AllocatorRef         allocator_;
+  Allocator            allocator_;
   Instance *           instance_;
   PhysicalDevice       phy_dev_;
   DeviceTable          vk_table_;
@@ -1326,7 +1326,7 @@ struct Device final : gpu::IDevice
   Vec<u8>              scratch_;
   DeviceResourceStates resource_states_;
 
-  Device(AllocatorRef allocator, Instance * instance, PhysicalDevice phy_dev,
+  Device(Allocator allocator, Instance * instance, PhysicalDevice phy_dev,
          DeviceTable vk_table, VmaVulkanFunctions vma_table, VkDevice vk_dev,
          u32 queue_family, VkQueue vk_queue, VmaAllocator vma_allocator) :
     allocator_{allocator},

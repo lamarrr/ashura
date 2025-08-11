@@ -719,7 +719,7 @@ struct TextLayout
   Vec<Line>       lines;
   Vec<Paragraph>  paragraphs;
 
-  explicit TextLayout(AllocatorRef allocator) :
+  explicit TextLayout(Allocator allocator) :
     laid_out{false},
     max_width{0},
     num_carets{0},
@@ -783,7 +783,7 @@ struct TextLayout
               TextBlock const & block, TextBlockStyle const & style,
               Span<Slice const> highlights, Span<usize const> carets,
               CRect const & clip,
-              AllocatorRef  allocator = default_allocator) const;
+              Allocator  allocator = default_allocator) const;
 };
 
 }    // namespace ash

@@ -39,7 +39,7 @@ struct RenderText
   Vec<usize>         carets_;
   Vec<Slice>         highlights_;
 
-  RenderText(AllocatorRef allocator) :
+  RenderText(Allocator allocator) :
     hash_{HASH_DIRTY},
     wrap_{true},
     use_kerning_{true},
@@ -131,7 +131,7 @@ struct RenderText
   /// @param zoom the zoom to apply to the text
   void render(TextRenderer renderer, f32x2 center, f32 align_width,
               f32x4x4 const & transform, CRect const & clip = MAX_CLIP,
-              AllocatorRef allocator = default_allocator);
+              Allocator allocator = default_allocator);
 
   /// @brief Perform hit test on the laid-out text
   /// @param center canvas-space region the text was placed on

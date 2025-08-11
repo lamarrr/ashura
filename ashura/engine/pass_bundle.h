@@ -23,7 +23,7 @@ struct PassBundle
   ref<PBRPass>           pbr;
   Vec<Dyn<Pass *>>       all;
 
-  static PassBundle create(AllocatorRef allocator);
+  static PassBundle create(Allocator allocator);
 
   PassBundle(SdfPass & sdf, QuadPass & quad, NgonPass & ngon,
              FillStencilPass & fill_stencil, BezierStencilPass & bezier_stencil,

@@ -986,7 +986,7 @@ struct KeyState
 
   KeyModifiers mod_states = KeyModifiers::None;
 
-  explicit KeyState(AllocatorRef allocator) : text{allocator}
+  explicit KeyState(Allocator allocator) : text{allocator}
   {
   }
 
@@ -1154,7 +1154,7 @@ struct DropState
   /// @brief drag data associated with the current drag operation (if any, otherwise empty)
   Vec<u8> data;
 
-  explicit DropState(AllocatorRef allocator) : data{allocator}
+  explicit DropState(Allocator allocator) : data{allocator}
   {
   }
 
@@ -1189,7 +1189,7 @@ struct InputState
 
   DropState drop;
 
-  explicit InputState(AllocatorRef allocator) :
+  explicit InputState(Allocator allocator) :
     timestamp{},
     timedelta{},
     window{},

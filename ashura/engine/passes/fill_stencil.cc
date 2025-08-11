@@ -14,7 +14,7 @@ Str FillStencilPass::label()
   return "FillStencil"_str;
 }
 
-FillStencilPass::FillStencilPass(AllocatorRef)
+FillStencilPass::FillStencilPass(Allocator)
 {
 }
 

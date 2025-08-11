@@ -7,7 +7,7 @@
 namespace ash
 {
 
-typedef Fn<void(AllocatorRef)> DynUninit;
+typedef Fn<void(Allocator)> DynUninit;
 
 template <typename H>
 requires (TriviallyCopyable<H>)
@@ -16,10 +16,10 @@ struct [[nodiscard]] Dyn
   typedef H Handle;
 
   H            handle_;
-  AllocatorRef allocator_;
+  Allocator allocator_;
   DynUninit    uninit_;
 
-  constexpr Dyn(H handle, AllocatorRef allocator, DynUninit uninit) :
+  constexpr Dyn(H handle, Allocator allocator, DynUninit uninit) :
     handle_{handle},
     allocator_{allocator},
     uninit_{uninit}
@@ -100,7 +100,7 @@ struct [[nodiscard]] Dyn
 };
 
 template <typename T, typename... Args>
-constexpr Result<Dyn<T *>, Void> dyn(Inplace, AllocatorRef allocator,
+constexpr Result<Dyn<T *>, Void> dyn(Inplace, Allocator allocator,
                                      Args &&... args)
 {
   T * object;
@@ -109,7 +109,7 @@ constexpr Result<Dyn<T *>, Void> dyn(Inplace, AllocatorRef allocator,
     return Err{Void{}};
   }
 
-  constexpr auto uninit = +[](T * object, AllocatorRef allocator) {
+  constexpr auto uninit = +[](T * object, Allocator allocator) {
     obj::destruct(Span{object, 1});
     allocator->ndealloc(1, object);
   };
@@ -128,7 +128,7 @@ struct IsTriviallyRelocatable<Dyn<H>>
 };
 
 template <typename T>
-constexpr Result<Dyn<T *>, Void> dyn(AllocatorRef allocator, T object)
+constexpr Result<Dyn<T *>, Void> dyn(Allocator allocator, T object)
 {
   return dyn<T>(inplace, allocator, static_cast<T &&>(object));
 }

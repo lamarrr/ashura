@@ -4,7 +4,7 @@
 namespace ash
 {
 
-PassBundle PassBundle::create(AllocatorRef allocator)
+PassBundle PassBundle::create(Allocator allocator)
 {
   Dyn sdf            = dyn(allocator, SdfPass{allocator}).unwrap();
   Dyn quad           = dyn(allocator, QuadPass{allocator}).unwrap();

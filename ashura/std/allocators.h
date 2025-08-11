@@ -10,7 +10,7 @@ namespace ash
 /// @param end one byte past the block
 /// @param offset end of the last allocation, must be set to {begin}
 /// @param alignment actual alignment requested from allocator
-struct Arena final : Allocator
+struct Arena final : IAllocator
 {
   u8 *  begin;
   u8 *  end;
@@ -174,9 +174,9 @@ struct Arena final : Allocator
     try_reclaim();
   }
 
-  constexpr AllocatorRef ref()
+  constexpr Allocator ref()
   {
-    return AllocatorRef{*this};
+    return Allocator{*this};
   }
 };
 
@@ -202,9 +202,9 @@ struct ArenaPoolCfg
 /// extended.
 ///
 /// @source: allocation memory source
-struct ArenaPool final : Allocator
+struct ArenaPool final : IAllocator
 {
-  AllocatorRef source        = {};
+  Allocator source        = {};
   Arena *      arenas        = nullptr;
   usize        num_arenas    = 0;
   usize        current_arena = 0;
@@ -212,7 +212,7 @@ struct ArenaPool final : Allocator
 
   ArenaPool() = default;
 
-  explicit ArenaPool(AllocatorRef source, ArenaPoolCfg const & cfg = {}) :
+  explicit ArenaPool(Allocator source, ArenaPoolCfg const & cfg = {}) :
     source{source},
     cfg{cfg}
   {
@@ -461,18 +461,18 @@ struct ArenaPool final : Allocator
     }
   }
 
-  constexpr AllocatorRef ref()
+  constexpr Allocator ref()
   {
-    return AllocatorRef{*this};
+    return Allocator{*this};
   }
 };
 
-struct FallbackAllocator : Allocator
+struct FallbackAllocator : IAllocator
 {
   Arena        arena;
-  AllocatorRef fallback;
+  Allocator fallback;
 
-  constexpr FallbackAllocator(Arena arena, AllocatorRef fallback) :
+  constexpr FallbackAllocator(Arena arena, Allocator fallback) :
     arena{arena},
     fallback{fallback}
   {
@@ -559,9 +559,9 @@ struct FallbackAllocator : Allocator
     return fallback->dealloc(layout, mem);
   }
 
-  constexpr AllocatorRef ref()
+  constexpr Allocator ref()
   {
-    return AllocatorRef{*this};
+    return Allocator{*this};
   }
 };
 

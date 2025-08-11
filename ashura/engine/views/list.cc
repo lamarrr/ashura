@@ -8,7 +8,7 @@ namespace ash
 namespace ui
 {
 
-List::List(Generator generator, AllocatorRef allocator) :
+List::List(Generator generator, Allocator allocator) :
   state_{.generator = generator, .items{allocator}},
   allocator_{allocator}
 {

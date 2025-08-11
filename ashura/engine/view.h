@@ -504,7 +504,7 @@ struct DropCtx
   /// @brief drag data associated with the current drag operation (if any, otherwise empty)
   Vec<u8> data;
 
-  explicit DropCtx(AllocatorRef allocator) : data{allocator}
+  explicit DropCtx(Allocator allocator) : data{allocator}
   {
   }
 
@@ -549,7 +549,7 @@ struct Ctx
 
   void * user_data = nullptr;
 
-  Ctx(AllocatorRef allocator, void * user_data) :
+  Ctx(Allocator allocator, void * user_data) :
     timestamp{},
     timedelta{},
     window{},

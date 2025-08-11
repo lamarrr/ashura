@@ -27,7 +27,7 @@ struct BlurPass final : Pass
 
   gpu::GraphicsPipeline upsample_pipeline_ = nullptr;
 
-  BlurPass(AllocatorRef);
+  BlurPass(Allocator);
 
   BlurPass(BlurPass const &)             = delete;
   BlurPass(BlurPass &&)                  = default;

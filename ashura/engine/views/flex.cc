@@ -8,7 +8,7 @@ namespace ash
 namespace ui
 {
 
-Flex::Flex(AllocatorRef allocator) : items_{allocator}
+Flex::Flex(Allocator allocator) : items_{allocator}
 {
 }
 

@@ -103,7 +103,7 @@ PBRPass::Pipeline create_pipeline(Str label, gpu::Shader shader)
   };
 }
 
-PBRPass::PBRPass(AllocatorRef allocator) : variants_{allocator}
+PBRPass::PBRPass(Allocator allocator) : variants_{allocator}
 {
 }
 

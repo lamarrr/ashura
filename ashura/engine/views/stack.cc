@@ -8,7 +8,7 @@ namespace ash
 namespace ui
 {
 
-Stack::Stack(AllocatorRef allocator) : items_{allocator}
+Stack::Stack(Allocator allocator) : items_{allocator}
 {
 }
 

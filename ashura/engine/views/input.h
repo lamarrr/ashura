@@ -67,7 +67,7 @@ struct Input : View
     Fn<void()> focus_out = noop;
   } cb;
 
-  AllocatorRef allocator_;
+  Allocator allocator_;
 
   RenderText content_;
 
@@ -80,14 +80,14 @@ struct Input : View
         FontStyle const & font      = FontStyle{.font   = theme.body_font,
                                                 .height = theme.body_font_height,
                                                 .line_height = theme.line_height},
-        AllocatorRef      allocator = default_allocator);
+        Allocator      allocator = default_allocator);
 
   Input(Str8              stub,
         TextStyle const & style     = TextStyle{.color = theme.on_surface},
         FontStyle const & font      = FontStyle{.font   = theme.body_font,
                                                 .height = theme.body_font_height,
                                                 .line_height = theme.line_height},
-        AllocatorRef      allocator = default_allocator);
+        Allocator      allocator = default_allocator);
 
   Input(Input const &)             = delete;
   Input(Input &&)                  = default;

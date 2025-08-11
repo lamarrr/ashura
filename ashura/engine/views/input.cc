@@ -9,7 +9,7 @@ namespace ui
 {
 
 Input::Input(Str32 s, TextStyle const & style, FontStyle const & font,
-             AllocatorRef allocator) :
+             Allocator allocator) :
   allocator_{allocator},
   content_{allocator},
   stub_{allocator},
@@ -19,7 +19,7 @@ Input::Input(Str32 s, TextStyle const & style, FontStyle const & font,
 }
 
 Input::Input(Str8 s, TextStyle const & style, FontStyle const & font,
-             AllocatorRef allocator) :
+             Allocator allocator) :
   allocator_{allocator},
   content_{allocator},
   stub_{allocator},

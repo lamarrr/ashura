@@ -27,7 +27,7 @@ struct SdfPass final : Pass
 {
   SparseVec<Tuple<Str, gpu::GraphicsPipeline>> variants_;
 
-  SdfPass(AllocatorRef);
+  SdfPass(Allocator);
 
   SdfPass(SdfPass const &)             = delete;
   SdfPass(SdfPass &&)                  = default;

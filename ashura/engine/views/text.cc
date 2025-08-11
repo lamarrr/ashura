@@ -223,7 +223,7 @@ TextCommand text_command(Ctx const & ctx, Events const & events,
 }
 
 Text::Text(Str32 t, TextStyle const & style, FontStyle const & font,
-           AllocatorRef allocator) :
+           Allocator allocator) :
   text_{allocator},
   compositor_{TextCompositor::create(allocator)}
 {
@@ -231,7 +231,7 @@ Text::Text(Str32 t, TextStyle const & style, FontStyle const & font,
 }
 
 Text::Text(Str8 t, TextStyle const & style, FontStyle const & font,
-           AllocatorRef allocator) :
+           Allocator allocator) :
   text_{allocator},
   compositor_{TextCompositor::create(allocator)}
 {

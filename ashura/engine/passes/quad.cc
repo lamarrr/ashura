@@ -7,7 +7,7 @@
 namespace ash
 {
 
-QuadPass::QuadPass(AllocatorRef allocator) : variants_{allocator}
+QuadPass::QuadPass(Allocator allocator) : variants_{allocator}
 {
 }
 

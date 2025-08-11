@@ -44,6 +44,6 @@ struct ShaderCompileInfo
 
 Result<Void, ShaderLoadErr> compile_shader(ShaderCompileInfo const & info,
                                            Vec<u32> &                spirv,
-                                           AllocatorRef              allocator);
+                                           Allocator              allocator);
 
 }    // namespace ash

@@ -33,7 +33,7 @@ struct Flex : View
 
   Vec<ref<View>> items_;
 
-  Flex(AllocatorRef allocator = default_allocator);
+  Flex(Allocator allocator = default_allocator);
   Flex(Flex const &)             = delete;
   Flex(Flex &&)                  = default;
   Flex & operator=(Flex const &) = delete;

@@ -94,7 +94,7 @@ gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader)
   return sys->gpu.device_->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
-NgonPass::NgonPass(AllocatorRef allocator) : pipelines_{allocator}
+NgonPass::NgonPass(Allocator allocator) : pipelines_{allocator}
 {
 }
 

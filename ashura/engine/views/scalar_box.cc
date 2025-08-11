@@ -9,7 +9,7 @@ namespace ui
 {
 
 ScalarDragBox::ScalarDragBox(TextStyle const & style, FontStyle const & font,
-                             AllocatorRef allocator) :
+                             Allocator allocator) :
   input_{U""_str, style, font, allocator}
 {
   input_.multiline(false).tab_input(false).enter_submits(false);
@@ -156,7 +156,7 @@ ScalarBox::ScalarBox(Str32 decrease_text, Str32 increase_text,
                      TextStyle const & button_text_style,
                      TextStyle const & drag_text_style,
                      FontStyle const & icon_font, FontStyle const & text_font,
-                     AllocatorRef allocator) :
+                     Allocator allocator) :
   Flex{allocator},
   dec_{decrease_text, button_text_style, icon_font, allocator},
   inc_{increase_text, button_text_style, icon_font, allocator},

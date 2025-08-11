@@ -188,13 +188,13 @@ Cursor Button::cursor(f32x2, f32x2)
 }
 
 TextButton::TextButton(Str32 text, TextStyle const & style,
-                       FontStyle const & font, AllocatorRef allocator) :
+                       FontStyle const & font, Allocator allocator) :
   text_{text, style, font, allocator}
 {
 }
 
 TextButton::TextButton(Str8 text, TextStyle const & style,
-                       FontStyle const & font, AllocatorRef allocator) :
+                       FontStyle const & font, Allocator allocator) :
   text_{text, style, font, allocator}
 {
 }

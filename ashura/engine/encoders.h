@@ -51,7 +51,7 @@ struct SdfEncoder
   ShaderVariantId shader_variant_;
 
   template <typename Shape, typename Material>
-  explicit SdfEncoder(AllocatorRef                  allocator,
+  explicit SdfEncoder(Allocator                  allocator,
                       Item<Shape, Material> const & item) :
     framebuffer_{item.framebuffer},
     stencil_{item.stencil},
@@ -189,7 +189,7 @@ struct QuadEncoder
   ShaderVariantId shader_variant_;
 
   template <typename Material>
-  explicit QuadEncoder(AllocatorRef allocator, Item<Material> const & item) :
+  explicit QuadEncoder(Allocator allocator, Item<Material> const & item) :
     framebuffer_{item.framebuffer},
     stencil_{item.stencil},
     scissor_{item.scissor},
@@ -331,7 +331,7 @@ struct NgonEncoder
   ShaderVariantId shader_variant_;
 
   template <typename Material>
-  explicit NgonEncoder(AllocatorRef allocator, Item<Material> const & item) :
+  explicit NgonEncoder(Allocator allocator, Item<Material> const & item) :
     framebuffer_{item.framebuffer},
     stencil_{item.stencil},
     scissor_{item.scissor},
@@ -474,7 +474,7 @@ struct FillStencilEncoder
 
   Vec<u32> index_counts_;
 
-  explicit FillStencilEncoder(AllocatorRef allocator, Item const & item) :
+  explicit FillStencilEncoder(Allocator allocator, Item const & item) :
     stencil_{item.stencil},
     write_mask_{item.write_mask},
     scissor_{item.scissor},
@@ -609,7 +609,7 @@ struct BezierStencilEncoder
 
   Vec<u32> region_index_counts_;
 
-  explicit BezierStencilEncoder(AllocatorRef allocator, Item const & item) :
+  explicit BezierStencilEncoder(Allocator allocator, Item const & item) :
     stencil_{item.stencil},
     write_mask_{item.write_mask},
     scissor_{item.scissor},
@@ -762,7 +762,7 @@ struct PbrEncoder
   ShaderVariantId shader_variant_;
 
   template <typename World, typename Material, typename Light>
-  explicit PbrEncoder(AllocatorRef                         allocator,
+  explicit PbrEncoder(Allocator                         allocator,
                       Item<World, Material, Light> const & item) :
     framebuffer_{item.framebuffer},
     stencil_{item.stencil},

@@ -79,7 +79,7 @@ struct MemoryTraceSink final : TraceSink
 
   std::mutex mutex_;
 
-  AllocatorRef allocator_;
+  Allocator allocator_;
 
   FileTraceSink * upstream_ = nullptr;
 
@@ -88,7 +88,7 @@ struct MemoryTraceSink final : TraceSink
 
   Records traces_;
 
-  MemoryTraceSink(AllocatorRef allocator);
+  MemoryTraceSink(Allocator allocator);
 
   virtual void trace(TraceEvent event, Span<TraceRecord const> records);
 

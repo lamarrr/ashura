@@ -9,13 +9,13 @@ namespace ui
 {
 
 CheckBox::CheckBox(Str32 text, TextStyle const & style, FontStyle const & font,
-                   AllocatorRef allocator) :
+                   Allocator allocator) :
   icon_{text, style, font, allocator}
 {
 }
 
 CheckBox::CheckBox(Str8 text, TextStyle const & style, FontStyle const & font,
-                   AllocatorRef allocator) :
+                   Allocator allocator) :
   icon_{text, style, font, allocator}
 {
 }

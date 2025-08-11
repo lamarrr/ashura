@@ -29,7 +29,7 @@ struct NgonPass final : Pass
 {
   SparseVec<Tuple<Str, gpu::GraphicsPipeline>> pipelines_;
 
-  NgonPass(AllocatorRef);
+  NgonPass(Allocator);
 
   NgonPass(NgonPass const &)             = delete;
   NgonPass(NgonPass &&)                  = default;

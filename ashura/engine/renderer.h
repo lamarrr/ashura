@@ -14,7 +14,7 @@ struct Renderer
 {
   Dyn<PassBundle *> passes_;
 
-  static Renderer create(AllocatorRef allocator);
+  static Renderer create(Allocator allocator);
 
   Renderer(Dyn<PassBundle *> passes) : passes_{std::move(passes)}
   {
