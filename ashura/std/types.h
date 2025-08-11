@@ -1273,38 +1273,38 @@ struct [[nodiscard]] Span
     data()[index] = T{static_cast<Args &&>(args)...};
   }
 
-  constexpr Span<T const> as_const() const
+  constexpr auto as_const() const
   {
     return Span<T const>{data(), size()};
   }
 
-  constexpr Span<u8> as_u8() const requires (NonConst<T>)
+  constexpr auto as_u8() const requires (NonConst<T>)
   {
     return Span<u8>{reinterpret_cast<u8 *>(data()), size_bytes()};
   }
 
-  constexpr Span<u8 const> as_u8() const requires (Const<T>)
+  constexpr auto as_u8() const requires (Const<T>)
   {
     return Span<u8 const>{reinterpret_cast<u8 const *>(data()), size_bytes()};
   }
 
-  constexpr Span<char> as_char() const requires (NonConst<T>)
+  constexpr auto as_char() const requires (NonConst<T>)
   {
     return Span<char>{reinterpret_cast<char *>(data()), size_bytes()};
   }
 
-  constexpr Span<char const> as_char() const requires (Const<T>)
+  constexpr auto as_char() const requires (Const<T>)
   {
     return Span<char const>{reinterpret_cast<char const *>(data()),
                             size_bytes()};
   }
 
-  constexpr Span<c8> as_c8() const requires (NonConst<T>)
+  constexpr auto as_c8() const requires (NonConst<T>)
   {
     return Span<c8>{reinterpret_cast<c8 *>(data()), size_bytes()};
   }
 
-  constexpr Span<c8 const> as_c8() const requires (Const<T>)
+  constexpr auto as_c8() const requires (Const<T>)
   {
     return Span<c8 const>{reinterpret_cast<c8 const *>(data()), size_bytes()};
   }
