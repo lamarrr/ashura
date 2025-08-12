@@ -1455,7 +1455,7 @@ static VkBool32 VKAPI_ATTR VKAPI_CALL
   return VK_FALSE;
 }
 
-Result<Dyn<gpu::Instance>, Status> create_instance(AllocatorRef allocator,
+Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
                                                    bool enable_validation)
 {
   u32  num_exts;
@@ -1712,7 +1712,7 @@ namespace gpu
 {
 
 Result<Dyn<gpu::Instance>, Status>
-  create_vulkan_instance(AllocatorRef allocator, bool enable_validation)
+  create_vulkan_instance(Allocator allocator, bool enable_validation)
 {
   return vk::create_instance(allocator, enable_validation);
 }
@@ -1787,7 +1787,7 @@ void check_device_features(VkPhysicalDeviceFeatures feat)
 }
 
 Result<gpu::Device, Status>
-  Instance::create_device(AllocatorRef                allocator,
+  Instance::create_device(Allocator                allocator,
                           Span<gpu::DeviceType const> preferred_types)
 {
   constexpr u32 MAX_QUEUE_FAMILIES = 16;

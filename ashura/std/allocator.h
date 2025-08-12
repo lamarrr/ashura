@@ -89,7 +89,7 @@ struct IAllocator
   }
 };
 
-struct NoopAllocator final : Allocator
+struct NoopAllocator final : IAllocator
 {
   virtual bool alloc(Layout, u8 *&) override
   {

@@ -1474,6 +1474,8 @@ struct IDevice
 
   virtual void uninit(QueueScope scope) = 0;
 
+  void uninit_object(Object object);
+
   virtual DeviceProperties get_properties() = 0;
 
   virtual Result<FormatProperties, Status>
@@ -1517,12 +1519,12 @@ struct IDevice
     get_swapchain_state(Swapchain swapchain) = 0;
 
   virtual Result<Void, Status>
-    get_timestamp_query_result(TimestampQuery query, Slice32 range,
-                               Vec<u64> & timestamps) = 0;
+    get_timestamp_query_result(TimestampQuery query, u32 first,
+                               Span<u64> timestamps) = 0;
 
   virtual Result<Void, Status>
-    get_statistics_query_result(StatisticsQuery query, Slice32 range,
-                                Vec<PipelineStatistics> & statistics) = 0;
+    get_statistics_query_result(StatisticsQuery query, u32 first,
+                                Span<PipelineStatistics> statistics) = 0;
 
   virtual Result<Void, Status> acquire_next(Swapchain swapchain) = 0;
 
@@ -1530,12 +1532,35 @@ struct IDevice
                                       QueueScope    scope) = 0;
 };
 
+inline void IDevice::uninit_object(gpu::Object object)
+{
+  object.match(
+    [](gpu::Instance) { CHECK_UNREACHABLE(); },
+    [](gpu::Device) { CHECK_UNREACHABLE(); },
+    [&](gpu::CommandEncoder r) { uninit(r); },
+    [&](gpu::CommandBuffer r) { uninit(r); }, [&](gpu::Buffer r) { uninit(r); },
+    [&](gpu::BufferView r) { uninit(r); }, [&](gpu::Image r) { uninit(r); },
+    [&](gpu::ImageView r) { uninit(r); },
+    [&](gpu::MemoryGroup r) { uninit(r); }, [&](gpu::Sampler r) { uninit(r); },
+    [&](gpu::Shader r) { uninit(r); },
+    [&](gpu::DescriptorSetLayout r) { uninit(r); },
+    [&](gpu::DescriptorSet r) { uninit(r); },
+    [&](gpu::PipelineCache r) { uninit(r); },
+    [&](gpu::ComputePipeline r) { uninit(r); },
+    [&](gpu::GraphicsPipeline r) { uninit(r); },
+    [&](gpu::TimestampQuery r) { uninit(r); },
+    [&](gpu::StatisticsQuery r) { uninit(r); },
+    [&](gpu::Surface) { CHECK_UNREACHABLE(); },
+    [&](gpu::Swapchain r) { uninit(r); },
+    [&](gpu::QueueScope r) { uninit(r); });
+}
+
 struct IInstance
 {
   virtual ~IInstance() = default;
 
   virtual Result<Device, Status>
-    create_device(AllocatorRef           allocator,
+    create_device(Allocator              allocator,
                   Span<DeviceType const> preferred_types) = 0;
 
   virtual Backend get_backend() = 0;
@@ -1545,7 +1570,7 @@ struct IInstance
   virtual void uninit(Surface surface) = 0;
 };
 
-Result<Dyn<Instance>, Status> create_vulkan_instance(AllocatorRef allocator,
+Result<Dyn<Instance>, Status> create_vulkan_instance(Allocator allocator,
                                                      bool enable_validation);
 
 /// REQUIRED LIMITS AND PROPERTIES

@@ -1501,12 +1501,12 @@ struct Device final : gpu::IDevice
     get_swapchain_state(gpu::Swapchain swapchain) override;
 
   virtual Result<Void, Status>
-    get_timestamp_query_result(gpu::TimestampQuery query, Slice32 range,
-                               Vec<u64> & timestamps) override;
+    get_timestamp_query_result(gpu::TimestampQuery query, u32 first,
+                               Span<u64> timestamps) override;
 
   virtual Result<Void, Status> get_statistics_query_result(
-    gpu::StatisticsQuery query, Slice32 range,
-    Vec<gpu::PipelineStatistics> & statistics) override;
+    gpu::StatisticsQuery query, u32 first,
+    Span<gpu::PipelineStatistics> statistics) override;
 
   virtual Result<Void, Status> acquire_next(gpu::Swapchain swapchain) override;
 

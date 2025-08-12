@@ -21,7 +21,7 @@ struct WindowImpl
   gpu::Instance *                               instance  = nullptr;
   Fn<WindowRegion(u32x2)> hit_test = [](u32x2) { return WindowRegion::Normal; };
 
-  WindowImpl(AllocatorRef allocator, SDL_Window * window, gpu::Surface surface,
+  WindowImpl(Allocator allocator, SDL_Window * window, gpu::Surface surface,
              SDL_WindowID id, gpu::Instance & instance) :
     win{window},
     surface{surface},
@@ -37,7 +37,7 @@ struct ClipBoardImpl : ClipBoard
   static constexpr usize MAX_MIME_SIZE = 256;
   Vec<u8>                local_;
 
-  ClipBoardImpl(AllocatorRef allocator) : local_{allocator}
+  ClipBoardImpl(Allocator allocator) : local_{allocator}
   {
   }
 
@@ -113,12 +113,12 @@ struct ClipBoardImpl : ClipBoard
 
 struct WindowSystemImpl : WindowSystem
 {
-  AllocatorRef                                  allocator;
+  Allocator                                  allocator;
   SparseVec<Fn<void(SystemEvent const &)>> listeners;
   ClipBoardImpl                                 clipboard;
   SDL_Cursor *                                  cursor;
 
-  WindowSystemImpl(AllocatorRef allocator) :
+  WindowSystemImpl(Allocator allocator) :
     allocator{allocator},
     listeners{allocator},
     clipboard{allocator},

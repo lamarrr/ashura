@@ -46,12 +46,12 @@ struct [[nodiscard]] Vec
 
   static constexpr usize ALIGNMENT = max(MinAlignment, alignof(Type));
 
-  Type *       storage_   = nullptr;
-  usize        size_      = 0;
-  usize        capacity_  = 0;
-  AllocatorRef allocator_ = {};
+  Type *    storage_;
+  usize     size_;
+  usize     capacity_;
+  Allocator allocator_;
 
-  explicit constexpr Vec(AllocatorRef allocator) :
+  explicit constexpr Vec(Allocator allocator) :
     storage_{nullptr},
     size_{0},
     capacity_{0},
@@ -63,7 +63,7 @@ struct [[nodiscard]] Vec
   {
   }
 
-  constexpr Vec(AllocatorRef allocator, Type * storage, usize capacity,
+  constexpr Vec(Allocator allocator, Type * storage, usize capacity,
                 usize size) :
     storage_{storage},
     size_{size},
@@ -113,7 +113,7 @@ struct [[nodiscard]] Vec
     return old;
   }
 
-  static constexpr Result<Vec> make(usize capacity, AllocatorRef allocator = {})
+  static constexpr Result<Vec> make(usize capacity, Allocator allocator = {})
   {
     Vec out{allocator};
 
@@ -125,7 +125,7 @@ struct [[nodiscard]] Vec
     return Ok{static_cast<Vec &&>(out)};
   }
 
-  constexpr Result<Vec> clone(AllocatorRef allocator) const
+  constexpr Result<Vec> clone(Allocator allocator) const
   {
     Vec out{allocator};
 
@@ -238,10 +238,9 @@ struct [[nodiscard]] Vec
   constexpr void reset()
   {
     uninit();
-    storage_   = nullptr;
-    size_      = 0;
-    capacity_  = 0;
-    allocator_ = default_allocator;
+    storage_  = nullptr;
+    size_     = 0;
+    capacity_ = 0;
   }
 
   constexpr Result<> reserve(usize target_capacity)
@@ -318,6 +317,14 @@ struct [[nodiscard]] Vec
   constexpr Result<> shrink()
   {
     return shrink_to_(Growth::grow(size_));
+  }
+
+  constexpr Result<> shrink_clear()
+  {
+    obj::destruct(view());
+    auto old_size = size_;
+    size_         = 0;
+    return shrink_to_(old_size);
   }
 
   constexpr Result<> fit()
@@ -592,7 +599,7 @@ struct [[nodiscard]] Vec
 };
 
 template <typename T>
-constexpr Result<Vec<T>> vec(AllocatorRef allocator, Span<T const> data)
+constexpr Result<Vec<T>> vec(Allocator allocator, Span<T const> data)
 {
   Result out = Vec<T>::make(data.size(), allocator);
 
@@ -607,7 +614,7 @@ constexpr Result<Vec<T>> vec(AllocatorRef allocator, Span<T const> data)
 }
 
 template <typename T>
-constexpr Result<Vec<T>> vec_move(AllocatorRef allocator, Span<T> data)
+constexpr Result<Vec<T>> vec_move(Allocator allocator, Span<T> data)
 {
   Result out = Vec<T>::make(data.size(), allocator);
 
@@ -638,13 +645,13 @@ struct [[nodiscard]] SmallVec
 
   using InlineStorage = InplaceStorage<ALIGNMENT, sizeof(T) * INLINE_CAPACITY>;
 
-  Type *                storage_   = nullptr;
-  usize                 size_      = 0;
-  usize                 capacity_  = 0;
-  AllocatorRef          allocator_ = {};
-  mutable InlineStorage inline_    = {};
+  Type *                storage_;
+  usize                 size_;
+  usize                 capacity_;
+  Allocator             allocator_;
+  mutable InlineStorage inline_;
 
-  explicit constexpr SmallVec(AllocatorRef allocator) :
+  explicit constexpr SmallVec(Allocator allocator) :
     storage_{nullptr},
     size_{0},
     capacity_{0},
@@ -657,7 +664,7 @@ struct [[nodiscard]] SmallVec
   {
   }
 
-  constexpr SmallVec(AllocatorRef allocator, Type * storage, usize capacity,
+  constexpr SmallVec(Allocator allocator, Type * storage, usize capacity,
                      usize size) :
     storage_{storage},
     size_{size},
@@ -710,8 +717,8 @@ struct [[nodiscard]] SmallVec
     uninit();
   }
 
-  static constexpr Result<SmallVec> make(usize        capacity,
-                                         AllocatorRef allocator = {})
+  static constexpr Result<SmallVec> make(usize     capacity,
+                                         Allocator allocator = {})
   {
     SmallVec out{allocator};
 
@@ -723,7 +730,7 @@ struct [[nodiscard]] SmallVec
     return Ok{static_cast<SmallVec &&>(out)};
   }
 
-  constexpr Result<SmallVec> clone(AllocatorRef allocator) const
+  constexpr Result<SmallVec> clone(Allocator allocator) const
   {
     SmallVec out{allocator};
 
@@ -866,10 +873,9 @@ struct [[nodiscard]] SmallVec
   constexpr void reset()
   {
     uninit();
-    storage_   = nullptr;
-    size_      = 0;
-    capacity_  = 0;
-    allocator_ = default_allocator;
+    storage_  = nullptr;
+    size_     = 0;
+    capacity_ = 0;
   }
 
   constexpr Result<> reserve(usize target_capacity)
@@ -974,6 +980,14 @@ struct [[nodiscard]] SmallVec
   constexpr Result<> shrink()
   {
     return shrink_to_(Growth::grow(size_));
+  }
+
+  constexpr Result<> shrink_clear()
+  {
+    obj::destruct(view());
+    auto old_size = size_;
+    size_         = 0;
+    return shrink_to_(old_size);
   }
 
   constexpr Result<> fit()
@@ -1263,10 +1277,10 @@ struct [[nodiscard]] PinVec
 
   static constexpr usize ALIGNMENT = max(MinAlignment, alignof(Type));
 
-  Type *       storage_;
-  usize        size_;
-  usize        capacity_;
-  AllocatorRef allocator_;
+  Type *    storage_;
+  usize     size_;
+  usize     capacity_;
+  Allocator allocator_;
 
   constexpr PinVec() :
     storage_{nullptr},
@@ -1276,7 +1290,7 @@ struct [[nodiscard]] PinVec
   {
   }
 
-  constexpr PinVec(AllocatorRef allocator, Type * storage, usize capacity,
+  constexpr PinVec(Allocator allocator, Type * storage, usize capacity,
                    usize size) :
     storage_{storage},
     size_{size},
@@ -1319,8 +1333,7 @@ struct [[nodiscard]] PinVec
     uninit();
   }
 
-  static constexpr Result<PinVec> make(usize        capacity,
-                                       AllocatorRef allocator = {})
+  static constexpr Result<PinVec> make(usize capacity, Allocator allocator = {})
   {
     Type * storage;
     if (!allocator->pnalloc(ALIGNMENT, capacity, storage)) [[unlikely]]
@@ -1342,13 +1355,12 @@ struct [[nodiscard]] PinVec
   constexpr void reset()
   {
     uninit();
-    storage_   = nullptr;
-    size_      = 0;
-    capacity_  = 0;
-    allocator_ = {};
+    storage_  = nullptr;
+    size_     = 0;
+    capacity_ = 0;
   }
 
-  constexpr Result<PinVec> clone(AllocatorRef allocator) const
+  constexpr Result<PinVec> clone(Allocator allocator) const
   {
     Result<PinVec> out = PinVec::make(allocator, capacity_);
 
@@ -1566,7 +1578,7 @@ struct [[nodiscard]] InplaceVec
 
   constexpr InplaceVec() = default;
 
-  constexpr InplaceVec(AllocatorRef) : InplaceVec{}
+  constexpr InplaceVec(Allocator) : InplaceVec{}
   {
   }
 
@@ -1964,10 +1976,12 @@ struct [[nodiscard]] CoreBitVec
   using Iter = BitSpanIter<Repr>;
   using View = BitSpan<Repr>;
 
-  Vec   repr_ = {};
-  usize size_ = 0;
+  Vec   repr_;
+  usize size_;
 
-  explicit constexpr CoreBitVec(AllocatorRef allocator) : repr_{allocator}
+  explicit constexpr CoreBitVec(Allocator allocator) :
+    repr_{allocator},
+    size_{0}
   {
   }
 
@@ -2114,6 +2128,11 @@ struct [[nodiscard]] CoreBitVec
   constexpr Result<> shrink()
   {
     return repr_.shrink();
+  }
+
+  constexpr Result<> shrink_clear()
+  {
+    return repr_.shrink_clear();
   }
 
   constexpr Result<> grow(usize target_capacity)
@@ -2354,7 +2373,7 @@ struct CoreSparseMap
   {
   }
 
-  explicit constexpr CoreSparseMap(AllocatorRef allocator) :
+  explicit constexpr CoreSparseMap(Allocator allocator) :
     index_to_id_{allocator},
     id_to_index_{allocator},
     dense{V{allocator}...},
