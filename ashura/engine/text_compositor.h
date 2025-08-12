@@ -127,7 +127,7 @@ struct TextCompositor
   }
 
   static TextCompositor
-    create(AllocatorRef allocator, usize buffer_size = DEFAULT_BUFFER_SIZE,
+    create(Allocator allocator, usize buffer_size = DEFAULT_BUFFER_SIZE,
            usize           records_size = DEFAULT_RECORDS_SIZE,
            Span<c32 const> word_symbols = DEFAULT_WORD_SYMBOLS);
 

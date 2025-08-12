@@ -5,6 +5,7 @@
 #include "ashura/engine/input.h"
 #include "ashura/engine/renderer.h"
 #include "ashura/std/math.h"
+#include "ashura/std/range.h"
 #include "ashura/std/types.h"
 
 namespace ash
@@ -14,153 +15,192 @@ namespace ui
 {
 
 /// @brief Simple Adaptive Layout Constraint Model
-/// @param offset adding or subtracting from the source size, i.e. value should
-/// be source size - 20px
-/// @param scale scales the source size, i.e. value should be 0.5 of source
-/// size
-/// @param rmin  clamps the source size relatively. i.e. value should be at
-/// least 0.5 of source size
-/// @param rmax  clamps the source size relatively. i.e. value should be at
-/// most 0.5 of source size
-/// @param min clamps the source size, i.e. value should be at least 20px
-/// @param max clamps the source size, i.e. value should be at most 100px
 struct Size
 {
-  f32 offset = 0;
-  f32 scale  = 0;
-  f32 rmin   = 0;
-  f32 rmax   = 1;
-  f32 min    = 0;
-  f32 max    = F32_INF;
+  f32 abs_     = 0;
+  f32 rel_     = 0;
+  f32 rel_min_ = 0;
+  f32 rel_max_ = 1;
+  f32 min_     = 0;
+  f32 max_     = F32_INF;
 
-  constexpr f32 operator()(f32 value) const
+  /// @brief adding or subtracting from the source size, i.e. value should
+  /// be source size - 20px
+  constexpr Size & abs(f32 s)
   {
-    return clamp(clamp(offset + value * scale, rmin * value, rmax * value), min,
-                 max);
+    abs_ = s;
+    return *this;
+  }
+
+  /// @brief scales the source size, i.e. value should be 0.5 of source
+  /// size
+  constexpr Size & rel(f32 s)
+  {
+    rel_ = s;
+    return *this;
+  }
+
+  /// @brief  clamps the source size relatively. i.e. value should be at
+  /// least 0.5 of source size
+  constexpr Size & rel_min(f32 s)
+  {
+    rel_min_ = s;
+    return *this;
+  }
+
+  /// @brief  clamps the source size relatively. i.e. value should be at
+  /// most 0.5 of source size
+  constexpr Size & rel_max(f32 s)
+  {
+    rel_max_ = s;
+    return *this;
+  }
+
+  /// @brief clamps the source size, i.e. value should be at least 20px
+  constexpr Size & min(f32 s)
+  {
+    min_ = s;
+    return *this;
+  }
+
+  /// @brief clamps the source size, i.e. value should be at most 100px
+  constexpr Size & max(f32 s)
+  {
+    max_ = s;
+    return *this;
+  }
+
+  constexpr Size & constrain(bool c)
+  {
+    rel_max_ = c ? 1 : F32_INF;
+    return *this;
+  }
+
+  constexpr f32 operator()(f32 anchor) const
+  {
+    return clamp(
+      clamp(abs_ + anchor * rel_, rel_min_ * anchor, rel_max_ * anchor), min_,
+      max_);
   }
 };
 
 struct Frame
 {
-  Size x{};
-  Size y{};
+  Size x_{};
+  Size y_{};
 
-  constexpr Frame()                          = default;
-  constexpr Frame(Frame const &)             = default;
-  constexpr Frame(Frame &&)                  = default;
-  constexpr Frame & operator=(Frame const &) = default;
-  constexpr Frame & operator=(Frame &&)      = default;
-  constexpr ~Frame()                         = default;
-
-  constexpr Frame(Size width, Size height) : x{width}, y{height}
+  constexpr f32x2 operator()(f32 anchor_x, f32 anchor_y) const
   {
+    return f32x2{x_(anchor_x), y_(anchor_y)};
   }
 
-  constexpr Frame(Vec2 extent, bool constrain = true) :
-    x{.offset = extent.x, .rmax = constrain ? 1 : F32_INF},
-    y{.offset = extent.y, .rmax = constrain ? 1 : F32_INF}
+  constexpr f32x2 operator()(f32x2 anchor) const
   {
+    return this->operator()(anchor.x(), anchor.y());
   }
 
-  constexpr Vec2 operator()(Vec2 extent) const
+  constexpr Frame & abs(f32 x, f32 y)
   {
-    return Vec2{x(extent.x), y(extent.y)};
+    x_.abs(x);
+    y_.abs(y);
+    return *this;
   }
 
-  constexpr Frame offset(Vec2 extent) const
+  constexpr Frame & abs(f32x2 anchor)
   {
-    Frame out{*this};
-    out.x.offset = extent.x;
-    out.y.offset = extent.y;
-    return out;
+    return abs(anchor.x(), anchor.y());
   }
 
-  constexpr Frame offset(f32 width, f32 height) const
+  constexpr Frame & rel(f32 x, f32 y)
   {
-    return offset({width, height});
+    x_.rel(x);
+    y_.rel(y);
+    return *this;
   }
 
-  constexpr Frame scale(Vec2 extent) const
+  constexpr Frame & rel(f32x2 anchor)
   {
-    Frame out{*this};
-    out.x.scale = extent.x;
-    out.y.scale = extent.y;
-    return out;
+    return rel(anchor.x(), anchor.y());
   }
 
-  constexpr Frame scale(f32 width, f32 height) const
+  constexpr Frame & rel_min(f32 x, f32 y)
   {
-    return scale({width, height});
+    x_.rel_min(x);
+    y_.rel_min(y);
+    return *this;
   }
 
-  constexpr Frame rmin(Vec2 extent) const
+  constexpr Frame & rel_min(f32x2 anchor)
   {
-    Frame out{*this};
-    out.x.rmin = extent.x;
-    out.y.rmin = extent.y;
-    return out;
+    return rel_min(anchor.x(), anchor.y());
   }
 
-  constexpr Frame rmin(f32 width, f32 height) const
+  constexpr Frame & rel_max(f32 x, f32 y)
   {
-    return rmin({width, height});
+    x_.rel_max(x);
+    y_.rel_max(y);
+    return *this;
   }
 
-  constexpr Frame rmax(Vec2 extent) const
+  constexpr Frame & rel_max(f32x2 anchor)
   {
-    Frame out{*this};
-    out.x.rmax = extent.x;
-    out.y.rmax = extent.y;
-    return out;
+    return rel_max(anchor.x(), anchor.y());
   }
 
-  constexpr Frame rmax(f32 width, f32 height) const
+  constexpr Frame & min(f32 x, f32 y)
   {
-    return rmax({width, height});
+    x_.min(x);
+    y_.min(y);
+    return *this;
   }
 
-  constexpr Frame min(Vec2 extent) const
+  constexpr Frame & min(f32x2 anchor)
   {
-    Frame out{*this};
-    out.x.min = extent.x;
-    out.y.min = extent.y;
-    return out;
+    return min(anchor.x(), anchor.y());
   }
 
-  constexpr Frame min(f32 width, f32 height) const
+  constexpr Frame & max(f32 x, f32 y)
   {
-    return min({width, height});
+    x_.max(x);
+    y_.max(y);
+    return *this;
   }
 
-  constexpr Frame max(Vec2 extent) const
+  constexpr Frame & max(f32x2 anchor)
   {
-    Frame out{*this};
-    out.x.max = extent.x;
-    out.y.max = extent.y;
-    return out;
+    return max(anchor.x(), anchor.y());
   }
 
-  constexpr Frame max(f32 width, f32 height) const
+  constexpr Frame & constrain(bool x, bool y)
   {
-    return max({width, height});
+    x_.constrain(x);
+    y_.constrain(y);
+    return *this;
   }
 
   constexpr Size & operator[](usize i)
   {
-    return (&x)[i];
+    return (&x_)[i];
   }
 
   constexpr Size const & operator[](usize i) const
   {
-    return (&x)[i];
+    return (&x_)[i];
   }
 };
 
 struct CornerRadii
 {
+  /// @brief top-left
   f32 tl = 0;
+
+  /// @brief top-right
   f32 tr = 0;
+
+  /// @brief bottom-left
   f32 bl = 0;
+
+  /// @brief bottom-right
   f32 br = 0;
 
   static constexpr CornerRadii all(f32 r)
@@ -168,9 +208,49 @@ struct CornerRadii
     return {r, r, r, r};
   }
 
-  constexpr operator Vec4() const
+  constexpr operator f32x4() const
   {
-    return Vec4{tl, tr, bl, br};
+    return f32x4{tl, tr, bl, br};
+  }
+};
+
+struct Padding
+{
+  /// @brief left
+  f32 l = 0;
+
+  /// @brief top
+  f32 t = 0;
+
+  /// @brief right
+  f32 r = 0;
+
+  /// @brief bottom
+  f32 b = 0;
+
+  static constexpr Padding all(f32 r)
+  {
+    return {r, r, r, r};
+  }
+
+  constexpr operator f32x4() const
+  {
+    return f32x4{l, t, r, b};
+  }
+
+  constexpr f32 vert() const
+  {
+    return l + r;
+  }
+
+  constexpr f32 horz() const
+  {
+    return t + b;
+  }
+
+  constexpr f32x2 axes() const
+  {
+    return f32x2{horz(), vert()};
   }
 };
 
@@ -185,18 +265,18 @@ enum class MainAlign : u8
 
 struct ScrollInfo
 {
-  Vec2 center = {};
-  Vec2 zoom   = {1, 1};
+  f32x2 center = {};
+  f32x2 zoom   = {1, 1};
 };
 
 struct HitInfo
 {
   /// @brief viewport-space region of the view that was hit
   /// with (0, 0) as the center of the viewport
-  Vec2 viewport_hit;
+  f32x2 viewport_hit;
 
   /// @brief canvas-space region that was hit
-  Vec2 canvas_hit;
+  f32x2 canvas_hit;
 
   /// @brief the viewport-space region of the view
   CRect viewport_region;
@@ -204,7 +284,9 @@ struct HitInfo
   /// @brief the canvas-space region of the view
   CRect canvas_region;
 
-  constexpr Vec2 zoom() const
+  affinef32x3 canvas_transform = affinef32x3::identity();
+
+  constexpr f32x2 zoom() const
   {
     return canvas_region.extent / viewport_region.extent;
   }
@@ -422,7 +504,7 @@ struct DropCtx
   /// @brief drag data associated with the current drag operation (if any, otherwise empty)
   Vec<u8> data;
 
-  explicit DropCtx(AllocatorRef allocator) : data{allocator}
+  explicit DropCtx(Allocator allocator) : data{allocator}
   {
   }
 
@@ -467,7 +549,7 @@ struct Ctx
 
   void * user_data = nullptr;
 
-  Ctx(AllocatorRef allocator, void * user_data) :
+  Ctx(Allocator allocator, void * user_data) :
     timestamp{},
     timedelta{},
     window{},
@@ -539,25 +621,25 @@ struct State
 
 struct Theme
 {
-  Vec4U8 background       = {};
-  Vec4U8 surface          = {};
-  Vec4U8 surface_variant  = {};
-  Vec4U8 primary          = {};
-  Vec4U8 primary_variant  = {};
-  Vec4U8 error            = {};
-  Vec4U8 warning          = {};
-  Vec4U8 success          = {};
-  Vec4U8 active           = {};
-  Vec4U8 inactive         = {};
-  Vec4U8 on_background    = {};
-  Vec4U8 on_surface       = {};
-  Vec4U8 on_primary       = {};
-  Vec4U8 on_error         = {};
-  Vec4U8 on_warning       = {};
-  Vec4U8 on_success       = {};
-  Vec4U8 focus            = {};
-  Vec4U8 highlight        = {};
-  Vec4U8 caret            = {};
+  u8x4   background       = {};
+  u8x4   surface          = {};
+  u8x4   surface_variant  = {};
+  u8x4   primary          = {};
+  u8x4   primary_variant  = {};
+  u8x4   error            = {};
+  u8x4   warning          = {};
+  u8x4   success          = {};
+  u8x4   active           = {};
+  u8x4   inactive         = {};
+  u8x4   on_background    = {};
+  u8x4   on_surface       = {};
+  u8x4   on_primary       = {};
+  u8x4   on_error         = {};
+  u8x4   on_warning       = {};
+  u8x4   on_success       = {};
+  u8x4   focus            = {};
+  u8x4   highlight        = {};
+  u8x4   caret            = {};
   f32    head_font_height = {};
   f32    body_font_height = {};
   f32    line_height      = {};
@@ -573,17 +655,17 @@ struct Layout
 {
   /// @brief extent of the view within the parent. if it is a viewport,
   /// this is the visible extent of the viewport within the parent viewport.
-  Vec2 extent = {};
+  f32x2 extent = {};
 
   /// @brief inner extent, if it is a viewport
-  Vec2 viewport_extent = {};
+  f32x2 viewport_extent = {};
 
-  Vec2 viewport_center = {};
+  f32x2 viewport_center = {};
 
-  Vec2 viewport_zoom = {1, 1};
+  f32x2 viewport_zoom = {1, 1};
 
   /// @brief viewport-space re-positioning of the view
-  Option<Vec2> fixed_center = none;
+  Option<f32x2> fixed_center = none;
 };
 
 enum class ViewId : u64
@@ -603,8 +685,21 @@ struct RenderInfo
   CRect clip = MAX_CLIP;
 
   /// @brief displacement and scale transform from the viewports to canvas-space
-  Affine3 canvas_transform = Affine3::IDENTITY;
+  affinef32x3 canvas_transform = affinef32x3::identity();
 };
+
+struct LayerStack
+{
+  i32 views         = 0x0000'0000;
+  i32 viewport_bars = 0x000F'FFFF;
+  i32 modals        = 0x001F'FFFF;
+  i32 overlays      = 0x002F'FFFF;
+};
+
+inline constexpr LayerStack LAYERS;
+
+// [ ] Message-oriented architecture, fn-state hook for message querying + message queue? or just hashmap. state hook can modify0
+// [ ] fn-style and state hooks for renderers?
 
 /// @brief Base view class.
 /// Views are plain visual elements that define spatial relationships,
@@ -654,7 +749,7 @@ struct View
   /// @brief distributes the size allocated to it to its child views.
   /// @param allocated the size allocated to this view
   /// @param[out] sizes sizes allocated to the children.
-  constexpr virtual void size(Vec2 allocated, Span<Vec2> sizes)
+  constexpr virtual void size(f32x2 allocated, Span<f32x2> sizes)
   {
     fill(sizes, allocated);
   }
@@ -665,12 +760,12 @@ struct View
   /// @param sizes sizes of the child views
   /// @param[out] centers parent-space centers of the child views
   /// @return this view's fitted extent
-  constexpr virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
-                               Span<Vec2> centers)
+  constexpr virtual Layout fit(f32x2 allocated, Span<f32x2 const> sizes,
+                               Span<f32x2> centers)
   {
     (void) allocated;
     (void) sizes;
-    fill(centers, Vec2{0, 0});
+    fill(centers, f32x2{0, 0});
     return {};
   }
 
@@ -710,7 +805,7 @@ struct View
   /// @param extent layout extent of the view
   /// @param position local-space position of the pointer
   /// @return preferred cursor type
-  constexpr virtual Cursor cursor(Vec2 extent, Vec2 position)
+  constexpr virtual Cursor cursor(f32x2 extent, f32x2 position)
   {
     (void) extent;
     (void) position;

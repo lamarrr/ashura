@@ -280,3 +280,8 @@
 #    define ASH_UNREACHABLE std::abort()
 #  endif
 #endif
+
+#define ASH_VARIANT_VERSION 0
+#define ASH_MAJOR_VERSION   0
+#define ASH_MINOR_VERSION   0
+#define ASH_PATCH_VERSION   1

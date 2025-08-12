@@ -8,7 +8,7 @@
 namespace ash
 {
 
-TextCompositor TextCompositor::create(AllocatorRef allocator, usize buffer_size,
+TextCompositor TextCompositor::create(Allocator allocator, usize buffer_size,
                                       usize records_size, Str32 word_symbols)
 {
   CHECK(buffer_size > 1, "");

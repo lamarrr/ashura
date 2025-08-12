@@ -140,102 +140,102 @@ void ash::format(fmt::Sink sink, fmt::Spec spec, f64 const & value)
   format_float(sink, spec, value);
 }
 
-void ash::format(fmt::Sink sink, fmt::Spec spec, Vec2 const & value)
+void ash::format(fmt::Sink sink, fmt::Spec spec, f32x2 const & value)
 {
-  sink("Vec2{"_str);
-  format(sink, spec, value.x);
+  sink("f32x2{"_str);
+  format(sink, spec, value.x());
   sink(", "_str);
-  format(sink, spec, value.y);
+  format(sink, spec, value.y());
   sink("}"_str);
 }
 
-void ash::format(fmt::Sink sink, fmt::Spec spec, Vec3 const & value)
+void ash::format(fmt::Sink sink, fmt::Spec spec, f32x3 const & value)
 {
-  sink("Vec3{"_str);
-  format(sink, spec, value.x);
+  sink("f32x3{"_str);
+  format(sink, spec, value.x());
   sink(", "_str);
-  format(sink, spec, value.y);
+  format(sink, spec, value.y());
   sink(", "_str);
-  format(sink, spec, value.z);
+  format(sink, spec, value.z());
   sink("}"_str);
 }
 
-void ash::format(fmt::Sink sink, fmt::Spec spec, Vec4 const & value)
+void ash::format(fmt::Sink sink, fmt::Spec spec, f32x4 const & value)
 {
-  sink("Vec4{"_str);
-  format(sink, spec, value.x);
+  sink("f32x4{"_str);
+  format(sink, spec, value.x());
   sink(", "_str);
-  format(sink, spec, value.y);
+  format(sink, spec, value.y());
   sink(", "_str);
-  format(sink, spec, value.z);
+  format(sink, spec, value.z());
   sink(", "_str);
-  format(sink, spec, value.w);
+  format(sink, spec, value.w());
   sink("}"_str);
 }
 
-void ash::format(fmt::Sink sink, fmt::Spec spec, Vec2I const & value)
+void ash::format(fmt::Sink sink, fmt::Spec spec, i32x2 const & value)
 {
-  sink("Vec2I{"_str);
-  format(sink, spec, value.x);
+  sink("i32x2{"_str);
+  format(sink, spec, value.x());
   sink(", "_str);
-  format(sink, spec, value.y);
+  format(sink, spec, value.y());
   sink("}"_str);
 }
 
-void ash::format(fmt::Sink sink, fmt::Spec spec, Vec3I const & value)
+void ash::format(fmt::Sink sink, fmt::Spec spec, i32x3 const & value)
 {
-  sink("Vec3I{"_str);
-  format(sink, spec, value.x);
+  sink("i32x3{"_str);
+  format(sink, spec, value.x());
   sink(", "_str);
-  format(sink, spec, value.y);
+  format(sink, spec, value.y());
   sink(", "_str);
-  format(sink, spec, value.z);
+  format(sink, spec, value.z());
   sink("}"_str);
 }
 
-void ash::format(fmt::Sink sink, fmt::Spec spec, Vec4I const & value)
+void ash::format(fmt::Sink sink, fmt::Spec spec, i32x4 const & value)
 {
-  sink("Vec4I{"_str);
-  format(sink, spec, value.x);
+  sink("i32x4{"_str);
+  format(sink, spec, value.x());
   sink(", "_str);
-  format(sink, spec, value.y);
+  format(sink, spec, value.y());
   sink(", "_str);
-  format(sink, spec, value.z);
+  format(sink, spec, value.z());
   sink(", "_str);
-  format(sink, spec, value.w);
+  format(sink, spec, value.w());
   sink("}"_str);
 }
 
-void ash::format(fmt::Sink sink, fmt::Spec spec, Vec2U const & value)
+void ash::format(fmt::Sink sink, fmt::Spec spec, u32x2 const & value)
 {
-  sink("Vec2U{"_str);
-  format(sink, spec, value.x);
+  sink("u32x2{"_str);
+  format(sink, spec, value.x());
   sink(", "_str);
-  format(sink, spec, value.y);
+  format(sink, spec, value.y());
   sink("}"_str);
 }
 
-void ash::format(fmt::Sink sink, fmt::Spec spec, Vec3U const & value)
+void ash::format(fmt::Sink sink, fmt::Spec spec, u32x3 const & value)
 {
-  sink("Vec3U{"_str);
-  format(sink, spec, value.x);
+  sink("u32x3{"_str);
+  format(sink, spec, value.x());
   sink(", "_str);
-  format(sink, spec, value.y);
+  format(sink, spec, value.y());
   sink(", "_str);
-  format(sink, spec, value.z);
+  format(sink, spec, value.z());
   sink("}"_str);
 }
 
-void ash::format(fmt::Sink sink, fmt::Spec spec, Vec4U const & value)
+void ash::format(fmt::Sink sink, fmt::Spec spec, u32x4 const & value)
 {
-  sink("Vec4U{"_str);
-  format(sink, spec, value.x);
+  sink("u32x4{"_str);
+  format(sink, spec, value.x());
   sink(", "_str);
-  format(sink, spec, value.y);
+  format(sink, spec, value.y());
   sink(", "_str);
-  format(sink, spec, value.z);
+  format(sink, spec, value.z());
   sink(", "_str);
-  format(sink, spec, value.w);
+  format(sink, spec, value.w());
   sink("}"_str);
 }
 

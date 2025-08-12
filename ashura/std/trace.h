@@ -2,7 +2,7 @@
 #pragma once
 
 #include "ashura/std/async.h"
-#include "ashura/std/map.h"
+#include "ashura/std/dict.h"
 #include "ashura/std/time.h"
 #include "ashura/std/types.h"
 #include "ashura/std/vec.h"
@@ -36,7 +36,7 @@ struct TraceEvent
 
 struct TraceEventHash
 {
-  hash64 operator()(TraceEvent const & event) const
+  usize operator()(TraceEvent const & event) const
   {
     return hash_combine(span_hash(event.label), bit_hash(event.id));
   }
@@ -74,12 +74,12 @@ struct FileTraceSink final : TraceSink
 
 struct MemoryTraceSink final : TraceSink
 {
-  typedef Map<TraceEvent, Vec<TraceRecord>, TraceEventHash, TraceEventEq>
+  typedef Dict<TraceEvent, Vec<TraceRecord>, TraceEventHash, TraceEventEq>
     Records;
 
   std::mutex mutex_;
 
-  AllocatorRef allocator_;
+  Allocator allocator_;
 
   FileTraceSink * upstream_ = nullptr;
 
@@ -88,7 +88,7 @@ struct MemoryTraceSink final : TraceSink
 
   Records traces_;
 
-  MemoryTraceSink(AllocatorRef allocator);
+  MemoryTraceSink(Allocator allocator);
 
   virtual void trace(TraceEvent event, Span<TraceRecord const> records);
 

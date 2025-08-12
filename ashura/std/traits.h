@@ -199,11 +199,27 @@ concept Signed =
 #endif
 
 template <typename T>
+concept Integral =
+#if ASH_CFG(COMPILER, CLANG)
+  __is_integral(T);
+#else
+  std::is_integral_v<T>;
+#endif
+
+template <typename T>
 concept FloatingPoint =
 #if ASH_CFG(COMPILER, CLANG)
   __is_floating_point(T);
 #else
   std::is_floating_point_v<T>;
+#endif
+
+template <typename T>
+concept Enumeration =
+#if ASH_CFG(COMPILER, CLANG)
+  __is_enum(T);
+#else
+  std::is_enum_v<T>;
 #endif
 
 template <typename F, typename... Args>

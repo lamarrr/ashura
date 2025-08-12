@@ -553,17 +553,17 @@ struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
 
   virtual u32 num_dedicated() override
   {
-    return dedicated_threads.size32();
+    return size32(dedicated_threads);
   }
 
   virtual u32 num_workers() override
   {
-    return worker_threads.size32();
+    return size32(worker_threads);
   }
 
   virtual void schedule_dedicated(TaskInfo const & info, u32 thread) override
   {
-    CHECK(thread < dedicated_threads.size32(), "Invalid dedicated thread ID");
+    CHECK(thread < size32(dedicated_threads), "Invalid dedicated thread ID");
     TaskThread & t = dedicated_threads[thread];
     t.queue.push_task(info);
   }
@@ -596,8 +596,8 @@ Dyn<Scheduler *>
   Dyn<SchedulerImpl *> impl =
     dyn<SchedulerImpl>(inplace, allocator, allocator, main_thread_id).unwrap();
 
-  u32 const num_dedicated_threads = dedicated_thread_sleep.size32();
-  u32 const num_worker_threads    = worker_thread_sleep.size32();
+  u32 const num_dedicated_threads = size32(dedicated_thread_sleep);
+  u32 const num_worker_threads    = size32(worker_thread_sleep);
 
   impl->dedicated_threads =
     PinVec<TaskThread>::make(num_dedicated_threads, allocator).unwrap();

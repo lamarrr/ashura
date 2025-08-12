@@ -14,16 +14,15 @@ namespace ash
 namespace gpu
 {
 
-inline constexpr u32 REMAINING_MIP_LEVELS   = ~0U;
-inline constexpr u32 REMAINING_ARRAY_LAYERS = ~0U;
-inline constexpr u64 WHOLE_SIZE             = ~0ULL;
-
-typedef u64 FrameId;
+inline constexpr u32 REMAINING_MIP_LEVELS   = U32_MAX;
+inline constexpr u32 REMAINING_ARRAY_LAYERS = U32_MAX;
+inline constexpr u64 WHOLE_SIZE             = U64_MAX;
 
 typedef struct Buffer_T *              Buffer;
 typedef struct BufferView_T *          BufferView;
 typedef struct Image_T *               Image;
 typedef struct ImageView_T *           ImageView;
+typedef struct MemoryGroup_T *         MemoryGroup;
 typedef struct Sampler_T *             Sampler;
 typedef struct Shader_T *              Shader;
 typedef struct DescriptorSetLayout_T * DescriptorSetLayout;
@@ -31,13 +30,15 @@ typedef struct DescriptorSet_T *       DescriptorSet;
 typedef struct PipelineCache_T *       PipelineCache;
 typedef struct ComputePipeline_T *     ComputePipeline;
 typedef struct GraphicsPipeline_T *    GraphicsPipeline;
-typedef struct TimestampQuery_T *      TimeStampQuery;
+typedef struct TimestampQuery_T *      TimestampQuery;
 typedef struct StatisticsQuery_T *     StatisticsQuery;
-typedef struct CommandEncoder          CommandEncoder;
 typedef struct Surface_T *             Surface;
 typedef struct Swapchain_T *           Swapchain;
-typedef struct Device                  Device;
-typedef struct Instance                Instance;
+typedef struct QueueScope_T *          QueueScope;
+typedef struct ICommandEncoder *       CommandEncoder;
+typedef struct ICommandBuffer *        CommandBuffer;
+typedef struct IDevice *               Device;
+typedef struct IInstance *             Instance;
 
 enum class ObjectType : u32
 {
@@ -56,7 +57,7 @@ enum class ObjectType : u32
   PipelineCache       = 12,
   ComputePipeline     = 13,
   GraphicsPipeline    = 14,
-  TimeStampQuery      = 15,
+  TimestampQuery      = 15,
   StatisticsQuery     = 16,
   Surface             = 17,
   Swapchain           = 18
@@ -418,10 +419,11 @@ enum class LoadOp : u8
   DontCare = 2
 };
 
-enum class StoreOp : u8
+enum class StoreOp : u32
 {
   Store    = 0,
-  DontCare = 1
+  DontCare = 1,
+  None     = 1'000'301'000
 };
 
 enum class BlendFactor : u8
@@ -616,7 +618,7 @@ ASH_BIT_ENUM_OPS(ShaderStages)
 
 enum class PipelineStages : u64
 {
-  NONE                  = 0x0000'0000,
+  None                  = 0x0000'0000,
   TopOfPipe             = 0x0000'0001,
   DrawIndirect          = 0x0000'0002,
   VertexInput           = 0x0000'0004,
@@ -690,16 +692,20 @@ enum class DescriptorType : u8
   UniformTexelBuffer   = 4,
   StorageTexelBuffer   = 5,
   UniformBuffer        = 6,
-  StorageBuffer        = 7,
-  DynamicUniformBuffer = 8,
-  DynamicStorageBuffer = 9,
-  InputAttachment      = 10
+  ReadStorageBuffer    = 7,
+  RWStorageBuffer      = 8,
+  DynUniformBuffer     = 9,
+  DynReadStorageBuffer = 10,
+  DynRWStorageBuffer   = 11,
+  InputAttachment      = 12
 };
+
+constexpr u8 NUM_DESCRIPTOR_TYPES = 13;
 
 enum class IndexType : u8
 {
-  Uint16 = 0,
-  Uint32 = 1
+  U16 = 0,
+  U32 = 1
 };
 
 enum class CompositeAlpha : u32
@@ -724,22 +730,24 @@ enum class ResolveModes : u32
 
 ASH_BIT_ENUM_OPS(ResolveModes)
 
+enum class MemoryType : u8
+{
+  /// the resource is the sole owner
+  Unique = 0,
+  /// the resource's memory is grouped with other resources
+  Group  = 1
+};
+
 using Object =
-  Enum<Instance *, Device *, CommandEncoder *, Buffer, BufferView, Image,
-       ImageView, Sampler, Shader, DescriptorSetLayout, DescriptorSet,
-       PipelineCache, ComputePipeline, GraphicsPipeline, TimeStampQuery,
-       StatisticsQuery, Surface, Swapchain>;
+  Enum<Instance, Device, CommandEncoder, CommandBuffer, Buffer, BufferView,
+       Image, ImageView, MemoryGroup, Sampler, Shader, DescriptorSetLayout,
+       DescriptorSet, PipelineCache, ComputePipeline, GraphicsPipeline,
+       TimestampQuery, StatisticsQuery, Surface, Swapchain, QueueScope>;
 
 struct SurfaceFormat
 {
   Format     format      = Format::Undefined;
   ColorSpace color_space = ColorSpace::SRGB_NONLINEAR;
-};
-
-struct MemoryRange
-{
-  u64 offset = 0;
-  u64 size   = 0;
 };
 
 /// @brief Describes the region of the framebuffer the coordinates gotten from the shaders
@@ -748,10 +756,10 @@ struct MemoryRange
 /// If either extent.x or extent.y are negative the axis is inverted.
 struct Viewport
 {
-  Vec2 offset    = {};
-  Vec2 extent    = {};
-  f32  min_depth = 0;
-  f32  max_depth = 0;
+  f32x2 offset    = {};
+  f32x2 extent    = {};
+  f32   min_depth = 0;
+  f32   max_depth = 0;
 };
 
 struct StencilState
@@ -782,37 +790,41 @@ struct FormatProperties
 
 struct ImageSubresourceRange
 {
-  ImageAspects aspects           = ImageAspects::None;
-  u32          first_mip_level   = 0;
-  u32          num_mip_levels    = 0;
-  u32          first_array_layer = 0;
-  u32          num_array_layers  = 0;
+  ImageAspects aspects      = ImageAspects::None;
+  Slice32      mip_levels   = {};
+  Slice32      array_layers = {};
 };
 
 struct ImageSubresourceLayers
 {
-  ImageAspects aspects           = ImageAspects::None;
-  u32          mip_level         = 0;
-  u32          first_array_layer = 0;
-  u32          num_array_layers  = 0;
+  ImageAspects aspects      = ImageAspects::None;
+  u32          mip_level    = 0;
+  Slice32      array_layers = {};
+};
+
+struct MemoryGroupInfo
+{
+  Str                             label     = {};
+  Span<Enum<Buffer, Image> const> resources = {};
+  Span<u32 const>                 aliases   = {};
 };
 
 struct BufferInfo
 {
   Str         label       = {};
   u64         size        = 0;
-  bool        host_mapped = false;
   BufferUsage usage       = BufferUsage::None;
+  MemoryType  memory_type = MemoryType::Unique;
+  bool        host_mapped = false;
 };
 
 /// format interpretation of a buffer's contents
 struct BufferViewInfo
 {
-  Str    label  = {};
-  Buffer buffer = nullptr;
-  Format format = Format::Undefined;
-  u64    offset = 0;
-  u64    size   = 0;
+  Str     label  = {};
+  Buffer  buffer = nullptr;
+  Format  format = Format::Undefined;
+  Slice64 slice  = {};
 };
 
 struct ImageInfo
@@ -822,10 +834,11 @@ struct ImageInfo
   Format       format       = Format::Undefined;
   ImageUsage   usage        = ImageUsage::None;
   ImageAspects aspects      = ImageAspects::None;
-  Vec3U        extent       = {};
+  u32x3        extent       = {};
   u32          mip_levels   = 0;
   u32          array_layers = 0;
   SampleCount  sample_count = SampleCount::None;
+  MemoryType   memory_type  = MemoryType::Unique;
 };
 
 /// a sub-resource that specifies mips, aspects, layer, and component mapping of
@@ -837,16 +850,14 @@ struct ImageInfo
 ///
 struct ImageViewInfo
 {
-  Str              label             = {};
-  Image            image             = nullptr;
-  ImageViewType    view_type         = ImageViewType::Type1D;
-  Format           view_format       = Format::Undefined;
-  ComponentMapping mapping           = {};
-  ImageAspects     aspects           = ImageAspects::None;
-  u32              first_mip_level   = 0;
-  u32              num_mip_levels    = 0;
-  u32              first_array_layer = 0;
-  u32              num_array_layers  = 0;
+  Str              label        = {};
+  Image            image        = nullptr;
+  ImageViewType    view_type    = ImageViewType::Type1D;
+  Format           view_format  = Format::Undefined;
+  ComponentMapping mapping      = {};
+  ImageAspects     aspects      = ImageAspects::None;
+  Slice32          mip_levels   = {};
+  Slice32          array_layers = {};
 };
 
 struct SamplerInfo
@@ -912,16 +923,15 @@ struct ImageBinding
 
 struct BufferBinding
 {
-  Buffer buffer = nullptr;
-  u64    offset = 0;
-  u64    size   = 0;
+  Buffer  buffer = nullptr;
+  Slice64 range  = {};
 };
 
 struct DescriptorSetUpdate
 {
   DescriptorSet             set           = nullptr;
   u32                       binding       = 0;
-  u32                       element       = 0;
+  u32                       first_element = 0;
   Span<ImageBinding const>  images        = {};
   Span<BufferView const>    texel_buffers = {};
   Span<BufferBinding const> buffers       = {};
@@ -1009,7 +1019,7 @@ struct ColorBlendState
   bool                                  logic_op_enable = false;
   LogicOp                               logic_op        = LogicOp::Clear;
   Span<ColorBlendAttachmentState const> attachments     = {};
-  Vec4                                  blend_constant  = {};
+  f32x4                                 blend_constant  = {};
 };
 
 struct RasterizationState
@@ -1029,7 +1039,7 @@ struct GraphicsState
 {
   RectU        scissor                  = {};
   Viewport     viewport                 = {};
-  Vec4         blend_constant           = {};
+  f32x4        blend_constant           = {};
   bool         stencil_test_enable      = false;
   StencilState front_face_stencil       = {};
   StencilState back_face_stencil        = {};
@@ -1049,8 +1059,8 @@ struct GraphicsPipelineInfo
   ShaderStageInfo                 vertex_shader          = {};
   ShaderStageInfo                 fragment_shader        = {};
   Span<Format const>              color_formats          = {};
-  Span<Format const>              depth_format           = {};
-  Span<Format const>              stencil_format         = {};
+  Option<Format>                  depth_format           = none;
+  Option<Format>                  stencil_format         = none;
   Span<VertexInputBinding const>  vertex_input_bindings  = {};
   Span<VertexAttribute const>     vertex_attributes      = {};
   u32                             push_constants_size    = 0;
@@ -1060,6 +1070,46 @@ struct GraphicsPipelineInfo
   DepthStencilState  depth_stencil_state = {};
   ColorBlendState    color_blend_state   = {};
   PipelineCache      cache               = nullptr;
+};
+
+struct SwapchainInfo
+{
+  Str            label               = {};
+  Surface        surface             = nullptr;
+  SurfaceFormat  format              = {};
+  ImageUsage     usage               = ImageUsage::None;
+  u32            preferred_buffering = 0;
+  PresentMode    present_mode        = PresentMode::Immediate;
+  u32x2          preferred_extent    = {};
+  CompositeAlpha composite_alpha     = CompositeAlpha::None;
+};
+
+struct QueueScopeInfo
+{
+  Str label     = {};
+  u32 buffering = 0;
+};
+
+struct StatisticsQueryInfo
+{
+  Str label = {};
+  u32 count = 0;
+};
+
+struct TimestampQueryInfo
+{
+  Str label = {};
+  u32 count = 0;
+};
+
+struct CommandBufferInfo
+{
+  Str label = {};
+};
+
+struct CommandEncoderInfo
+{
+  Str label = {};
 };
 
 struct DispatchCommand
@@ -1088,9 +1138,8 @@ struct DrawIndexedCommand
 
 struct BufferCopy
 {
-  u64 src_offset = 0;
-  u64 size       = 0;
-  u64 dst_offset = 0;
+  Slice64 src_range{};
+  u64     dst_offset = 0;
 };
 
 struct BufferImageCopy
@@ -1107,7 +1156,7 @@ struct ImageCopy
   ImageSubresourceLayers src_layers = {};
   BoxU                   src_area   = {};
   ImageSubresourceLayers dst_layers = {};
-  Vec3U                  dst_offset = {};
+  u32x3                  dst_offset = {};
 };
 
 struct ImageBlit
@@ -1123,15 +1172,15 @@ struct ImageResolve
   ImageSubresourceLayers src_layers = {};
   BoxU                   src_area   = {};
   ImageSubresourceLayers dst_layers = {};
-  Vec3U                  dst_offset = {};
+  u32x3                  dst_offset = {};
 };
 
 /// x, y, z, w => R, G, B, A
 union Color
 {
-  Vec4U uint32 = {0, 0, 0, 0};
-  Vec4I int32;
-  Vec4  float32;
+  u32x4 u32 = {0, 0, 0, 0};
+  i32x4 i32;
+  f32x4 f32;
 };
 
 struct DepthStencil
@@ -1150,30 +1199,6 @@ struct SurfaceCapabilities
 {
   ImageUsage     image_usage     = ImageUsage::None;
   CompositeAlpha composite_alpha = CompositeAlpha::None;
-};
-
-struct SwapchainInfo
-{
-  Str            label               = {};
-  SurfaceFormat  format              = {};
-  ImageUsage     usage               = ImageUsage::None;
-  u32            preferred_buffering = 0;
-  PresentMode    present_mode        = PresentMode::Immediate;
-  Vec2U          preferred_extent    = {};
-  CompositeAlpha composite_alpha     = CompositeAlpha::None;
-};
-
-/// @param generation increases everytime the swapchain for the surface is
-/// recreated or re-configured
-/// @param images swapchain images, calling ref or unref on them will cause a
-/// panic as they are only meant to exist for the lifetime of the frame. avoid
-/// storing pointers to its data members.
-struct SwapchainState
-{
-  Vec2U             extent        = {};
-  SurfaceFormat     format        = {};
-  Span<Image const> images        = {};
-  Option<u32>       current_image = none;
 };
 
 struct PipelineStatistics
@@ -1209,6 +1234,29 @@ struct DeviceProperties
   u32        max_compute_shared_memory_size     = 0;
 };
 
+/// @param generation increases everytime the swapchain for the surface is
+/// recreated or re-configured
+/// @param images swapchain images, calling ref or unref on them will cause a
+/// panic as they are only meant to exist for the lifetime of the frame. avoid
+/// storing pointers to its data members.
+struct SwapchainState
+{
+  u32x2             extent          = {};
+  SurfaceFormat     format          = {};
+  PresentMode       present_mode    = PresentMode::Immediate;
+  CompositeAlpha    composite_alpha = CompositeAlpha::None;
+  Span<Image const> images          = {};
+  Option<u32>       current_image   = none;
+};
+
+struct QueueScopeState
+{
+  u64 tail_frame    = 0;
+  u64 current_frame = 0;
+  u64 ring_index    = 0;
+  u64 buffering     = 0;
+};
+
 struct RenderingAttachment
 {
   ImageView    view         = nullptr;
@@ -1224,29 +1272,34 @@ struct RenderingInfo
   RectU                           render_area        = {};
   u32                             num_layers         = 0;
   Span<RenderingAttachment const> color_attachments  = {};
-  Span<RenderingAttachment const> depth_attachment   = {};
-  Span<RenderingAttachment const> stencil_attachment = {};
+  Option<RenderingAttachment>     depth_attachment   = none;
+  Option<RenderingAttachment>     stencil_attachment = none;
 };
 
-/// to execute tasks at end of frame. use the tail frame index.
-struct CommandEncoder
+struct ICommandEncoder
 {
-  virtual void reset_timestamp_query(TimeStampQuery query, Slice32 range) = 0;
+  virtual void begin() = 0;
+
+  virtual Result<Void, Status> end() = 0;
+
+  virtual void reset() = 0;
+
+  virtual void reset_timestamp_query(TimestampQuery query, Slice32 range) = 0;
 
   virtual void reset_statistics_query(StatisticsQuery query, Slice32 range) = 0;
 
-  virtual void write_timestamp(TimeStampQuery query, PipelineStages stage,
+  virtual void write_timestamp(TimestampQuery query, PipelineStages stage,
                                u32 index) = 0;
 
   virtual void begin_statistics(StatisticsQuery query, u32 index) = 0;
 
   virtual void end_statistics(StatisticsQuery query, u32 index) = 0;
 
-  virtual void begin_debug_marker(Str region_name, Vec4 color) = 0;
+  virtual void begin_debug_marker(Str region_name, f32x4 color) = 0;
 
   virtual void end_debug_marker() = 0;
 
-  virtual void fill_buffer(Buffer dst, u64 offset, u64 size, u32 data) = 0;
+  virtual void fill_buffer(Buffer dst, Slice64 range, u32 data) = 0;
 
   virtual void copy_buffer(Buffer src, Buffer dst,
                            Span<BufferCopy const> copies) = 0;
@@ -1290,8 +1343,7 @@ struct CommandEncoder
 
   virtual void push_constants(Span<u8 const> push_constants_data) = 0;
 
-  virtual void dispatch(u32 group_count_x, u32 group_count_y,
-                        u32 group_count_z) = 0;
+  virtual void dispatch(u32x3 group_count) = 0;
 
   virtual void dispatch_indirect(Buffer buffer, u64 offset) = 0;
 
@@ -1303,35 +1355,39 @@ struct CommandEncoder
   virtual void bind_index_buffer(Buffer index_buffer, u64 offset,
                                  IndexType index_type) = 0;
 
-  virtual void draw(u32 vertex_count, u32 instance_count, u32 first_vertex,
-                    u32 first_instance) = 0;
+  virtual void draw(Slice32 vertices, Slice32 instances) = 0;
 
-  virtual void draw_indexed(u32 first_index, u32 num_indices, i32 vertex_offset,
-                            u32 first_instance, u32 num_instances) = 0;
+  virtual void draw_indexed(Slice32 indices, Slice32 instances,
+                            i32 vertex_offset) = 0;
 
   virtual void draw_indirect(Buffer buffer, u64 offset, u32 draw_count,
                              u32 stride) = 0;
 
   virtual void draw_indexed_indirect(Buffer buffer, u64 offset, u32 draw_count,
                                      u32 stride) = 0;
+
+  virtual void present(Swapchain swapchain) = 0;
 };
 
-struct FrameContext
+struct ICommandBuffer
 {
-  u32                          buffering  = 0;
-  FrameId                      tail       = 0;
-  FrameId                      current    = 0;
-  Span<CommandEncoder * const> encoders   = {};
-  u32                          ring_index = 0;
+  /// @brief Begins the command buffer, preparing it for recording.
+  // It is at this point that the command buffer fetches the latest states of the resources from the device.
+  /// @warning resources created after calling `begin()` must not be accessed via this command buffer.
+  // This is because the command buffer would not have captured the resource' state.
+  /// @warning resources destroyed before or during recording must also not be accessed by both
+  /// the command buffer and encoders
+  virtual void begin() = 0;
+
+  virtual Result<Void, Status> end() = 0;
+
+  virtual void reset() = 0;
+
+  virtual void record(CommandEncoder encoder) = 0;
 };
 
-struct Device
+struct IDevice
 {
-  virtual DeviceProperties get_properties() = 0;
-
-  virtual Result<FormatProperties, Status>
-    get_format_properties(Format format) = 0;
-
   virtual Result<Buffer, Status> create_buffer(BufferInfo const & info) = 0;
 
   virtual Result<BufferView, Status>
@@ -1341,6 +1397,9 @@ struct Device
 
   virtual Result<ImageView, Status>
     create_image_view(ImageViewInfo const & info) = 0;
+
+  virtual Result<MemoryGroup, Status>
+    create_memory_group(MemoryGroupInfo const & info) = 0;
 
   virtual Result<Sampler, Status> create_sampler(SamplerInfo const & info) = 0;
 
@@ -1362,12 +1421,22 @@ struct Device
     create_graphics_pipeline(GraphicsPipelineInfo const & info) = 0;
 
   virtual Result<Swapchain, Status>
-    create_swapchain(Surface surface, SwapchainInfo const & info) = 0;
+    create_swapchain(SwapchainInfo const & info) = 0;
 
-  virtual Result<TimeStampQuery, Status> create_timestamp_query(u32 count) = 0;
+  virtual Result<TimestampQuery, Status>
+    create_timestamp_query(TimestampQueryInfo const & info) = 0;
 
   virtual Result<StatisticsQuery, Status>
-    create_statistics_query(u32 count) = 0;
+    create_statistics_query(StatisticsQueryInfo const & info) = 0;
+
+  virtual Result<CommandEncoder, Status>
+    create_command_encoder(CommandEncoderInfo const & info) = 0;
+
+  virtual Result<CommandBuffer, Status>
+    create_command_buffer(CommandBufferInfo const & info) = 0;
+
+  virtual Result<QueueScope, Status>
+    create_queue_scope(QueueScopeInfo const & info) = 0;
 
   virtual void uninit(Buffer buffer) = 0;
 
@@ -1376,6 +1445,8 @@ struct Device
   virtual void uninit(Image image) = 0;
 
   virtual void uninit(ImageView image_view) = 0;
+
+  virtual void uninit(MemoryGroup memory_group) = 0;
 
   virtual void uninit(Sampler sampler) = 0;
 
@@ -1393,21 +1464,30 @@ struct Device
 
   virtual void uninit(Swapchain swapchain) = 0;
 
-  virtual void uninit(TimeStampQuery query) = 0;
+  virtual void uninit(TimestampQuery query) = 0;
 
   virtual void uninit(StatisticsQuery query) = 0;
 
-  virtual FrameContext get_frame_context() = 0;
+  virtual void uninit(CommandEncoder encoder) = 0;
 
-  virtual Result<void *, Status> map_buffer_memory(Buffer buffer) = 0;
+  virtual void uninit(CommandBuffer buffer) = 0;
 
-  virtual void unmap_buffer_memory(Buffer buffer) = 0;
+  virtual void uninit(QueueScope scope) = 0;
 
-  virtual Result<Void, Status>
-    invalidate_mapped_buffer_memory(Buffer buffer, MemoryRange range) = 0;
+  void uninit_object(Object object);
 
-  virtual Result<Void, Status>
-    flush_mapped_buffer_memory(Buffer buffer, MemoryRange range) = 0;
+  virtual DeviceProperties get_properties() = 0;
+
+  virtual Result<FormatProperties, Status>
+    get_format_properties(Format format) = 0;
+
+  virtual Result<Span<u8>, Status> get_memory_map(Buffer buffer) = 0;
+
+  virtual Result<Void, Status> invalidate_mapped_memory(Buffer  buffer,
+                                                        Slice64 range) = 0;
+
+  virtual Result<Void, Status> flush_mapped_memory(Buffer  buffer,
+                                                   Slice64 range) = 0;
 
   virtual Result<usize, Status>
     get_pipeline_cache_size(PipelineCache cache) = 0;
@@ -1418,11 +1498,9 @@ struct Device
   virtual Result<Void, Status>
     merge_pipeline_cache(PipelineCache dst, Span<PipelineCache const> srcs) = 0;
 
-  /// @brief remove descriptor set element binding from the synchronization list
-  virtual void unbind_descriptor_set(DescriptorSet set, u32 binding,
-                                     Slice32 elements) = 0;
-
   virtual void update_descriptor_set(DescriptorSetUpdate const & update) = 0;
+
+  virtual QueueScopeState get_queue_scope_state(QueueScope scope) = 0;
 
   virtual Result<Void, Status> wait_idle() = 0;
 
@@ -1441,42 +1519,62 @@ struct Device
     get_swapchain_state(Swapchain swapchain) = 0;
 
   virtual Result<Void, Status>
-    invalidate_swapchain(Swapchain swapchain, SwapchainInfo const & info) = 0;
-
-  virtual Result<Void, Status> begin_frame(Swapchain swapchain) = 0;
-
-  virtual Result<Void, Status> submit_frame(Swapchain swapchain) = 0;
+    get_timestamp_query_result(TimestampQuery query, u32 first,
+                               Span<u64> timestamps) = 0;
 
   virtual Result<Void, Status>
-    get_timestamp_query_result(TimeStampQuery query, Slice32 range,
-                               Vec<u64> & timestamps) = 0;
+    get_statistics_query_result(StatisticsQuery query, u32 first,
+                                Span<PipelineStatistics> statistics) = 0;
 
-  virtual Result<Void, Status>
-    get_statistics_query_result(StatisticsQuery query, Slice32 range,
-                                Vec<PipelineStatistics> & statistics) = 0;
+  virtual Result<Void, Status> acquire_next(Swapchain swapchain) = 0;
+
+  virtual Result<Void, Status> submit(CommandBuffer buffer,
+                                      QueueScope    scope) = 0;
 };
 
-struct Instance
+inline void IDevice::uninit_object(gpu::Object object)
 {
-  virtual ~Instance() = default;
+  object.match(
+    [](gpu::Instance) { CHECK_UNREACHABLE(); },
+    [](gpu::Device) { CHECK_UNREACHABLE(); },
+    [&](gpu::CommandEncoder r) { uninit(r); },
+    [&](gpu::CommandBuffer r) { uninit(r); }, [&](gpu::Buffer r) { uninit(r); },
+    [&](gpu::BufferView r) { uninit(r); }, [&](gpu::Image r) { uninit(r); },
+    [&](gpu::ImageView r) { uninit(r); },
+    [&](gpu::MemoryGroup r) { uninit(r); }, [&](gpu::Sampler r) { uninit(r); },
+    [&](gpu::Shader r) { uninit(r); },
+    [&](gpu::DescriptorSetLayout r) { uninit(r); },
+    [&](gpu::DescriptorSet r) { uninit(r); },
+    [&](gpu::PipelineCache r) { uninit(r); },
+    [&](gpu::ComputePipeline r) { uninit(r); },
+    [&](gpu::GraphicsPipeline r) { uninit(r); },
+    [&](gpu::TimestampQuery r) { uninit(r); },
+    [&](gpu::StatisticsQuery r) { uninit(r); },
+    [&](gpu::Surface) { CHECK_UNREACHABLE(); },
+    [&](gpu::Swapchain r) { uninit(r); },
+    [&](gpu::QueueScope r) { uninit(r); });
+}
 
-  virtual Result<Device *, Status>
-    create_device(AllocatorRef           allocator,
-                  Span<DeviceType const> preferred_types, u32 buffering) = 0;
+struct IInstance
+{
+  virtual ~IInstance() = default;
+
+  virtual Result<Device, Status>
+    create_device(Allocator              allocator,
+                  Span<DeviceType const> preferred_types) = 0;
 
   virtual Backend get_backend() = 0;
 
-  virtual void uninit(Device * device) = 0;
+  virtual void uninit(Device device) = 0;
 
   virtual void uninit(Surface surface) = 0;
 };
 
-Result<Dyn<Instance *>, Status> create_vulkan_instance(AllocatorRef allocator,
-                                                       bool enable_validation);
+Result<Dyn<Instance>, Status> create_vulkan_instance(Allocator allocator,
+                                                     bool enable_validation);
 
 /// REQUIRED LIMITS AND PROPERTIES
 
-inline constexpr u32         MAX_LABEL_SIZE                       = 256;
 inline constexpr u32         MAX_IMAGE_EXTENT_1D                  = 8'192;
 inline constexpr u32         MAX_IMAGE_EXTENT_2D                  = 8'192;
 inline constexpr u32         MAX_IMAGE_EXTENT_3D                  = 2'048;
@@ -1496,7 +1594,6 @@ inline constexpr u32         MAX_PIPELINE_COLOR_ATTACHMENTS       = 8;
 inline constexpr u32         MAX_DESCRIPTOR_SET_DESCRIPTORS       = 4'096;
 inline constexpr u32         MAX_BINDING_DESCRIPTORS              = 4'096;
 inline constexpr u32         MAX_DESCRIPTOR_SET_BINDINGS          = 16;
-inline constexpr u32         MAX_FRAME_BUFFERING                  = 4;
 inline constexpr u32         MAX_SWAPCHAIN_IMAGES                 = 4;
 inline constexpr u64         MAX_UNIFORM_BUFFER_RANGE             = 65'536;
 inline constexpr f32         MAX_SAMPLER_ANISOTROPY               = 16;
@@ -1509,7 +1606,6 @@ inline constexpr SampleCount REQUIRED_COLOR_SAMPLE_COUNTS =
 inline constexpr SampleCount REQUIRED_DEPTH_SAMPLE_COUNTS =
   SampleCount::C1 | SampleCount::C2 | SampleCount::C4;
 
-typedef InplaceVec<char, MAX_LABEL_SIZE> Label;
 }    // namespace gpu
 
 inline void format(fmt::Sink sink, fmt::Spec, gpu::Status const & status)

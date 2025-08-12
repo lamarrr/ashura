@@ -23,8 +23,7 @@ void MemoryTraceSink::trace(TraceEvent event, Span<TraceRecord const> records)
   LockGuard guard{mutex_};
 
   auto [_, current_records] =
-    traces_.insert(event, Vec<TraceRecord>{allocator_}, nullptr, false)
-      .unwrap();
+    traces_.push(event, Vec<TraceRecord>{allocator_}, nullptr, false).unwrap();
 
   if (current_records.size() + records.size() > buffer_size_)
   {

@@ -1,5 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/engine/gpu_system.h"
+#include "ashura/std/range.h"
 #include "ashura/std/sformat.h"
 #include "ashura/std/str.h"
 #include "ashura/std/trace.h"
@@ -7,396 +8,901 @@
 namespace ash
 {
 
-GpuBuffer::GpuBuffer(Str label, gpu::BufferUsage usage) :
-  label_{label},
-  usage_{usage}
+void ColorTexture::uninit(gpu::Device device)
 {
+  device->uninit(sampled_texture);
+  device->uninit(storage_texture);
+  device->uninit(input_attachment);
+  device->uninit(view);
+  device->uninit(image);
 }
 
-bool GpuBuffer::is_valid() const
+void ColorMsaaTexture::uninit(gpu::Device device)
 {
-  return buffer_ != nullptr;
+  device->uninit(view);
+  device->uninit(image);
 }
 
-void GpuBuffer::release(GpuSystem & gpu)
+void DepthStencilTexture::uninit(gpu::Device device)
 {
-  gpu.release(buffer_);
-  buffer_   = nullptr;
-  size_     = 0;
-  capacity_ = 0;
+  device->uninit(depth_sampled_texture);
+  device->uninit(depth_storage_texture);
+  device->uninit(depth_input_attachment);
+  device->uninit(depth_view);
+  device->uninit(stencil_view);
+  device->uninit(image);
 }
 
-void GpuBuffer::reserve_exact(GpuSystem & gpu, u64 target_capacity, bool defer)
+void Framebuffer::uninit(gpu::Device device)
 {
-  target_capacity = max(target_capacity, (u64) 1);
-
-  if (capacity_ == target_capacity)
-  {
-    return;
-  }
-
-  if (defer)
-  {
-    gpu.release(buffer_);
-  }
-  else
-  {
-    gpu.device_->uninit(buffer_);
-  }
-
-  buffer_ = gpu.device_
-              ->create_buffer(gpu::BufferInfo{.label       = label_,
-                                              .size        = target_capacity,
-                                              .host_mapped = true,
-                                              .usage       = usage_})
-              .unwrap();
-
-  size_     = 0;
-  capacity_ = target_capacity;
+  color.uninit(device);
+  color_msaa.match([&](auto & c) { c.uninit(device); });
+  depth_stencil.uninit(device);
 }
 
-void GpuBuffer::assign(GpuSystem & gpu, Span<u8 const> src)
+void GpuBuffer::uninit(gpu::Device device)
 {
-  CHECK(src.size() <= capacity_, "");
-  size_     = src.size();
-  u8 * data = (u8 *) map(gpu);
-  mem::copy(src, data);
-  flush(gpu);
-  unmap(gpu);
+  device->uninit(const_buffer);
+  device->uninit(read_struct_buffer);
+  device->uninit(read_write_struct_buffer);
+  device->uninit(buffer);
 }
 
-void * GpuBuffer::map(GpuSystem & gpu)
+GpuBuffer GpuBuffer::create(gpu::Device device, GpuSystem const & sys,
+                            u64 capacity, gpu::BufferUsage usage, Str label,
+                            Allocator scratch)
 {
-  return gpu.device_->map_buffer_memory(buffer_).unwrap();
-}
+  auto buffer_label =
+    sformat(scratch, "{} / {}"_str, label, "Buffer"_str).unwrap();
+  auto buffer =
+    device
+      ->create_buffer(gpu::BufferInfo{.label       = buffer_label,
+                                      .size        = capacity,
+                                      .usage       = usage,
+                                      .memory_type = gpu::MemoryType::Unique,
+                                      .host_mapped = true})
+      .unwrap();
 
-void GpuBuffer::unmap(GpuSystem & gpu)
-{
-  gpu.device_->unmap_buffer_memory(buffer_);
-}
-
-void GpuBuffer::flush(GpuSystem & gpu)
-{
-  gpu.device_
-    ->flush_mapped_buffer_memory(buffer_, gpu::MemoryRange{0, gpu::WHOLE_SIZE})
-    .unwrap();
-}
-
-ShaderBuffer::ShaderBuffer(Str label, gpu::BufferUsage usage) :
-  label_{label},
-  usage_{usage}
-{
-}
-
-bool ShaderBuffer::is_valid() const
-{
-  return buffer_ != nullptr;
-}
-
-void ShaderBuffer::release(GpuSystem & gpu)
-{
-  gpu.release(descriptor_);
-  gpu.release(buffer_);
-  buffer_     = nullptr;
-  size_       = 0;
-  capacity_   = 0;
-  descriptor_ = nullptr;
-}
-
-void ShaderBuffer::reserve_exact(GpuSystem & gpu, u64 target_capacity,
-                                 bool defer)
-{
-  target_capacity = max(target_capacity, (u64) 1);
-
-  if (capacity_ == target_capacity)
-  {
-    return;
-  }
-
-  if (defer)
-  {
-    gpu.release(buffer_);
-  }
-  else
-  {
-    gpu.device_->uninit(buffer_);
-  }
-
-  buffer_ = gpu.device_
-              ->create_buffer(gpu::BufferInfo{.label       = label_,
-                                              .size        = target_capacity,
-                                              .host_mapped = true,
-                                              .usage       = usage_})
-              .unwrap();
-
-  if (descriptor_ == nullptr)
-  {
-    descriptor_ =
-      gpu.device_
+  auto make_set = [&](Str component, gpu::DescriptorSetLayout layout) {
+    auto set_label = sformat(scratch, "{} / {}"_str, label, component).unwrap();
+    auto set =
+      device
         ->create_descriptor_set(gpu::DescriptorSetInfo{
-          .label = label_, .layout = gpu.sb_layout_, .variable_lengths = {}})
+          .label = set_label, .layout = layout, .variable_lengths = {}})
         .unwrap();
-  }
 
-  gpu.device_->update_descriptor_set(gpu::DescriptorSetUpdate{
-    .set     = descriptor_,
-    .binding = 0,
-    .element = 0,
-    .buffers = span({gpu::BufferBinding{
-      .buffer = buffer_, .offset = 0, .size = gpu::WHOLE_SIZE}}
-      )
-  });
+    device->update_descriptor_set(gpu::DescriptorSetUpdate{
+      .set           = set,
+      .binding       = 0,
+      .first_element = 0,
+      .buffers       = span(
+        {gpu::BufferBinding{.buffer = buffer, .range{0, gpu::WHOLE_SIZE}}}
+                )
+    });
 
-  size_     = 0;
-  capacity_ = target_capacity;
+    return set;
+  };
+
+  auto const_buffer = make_set("ConstBuffer", sys.layouts_.const_buffer);
+  auto read_struct_buffer =
+    make_set("ReadStructBuffer", sys.layouts_.read_struct_buffer);
+  auto read_write_struct_buffer =
+    make_set("ReadWriteStructBuffer", sys.layouts_.read_write_struct_buffer);
+
+  return GpuBuffer{.capacity                 = capacity,
+                   .usage                    = usage,
+                   .buffer                   = buffer,
+                   .const_buffer             = const_buffer,
+                   .read_struct_buffer       = read_struct_buffer,
+                   .read_write_struct_buffer = read_write_struct_buffer};
 }
 
-void ShaderBuffer::assign(GpuSystem & gpu, Span<u8 const> src)
+void GpuQueries::uninit(gpu::Device device)
 {
-  CHECK(src.size() <= capacity_, "");
-  u8 * data = (u8 *) map(gpu);
-  mem::copy(src, data);
-  flush(gpu);
-  unmap(gpu);
+  device->uninit(timestamps);
+  device->uninit(statistics);
 }
 
-void * ShaderBuffer::map(GpuSystem & gpu)
+Option<Tuple<gpu::TimestampQuery, u32>> GpuQueries::allocate_timestamp()
 {
-  return gpu.device_->map_buffer_memory(buffer_).unwrap();
-}
-
-void ShaderBuffer::unmap(GpuSystem & gpu)
-{
-  gpu.device_->unmap_buffer_memory(buffer_);
-}
-
-void ShaderBuffer::flush(GpuSystem & gpu)
-{
-  gpu.device_
-    ->flush_mapped_buffer_memory(buffer_, gpu::MemoryRange{0, gpu::WHOLE_SIZE})
-    .unwrap();
-}
-
-GpuQueries GpuQueries::create(AllocatorRef allocator, gpu::Device & dev,
-                              f32 time_period, u32 num_timespans,
-                              u32 num_statistics)
-{
-  auto timestamps = dev.create_timestamp_query(num_timespans * 2).unwrap();
-  auto stats      = dev.create_statistics_query(num_statistics).unwrap();
-
-  return GpuQueries{allocator,     time_period, timestamps,
-                    num_timespans, stats,       num_statistics};
-}
-
-void GpuQueries::uninit(gpu::Device & dev)
-{
-  dev.uninit(timestamps_);
-  dev.uninit(statistics_);
-}
-
-void GpuQueries::begin_frame(gpu::Device & dev, gpu::CommandEncoder & enc)
-{
-  cpu_timestamps_.clear();
-  cpu_statistics_.clear();
-
-  u32 const num_frame_timestamps = timespan_labels_.size() * 2;
-  u32 const num_frame_stats      = statistics_labels_.size();
-
-  dev
-    .get_timestamp_query_result(timestamps_, Slice32{0, num_frame_timestamps},
-                                cpu_timestamps_)
-    .unwrap();
-  dev
-    .get_statistics_query_result(statistics_, Slice32{0, num_frame_stats},
-                                 cpu_statistics_)
-    .unwrap();
-
-  enc.reset_timestamp_query(timestamps_, Slice32{0, timespans_capacity_ * 2});
-  enc.reset_statistics_query(statistics_, Slice32{0, statistics_capacity_});
-
-  for (auto [i, label] : enumerate<u32>(timespan_labels_))
-  {
-    u64 const         ts0 = cpu_timestamps_[i * 2];
-    u64 const         ts1 = cpu_timestamps_[i * 2 + 1];
-    nanoseconds const t0{static_cast<nanoseconds::rep>(ts0 * time_period_)};
-    nanoseconds const t1{static_cast<nanoseconds::rep>(ts1 * time_period_)};
-
-    TraceRecord record{.label = label, .begin = t0, .end = t1};
-
-    trace_sink->trace(TraceEvent{.label = "gpu.timeline"}, span({record}));
-  }
-
-  for (auto const [i, label] : enumerate<u32>(statistics_labels_))
-  {
-    gpu::PipelineStatistics const & stat      = cpu_statistics_[i];
-    Tuple<Str, TraceRecord> const   records[] = {
-      {"gpu.input_assembly_vertices"_str,
-       {.label = label, .i = (i64) stat.input_assembly_vertices}    },
-      {"gpu.vertex_shader_invocations"_str,
-       {.label = label, .i = (i64) stat.vertex_shader_invocations}  },
-      {"gpu.clipping_invocations"_str,
-       {.label = label, .i = (i64) stat.clipping_invocations}       },
-      {"gpu.clipping_primitives"_str,
-       {.label = label, .i = (i64) stat.clipping_primitives}        },
-      {"gpu.fragment_shader_invocations"_str,
-       {.label = label, .i = (i64) stat.fragment_shader_invocations}},
-      {"gpu.compute_shader_invocations"_str,
-       {.label = label, .i = (i64) stat.compute_shader_invocations} }
-    };
-
-    for (auto const & [event, record] : records)
-    {
-      trace_sink->trace(TraceEvent{.label = event}, span({record}));
-    }
-  }
-
-  timespan_labels_.clear();
-  statistics_labels_.clear();
-}
-
-Option<u32> GpuQueries::begin_timespan(gpu::CommandEncoder & enc, Str label)
-{
-  auto const id = timespan_labels_.size32();
-
-  if (id + 1 > timespans_capacity_)
+  if (next_timestamp >= cpu_timestamps.size())
   {
     return none;
   }
 
-  timespan_labels_.push(label).unwrap();
+  auto idx = next_timestamp++;
 
-  enc.write_timestamp(timestamps_, gpu::PipelineStages::BottomOfPipe, id * 2);
-
-  return id;
+  return Tuple{timestamps, idx};
 }
 
-void GpuQueries::end_timespan(gpu::CommandEncoder & enc, u32 id)
+Option<Tuple<gpu::StatisticsQuery, u32>> GpuQueries::allocate_statistics()
 {
-  enc.write_timestamp(timestamps_, gpu::PipelineStages::BottomOfPipe,
-                      id * 2 + 1);
-}
-
-Option<u32> GpuQueries::begin_statistics(gpu::CommandEncoder & enc, Str label)
-{
-  auto const id = statistics_labels_.size32();
-
-  if (id + 1 > statistics_capacity_)
+  if (next_statistics >= cpu_statistics.size())
   {
     return none;
   }
 
-  statistics_labels_.push(label).unwrap();
+  auto idx = next_statistics++;
 
-  enc.begin_statistics(statistics_, id);
-
-  return id;
+  return Tuple{statistics, idx};
 }
 
-void GpuQueries::end_statistics(gpu::CommandEncoder & enc, u32 id)
+void GpuQueries::reset()
 {
-  enc.end_statistics(statistics_, id);
+  next_timestamp  = 0;
+  next_statistics = 0;
 }
 
-u32 FrameGraph::push_ssbo(Span<u8 const> data)
+GpuQueries GpuQueries::create(Allocator allocator, gpu::Device device,
+                              Span<char const> label, f32 time_period,
+                              u32 timestamps_capacity, u32 statistics_capacity,
+                              Allocator scratch)
 {
-  CHECK(!uploaded_, "");
-  auto const offset = sb_data_.size();
-  sb_data_.extend(data).unwrap();
-  auto const size = data.size();
-  auto const idx  = sb_entries_.size();
-  CHECK(sb_data_.size() <= U32_MAX, "");
-  sb_entries_.push(Slice32{(u32) offset, (u32) size}).unwrap();
-  auto const aligned_size =
-    align_offset<usize>(gpu::BUFFER_OFFSET_ALIGNMENT, sb_data_.size());
-  sb_data_.resize_uninit(aligned_size).unwrap();
+  CHECK(timestamps_capacity != 0, "");
+  CHECK(statistics_capacity != 0, "");
 
-  return (u32) idx;
+  auto timestamp_label =
+    sformat(scratch, "{} / TimestampQuery", label).unwrap();
+  auto timestamps = device
+                      ->create_timestamp_query(gpu::TimestampQueryInfo{
+                        .label = timestamp_label, .count = timestamps_capacity})
+                      .unwrap();
+
+  Vec<u64> cpu_timestamps{allocator};
+  cpu_timestamps.resize_uninit(timestamps_capacity).unwrap();
+
+  auto statistics_label =
+    sformat(scratch, "{} / StatisticsQuery", label).unwrap();
+  auto statistics =
+    device
+      ->create_statistics_query(gpu::StatisticsQueryInfo{
+        .label = statistics_label, .count = statistics_capacity})
+      .unwrap();
+
+  Vec<gpu::PipelineStatistics> cpu_statistics{allocator};
+  cpu_statistics.resize_uninit(statistics_capacity).unwrap();
+
+  return GpuQueries{.time_period     = time_period,
+                    .timestamps      = timestamps,
+                    .next_timestamp  = 0,
+                    .statistics      = statistics,
+                    .next_statistics = 0,
+                    .cpu_timestamps  = std::move(cpu_timestamps),
+                    .cpu_statistics  = std::move(cpu_statistics)};
 }
 
-Tuple<StructuredBuffer, Slice32> FrameGraph::get_structured_buffer(u32 id)
+void GpuDescriptorsLayout::uninit(gpu::Device device)
 {
-  CHECK(uploaded_, "");
-  Slice32 slice = sb_entries_.try_get(id).unwrap();
-  return {frame_data_[ring_index_].sb, slice};
+  device->uninit(samplers);
+  device->uninit(sampled_textures);
+  device->uninit(storage_textures);
+  device->uninit(const_buffer);
+  device->uninit(read_struct_buffer);
+  device->uninit(read_write_struct_buffer);
+  device->uninit(const_buffers);
+  device->uninit(read_struct_buffers);
+  device->uninit(read_write_struct_buffers);
+  device->uninit(input_attachments);
 }
 
-void FrameGraph::add_pass(Pass pass)
+void GpuDescriptors::uninit(gpu::Device device)
+{
+  device->uninit(samplers);
+  device->uninit(sampled_textures);
+}
+
+void GpuFramePlan::reserve_scratch_buffer(u64 size)
+{
+  // [ ] atomicSize alignment if overlapping regions; buffers need to shrink when not using enough; i.e.
+  // after building frame and noticed that not using enough of it to justify the size
+  // [ ] need multiple channels to ensure good overlap
+  // [ ] aliasing effect when read and written from same pass
+  // [ ] dynamic sync partitioning?
+
+  // [ ] specify for a specifc pass, the discrete offsets that will be used. as many layers as the maximum? or just any number?
+  // [ ] use a generalizable abstraction that can extend to images
+
+  scratch_buffer_reserve_size_ = max(size, scratch_buffer_reserve_size_);
+}
+
+void GpuFramePlan::add_preframe_task(GpuFrameTask && task)
+{
+  pre_frame_tasks_.push(std::move(task)).unwrap();
+}
+
+void GpuFramePlan::add_postframe_task(GpuFrameTask && task)
+{
+  post_frame_tasks_.push(std::move(task)).unwrap();
+}
+
+void GpuFramePlan::add_pass(GpuPass && pass)
 {
   passes_.push(std::move(pass)).unwrap();
 }
 
-void FrameGraph::FrameData::release(GpuSystem & gpu)
+BufferId GpuFramePlan::push_cpu(Span<u8 const> data)
 {
-  sb.release(gpu);
-  staging.release(gpu);
+  auto offset = cpu_buffer_data_.size();
+  cpu_buffer_data_.extend(data).unwrap();
+  auto size = data.size();
+  auto idx  = cpu_buffer_entries_.size();
+  CHECK(cpu_buffer_data_.size() <= U32_MAX, "");
+  cpu_buffer_entries_.push(offset, size).unwrap();
+  auto aligned_size =
+    align_offset<usize>(SIMD_ALIGNMENT, cpu_buffer_data_.size());
+  cpu_buffer_data_.resize_uninit(aligned_size).unwrap();
+  return BufferId{(u32) idx};
 }
 
-void FrameGraph::execute(GpuSystem & gpu)
+GpuBufferId GpuFramePlan::push_gpu(Span<u8 const> data)
 {
-  auto & f = frame_data_[ring_index_];
+  auto offset = gpu_buffer_data_.size();
+  gpu_buffer_data_.extend(data).unwrap();
+  auto size = data.size();
+  auto idx  = gpu_buffer_entries_.size();
+  CHECK(gpu_buffer_data_.size() <= U32_MAX, "");
+  gpu_buffer_entries_.push(offset, size).unwrap();
+  auto aligned_size =
+    align_offset<usize>(gpu::BUFFER_OFFSET_ALIGNMENT, gpu_buffer_data_.size());
+  gpu_buffer_data_.resize_uninit(aligned_size).unwrap();
 
-  // these buffers are expected to be very large so we should reset them on every frame when they aren't being used
-  f.staging.reserve_exact(gpu, staging_data_.size(), false);
-  f.staging.assign(gpu, staging_data_);
-  staging_data_.reset();
+  return GpuBufferId{(u32) idx};
+}
 
-  f.sb.reserve_exact(gpu, sb_data_.size(), false);
-  f.sb.assign(gpu, sb_data_);
-  sb_data_.reset();
+void GpuFramePlan::begin()
+{
+}
 
-  uploaded_ = true;
+void GpuFramePlan::end()
+{
+}
 
-  auto const timespan = gpu.begin_timespan("gpu.frame"_str);
+void GpuFramePlan::reset()
+{
+  // these buffers are expected to be very large so we reset them on every frame when they aren't being used
+  // Target at least 75% utilization
+  pre_frame_tasks_.shrink_clear().unwrap();
+  post_frame_tasks_.shrink_clear().unwrap();
+  frame_completed_tasks_.shrink_clear().unwrap();
+  gpu_buffer_data_.shrink_clear().unwrap();
+  gpu_buffer_entries_.shrink_clear().unwrap();
+  cpu_buffer_data_.shrink_clear().unwrap();
+  cpu_buffer_entries_.shrink_clear().unwrap();
+  scratch_buffer_reserve_size_ = 0;
+  passes_.shrink_clear().unwrap();
+  arena_.reclaim();
+}
 
+void TextureUnion::uninit(gpu::Device device)
+{
+  color.uninit(device);
+  depth_stencil.uninit(device);
+}
+
+TextureUnion TextureUnion::create(gpu::Device device, GpuSystem const & sys,
+                                  u32x2 target_size, gpu::Format color_format,
+                                  gpu::Format depth_stencil_format, Str label,
+                                  Allocator scratch)
+{
+  auto tag = [&](auto component) {
+    return sformat(scratch, "{} / {}"_str, label, component).unwrap();
+  };
+
+  auto color_label = tag("Color Image"_str);
+
+  auto color_info = gpu::ImageInfo{.label        = color_label,
+                                   .type         = gpu::ImageType::Type2D,
+                                   .format       = color_format,
+                                   .usage        = ColorTexture::USAGE,
+                                   .aspects      = gpu::ImageAspects::Color,
+                                   .extent       = target_size.append(1),
+                                   .mip_levels   = 1,
+                                   .array_layers = 1,
+                                   .sample_count = gpu::SampleCount::C1,
+                                   .memory_type  = gpu::MemoryType::Group};
+
+  auto color_image = device->create_image(color_info).unwrap();
+
+  auto color_view_label = tag("Color Image View"_str);
+
+  auto color_view_info = gpu::ImageViewInfo{
+    .label        = color_view_label,
+    .image        = color_image,
+    .view_type    = gpu::ImageViewType::Type2D,
+    .view_format  = color_format,
+    .mapping      = {},
+    .aspects      = gpu::ImageAspects::Color,
+    .mip_levels   = {0, 1},
+    .array_layers = {0, 1}
+  };
+
+  auto color_image_view = device->create_image_view(color_view_info).unwrap();
+
+  auto color_sampled_texture_label = tag("Color Sampled Texture"_str);
+  auto color_sampled_texture       = device
+                                 ->create_descriptor_set(gpu::DescriptorSetInfo{
+                                   .label  = color_sampled_texture_label,
+                                   .layout = sys.layouts_.sampled_textures,
+                                   .variable_lengths = span({1U})})
+                                 .unwrap();
+
+  auto color_storage_texture_label = tag("Color Storage Texture"_str);
+  auto color_storage_texture       = device
+                                 ->create_descriptor_set(gpu::DescriptorSetInfo{
+                                   .label  = color_storage_texture_label,
+                                   .layout = sys.layouts_.storage_textures,
+                                   .variable_lengths = span({1U})})
+                                 .unwrap();
+
+  auto color_input_attachment_label = tag("Color Input Attachment"_str);
+  auto color_input_attachment =
+    device
+      ->create_descriptor_set(
+        gpu::DescriptorSetInfo{.label  = color_input_attachment_label,
+                               .layout = sys.layouts_.input_attachments,
+                               .variable_lengths = span({1U})})
+      .unwrap();
+
+  color_info.label      = {};
+  color_view_info.label = {};
+
+  auto color = ColorTexture{.info             = color_info,
+                            .view_info        = color_view_info,
+                            .image            = color_image,
+                            .view             = color_image_view,
+                            .sampled_texture  = color_sampled_texture,
+                            .storage_texture  = color_storage_texture,
+                            .input_attachment = color_input_attachment};
+
+  auto depth_stencil_label = tag("Depth Stencil Image"_str);
+  auto depth_stencil_info  = gpu::ImageInfo{
+     .label        = depth_stencil_label,
+     .type         = gpu::ImageType::Type2D,
+     .format       = depth_stencil_format,
+     .usage        = ColorTexture::USAGE,
+     .aspects      = gpu::ImageAspects::Depth | gpu::ImageAspects::Stencil,
+     .extent       = target_size.append(1),
+     .mip_levels   = 1,
+     .array_layers = 1,
+     .sample_count = gpu::SampleCount::C1,
+     .memory_type  = gpu::MemoryType::Group};
+
+  auto depth_stencil_image = device->create_image(depth_stencil_info).unwrap();
+
+  auto depth_view_label = tag("Depth Image View"_str);
+  auto depth_view_info  = gpu::ImageViewInfo{
+     .label        = depth_view_label,
+     .image        = depth_stencil_image,
+     .view_type    = gpu::ImageViewType::Type2D,
+     .view_format  = depth_stencil_format,
+     .mapping      = {},
+     .aspects      = gpu::ImageAspects::Depth,
+     .mip_levels   = {0, 1},
+     .array_layers = {0, 1}
+  };
+
+  auto depth_image_view = device->create_image_view(depth_view_info).unwrap();
+
+  auto stencil_view_label = tag("Stencil Image View"_str);
+  auto stencil_view_info  = gpu::ImageViewInfo{
+     .label        = stencil_view_label,
+     .image        = depth_stencil_image,
+     .view_type    = gpu::ImageViewType::Type2D,
+     .view_format  = depth_stencil_format,
+     .mapping      = {},
+     .aspects      = gpu::ImageAspects::Stencil,
+     .mip_levels   = {0, 1},
+     .array_layers = {0, 1}
+  };
+
+  auto stencil_image_view =
+    device->create_image_view(stencil_view_info).unwrap();
+
+  auto depth_sampled_texture_label = tag("Depth Sampled Texture"_str);
+  auto depth_sampled_texture       = device
+                                 ->create_descriptor_set(gpu::DescriptorSetInfo{
+                                   .label  = depth_sampled_texture_label,
+                                   .layout = sys.layouts_.sampled_textures,
+                                   .variable_lengths = span({1U})})
+                                 .unwrap();
+
+  auto depth_storage_texture_label = tag("Depth Storage Texture"_str);
+  auto depth_storage_texture       = device
+                                 ->create_descriptor_set(gpu::DescriptorSetInfo{
+                                   .label  = depth_storage_texture_label,
+                                   .layout = sys.layouts_.storage_textures,
+                                   .variable_lengths = span({1U})})
+                                 .unwrap();
+
+  auto depth_input_attachment_label = tag("Depth Input Attachment"_str);
+  auto depth_input_attachment =
+    device
+      ->create_descriptor_set(
+        gpu::DescriptorSetInfo{.label  = depth_input_attachment_label,
+                               .layout = sys.layouts_.input_attachments,
+                               .variable_lengths = span({1U})})
+      .unwrap();
+
+  depth_stencil_info.label = {};
+  depth_view_info.label    = {};
+  stencil_view_info.label  = {};
+
+  auto depth_stencil =
+    DepthStencilTexture{.info                   = depth_stencil_info,
+                        .depth_view_info        = depth_view_info,
+                        .stencil_view_info      = stencil_view_info,
+                        .image                  = depth_stencil_image,
+                        .depth_view             = depth_image_view,
+                        .stencil_view           = stencil_image_view,
+                        .depth_sampled_texture  = depth_sampled_texture,
+                        .depth_storage_texture  = depth_storage_texture,
+                        .depth_input_attachment = depth_input_attachment};
+
+  return TextureUnion{.color = color, .depth_stencil = depth_stencil};
+}
+
+void ScratchTextures::uninit(gpu::Device device)
+{
+  for (auto & scratch : textures)
   {
-    auto const timespan = gpu.begin_timespan("gpu.uploads"_str);
-    for (auto const & upload : uploads_)
-    {
-      upload.encoder(gpu.encoder(), f.staging.buffer_, upload.slice);
-    }
-    timespan.match([&](auto i) { gpu.end_timespan(i); });
+    scratch.uninit(device);
+  }
+  textures.clear();
+  device->uninit(memory_group);
+}
+
+ScratchTextures ScratchTextures::create(
+  gpu::Device device, GpuSystem const & system, u32 num_scratch,
+  u32x2 target_size, gpu::Format color_format, gpu::Format depth_stencil_format,
+  Str label, Allocator allocator, Allocator scratch)
+{
+  Vec<Enum<gpu::Buffer, gpu::Image>> resources{scratch};
+  Vec<u32>                           aliases{scratch};
+
+  aliases.push(0U).unwrap();
+
+  Vec<TextureUnion> textures{allocator};
+
+  for (auto i : range(num_scratch))
+  {
+    auto union_label = sformat(scratch, "{} / {}"_str, label, i).unwrap();
+    auto num_alias_elements = 2U;
+    auto union_texture =
+      TextureUnion::create(device, system, target_size, color_format,
+                           depth_stencil_format, union_label, scratch);
+    textures.push(union_texture).unwrap();
+    resources.push(union_texture.color.image).unwrap();
+    resources.push(union_texture.depth_stencil.image).unwrap();
+    aliases.push(aliases.last() + num_alias_elements).unwrap();
   }
 
-  for (auto const & task : tasks_)
+  auto memory_group =
+    device
+      ->create_memory_group(gpu::MemoryGroupInfo{.resources = resources.view(),
+                                                 .aliases   = aliases.view()})
+      .unwrap();
+
+  for (auto & scratch : textures.view())
+  {
+    device->update_descriptor_set(gpu::DescriptorSetUpdate{
+      .set           = scratch.color.sampled_texture,
+      .binding       = 0,
+      .first_element = 0,
+      .images = span({gpu::ImageBinding{.image_view = scratch.color.view}}),
+      .texel_buffers = {},
+      .buffers       = {}});
+
+    device->update_descriptor_set(gpu::DescriptorSetUpdate{
+      .set           = scratch.color.storage_texture,
+      .binding       = 0,
+      .first_element = 0,
+      .images = span({gpu::ImageBinding{.image_view = scratch.color.view}}),
+      .texel_buffers = {},
+      .buffers       = {}});
+
+    device->update_descriptor_set(gpu::DescriptorSetUpdate{
+      .set           = scratch.color.input_attachment,
+      .binding       = 0,
+      .first_element = 0,
+      .images = span({gpu::ImageBinding{.image_view = scratch.color.view}}),
+      .texel_buffers = {},
+      .buffers       = {}});
+
+    device->update_descriptor_set(gpu::DescriptorSetUpdate{
+      .set           = scratch.depth_stencil.depth_sampled_texture,
+      .binding       = 0,
+      .first_element = 0,
+      .images        = span(
+        {gpu::ImageBinding{.image_view = scratch.depth_stencil.depth_view}}),
+      .texel_buffers = {},
+      .buffers       = {}});
+
+    device->update_descriptor_set(gpu::DescriptorSetUpdate{
+      .set           = scratch.depth_stencil.depth_storage_texture,
+      .binding       = 0,
+      .first_element = 0,
+      .images        = span(
+        {gpu::ImageBinding{.image_view = scratch.depth_stencil.depth_view}}),
+      .texel_buffers = {},
+      .buffers       = {}});
+
+    device->update_descriptor_set(gpu::DescriptorSetUpdate{
+      .set           = scratch.depth_stencil.depth_input_attachment,
+      .binding       = 0,
+      .first_element = 0,
+      .images        = span(
+        {gpu::ImageBinding{.image_view = scratch.depth_stencil.depth_view}}),
+      .texel_buffers = {},
+      .buffers       = {}});
+  }
+
+  return ScratchTextures{.textures     = std::move(textures),
+                         .memory_group = memory_group};
+}
+
+ColorTexture create_target_texture(gpu::Device device, GpuSystem * sys,
+                                   u32x2 target_size, gpu::Format color_format,
+                                   Str label, Allocator scratch)
+{
+  auto tag = [&](auto component) {
+    return sformat(scratch, "{} / {}"_str, label, component).unwrap();
+  };
+
+  auto color_label = tag("Color Image"_str);
+
+  auto color_info = gpu::ImageInfo{.label        = color_label,
+                                   .type         = gpu::ImageType::Type2D,
+                                   .format       = color_format,
+                                   .usage        = ColorTexture::USAGE,
+                                   .aspects      = gpu::ImageAspects::Color,
+                                   .extent       = target_size.append(1),
+                                   .mip_levels   = 1,
+                                   .array_layers = 1,
+                                   .sample_count = gpu::SampleCount::C1,
+                                   .memory_type  = gpu::MemoryType::Unique};
+
+  auto color_image = device->create_image(color_info).unwrap();
+
+  auto color_view_label = tag("Color Image View"_str);
+
+  auto color_view_info = gpu::ImageViewInfo{
+    .label        = color_view_label,
+    .image        = color_image,
+    .view_type    = gpu::ImageViewType::Type2D,
+    .view_format  = color_format,
+    .mapping      = {},
+    .aspects      = gpu::ImageAspects::Color,
+    .mip_levels   = {0, 1},
+    .array_layers = {0, 1}
+  };
+
+  auto color_image_view = device->create_image_view(color_view_info).unwrap();
+
+  auto sampled_color_texture_label = tag("Sampled Color Texture"_str);
+  auto sampled_color_texture       = device
+                                 ->create_descriptor_set(gpu::DescriptorSetInfo{
+                                   .label  = sampled_color_texture_label,
+                                   .layout = sys->layouts_.sampled_textures,
+                                   .variable_lengths = span({1U})})
+                                 .unwrap();
+
+  device->update_descriptor_set(gpu::DescriptorSetUpdate{
+    .set           = sampled_color_texture,
+    .binding       = 0,
+    .first_element = 0,
+    .images        = span({gpu::ImageBinding{.image_view = color_image_view}}),
+    .texel_buffers = {},
+    .buffers       = {}});
+
+  auto storage_color_texture_label = tag("Storage Color Texture"_str);
+  auto storage_color_texture       = device
+                                 ->create_descriptor_set(gpu::DescriptorSetInfo{
+                                   .label  = storage_color_texture_label,
+                                   .layout = sys->layouts_.storage_textures,
+                                   .variable_lengths = span({1U})})
+                                 .unwrap();
+
+  device->update_descriptor_set(gpu::DescriptorSetUpdate{
+    .set           = storage_color_texture,
+    .binding       = 0,
+    .first_element = 0,
+    .images        = span({gpu::ImageBinding{.image_view = color_image_view}}),
+    .texel_buffers = {},
+    .buffers       = {}});
+
+  auto input_attachment_label = tag("Input Attachment"_str);
+  auto input_attachment       = device
+                            ->create_descriptor_set(gpu::DescriptorSetInfo{
+                              .label  = input_attachment_label,
+                              .layout = sys->layouts_.input_attachments,
+                              .variable_lengths = span({1U})})
+                            .unwrap();
+
+  device->update_descriptor_set(gpu::DescriptorSetUpdate{
+    .set           = input_attachment,
+    .binding       = 0,
+    .first_element = 0,
+    .images        = span({gpu::ImageBinding{.image_view = color_image_view}}),
+    .texel_buffers = {},
+    .buffers       = {}});
+
+  color_info.label      = {};
+  color_view_info.label = {};
+
+  return ColorTexture{.info             = color_info,
+                      .view_info        = color_view_info,
+                      .image            = color_image,
+                      .view             = color_image_view,
+                      .sampled_texture  = sampled_color_texture,
+                      .storage_texture  = storage_color_texture,
+                      .input_attachment = input_attachment};
+}
+
+/*
+
+
+void GpuFrame::rebuild_sampled_textures(u32 num_sampled_textures)
+{
+  CHECK(state_ == GpuFrameState::Reset, "");
+  CHECK(num_sampled_textures > 0, "");
+
+  // [ ] move to GPU thread
+
+  release(sampled_textures_);
+
+  auto label =
+    ssformat<128>(allocator_, "GpuFrame ({}) / Sampled Textures", id_).unwrap();
+
+  sampled_textures_ = device_
+                        ->create_descriptor_set(gpu::DescriptorSetInfo{
+                          .label            = label,
+                          .layout           = system_->sampled_textures_layout_,
+                          .variable_lengths = span({num_sampled_textures})})
+                        .unwrap();
+}
+
+void GpuFrame::rebuild_storage_textures(u32 num_storage_textures)
+{
+  CHECK(state_ == GpuFrameState::Reset, "");
+  CHECK(num_storage_textures > 0, "");
+
+  // [ ] move to GPU thread
+  release(storage_textures_);
+
+  auto label =
+    ssformat<128>(allocator_, "GpuFrame ({}) / Storage Textures", id_).unwrap();
+
+  storage_textures_ = device_
+                        ->create_descriptor_set(gpu::DescriptorSetInfo{
+                          .label            = label,
+                          .layout           = system_->storage_textures_layout_,
+                          .variable_lengths = span({num_storage_textures})})
+                        .unwrap();
+}
+
+void GpuFrame::rebuild_samplers(u32 num_samplers)
+{
+  CHECK(state_ == GpuFrameState::Reset, "");
+  CHECK(num_samplers > 0, "");
+
+  // [ ] move to GPU thread
+  release(samplers_);
+
+  auto label =
+    ssformat<128>(allocator_, "GpuFrame ({}) / Samplers", id_).unwrap();
+
+  samplers_ = device_
+                ->create_descriptor_set(gpu::DescriptorSetInfo{
+                  .label            = label,
+                  .layout           = system_->samplers_layout_,
+                  .variable_lengths = span({num_samplers})})
+                .unwrap();
+}
+
+void GpuFrame::get_scratch_textures(u32                    num_scratch,
+                                    Vec<ScratchTextures> & textures)
+{
+  // [ ] only allow for encoding; so we can defer allocating resources
+  // [ ] resources must only be gotten on the encoding state
+
+  CHECK(num_scratch < scratch_textures_.size(), "");
+  CHECK(state_ == GpuFrameState::Constructing ||
+          state_ == GpuFrameState::Encoding,
+        "");
+
+  for (auto _ : range(num_scratch))
+  {
+    auto scratch = scratch_textures_[next_scratch_texture_];
+    textures.push(scratch).unwrap();
+    next_scratch_texture_++;
+    next_scratch_texture_ = next_scratch_texture_ % size32(scratch_textures_);
+  }
+}
+
+GpuBufferSpan GpuFrame::get(GpuBufferId id)
+{
+  CHECK(state_ == GpuFrameState::Encoding, "");
+  Slice64 slice = gpu_buffer_entries_.get((usize) id);
+  return {buffer_, slice};
+}
+
+Span<u8 const> GpuFrame::get(BufferId id)
+{
+  CHECK(state_ == GpuFrameState::Encoding, "");
+  auto slice = cpu_buffer_entries_.get((usize) id);
+  return cpu_buffer_data_.view().slice(slice);
+}
+
+void GpuFrame::begin_constructing_frame()
+{
+  CHECK(state_ == GpuFrameState::Reset, "");
+  // [ ] RESERVE SCRATCH BUFFER, SIZE = 0?
+  // scratch_buffer_reserve_size_ = 0;
+  state_ = GpuFrameState::Constructing;
+}
+
+void GpuFrame::end_constructing_frame()
+{
+  CHECK(state_ == GpuFrameState::Constructing, "");
+
+  // [ ] resize resources?
+  // [ ] reserve buffer
+
+  state_ = GpuFrameState::Constructed;
+}
+*/
+
+void GpuFrameResources::uninit(gpu::Device device)
+{
+  buffer.uninit(device);
+  target.uninit(device);
+  scratch_textures.uninit(device);
+  scratch_buffer.uninit(device);
+  queries.uninit(device);
+}
+
+void reserve_buffer(gpu::Device device, GpuSystem & system, Str label,
+                    GpuBuffer & buffer, u64 next_capacity, Allocator scratch)
+{
+  if (buffer.capacity < next_capacity)
+  {
+    // [ ] allow static capacity
+    buffer.uninit(device);
+    buffer = GpuBuffer::create(device, system, next_capacity, buffer.usage,
+                               label, scratch);
+  }
+}
+
+void grow_buffer(gpu::Device device, GpuSystem & system, Str label,
+                 GpuBuffer & buffer, u64 next_capacity, Allocator scratch)
+{
+  // [ ] allow static capacity
+  if (buffer.capacity < next_capacity)
+  {
+    reserve_buffer(device, system, label, buffer, next_capacity, scratch);
+  }
+  else if (buffer.capacity > HalfGrowth::grow(next_capacity))
+  {
+    // Target at least 75% utilization
+    buffer.uninit(device);
+    buffer = GpuBuffer::create(device, system, next_capacity, buffer.usage,
+                               label, scratch);
+  }
+}
+
+void GpuFrame::uninit()
+{
+  resources_.uninit(device_);
+  device_->uninit(command_encoder_);
+  device_->uninit(command_buffer_);
+}
+
+void GpuFrame::execute_()
+{
+  char              scratch_space_[1'024];
+  FallbackAllocator scratch{Arena::from(scratch_space_), allocator_};
+
+  // [ ] recreate queries
+
+  {
+    auto buffer_label =
+      sformat(scratch, "GpuFrame {} / Buffer"_str, id_).unwrap();
+    reserve_buffer(device_, *system_, buffer_label, resources_.buffer,
+                   current_plan_->gpu_buffer_data_.size(), scratch);
+    mem::copy(current_plan_->gpu_buffer_data_.view(),
+              device_->get_memory_map(resources_.buffer.buffer).unwrap());
+  }
+
+  {
+    auto buffer_label =
+      sformat(scratch, "GpuFrame {} / Scratch Buffer"_str, id_).unwrap();
+    reserve_buffer(device_, *system_, buffer_label, resources_.scratch_buffer,
+                   current_plan_->scratch_buffer_reserve_size_, scratch);
+  }
+
+  // [ ] msaa., sample count
+  if (target_info_ != current_plan_->target_)
+  {
+    resources_.target.uninit(device_);
+    auto label = sformat(scratch, "GpuFrame {} / Target"_str, id_).unwrap();
+    resources_.target =
+      create_target_texture(device_, system_, target_info_.extent,
+                            target_info_.color_format, label, scratch);
+
+    resources_.scratch_textures.uninit(device_);
+    auto scratch_label =
+      sformat(scratch, "GpuFrame {} / Scratch Textures"_str, id_).unwrap();
+    // [ ] DEFAULT_NUM_SCRATCH_TEXTURES
+    resources_.scratch_textures = ScratchTextures::create(
+      device_, *system_, DEFAULT_NUM_SCRATCH_TEXTURES, target_info_.extent,
+      target_info_.color_format, target_info_.depth_stencil_format,
+      scratch_label, allocator_, scratch);
+    next_scratch_texture_ = 0;
+  }
+
+  for (auto & task : current_plan_->pre_frame_tasks_)
   {
     task();
   }
 
+  command_encoder_->begin();
+  command_encoder_->reset_timestamp_query(
+    resources_.queries.timestamps,
+    Slice32{0, resources_.queries.timestamps_capacity()});
+  command_encoder_->reset_statistics_query(
+    resources_.queries.statistics,
+    Slice32{0, resources_.queries.statistics_capacity()});
+
+  for (auto & pass : current_plan_->passes_)
   {
-    auto const timespan = gpu.begin_timespan("gpu.passes"_str);
-    for (auto const & pass : passes_)
-    {
-      auto const timespan = gpu.begin_timespan(pass.label);
-      auto const stat     = gpu.begin_statistics(pass.label);
-      pass.encoder(*this, gpu.encoder());
-      stat.match([&](auto i) { gpu.end_statistics(i); });
-      timespan.match([&](auto i) { gpu.end_timespan(i); });
-    }
-    timespan.match([&](auto i) { gpu.end_timespan(i); });
+    pass(*this);
   }
 
-  timespan.match([&](auto i) { gpu.end_timespan(i); });
+  command_encoder_->end().unwrap();
 
-  ring_index_ = (ring_index_ + 1) % frame_data_.size32();
-  uploaded_   = false;
-  sb_entries_.clear();
-  uploads_.clear();
-  tasks_.clear();
-  passes_.clear();
-  arena_.reclaim();
-}
+  // [ ] collect timings
 
-void FrameGraph::acquire(GpuSystem & gpu)
-{
-  frame_data_.resize(gpu.buffering_).unwrap();
-}
+  device_->acquire_next(swapchain_).unwrap();
+  command_buffer_->begin();
+  command_buffer_->record(command_encoder_);
+  command_buffer_->end().unwrap();
 
-void FrameGraph::release(GpuSystem & gpu)
-{
-  for (FrameData & f : frame_data_)
+  device_->submit(command_buffer_, queue_scope_).unwrap();
+
+  for (auto & task : current_plan_->post_frame_tasks_)
   {
-    f.release(gpu);
+    task();
   }
+}
+
+void GpuFrame::reset_()
+{
+  next_scratch_texture_ = 0;
+  resources_.queries.reset();
+}
+
+void GpuFrame::complete_()
+{
+  command_encoder_->reset();
+  command_buffer_->reset();
+
+  device_
+    ->get_timestamp_query_result(resources_.queries.timestamps, 0,
+                                 resources_.queries.cpu_timestamps)
+    .unwrap();
+  device_
+    ->get_statistics_query_result(resources_.queries.statistics, 0,
+                                  resources_.queries.cpu_statistics)
+    .unwrap();
+
+  for (auto & task : current_plan_->frame_completed_tasks_)
+  {
+    task();
+  }
+
+  // [ ] if swapchain is resized or format changes, resize target; send info to receive
+
+  semaphore_->increment(1);
 }
 
 static Option<gpu::Format> select_hdr_format(gpu::Device & dev)
@@ -427,7 +933,7 @@ static Option<gpu::Format> select_sdr_format(gpu::Device & dev)
   return none;
 }
 
-static Option<gpu::Format> select_depth_format(gpu::Device & dev)
+static Option<gpu::Format> select_depth_stencil_format(gpu::Device & dev)
 {
   for (auto fmt : DepthStencilTexture::FORMATS)
   {
@@ -441,13 +947,13 @@ static Option<gpu::Format> select_depth_format(gpu::Device & dev)
   return none;
 }
 
-GpuSystem GpuSystem::create(AllocatorRef allocator, gpu::Device & device,
+GpuSystem GpuSystem::create(Allocator allocator, gpu::IDevice & device,
                             Span<u8 const> pipeline_cache_data, bool use_hdr,
                             u32 buffering, gpu::SampleCount sample_count,
-                            Vec2U initial_extent)
+                            u32x2 initial_extent)
 {
   CHECK(buffering <= gpu::MAX_FRAME_BUFFERING, "");
-  CHECK(initial_extent.x > 0 && initial_extent.y > 0, "");
+  CHECK(initial_extent.x() > 0 && initial_extent.y() > 0, "");
 
   gpu::Format color_fmt = gpu::Format::Undefined;
 
@@ -469,12 +975,12 @@ GpuSystem GpuSystem::create(AllocatorRef allocator, gpu::Device & device,
       "Device doesn't support any known color format"_str);
   }
 
-  gpu::Format depth_fmt = select_depth_format(device).unwrap(
+  gpu::Format depth_stencil_fmt = select_depth_stencil_format(device).unwrap(
     "Device doesn't support any known depth-stencil formats"_str);
 
   trace("Selected color format: {}"_str, color_fmt);
 
-  trace("Selected depth stencil format: {}"_str, depth_fmt);
+  trace("Selected depth stencil format: {}"_str, depth_stencil_fmt);
 
   gpu::PipelineCache pipeline_cache =
     device
@@ -484,36 +990,60 @@ GpuSystem GpuSystem::create(AllocatorRef allocator, gpu::Device & device,
       })
       .unwrap();
 
-  gpu::DescriptorSetLayout ubo_layout =
+  gpu::DescriptorSetLayout const_buffer_layout =
     device
       .create_descriptor_set_layout(gpu::DescriptorSetLayoutInfo{
         .label    = "ConstantBuffer Layout"_str,
         .bindings = span({gpu::DescriptorBindingInfo{
-          .type               = gpu::DescriptorType::DynamicUniformBuffer,
+          .type               = gpu::DescriptorType::UniformBuffer,
           .count              = 1,
           .is_variable_length = false}}
           )
   })
       .unwrap();
 
-  gpu::DescriptorSetLayout ssbo_layout =
+  gpu::DescriptorSetLayout read_struct_buffer_layout =
     device
       .create_descriptor_set_layout(gpu::DescriptorSetLayoutInfo{
-        .label    = "StructuredBuffer Layout"_str,
+        .label    = "ReadStructBuffer Layout"_str,
         .bindings = span({gpu::DescriptorBindingInfo{
-          .type               = gpu::DescriptorType::DynamicStorageBuffer,
+          .type               = gpu::DescriptorType::DynReadStorageBuffer,
           .count              = 1,
           .is_variable_length = false}}
           )
   })
       .unwrap();
 
-  gpu::DescriptorSetLayout textures_layout =
+  gpu::DescriptorSetLayout read_write_struct_buffer_layout =
     device
       .create_descriptor_set_layout(gpu::DescriptorSetLayoutInfo{
-        .label    = "Textures Layout"_str,
+        .label    = "ReadWriteStructBuffer Layout"_str,
+        .bindings = span({gpu::DescriptorBindingInfo{
+          .type               = gpu::DescriptorType::DynRWStorageBuffer,
+          .count              = 1,
+          .is_variable_length = false}}
+          )
+  })
+      .unwrap();
+
+  gpu::DescriptorSetLayout sampled_textures_layout =
+    device
+      .create_descriptor_set_layout(gpu::DescriptorSetLayoutInfo{
+        .label    = "Sampled Textures Layout"_str,
         .bindings = span(
           {gpu::DescriptorBindingInfo{.type = gpu::DescriptorType::SampledImage,
+                                      .count              = NUM_TEXTURE_SLOTS,
+                                      .is_variable_length = true}}
+            )
+  })
+      .unwrap();
+
+  gpu::DescriptorSetLayout storage_textures_layout =
+    device
+      .create_descriptor_set_layout(gpu::DescriptorSetLayoutInfo{
+        .label    = "Storage Textures Layout"_str,
+        .bindings = span(
+          {gpu::DescriptorBindingInfo{.type = gpu::DescriptorType::StorageImage,
                                       .count              = NUM_TEXTURE_SLOTS,
                                       .is_variable_length = true}}
             )
@@ -532,11 +1062,11 @@ GpuSystem GpuSystem::create(AllocatorRef allocator, gpu::Device & device,
   })
       .unwrap();
 
-  gpu::DescriptorSet textures =
+  gpu::DescriptorSet sampled_textures =
     device
       .create_descriptor_set(gpu::DescriptorSetInfo{
         .label            = "Texture Views"_str,
-        .layout           = textures_layout,
+        .layout           = sampled_textures_layout,
         .variable_lengths = span<u32>({NUM_TEXTURE_SLOTS})})
       .unwrap();
 
@@ -560,7 +1090,8 @@ GpuSystem GpuSystem::create(AllocatorRef allocator, gpu::Device & device,
         .extent       = {1, 1, 1},
         .mip_levels   = 1,
         .array_layers = 1,
-        .sample_count = gpu::SampleCount::C1
+        .sample_count = gpu::SampleCount::C1,
+        .memory_type  = gpu::MemoryType::Unique
   })
       .unwrap();
 
@@ -589,12 +1120,14 @@ GpuSystem GpuSystem::create(AllocatorRef allocator, gpu::Device & device,
                 buffering,
                 sample_count,
                 color_fmt,
-                depth_fmt,
-                ubo_layout,
-                ssbo_layout,
-                textures_layout,
+                depth_stencil_fmt,
+                const_buffer_layout,
+                read_struct_buffer_layout,
+                read_write_struct_buffer_layout,
+                sampled_textures_layout,
+                storage_textures_layout,
                 samplers_layout,
-                textures,
+                sampled_textures,
                 samplers,
                 default_image,
                 {},
@@ -671,17 +1204,16 @@ GpuSystem GpuSystem::create(AllocatorRef allocator, gpu::Device & device,
     for (auto const [mapping, view] : zip(mappings, gpu.default_image_views_))
     {
       view = device
-               .create_image_view(
-                 gpu::ImageViewInfo{.label       = mapping.v0,
-                                    .image       = default_image,
-                                    .view_type   = gpu::ImageViewType::Type2D,
-                                    .view_format = gpu::Format::B8G8R8A8_UNORM,
-                                    .mapping     = mapping.v2,
-                                    .aspects     = gpu::ImageAspects::Color,
-                                    .first_mip_level   = 0,
-                                    .num_mip_levels    = 1,
-                                    .first_array_layer = 0,
-                                    .num_array_layers  = 1})
+               .create_image_view(gpu::ImageViewInfo{
+                 .label        = mapping.v0,
+                 .image        = default_image,
+                 .view_type    = gpu::ImageViewType::Type2D,
+                 .view_format  = gpu::Format::B8G8R8A8_UNORM,
+                 .mapping      = mapping.v2,
+                 .aspects      = gpu::ImageAspects::Color,
+                 .mip_levels   = {0, 1},
+                 .array_layers = {0, 1}
+      })
                .unwrap();
 
       CHECK(mapping.v1 == gpu.alloc_texture_id(view), "");
@@ -774,18 +1306,24 @@ GpuSystem GpuSystem::create(AllocatorRef allocator, gpu::Device & device,
 
 void GpuSystem::shutdown(Vec<u8> & cache)
 {
+  for (auto & queries : queries_)
+  {
+    queries.uninit(*device_);
+  }
   frame_graph_.release(*this);
   device_->get_pipeline_cache_data(pipeline_cache_, cache).unwrap();
-  release(textures_);
+  release(sampled_textures_);
   for (gpu::ImageView v : default_image_views_)
   {
     release(v);
   }
   release(default_image_);
   release(samplers_);
-  release(cb_layout_);
-  release(sb_layout_);
-  release(textures_layout_);
+  release(const_buffer_layout_);
+  release(read_struct_buffer_layout_);
+  release(read_write_struct_buffer_layout_);
+  release(sampled_textures_layout_);
+  release(storage_textures_layout_);
   release(samplers_layout_);
   release(fb_);
   for (auto & tex : scratch_color_)
@@ -802,15 +1340,17 @@ void GpuSystem::shutdown(Vec<u8> & cache)
   }
   release(pipeline_cache_);
 
-  textures_            = {};
-  default_image_views_ = {};
-  default_image_       = {};
-  samplers_            = {};
-  cb_layout_           = {};
-  sb_layout_           = {};
-  textures_layout_     = {};
-  samplers_layout_     = {};
-  fb_                  = {};
+  sampled_textures_                = {};
+  default_image_views_             = {};
+  default_image_                   = {};
+  samplers_                        = {};
+  const_buffer_layout_             = {};
+  read_struct_buffer_layout_       = {};
+  read_write_struct_buffer_layout_ = {};
+  sampled_textures_layout_         = {};
+  storage_textures_layout_         = {};
+  samplers_layout_                 = {};
+  fb_                              = {};
   fill(scratch_color_, ColorTexture{});
   fill(scratch_depth_stencil_, DepthStencilTexture{});
   sampler_cache_  = {};
@@ -819,12 +1359,11 @@ void GpuSystem::shutdown(Vec<u8> & cache)
   idle_reclaim();
 }
 
-static ColorTexture create_color_texture(GpuSystem & gpu, Vec2U new_extent,
+static ColorTexture create_color_texture(GpuSystem & gpu, u32x2 new_extent,
                                          Str prefix, usize index)
 {
   auto label =
-    snformat<gpu::MAX_LABEL_SIZE>("Color Texture: {} [{}]"_str, prefix, index)
-      .unwrap();
+    snformat<256>("Color Texture: {} [{}]"_str, prefix, index).unwrap();
 
   gpu::ImageInfo info{
     .label  = label,
@@ -833,61 +1372,82 @@ static ColorTexture create_color_texture(GpuSystem & gpu, Vec2U new_extent,
     .usage  = gpu::ImageUsage::ColorAttachment | gpu::ImageUsage::Sampled |
              gpu::ImageUsage::Storage | gpu::ImageUsage::TransferDst |
              gpu::ImageUsage::TransferSrc,
-    .aspects = gpu::ImageAspects::Color,
-    .extent{new_extent.x, new_extent.y, 1},
+    .aspects      = gpu::ImageAspects::Color,
+    .extent       = new_extent.append(1),
     .mip_levels   = 1,
     .array_layers = 1,
-    .sample_count = gpu::SampleCount::C1
-  };
+    .sample_count = gpu::SampleCount::C1,
+    .memory_type  = gpu::MemoryType::Unique};
 
   gpu::Image image = gpu.device_->create_image(info).unwrap();
 
-  auto view_label = snformat<gpu::MAX_LABEL_SIZE>(
-                      "Color Texture View: {} [{}]"_str, prefix, index)
-                      .unwrap();
+  auto view_label =
+    snformat<256>("Color Texture View: {} [{}]"_str, prefix, index).unwrap();
 
-  gpu::ImageViewInfo view_info{.label             = view_label,
-                               .image             = image,
-                               .view_type         = gpu::ImageViewType::Type2D,
-                               .view_format       = info.format,
-                               .mapping           = {},
-                               .aspects           = gpu::ImageAspects::Color,
-                               .first_mip_level   = 0,
-                               .num_mip_levels    = 1,
-                               .first_array_layer = 0,
-                               .num_array_layers  = 1};
+  gpu::ImageViewInfo view_info{
+    .label        = view_label,
+    .image        = image,
+    .view_type    = gpu::ImageViewType::Type2D,
+    .view_format  = info.format,
+    .mapping      = {},
+    .aspects      = gpu::ImageAspects::Color,
+    .mip_levels   = {0, 1},
+    .array_layers = {0, 1}
+  };
 
   gpu::ImageView view = gpu.device_->create_image_view(view_info).unwrap();
 
-  auto texture_label = snformat<gpu::MAX_LABEL_SIZE>(
-                         "Color Texture Descriptor: {} [{}]"_str, prefix, index)
-                         .unwrap();
+  auto sampled_texture_label =
+    snformat<256>("Sampled Color Texture Descriptor: {} [{}]"_str, prefix,
+                  index)
+      .unwrap();
 
-  gpu::DescriptorSet texture = gpu.device_
-                                 ->create_descriptor_set(gpu::DescriptorSetInfo{
-                                   .label            = texture_label,
-                                   .layout           = gpu.textures_layout_,
-                                   .variable_lengths = span<u32>({1})})
-                                 .unwrap();
+  gpu::DescriptorSet sampled_texture =
+    gpu.device_
+      ->create_descriptor_set(
+        gpu::DescriptorSetInfo{.label            = sampled_texture_label,
+                               .layout           = gpu.sampled_textures_layout_,
+                               .variable_lengths = span<u32>({1})})
+      .unwrap();
 
   gpu.device_->update_descriptor_set(gpu::DescriptorSetUpdate{
-    .set     = texture,
-    .binding = 0,
-    .element = 0,
-    .images  = span({gpu::ImageBinding{.image_view = view}})});
+    .set           = sampled_texture,
+    .binding       = 0,
+    .first_element = 0,
+    .images        = span({gpu::ImageBinding{.image_view = view}})});
+
+  auto storage_texture_label =
+    snformat<256>("Storage Color Texture Descriptor: {} [{}]"_str, prefix,
+                  index)
+      .unwrap();
+
+  gpu::DescriptorSet storage_texture =
+    gpu.device_
+      ->create_descriptor_set(
+        gpu::DescriptorSetInfo{.label            = storage_texture_label,
+                               .layout           = gpu.storage_textures_layout_,
+                               .variable_lengths = span<u32>({1})})
+      .unwrap();
+
+  gpu.device_->update_descriptor_set(gpu::DescriptorSetUpdate{
+    .set           = storage_texture,
+    .binding       = 0,
+    .first_element = 0,
+    .images        = span({gpu::ImageBinding{.image_view = view}})});
 
   info.label      = {};
   view_info.label = {};
 
-  return ColorTexture{.info      = info,
-                      .view_info = view_info,
-                      .image     = image,
-                      .view      = view,
-                      .texture   = texture};
+  return ColorTexture{.info            = info,
+                      .view_info       = view_info,
+                      .image           = image,
+                      .view            = view,
+                      .sampled_texture = sampled_texture,
+                      .storage_texture = storage_texture};
 }
 
 static Option<ColorMsaaTexture> create_color_msaa_texture(GpuSystem & gpu,
-                                                          Vec2U new_extent,
+                                                          u32x2 new_extent,
                                                           Str   prefix,
                                                           usize index)
 {
@@ -896,39 +1456,38 @@ static Option<ColorMsaaTexture> create_color_msaa_texture(GpuSystem & gpu,
     return none;
   }
 
-  auto label = snformat<gpu::MAX_LABEL_SIZE>("MSAA Color Texture: {} [{}]"_str,
-                                             prefix, index)
-                 .unwrap();
+  auto label =
+    snformat<256>("MSAA Color Texture: {} [{}]"_str, prefix, index).unwrap();
 
-  gpu::ImageInfo info{
-    .label  = label,
-    .type   = gpu::ImageType::Type2D,
-    .format = gpu.color_format_,
-    .usage  = gpu::ImageUsage::ColorAttachment | gpu::ImageUsage::TransferSrc |
-             gpu::ImageUsage::TransferDst,
-    .aspects = gpu::ImageAspects::Color,
-    .extent{new_extent.x, new_extent.y, 1},
-    .mip_levels   = 1,
-    .array_layers = 1,
-    .sample_count = gpu.sample_count_
-  };
+  gpu::ImageInfo info{.label  = label,
+                      .type   = gpu::ImageType::Type2D,
+                      .format = gpu.color_format_,
+                      .usage  = gpu::ImageUsage::ColorAttachment |
+                               gpu::ImageUsage::TransferSrc |
+                               gpu::ImageUsage::TransferDst,
+                      .aspects      = gpu::ImageAspects::Color,
+                      .extent       = new_extent.append(1),
+                      .mip_levels   = 1,
+                      .array_layers = 1,
+                      .sample_count = gpu.sample_count_,
+                      .memory_type  = gpu::MemoryType::Unique};
 
   gpu::Image image = gpu.device_->create_image(info).unwrap();
 
-  auto view_label = snformat<gpu::MAX_LABEL_SIZE>(
-                      "MSAA Color Texture View: {} [{}]"_str, prefix, index)
-                      .unwrap();
+  auto view_label =
+    snformat<256>("MSAA Color Texture View: {} [{}]"_str, prefix, index)
+      .unwrap();
 
-  gpu::ImageViewInfo view_info{.label             = view_label,
-                               .image             = image,
-                               .view_type         = gpu::ImageViewType::Type2D,
-                               .view_format       = info.format,
-                               .mapping           = {},
-                               .aspects           = gpu::ImageAspects::Color,
-                               .first_mip_level   = 0,
-                               .num_mip_levels    = 1,
-                               .first_array_layer = 0,
-                               .num_array_layers  = 1};
+  gpu::ImageViewInfo view_info{
+    .label        = view_label,
+    .image        = image,
+    .view_type    = gpu::ImageViewType::Type2D,
+    .view_format  = info.format,
+    .mapping      = {},
+    .aspects      = gpu::ImageAspects::Color,
+    .mip_levels   = {0, 1},
+    .array_layers = {0, 1},
+  };
 
   gpu::ImageView view = gpu.device_->create_image_view(view_info).unwrap();
 
@@ -940,117 +1499,113 @@ static Option<ColorMsaaTexture> create_color_msaa_texture(GpuSystem & gpu,
 }
 
 static DepthStencilTexture create_depth_texture(GpuSystem & gpu,
-                                                Vec2U new_extent, Str prefix,
+                                                u32x2 new_extent, Str prefix,
                                                 usize index)
 {
-  auto label = snformat<gpu::MAX_LABEL_SIZE>(
-                 "Depth-Stencil Texture: {} [{}]"_str, prefix, index)
-                 .unwrap();
+  auto label =
+    snformat<128>("Depth-Stencil Texture: {} [{}]"_str, prefix, index).unwrap();
 
   gpu::ImageInfo info{
     .label  = label,
     .type   = gpu::ImageType::Type2D,
-    .format = gpu.depth_format_,
+    .format = gpu.depth_stencil_format_,
     .usage  = gpu::ImageUsage::DepthStencilAttachment |
              gpu::ImageUsage::Sampled | gpu::ImageUsage::TransferDst |
              gpu::ImageUsage::TransferSrc,
-    .aspects = gpu::ImageAspects::Depth | gpu::ImageAspects::Stencil,
-    .extent{new_extent.x, new_extent.y, 1},
+    .aspects      = gpu::ImageAspects::Depth | gpu::ImageAspects::Stencil,
+    .extent       = new_extent.append(1),
     .mip_levels   = 1,
     .array_layers = 1,
-    .sample_count = gpu::SampleCount::C1
-  };
+    .sample_count = gpu::SampleCount::C1,
+    .memory_type  = gpu::MemoryType::Unique};
 
   gpu::Image image = gpu.device_->create_image(info).unwrap();
 
-  auto view_label = snformat<gpu::MAX_LABEL_SIZE>(
-                      "Depth Texture View - Depth: {} [{}]"_str, prefix, index)
-                      .unwrap();
-
-  gpu::ImageViewInfo view_info{.label             = view_label,
-                               .image             = image,
-                               .view_type         = gpu::ImageViewType::Type2D,
-                               .view_format       = info.format,
-                               .mapping           = {},
-                               .aspects           = gpu::ImageAspects::Depth,
-                               .first_mip_level   = 0,
-                               .num_mip_levels    = 1,
-                               .first_array_layer = 0,
-                               .num_array_layers  = 1};
-
-  gpu::ImageView view = gpu.device_->create_image_view(view_info).unwrap();
-
-  auto stencil_view_label =
-    snformat<gpu::MAX_LABEL_SIZE>("Depth Texture View - Stencil: {} [{}]"_str,
-                                  prefix, index)
+  auto view_label =
+    snformat<128>("Depth Texture View - Depth: {} [{}]"_str, prefix, index)
       .unwrap();
 
-  gpu::ImageViewInfo stencil_view_info{.label     = stencil_view_label,
-                                       .image     = image,
-                                       .view_type = gpu::ImageViewType::Type2D,
-                                       .view_format = info.format,
-                                       .mapping     = {},
-                                       .aspects = gpu::ImageAspects::Stencil,
-                                       .first_mip_level   = 0,
-                                       .num_mip_levels    = 1,
-                                       .first_array_layer = 0,
-                                       .num_array_layers  = 1};
+  gpu::ImageViewInfo depth_view_info{
+    .label        = view_label,
+    .image        = image,
+    .view_type    = gpu::ImageViewType::Type2D,
+    .view_format  = info.format,
+    .mapping      = {},
+    .aspects      = gpu::ImageAspects::Depth,
+    .mip_levels   = {0, 1},
+    .array_layers = {0, 1}
+  };
+
+  gpu::ImageView depth_view =
+    gpu.device_->create_image_view(depth_view_info).unwrap();
+
+  auto stencil_view_label =
+    snformat<128>("Depth Texture View - Stencil: {} [{}]"_str, prefix, index)
+      .unwrap();
+
+  gpu::ImageViewInfo stencil_view_info{
+    .label        = stencil_view_label,
+    .image        = image,
+    .view_type    = gpu::ImageViewType::Type2D,
+    .view_format  = info.format,
+    .mapping      = {},
+    .aspects      = gpu::ImageAspects::Stencil,
+    .mip_levels   = {0, 1},
+    .array_layers = {0, 1}
+  };
 
   gpu::ImageView stencil_view =
     gpu.device_->create_image_view(stencil_view_info).unwrap();
 
   auto texture_label =
-    snformat<gpu::MAX_LABEL_SIZE>(
-      "Depth Texture Descriptor - Depth: {} [{}]"_str, prefix, index)
+    snformat<128>("Depth Texture Descriptor - Depth: {} [{}]"_str, prefix,
+                  index)
       .unwrap();
 
-  gpu::DescriptorSet texture = gpu.device_
-                                 ->create_descriptor_set(gpu::DescriptorSetInfo{
-                                   .label            = texture_label,
-                                   .layout           = gpu.textures_layout_,
-                                   .variable_lengths = span<u32>({1})})
-                                 .unwrap();
-
-  gpu.device_->update_descriptor_set(gpu::DescriptorSetUpdate{
-    .set     = texture,
-    .binding = 0,
-    .element = 0,
-    .images  = span({gpu::ImageBinding{.image_view = view}})});
-
-  auto stencil_texture_label =
-    snformat<gpu::MAX_LABEL_SIZE>(
-      "Depth Texture Descriptor - Stencil: {} [{}]"_str, prefix, index)
-      .unwrap();
-
-  gpu::DescriptorSet stencil_texture =
+  gpu::DescriptorSet sampled_depth_texture =
     gpu.device_
       ->create_descriptor_set(
-        gpu::DescriptorSetInfo{.label            = stencil_texture_label,
-                               .layout           = gpu.textures_layout_,
+        gpu::DescriptorSetInfo{.label            = texture_label,
+                               .layout           = gpu.sampled_textures_layout_,
                                .variable_lengths = span<u32>({1})})
       .unwrap();
 
   gpu.device_->update_descriptor_set(gpu::DescriptorSetUpdate{
-    .set     = stencil_texture,
-    .binding = 0,
-    .element = 0,
-    .images  = span({gpu::ImageBinding{.image_view = stencil_view}})});
+    .set           = sampled_depth_texture,
+    .binding       = 0,
+    .first_element = 0,
+    .images        = span({gpu::ImageBinding{.image_view = depth_view}})});
+
+  gpu::DescriptorSet storage_depth_texture =
+    gpu.device_
+      ->create_descriptor_set(
+        gpu::DescriptorSetInfo{.label            = texture_label,
+                               .layout           = gpu.storage_textures_layout_,
+                               .variable_lengths = span<u32>({1})})
+      .unwrap();
+
+  gpu.device_->update_descriptor_set(gpu::DescriptorSetUpdate{
+    .set           = storage_depth_texture,
+    .binding       = 0,
+    .first_element = 0,
+    .images        = span({gpu::ImageBinding{.image_view = depth_view}})});
 
   info.label              = {};
-  view_info.label         = {};
+  depth_view_info.label   = {};
   stencil_view_info.label = {};
 
-  return DepthStencilTexture{.info              = info,
-                             .view_info         = view_info,
-                             .stencil_view_info = stencil_view_info,
-                             .image             = image,
-                             .view              = view,
-                             .stencil_view      = stencil_view,
-                             .texture           = texture,
-                             .stencil_texture   = stencil_texture};
+  return DepthStencilTexture{.info                  = info,
+                             .depth_view_info       = depth_view_info,
+                             .stencil_view_info     = stencil_view_info,
+                             .image                 = image,
+                             .depth_view            = depth_view,
+                             .stencil_view          = stencil_view,
+                             .sampled_depth_texture = sampled_depth_texture,
+                             .storage_depth_texture = storage_depth_texture};
 }
 
-void GpuSystem::recreate_framebuffers(Vec2U new_extent)
+// [ ]
+void GpuSystem::recreate_framebuffers(u32x2 new_extent)
 {
   idle_reclaim();
   release(fb_.color);
@@ -1119,7 +1674,7 @@ Sampler GpuSystem::create_sampler(gpu::SamplerInfo const & info)
 
   Sampler entry{.id = id, .sampler = sampler};
 
-  sampler_cache_.insert(info, entry).unwrap();
+  sampler_cache_.push(info, entry).unwrap();
 
   return entry;
 }
@@ -1127,7 +1682,7 @@ Sampler GpuSystem::create_sampler(gpu::SamplerInfo const & info)
 TextureId GpuSystem::alloc_texture_id(gpu::ImageView view)
 {
   usize i = texture_slots_.view().find_clear_bit();
-  CHECK(i < size_bits(texture_slots_), "Out of Texture Slots");
+  CHECK(i < texture_slots_.size(), "Out of Texture Slots");
   texture_slots_.set_bit(i);
 
   add_task([i, this, view]() {
@@ -1154,7 +1709,7 @@ void GpuSystem::release_texture_id(TextureId id)
 SamplerId GpuSystem::alloc_sampler_id(gpu::Sampler sampler)
 {
   usize i = sampler_slots_.view().find_clear_bit();
-  CHECK(i < size_bits(sampler_slots_), "Out of Sampler Slots");
+  CHECK(i < sampler_slots_.size(), "Out of Sampler Slots");
   sampler_slots_.set_bit(i);
 
   add_task([i, this, sampler]() {
@@ -1176,70 +1731,6 @@ void GpuSystem::release_sampler_id(SamplerId id)
   add_task([i, this]() {
     device_->unbind_descriptor_set(samplers_, 0, Slice32{i, 1});
   });
-}
-
-void GpuSystem::release(gpu::Object object)
-{
-  if (object.v0_ == nullptr)
-  {
-    return;
-  }
-
-  released_objects_[ring_index()].push(object).unwrap();
-}
-
-void GpuSystem::release(ColorTexture tex)
-{
-  release(tex.texture);
-  release(tex.view);
-  release(tex.image);
-}
-
-void GpuSystem::release(ColorMsaaTexture tex)
-{
-  release(tex.view);
-  release(tex.image);
-}
-
-void GpuSystem::release(DepthStencilTexture tex)
-{
-  release(tex.texture);
-  release(tex.stencil_texture);
-  release(tex.view);
-  release(tex.stencil_view);
-  release(tex.image);
-}
-
-void GpuSystem::release(Framebuffer tex)
-{
-  release(tex.color);
-  tex.color_msaa.match([&](auto const & f) { release(f); });
-  release(tex.depth_stencil);
-}
-
-static void uninit_objects(gpu::Device & d, Span<gpu::Object const> objects)
-{
-  for (gpu::Object obj : objects)
-  {
-    obj.match([](gpu::Instance *) { CHECK_UNREACHABLE(); },
-              [](gpu::Device *) { CHECK_UNREACHABLE(); },
-              [](gpu::CommandEncoder *) { CHECK_UNREACHABLE(); },
-              [&](gpu::Buffer r) { d.uninit(r); },
-              [&](gpu::BufferView r) { d.uninit(r); },
-              [&](gpu::Image r) { d.uninit(r); },
-              [&](gpu::ImageView r) { d.uninit(r); },
-              [&](gpu::Sampler r) { d.uninit(r); },
-              [&](gpu::Shader r) { d.uninit(r); },
-              [&](gpu::DescriptorSetLayout r) { d.uninit(r); },
-              [&](gpu::DescriptorSet r) { d.uninit(r); },
-              [&](gpu::PipelineCache r) { d.uninit(r); },
-              [&](gpu::ComputePipeline r) { d.uninit(r); },
-              [&](gpu::GraphicsPipeline r) { d.uninit(r); },
-              [&](gpu::TimeStampQuery r) { d.uninit(r); },
-              [&](gpu::StatisticsQuery r) { d.uninit(r); },
-              [&](gpu::Surface) { CHECK_UNREACHABLE(); },
-              [&](gpu::Swapchain) { CHECK_UNREACHABLE(); });
-  }
 }
 
 void GpuSystem::idle_reclaim()
@@ -1312,33 +1803,13 @@ void GpuSystem::frame(gpu::Swapchain swapchain)
                            .mip_level         = 0,
                            .first_array_layer = 0,
                            .num_array_layers  = 1},
-                         .dst_area   = {{0, 0, 0}, vec3u(swapchain_state.extent, 1)}}
+                         .dst_area   = {{0, 0, 0}, swapchain_state.extent.append(1)}}
       }),
         gpu::Filter::Linear);
     });
   }
 
   device_->submit_frame(swapchain).unwrap();
-}
-
-Option<u32> GpuSystem::begin_timespan(Str label)
-{
-  return queries_[ring_index()].begin_timespan(encoder(), label);
-}
-
-void GpuSystem::end_timespan(u32 id)
-{
-  queries_[ring_index()].end_timespan(encoder(), id);
-}
-
-Option<u32> GpuSystem::begin_statistics(Str label)
-{
-  return queries_[ring_index()].begin_statistics(encoder(), label);
-}
-
-void GpuSystem::end_statistics(u32 id)
-{
-  return queries_[ring_index()].end_statistics(encoder(), id);
 }
 
 }    // namespace ash

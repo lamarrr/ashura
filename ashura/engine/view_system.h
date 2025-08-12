@@ -2,7 +2,7 @@
 #pragma once
 
 #include "ashura/engine/view.h"
-#include "ashura/std/map.h"
+#include "ashura/std/dict.h"
 
 namespace ash
 {
@@ -21,27 +21,23 @@ struct RootView : View
   {
   }
 
-  constexpr virtual State tick(Ctx const &, Events const &,
+  constexpr virtual State tick(Ctx const &      ctx, Events const &,
                                Fn<void(View &)> build) override
   {
     next_.match(build);
     return State{.viewport = true};
   }
 
-  constexpr virtual void size(Vec2 allocated, Span<Vec2> sizes) override
+  constexpr virtual void size(f32x2 allocated, Span<f32x2> sizes) override
   {
     fill(sizes, allocated);
   }
 
-  constexpr virtual Layout fit(Vec2       allocated, Span<Vec2 const>,
-                               Span<Vec2> centers) override
+  constexpr virtual Layout fit(f32x2       allocated, Span<f32x2 const>,
+                               Span<f32x2> centers) override
   {
-    fill(centers, Vec2{0, 0});
-    return Layout{.extent          = allocated,
-                  .viewport_extent = allocated,
-                  .viewport_center = Vec2::splat(0),
-                  .viewport_zoom   = Vec2::splat(1),
-                  .fixed_center    = Vec2::splat(0)};
+    fill(centers, f32x2{0, 0});
+    return Layout{.extent = allocated, .viewport_extent = allocated};
   }
 
   constexpr virtual i32 layer(i32, Span<i32> indices) override
@@ -56,17 +52,15 @@ struct RootView : View
     return 0;
   }
 
-  constexpr virtual void render(Canvas &      canvas, CRect const &,
-                                CRect const & region, CRect const &) override
+  constexpr virtual void render(Canvas &           canvas,
+                                RenderInfo const & info) override
   {
     // [ ] Body
     canvas.rect(ShapeInfo{
-      .area = region,
-      .tint = mdc::GRAY_900,
-    });
+      .area = info.canvas_region, .tint = mdc::GRAY_900, .clip = info.clip});
   }
 
-  constexpr virtual Cursor cursor(Vec2, Vec2) override
+  constexpr virtual Cursor cursor(f32x2, f32x2) override
   {
     return Cursor::Default;
   }
@@ -83,6 +77,10 @@ enum class FocusAction : u8
   /// @brief navigate backwards on the focus tree
   Backward = 2
 };
+
+// [ ] overlap culling; occlusion rects sent to views; quadtrees
+// [ ] mouse displacement for transformed/distorted views
+// [ ] view click area re-targeting
 
 /// @brief A compact View Hierarchy
 struct System
@@ -153,7 +151,7 @@ struct System
     Vec<u16>     parent;
     Vec<Slice16> children;
 
-    Nodes(AllocatorRef allocator) :
+    Nodes(Allocator allocator) :
       depth{allocator},
       parent{allocator},
       children{allocator}
@@ -176,7 +174,7 @@ struct System
     Vec<Option<TextInputInfo>> input;
     BitVec<u64>                is_viewport;
 
-    Attrs(AllocatorRef allocator) :
+    Attrs(Allocator allocator) :
       tab_idx{allocator},
       viewports{allocator},
       hidden{allocator},
@@ -215,38 +213,38 @@ struct System
 
   /// Tree Nodes
 
-  Vec<ref<View>>      views;
-  Nodes               nodes;
-  BitMap<ViewId, u16> ids;
+  Vec<ref<View>>       views;
+  Nodes                nodes;
+  BitDict<ViewId, u16> ids;
 
   Attrs att;
 
   /// Computed data
 
-  Vec<Vec2> extents;
-  Vec<Vec2> centers;
-  Vec<Vec2> viewport_extents;
-  Vec<Vec2> viewport_centers;
-  Vec<Vec2> viewport_zooms;
+  Vec<f32x2> extents;
+  Vec<f32x2> centers;
+  Vec<f32x2> viewport_extents;
+  Vec<f32x2> viewport_centers;
+  Vec<f32x2> viewport_zooms;
 
   /// @brief if the view is at a fixed location in the viewport
   BitVec<u64> fixed;
 
   /// @brief the viewport location of the views
-  Vec<Vec2> fixed_centers;
+  Vec<f32x2> fixed_centers;
 
   Vec<i32> z_idx;
   Vec<i32> layers;
 
   /// @brief transforms from viewport-space to the canvas-space
-  Vec<Affine3> canvas_xfm;
+  Vec<affinef32x3> canvas_xfm;
 
   /// @brief transforms from canvas-space to viewport-space
-  Vec<Affine3> canvas_inv_xfm;
-  Vec<Vec2>    canvas_centers;
-  Vec<Vec2>    canvas_extents;
-  Vec<CRect>   clips;
-  Vec<u16>     z_ord;
+  Vec<affinef32x3> canvas_inv_xfm;
+  Vec<f32x2>       canvas_centers;
+  Vec<f32x2>       canvas_extents;
+  Vec<CRect>       clips;
+  Vec<u16>         z_ord;
 
   // maps the focus tree index to the view
   Vec<u16> focus_ord;
@@ -266,14 +264,14 @@ struct System
 
   Vec<Event> events;
 
-  BitMap<ViewId, Events> event_queue;
+  BitDict<ViewId, Events> event_queue;
 
   Option<FocusRect>     focus_rect;
   Option<TextInputInfo> input_info;
   Option<Cursor>        cursor;
   f32                   scroll_delta;
 
-  explicit System(AllocatorRef allocator) :
+  explicit System(Allocator allocator) :
     root_view{none},
     frame{0},
     next_id{0},
@@ -331,7 +329,7 @@ struct System
 
   void focus_order();
 
-  void layout(Vec2 viewport_extent);
+  void layout(f32x2 viewport_extent);
 
   void stack();
 
@@ -341,9 +339,9 @@ struct System
 
   void focus_on(u16 view, bool active, bool grab_focus);
 
-  Option<u16> hit_test(Vec2 position) const;
+  Option<u16> hit_test(f32x2 position) const;
 
-  HitInfo get_hit_info(u16 view, Vec2 position) const;
+  HitInfo get_hit_info(u16 view, f32x2 position) const;
 
   template <typename Match>
   Option<u16> bubble(u16 from, Match && match) const
@@ -377,7 +375,7 @@ struct System
   }
 
   template <typename Match>
-  Option<u16> bubble_hit(Vec2 position, Match && match) const
+  Option<u16> bubble_hit(f32x2 position, Match && match) const
   {
     return hit_test(position).and_then(
       [&](auto i) { return bubble(i, match); });

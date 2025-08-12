@@ -7,6 +7,8 @@
 #include "ashura/gpu/gpu.h"
 #include "ashura/std/allocator.h"
 #include "ashura/std/allocators.h"
+#include "ashura/std/async.h"
+#include "ashura/std/range.h"
 #include "ashura/std/vec.h"
 #include "vk_mem_alloc.h"
 #include "vulkan/vk_enum_string_helper.h"
@@ -19,14 +21,17 @@ namespace vk
 
 using gpu::Status;
 
-inline constexpr char const * ENGINE_NAME    = "Ash";
-inline constexpr u32          ENGINE_VERSION = VK_MAKE_API_VERSION(0, 0, 0, 1);
-inline constexpr char const * CLIENT_NAME    = "Ash Client";
-inline constexpr u32          CLIENT_VERSION = VK_MAKE_API_VERSION(0, 0, 0, 1);
+inline constexpr char const ENGINE_NAME[] = "Ash";
+
+inline constexpr u32 ENGINE_VERSION = VK_MAKE_API_VERSION(
+  ASH_VERSION.variant, ASH_VERSION.major, ASH_VERSION.minor, ASH_VERSION.patch);
+
+inline constexpr char const CLIENT_NAME[] = "Ash Client";
+
+inline constexpr u32 CLIENT_VERSION = ENGINE_VERSION;
 
 inline constexpr u32 MAX_MEMORY_HEAP_PROPERTIES = 32;
 inline constexpr u32 MAX_MEMORY_HEAPS           = 16;
-inline constexpr u8  NUM_DESCRIPTOR_TYPES       = 11;
 
 typedef VkSampler             Sampler;
 typedef VkShaderModule        Shader;
@@ -36,6 +41,7 @@ typedef VkQueryPool           TimestampQuery;
 typedef VkQueryPool           StatisticsQuery;
 typedef struct Instance       Instance;
 typedef struct Device         Device;
+typedef struct CommandBuffer  CommandBuffer;
 typedef struct CommandEncoder CommandEncoder;
 
 #define ASH_DEF_VKPFN(name) PFN_vk##name name = nullptr
@@ -215,217 +221,230 @@ struct DeviceTable
 
 #undef ASH_DEF_VKPFN
 
-struct BufferAccess
+enum class AliasId : u32
 {
-  VkPipelineStageFlags stages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-  VkAccessFlags        access = VK_ACCESS_NONE;
+  Undefined = U32_MAX
 };
 
-struct ImageAccess
+enum class DescriptorSetId : u32
 {
-  VkPipelineStageFlags stages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-  VkAccessFlags        access = VK_ACCESS_NONE;
-  VkImageLayout        layout = VK_IMAGE_LAYOUT_UNDEFINED;
+  Undefined = U32_MAX
 };
 
-enum class AccessSequence : u8
+struct DescriptorSet;
+
+struct BindLocation
 {
-  None           = 0,
-  Reads          = 1,
-  Write          = 2,
-  ReadAfterWrite = 3
+  DescriptorSet * set     = nullptr;
+  u32             binding = 0;
+  u32             element = 0;
+
+  constexpr bool operator==(BindLocation const & rhs) const
+  {
+    return set == rhs.set && binding == rhs.binding && element == rhs.element;
+  }
+
+  constexpr bool is_valid() const
+  {
+    return set != nullptr;
+  }
 };
 
-struct BufferState
+/// @brief An allocated block of memory that can be aliased by multiple resources.
+struct MemoryGroup
 {
-  BufferAccess   access[2] = {};
-  AccessSequence sequence  = AccessSequence::None;
+  VmaAllocation        vma_allocation = nullptr;
+  u64                  alignment      = 0;
+  void *               map            = nullptr;
+  SmallVec<u64, 8>     alias_offsets  = {};
+  SmallVec<AliasId, 8> alias_ids      = {};
+
+  Layout64 layout() const;
 };
 
-struct ImageState
+struct MemoryInfo
 {
-  ImageAccess    access[2] = {};
-  AccessSequence sequence  = AccessSequence::None;
+  MemoryGroup *   memory_group = nullptr;
+  u32             alias        = 0;
+  u32             element      = 0;
+  gpu::MemoryType type         = gpu::MemoryType::Unique;
 };
+
+struct BufferBarrier
+{
+  VkPipelineStageFlags  src_stages = VK_PIPELINE_STAGE_NONE;
+  VkPipelineStageFlags  dst_stages = VK_PIPELINE_STAGE_NONE;
+  VkBufferMemoryBarrier barrier    = {};
+};
+
+struct ImageBarrier
+{
+  VkPipelineStageFlags src_stages = VK_PIPELINE_STAGE_NONE;
+  VkPipelineStageFlags dst_stages = VK_PIPELINE_STAGE_NONE;
+  VkImageMemoryBarrier barrier    = {};
+};
+
+struct MemoryBarrier
+{
+  VkPipelineStageFlags src_stages = VK_PIPELINE_STAGE_NONE;
+  VkPipelineStageFlags dst_stages = VK_PIPELINE_STAGE_NONE;
+  VkMemoryBarrier      barrier    = {};
+};
+
+using BindLocations = SmallVec<BindLocation, 8>;
 
 struct Buffer
 {
-  gpu::BufferInfo info           = {};
-  VkBuffer        vk_buffer      = nullptr;
-  VmaAllocation   vma_allocation = nullptr;
-  BufferState     state          = {};
+  VkBuffer         vk             = nullptr;
+  gpu::BufferUsage usage          = gpu::BufferUsage::None;
+  bool             host_mapped    = false;
+  u64              size           = 0;
+  MemoryInfo       memory         = {};
+  BindLocations    bind_locations = {};
 };
 
 struct BufferView
 {
-  gpu::BufferViewInfo info    = {};
-  VkBufferView        vk_view = nullptr;
+  VkBufferView  vk             = nullptr;
+  Buffer *      buffer         = nullptr;
+  Slice64       slice          = {};
+  BindLocations bind_locations = {};
 };
-
-inline constexpr u32 COLOR_ASPECT_IDX   = 0;
-inline constexpr u32 DEPTH_ASPECT_IDX   = 0;
-inline constexpr u32 STENCIL_ASPECT_IDX = 1;
 
 struct Image
 {
-  gpu::ImageInfo    info                = {};
-  bool              is_swapchain_image  = false;
-  VkImage           vk_image            = nullptr;
-  VmaAllocation     vma_allocation      = nullptr;
-  VmaAllocationInfo vma_allocation_info = {};
-  ImageState        states[2]           = {};
-  u32               num_aspects         = 0;
+  VkImage           vk                 = nullptr;
+  gpu::ImageType    type               = gpu::ImageType::Type1D;
+  gpu::ImageUsage   usage              = gpu::ImageUsage::None;
+  gpu::ImageAspects aspects            = gpu::ImageAspects::None;
+  gpu::SampleCount  sample_count       = gpu::SampleCount::None;
+  u32x3             extent             = {};
+  u32               mip_levels         = 0;
+  u32               array_layers       = 0;
+  bool              is_swapchain_image = false;
+  MemoryInfo        memory             = {};
 };
 
 struct ImageView
 {
-  gpu::ImageViewInfo info    = {};
-  VkImageView        vk_view = nullptr;
+  VkImageView   vk             = nullptr;
+  Image *       image          = nullptr;
+  gpu::Format   format         = gpu::Format::Undefined;
+  Slice32       mip_levels     = {};
+  Slice32       array_layers   = {};
+  BindLocations bind_locations = {};
 };
 
 struct DescriptorSetLayout
 {
-  gpu::DescriptorBindingInfo bindings[gpu::MAX_DESCRIPTOR_SET_BINDINGS] = {};
-  VkDescriptorSetLayout      vk_layout                    = nullptr;
-  u32                        sizing[NUM_DESCRIPTOR_TYPES] = {};
-  u32                        num_bindings                 = 0;
-  u32                        num_variable_length          = 0;
+  VkDescriptorSetLayout vk = nullptr;
+
+  InplaceVec<gpu::DescriptorBindingInfo, gpu::MAX_DESCRIPTOR_SET_BINDINGS>
+    bindings = {};
+
+  u32 num_variable_length = 0;
+
+  bool is_mutating = false;
 };
 
-/// used to track stateful resource access
-/// @param images only valid if `type` is a descriptor type that access images
-/// @param param buffers: only valid if `type` is a descriptor type that access
-/// buffers
+using SyncResources = Enum<None, SmallVec<Buffer *, 4>,
+                           SmallVec<BufferView *, 4>, SmallVec<ImageView *, 4>>;
+
 struct DescriptorBinding
 {
-  union
-  {
-    void **   sync_resources = nullptr;
-    Image **  images;
-    Buffer ** buffers;
-  };
+  SyncResources sync_resources = none;
 
-  u32                 count = 0;
-  gpu::DescriptorType type  = gpu::DescriptorType::Sampler;
+  gpu::DescriptorType type = gpu::DescriptorType::Sampler;
+
+  u32 count = 0;
+
+  u32 sync_size() const;
 };
 
 struct DescriptorSet
 {
-  VkDescriptorSet   vk_set  = nullptr;
-  VkDescriptorPool  vk_pool = nullptr;
-  DescriptorBinding bindings[gpu::MAX_DESCRIPTOR_SET_BINDINGS]{};
-  u32               num_bindings = 0;
+  VkDescriptorSet vk = nullptr;
 
-  /// @brief get the scratch buffer layout to use to update the maximually-sized binding
-  static constexpr Layout scratch_layout(Span<DescriptorBinding const> bindings)
-  {
-    Layout scratch{.alignment = MAX_STANDARD_ALIGNMENT, .size = 0};
+  VkDescriptorPool vk_pool = nullptr;
 
-    for (auto const & b : bindings)
-    {
-      switch (b.type)
-      {
-        case gpu::DescriptorType::DynamicStorageBuffer:
-        case gpu::DescriptorType::DynamicUniformBuffer:
-        case gpu::DescriptorType::StorageBuffer:
-        case gpu::DescriptorType::UniformBuffer:
-          scratch =
-            scratch.unioned(layout_of<VkDescriptorBufferInfo>.array(b.count));
-          break;
+  DescriptorSetId id = DescriptorSetId::Undefined;
 
-        case gpu::DescriptorType::StorageTexelBuffer:
-        case gpu::DescriptorType::UniformTexelBuffer:
-          scratch = scratch.unioned(layout_of<VkBufferView>.array(b.count));
-          break;
+  bool is_mutating = false;
 
-        case gpu::DescriptorType::SampledImage:
-        case gpu::DescriptorType::CombinedImageSampler:
-        case gpu::DescriptorType::StorageImage:
-        case gpu::DescriptorType::InputAttachment:
-        case gpu::DescriptorType::Sampler:
-          scratch =
-            scratch.unioned(layout_of<VkDescriptorImageInfo>.array(b.count));
-          break;
-        default:
-          break;
-      }
-    }
+  InplaceVec<DescriptorBinding, gpu::MAX_DESCRIPTOR_SET_BINDINGS> bindings = {};
 
-    return scratch;
-  }
+  static void remove_bind_loc(BindLocations &      locations,
+                              BindLocation const & loc);
 
-  /// @brief get the scratch buffer layout to use to update the maximually-sized binding
-  static constexpr Layout
-    sync_resources_layout(Span<DescriptorBinding const> bindings)
-  {
-    usize count = 0;
+  void update_link(u32 binding, u32 first_element,
+                   Span<gpu::BufferBinding const> buffers);
 
-    for (auto const & b : bindings)
-    {
-      switch (b.type)
-      {
-        case gpu::DescriptorType::DynamicStorageBuffer:
-        case gpu::DescriptorType::DynamicUniformBuffer:
-        case gpu::DescriptorType::StorageBuffer:
-        case gpu::DescriptorType::UniformBuffer:
-        case gpu::DescriptorType::StorageTexelBuffer:
-        case gpu::DescriptorType::UniformTexelBuffer:
-        case gpu::DescriptorType::SampledImage:
-        case gpu::DescriptorType::CombinedImageSampler:
-        case gpu::DescriptorType::StorageImage:
-        case gpu::DescriptorType::InputAttachment:
-          count += b.count;
-          break;
-        case gpu::DescriptorType::Sampler:
-          break;
-        default:
-          break;
-      }
-    }
+  void update_link(u32 binding, u32 first_element,
+                   Span<gpu::BufferView const> buffer_views);
 
-    return layout_of<void *>.array(count);
-  }
-
-  static constexpr Flex<DescriptorSet, void *, u8>
-    flex(Span<DescriptorBinding const> bindings)
-  {
-    return {layout_of<DescriptorSet>, sync_resources_layout(bindings),
-            scratch_layout(bindings)};
-  }
+  void update_link(u32 binding, u32 first_element,
+                   Span<gpu::ImageBinding const> images);
 };
 
 struct ComputePipeline
 {
-  VkPipeline       vk_pipeline         = nullptr;
-  VkPipelineLayout vk_layout           = nullptr;
-  u32              push_constants_size = 0;
-  u32              num_sets            = 0;
+  VkPipeline vk = nullptr;
+
+  VkPipelineLayout vk_layout = nullptr;
+
+  u32 push_constants_size = 0;
+
+  u32 num_sets = 0;
+
+  bool is_mutating = false;
 };
 
 struct GraphicsPipeline
 {
-  VkPipeline       vk_pipeline                                 = nullptr;
-  VkPipelineLayout vk_layout                                   = nullptr;
-  u32              push_constants_size                         = 0;
-  u32              num_sets                                    = 0;
-  gpu::Format      colors[gpu::MAX_PIPELINE_COLOR_ATTACHMENTS] = {};
-  gpu::Format      depth[1]                                    = {};
-  gpu::Format      stencil[1]                                  = {};
-  u32              num_colors                                  = 0;
-  u32              num_depths                                  = 0;
-  u32              num_stencils                                = 0;
+  VkPipeline vk = nullptr;
+
+  VkPipelineLayout vk_layout = nullptr;
+
+  u32 push_constants_size = 0;
+
+  u32 num_sets = 0;
+
+  bool is_mutating = false;
+
+  InplaceVec<gpu::Format, gpu::MAX_PIPELINE_COLOR_ATTACHMENTS> color_fmts = {};
+
+  Option<gpu::Format> depth_fmt = none;
+
+  Option<gpu::Format> stencil_fmt = none;
+
   gpu::SampleCount sample_count = gpu::SampleCount::C1;
+
+  u32 num_vertex_attributes = 0;
 };
 
-struct Instance final : gpu::Instance
+struct Instance final : gpu::IInstance
 {
-  AllocatorRef             allocator          = {};
-  InstanceTable            vk_table           = {};
-  VkInstance               vk_instance        = nullptr;
-  VkDebugUtilsMessengerEXT vk_debug_messenger = nullptr;
-  bool                     validation_enabled = false;
+  Allocator allocator_;
 
-  explicit Instance() = default;
+  InstanceTable vk_table_;
+
+  VkInstance vk_instance_;
+
+  VkDebugUtilsMessengerEXT vk_debug_messenger_;
+
+  bool validation_enabled_;
+
+  explicit Instance(Allocator allocator, InstanceTable table,
+                    VkInstance               instance,
+                    VkDebugUtilsMessengerEXT debug_messenger,
+                    bool                     validation_enabled) :
+    allocator_{allocator},
+    vk_table_{table},
+    vk_instance_{instance},
+    vk_debug_messenger_{debug_messenger},
+    validation_enabled_{validation_enabled}
+  {
+  }
 
   Instance(Instance const &)             = delete;
   Instance & operator=(Instance const &) = delete;
@@ -433,282 +452,737 @@ struct Instance final : gpu::Instance
   Instance & operator=(Instance &&)      = delete;
   virtual ~Instance() override;
 
-  virtual Result<gpu::Device *, Status>
-    create_device(AllocatorRef                allocator,
-                  Span<gpu::DeviceType const> preferred_types,
-                  u32                         buffering) override;
+  virtual Result<gpu::Device, Status>
+    create_device(Allocator                   allocator,
+                  Span<gpu::DeviceType const> preferred_types) override;
 
   virtual gpu::Backend get_backend() override;
 
-  virtual void uninit(gpu::Device * device) override;
+  virtual void uninit(gpu::Device device) override;
 
   virtual void uninit(gpu::Surface surface) override;
 };
 
 struct PhysicalDevice
 {
-  VkPhysicalDevice                 vk_phy_dev           = nullptr;
-  VkPhysicalDeviceFeatures         vk_features          = {};
-  VkPhysicalDeviceProperties       vk_properties        = {};
+  VkPhysicalDevice vk_phy_dev = nullptr;
+
+  VkPhysicalDeviceFeatures vk_features = {};
+
+  VkPhysicalDeviceProperties vk_properties = {};
+
   VkPhysicalDeviceMemoryProperties vk_memory_properties = {};
 };
 
-/// @param is_optimal false when vulkan returns that the surface is suboptimal
-/// or the description is updated by the user
-///
+struct SwapchainPreference
+{
+  Vec<char>           label               = {};
+  gpu::Surface        surface             = nullptr;
+  gpu::SurfaceFormat  format              = {};
+  gpu::ImageUsage     usage               = gpu::ImageUsage::None;
+  u32                 preferred_buffering = 0;
+  gpu::PresentMode    present_mode        = gpu::PresentMode::Immediate;
+  u32x2               preferred_extent    = {};
+  gpu::CompositeAlpha composite_alpha     = gpu::CompositeAlpha::None;
+};
+
 /// @param is_out_of_date can't present anymore
 /// @param is_optimal recommended but not necessary to resize
 /// @param is_zero_sized swapchain is not receiving presentation requests,
 /// because the surface requested a zero sized image extent
 struct Swapchain
 {
-  gpu::SwapchainInfo  info            = {};
-  bool                is_out_of_date  = true;
-  bool                is_optimal      = false;
-  bool                is_zero_sized   = false;
-  gpu::SurfaceFormat  format          = {};
-  gpu::ImageUsage     usage           = gpu::ImageUsage::None;
-  gpu::PresentMode    present_mode    = gpu::PresentMode::Immediate;
-  Vec2U               extent          = {};
+  VkSwapchainKHR vk = nullptr;
+
+  VkSurfaceKHR vk_surface = nullptr;
+
+  InplaceVec<Image *, gpu::MAX_SWAPCHAIN_IMAGES> images = {};
+
+  InplaceVec<VkSemaphore, gpu::MAX_SWAPCHAIN_IMAGES> acquire_semaphores = {};
+
+  MemoryGroup * memory_group = nullptr;
+
+  u32 ring_index = 0;
+
+  Option<u32> current_image = none;
+
+  Option<u32> current_semaphore = none;
+
+  bool is_deferred = true;
+
+  bool is_out_of_date = true;
+
+  bool is_optimal = false;
+
+  gpu::SurfaceFormat format = {};
+
+  gpu::ImageUsage usage = gpu::ImageUsage::None;
+
+  gpu::PresentMode present_mode = gpu::PresentMode::Immediate;
+
+  u32x2 extent = {};
+
   gpu::CompositeAlpha composite_alpha = gpu::CompositeAlpha::None;
-  Image               image_impls[gpu::MAX_SWAPCHAIN_IMAGES] = {};
-  gpu::Image          images[gpu::MAX_SWAPCHAIN_IMAGES]      = {};
-  VkImage             vk_images[gpu::MAX_SWAPCHAIN_IMAGES]   = {};
-  u32                 num_images                             = 0;
-  u32                 current_image                          = 0;
-  VkSwapchainKHR      vk_swapchain                           = nullptr;
-  VkSurfaceKHR        vk_surface                             = nullptr;
+
+  SwapchainPreference preference = {};
 };
 
-enum class CommandEncoderState : u16
+#define ASH_VK_CAST(Handle)                    \
+  ASH_FORCE_INLINE Handle * ptr(gpu::Handle p) \
+  {                                            \
+    return reinterpret_cast<Handle *>(p);      \
+  }                                            \
+                                               \
+  ASH_FORCE_INLINE Handle & ref(gpu::Handle p) \
+  {                                            \
+    return *ptr(p);                            \
+  }
+
+ASH_VK_CAST(Buffer)
+ASH_VK_CAST(Image)
+ASH_VK_CAST(BufferView)
+ASH_VK_CAST(ImageView)
+ASH_VK_CAST(DescriptorSetLayout)
+ASH_VK_CAST(DescriptorSet)
+ASH_VK_CAST(ComputePipeline)
+ASH_VK_CAST(GraphicsPipeline)
+ASH_VK_CAST(Swapchain)
+
+namespace cmd
 {
-  Reset       = 0,
-  Begin       = 1,
-  RenderPass  = 2,
-  ComputePass = 3,
-  End         = 4
+
+enum class Type : usize
+{
+  ResetTimestampQuery    = 0,
+  ResetStatisticsQuery   = 1,
+  WriteTimestamp         = 2,
+  BeginStatistics        = 3,
+  EndStatistics          = 4,
+  BeginDebugMarker       = 5,
+  EndDebugMarker         = 6,
+  FillBuffer             = 7,
+  CopyBuffer             = 8,
+  UpdateBuffer           = 9,
+  ClearColorImage        = 10,
+  ClearDepthStencilImage = 11,
+  CopyImage              = 12,
+  CopyBufferToImage      = 13,
+  BlitImage              = 14,
+  ResolveImage           = 15,
+  BeginRendering         = 16,
+  EndRendering           = 17,
+  BindPipeline           = 18,
+  BindDescriptorSets     = 19,
+  PushConstants          = 20,
+  Dispatch               = 21,
+  DispatchIndirect       = 22,
+  SetGraphicsState       = 23,
+  BindVertexBuffers      = 24,
+  BindIndexBuffer        = 25,
+  Draw                   = 26,
+  DrawIndexed            = 27,
+  DrawIndirect           = 28,
+  DrawIndexedIndirect    = 29
 };
 
-struct CmdBindDescriptorSets
+struct alignas(8) Command
 {
-  DescriptorSet ** sets                = nullptr;
-  u32              count               = 0;
-  u32 *            dynamic_offsets     = nullptr;
-  u32              num_dynamic_offsets = 0;
+  Type const type;
+  Command *  next = nullptr;
 };
 
-struct CmdBindGraphicsPipeline
+struct alignas(8) ResetTimestampQuery
 {
-  GraphicsPipeline * pipeline = nullptr;
+  Type const  type  = Type::ResetTimestampQuery;
+  Command *   next  = nullptr;
+  VkQueryPool query = nullptr;
+  Slice32     range = {};
 };
 
-struct CmdPushConstants
+struct alignas(8) ResetStatisticsQuery
 {
-  u8 * data = nullptr;
-  u32  size = 0;
+  Type const  type  = Type::ResetStatisticsQuery;
+  Command *   next  = nullptr;
+  VkQueryPool query = nullptr;
+  Slice32     range = {};
 };
 
-// can be split up into subcommands, this alone takes 112 bytes
-struct CmdSetGraphicsState
+struct alignas(8) WriteTimestamp
 {
-  gpu::GraphicsState state{};
+  Type const              type   = Type::WriteTimestamp;
+  Command *               next   = nullptr;
+  VkQueryPool             query  = nullptr;
+  VkPipelineStageFlagBits stages = VK_PIPELINE_STAGE_NONE;
+  u32                     index  = 0;
 };
 
-struct CmdBindVertexBuffer
+struct alignas(8) BeginStatistics
 {
-  u32      binding = 0;
-  Buffer * buffer  = nullptr;
-  u64      offset  = 0;
+  Type const  type  = Type::BeginStatistics;
+  Command *   next  = nullptr;
+  VkQueryPool query = nullptr;
+  u32         index = 0;
 };
 
-struct CmdBindIndexBuffer
+struct alignas(8) EndStatistics
 {
-  Buffer *       buffer     = nullptr;
-  u64            offset     = 0;
-  gpu::IndexType index_type = gpu::IndexType::Uint32;
+  Type const  type  = Type::EndStatistics;
+  Command *   next  = nullptr;
+  VkQueryPool query = nullptr;
+  u32         index = 0;
 };
 
-struct CmdDraw
+struct alignas(8) BeginDebugMarker
 {
-  u32 vertex_count   = 0;
-  u32 instance_count = 0;
-  u32 first_vertex   = 0;
-  u32 first_instance = 0;
+  Type const                 type = Type::BeginDebugMarker;
+  Command *                  next = nullptr;
+  VkDebugMarkerMarkerInfoEXT info = {};
 };
 
-struct CmdDrawIndexed
+struct alignas(8) EndDebugMarker
 {
-  u32 first_index    = 0;
-  u32 num_indices    = 0;
-  i32 vertex_offset  = 0;
-  u32 first_instance = 0;
-  u32 num_instances  = 0;
+  Type const type = Type::EndDebugMarker;
+  Command *  next = nullptr;
 };
 
-struct CmdDrawIndirect
+struct alignas(8) FillBuffer
 {
-  Buffer * buffer     = nullptr;
-  u64      offset     = 0;
-  u32      draw_count = 0;
-  u32      stride     = 0;
+  Type const type  = Type::FillBuffer;
+  Command *  next  = nullptr;
+  VkBuffer   dst   = nullptr;
+  Slice64    range = {};
+  u32        data  = 0;
 };
 
-struct CmdDrawIndexedIndirect
+struct alignas(8) CopyBuffer
 {
-  Buffer * buffer     = nullptr;
-  u64      offset     = 0;
-  u32      draw_count = 0;
-  u32      stride     = 0;
+  Type const               type   = Type::CopyBuffer;
+  Command *                next   = nullptr;
+  VkBuffer                 src    = nullptr;
+  VkBuffer                 dst    = nullptr;
+  Span<VkBufferCopy const> copies = {};
 };
 
-using Command =
-  Enum<CmdBindDescriptorSets, CmdBindGraphicsPipeline, CmdPushConstants,
-       CmdSetGraphicsState, CmdBindVertexBuffer, CmdBindIndexBuffer, CmdDraw,
-       CmdDrawIndexed, CmdDrawIndirect, CmdDrawIndexedIndirect>;
-
-struct RenderPassContext
+struct alignas(8) UpdateBuffer
 {
-  RectU render_area = {};
-  u32   num_layers  = 0;
-  gpu::RenderingAttachment
-    color_attachments[gpu::MAX_PIPELINE_COLOR_ATTACHMENTS]            = {};
-  gpu::RenderingAttachment depth_attachment[1]                        = {};
-  gpu::RenderingAttachment stencil_attachment[1]                      = {};
-  u32                      num_color_attachments                      = 0;
-  u32                      num_depth_attachments                      = 0;
-  u32                      num_stencil_attachments                    = 0;
-  ArenaPool                arg_pool                                   = {};
-  ArenaPool                command_pool                               = {};
-  Vec<Command>             commands                                   = {};
-  Buffer *                 vertex_buffers[gpu::MAX_VERTEX_ATTRIBUTES] = {};
-  u32                      num_vertex_buffers                         = 0;
-  Buffer *                 index_buffer                               = nullptr;
-  gpu::IndexType           index_type          = gpu::IndexType::Uint16;
-  u64                      index_buffer_offset = 0;
-  GraphicsPipeline *       pipeline            = nullptr;
-  bool                     has_state           = false;
+  Type const     type       = Type::UpdateBuffer;
+  Command *      next       = nullptr;
+  Span<u8 const> src        = {};
+  u64            dst_offset = 0;
+  VkBuffer       dst        = nullptr;
+};
 
-  void clear()
+struct alignas(8) ClearColorImage
+{
+  Type const                          type       = Type::ClearColorImage;
+  Command *                           next       = nullptr;
+  VkImage                             dst        = nullptr;
+  VkImageLayout                       dst_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+  VkClearColorValue                   value      = {};
+  Span<VkImageSubresourceRange const> ranges     = {};
+};
+
+struct alignas(8) ClearDepthStencilImage
+{
+  Type const                          type       = Type::ClearDepthStencilImage;
+  Command *                           next       = nullptr;
+  VkImage                             dst        = nullptr;
+  VkImageLayout                       dst_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+  VkClearDepthStencilValue            value      = {};
+  Span<VkImageSubresourceRange const> ranges     = {};
+};
+
+struct alignas(8) CopyImage
+{
+  Type const              type       = Type::CopyImage;
+  Command *               next       = nullptr;
+  VkImage                 src        = nullptr;
+  VkImageLayout           src_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+  VkImage                 dst        = nullptr;
+  VkImageLayout           dst_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+  Span<VkImageCopy const> copies     = {};
+};
+
+struct alignas(8) CopyBufferToImage
+{
+  Type const                    type       = Type::CopyBufferToImage;
+  Command *                     next       = nullptr;
+  VkBuffer                      src        = nullptr;
+  VkImage                       dst        = nullptr;
+  VkImageLayout                 dst_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+  Span<VkBufferImageCopy const> copies     = {};
+};
+
+struct alignas(8) BlitImage
+{
+  Type const              type       = Type::BlitImage;
+  Command *               next       = nullptr;
+  VkImage                 src        = nullptr;
+  VkImageLayout           src_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+  VkImage                 dst        = nullptr;
+  VkImageLayout           dst_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+  Span<VkImageBlit const> blits      = {};
+  VkFilter                filter     = VK_FILTER_LINEAR;
+};
+
+struct alignas(8) ResolveImage
+{
+  Type const                 type       = Type::ResolveImage;
+  Command *                  next       = nullptr;
+  VkImage                    src        = nullptr;
+  VkImageLayout              src_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+  VkImage                    dst        = nullptr;
+  VkImageLayout              dst_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+  Span<VkImageResolve const> resolves   = {};
+};
+
+struct alignas(8) BeginRendering
+{
+  Type const      type = Type::BeginRendering;
+  Command *       next = nullptr;
+  VkRenderingInfo info = {};
+};
+
+struct alignas(8) EndRendering
+{
+  Type const type = Type::EndRendering;
+  Command *  next = nullptr;
+};
+
+struct alignas(8) BindPipeline
+{
+  Type const          type       = Type::BindPipeline;
+  Command *           next       = nullptr;
+  VkPipelineBindPoint bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS;
+  VkPipeline          pipeline   = nullptr;
+};
+
+struct alignas(8) BindDescriptorSets
+{
+  Type const                  type            = Type::BindDescriptorSets;
+  Command *                   next            = nullptr;
+  VkPipelineBindPoint         bind_point      = VK_PIPELINE_BIND_POINT_MAX_ENUM;
+  VkPipelineLayout            layout          = nullptr;
+  Span<VkDescriptorSet const> sets            = {};
+  Span<u32 const>             dynamic_offsets = {};
+};
+
+struct alignas(8) PushConstants
+{
+  Type const       type      = Type::PushConstants;
+  Command *        next      = nullptr;
+  VkPipelineLayout layout    = nullptr;
+  Span<u8 const>   constants = {};
+};
+
+struct alignas(8) Dispatch
+{
+  Type const type        = Type::Dispatch;
+  Command *  next        = nullptr;
+  u32x3      group_count = {};
+};
+
+struct alignas(8) DispatchIndirect
+{
+  Type const type   = Type::DispatchIndirect;
+  Command *  next   = nullptr;
+  VkBuffer   buffer = nullptr;
+  u64        offset = 0;
+};
+
+struct alignas(8) SetGraphicsState
+{
+  Type const         type  = Type::SetGraphicsState;
+  Command *          next  = nullptr;
+  gpu::GraphicsState state = {};
+};
+
+struct alignas(8) BindVertexBuffers
+{
+  Type const           type    = Type::BindVertexBuffers;
+  Command *            next    = nullptr;
+  Span<VkBuffer const> buffers = {};
+  Span<u64 const>      offsets = {};
+};
+
+struct alignas(8) BindIndexBuffer
+{
+  Type const  type       = Type::BindIndexBuffer;
+  Command *   next       = nullptr;
+  VkBuffer    buffer     = nullptr;
+  u64         offset     = 0;
+  VkIndexType index_type = VK_INDEX_TYPE_UINT32;
+};
+
+struct alignas(8) Draw
+{
+  Type const type      = Type::Draw;
+  Command *  next      = nullptr;
+  Slice32    vertices  = {};
+  Slice32    instances = {};
+};
+
+struct alignas(8) DrawIndexed
+{
+  Type const type          = Type::DrawIndexed;
+  Command *  next          = nullptr;
+  Slice32    indices       = {};
+  Slice32    instances     = {};
+  i32        vertex_offset = 0;
+};
+
+struct alignas(8) DrawIndirect
+{
+  Type const type       = Type::DrawIndirect;
+  Command *  next       = nullptr;
+  VkBuffer   buffer     = nullptr;
+  u64        offset     = 0;
+  u32        draw_count = 0;
+  u32        stride     = 0;
+};
+
+struct alignas(8) DrawIndexedIndirect
+{
+  Type const type       = Type::DrawIndexedIndirect;
+  Command *  next       = nullptr;
+  VkBuffer   buffer     = nullptr;
+  u64        offset     = 0;
+  u32        draw_count = 0;
+  u32        stride     = 0;
+};
+
+}    // namespace cmd
+
+enum class HazardType : u8
+{
+  /// @brief No reads or writes so far
+  None            = 0,
+  /// @brief Read hazards that need to be awaited. Subsequent reads are overlapped until a write occurs
+  Reads           = 1,
+  /// @brief Write hazard that needs to be awaited.
+  Write           = 2,
+  /// @brief Reads after a write that need to be awaited. Subsequent reads are allowed to overlap until a write occurs
+  ReadsAfterWrite = 3
+};
+
+struct MemAccess
+{
+  VkPipelineStageFlags stages = VK_PIPELINE_STAGE_NONE;
+  VkAccessFlags        access = VK_ACCESS_NONE;
+};
+
+struct ImageMemState
+{
+  /// @brief alias element
+  u32 element = 0;
+
+  /// @brief current image layout
+  VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
+};
+
+struct BufferMemState
+{
+  /// @brief alias element
+  u32 element = 0;
+};
+
+using MemState = Enum<None, BufferMemState, ImageMemState>;
+
+struct Hazard
+{
+  HazardType type     = HazardType::None;
+  MemAccess  latest   = {};
+  MemAccess  previous = {};
+  MemState   state    = none;
+};
+
+struct HazardBarriers
+{
+  struct Stage
   {
-    render_area             = {};
-    num_layers              = 0;
-    num_color_attachments   = 0;
-    num_depth_attachments   = 0;
-    num_stencil_attachments = 0;
-    commands.reset();
-    command_pool.reclaim();
-    arg_pool.reclaim();
-    num_vertex_buffers  = 0;
-    index_buffer        = nullptr;
-    index_buffer_offset = 0;
-    pipeline            = nullptr;
-    has_state           = false;
+    VkPipelineStageFlags src = VK_PIPELINE_STAGE_NONE;
+    VkPipelineStageFlags dst = VK_PIPELINE_STAGE_NONE;
+  };
+
+  Vec<VkBufferMemoryBarrier> buffers_;
+  Vec<Stage>                 buffer_stages_;
+  Vec<VkImageMemoryBarrier>  images_;
+  Vec<Stage>                 image_stages_;
+  Vec<VkMemoryBarrier>       mem_;
+  Vec<Stage>                 mem_stages_;
+
+  HazardBarriers(Allocator allocator) :
+    buffers_{allocator},
+    buffer_stages_{allocator},
+    images_{allocator},
+    image_stages_{allocator},
+    mem_{allocator},
+    mem_stages_{allocator}
+  {
+  }
+
+  void clear();
+
+  void buffer(VkPipelineStageFlags src, VkPipelineStageFlags dst,
+              VkBufferMemoryBarrier buffer);
+
+  void image(VkPipelineStageFlags src, VkPipelineStageFlags dst,
+             VkImageMemoryBarrier image);
+
+  void mem(VkPipelineStageFlags src, VkPipelineStageFlags dst,
+           VkMemoryBarrier memory);
+};
+
+/// @brief Global synchronization state
+struct DeviceResourceStates
+{
+  CoreSparseMap<Vec<u32>,      // id-to-index map
+                Vec<Hazard>    // memory state
+                >
+    memory_;
+  CoreSparseMap<Vec<u32>    // id-to-index map
+                >
+                descriptor_sets_;
+  ReadWriteLock lock_;
+
+  DeviceResourceStates(Allocator allocator) :
+    memory_{allocator},
+    descriptor_sets_{allocator},
+    lock_{}
+  {
   }
 };
 
-struct ComputePassContext
+/// @brief Encoder-local synchronization state
+struct EncoderResourceStates
 {
-  DescriptorSet *   sets[gpu::MAX_PIPELINE_DESCRIPTOR_SETS] = {};
-  u32               num_sets                                = 0;
-  ComputePipeline * pipeline                                = nullptr;
+  static constexpr VkPipelineStageFlags GRAPHICS_DESCRIPTOR_STAGES =
+    VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 
-  void clear()
+  static constexpr VkPipelineStageFlags COMPUTE_DESCRIPTOR_STAGES =
+    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+
+  CoreSparseMap<
+    Vec<u32>,       // id-to-index map
+    Vec<Hazard>,    // memory hazard so far
+    BitVec<u64>,    // was the resource accessed?
+    Vec<u32>        // the last pass the memory was accessed: initially U32_MAX
+    >
+    memory_;
+
+  CoreSparseMap<
+    Vec<u32>,    // id-to-index map
+    Vec<
+      u32>    // the last pass the descriptor set was accessed: initially U32_MAX
+    >
+    descriptor_sets_;
+
+  EncoderResourceStates(Allocator allocator) :
+    memory_{allocator},
+    descriptor_sets_{allocator}
   {
-    num_sets = 0;
-    pipeline = nullptr;
   }
+
+  static void barrier(Image const & image, MemAccess const & old_access,
+                      VkImageLayout old_layout, MemAccess const & new_access,
+                      VkImageLayout new_layout, HazardBarriers & barriers);
+
+  static void barrier(Buffer const & buffer, MemAccess const & old_access,
+                      MemAccess const & new_access, HazardBarriers & barriers);
+
+  static void barrier(MemAccess const & old_state, MemAccess const & new_state,
+                      HazardBarriers & barriers);
+
+  /// @param image image to sync
+  /// @param access merged image state for the pass
+  /// @param pass the pass temporal id
+  /// @param barriers destination to issue barriers
+  void access(Image const & image, MemAccess const & access,
+              VkImageLayout layout, u32 pass, HazardBarriers & barriers);
+
+  void access(ImageView const & image, MemAccess const & access,
+              VkImageLayout layout, u32 pass, HazardBarriers & barriers);
+
+  /// @param buffer buffer to sync
+  /// @param access merged image state for the pass
+  /// @param pass the pass temporal id
+  /// @param barriers destination to issue barriers
+  void access(Buffer const & buffer, MemAccess const & access, u32 pass,
+              HazardBarriers & barriers);
+
+  /// @param set descriptor set to sync
+  /// @param access merged image state for the pass
+  /// @param pass the pass temporal id
+  /// @param barriers destination to issue barriers
+  void access(DescriptorSet const & set, u32 pass,
+              VkPipelineStageFlags shader_stages, HazardBarriers & barriers);
+
+  void rebuild(DeviceResourceStates const & upstream);
+
+  void commit(DeviceResourceStates & upstream);
 };
 
-struct CommandEncoder final : gpu::CommandEncoder
+struct CommandTracker
 {
-  AllocatorRef        allocator         = {};
-  Device *            dev               = nullptr;
-  ArenaPool           arg_pool          = {};
-  VkCommandPool       vk_command_pool   = nullptr;
-  VkCommandBuffer     vk_command_buffer = nullptr;
-  Status              status            = Status::Success;
-  CommandEncoderState state             = CommandEncoderState::Reset;
-  RenderPassContext   render_ctx        = {};
-  ComputePassContext  compute_ctx       = {};
-
-  bool is_in_render_pass() const
+  struct Entry
   {
-    return state == CommandEncoderState::RenderPass;
+    u32 commands        = 0;
+    u32 buffers         = 0;
+    u32 images          = 0;
+    u32 descriptor_sets = 0;
+  };
+
+  Vec<Tuple<Buffer *, VkPipelineStageFlags, VkAccessFlags>> buffers_;
+  Vec<Tuple<Image *, VkPipelineStageFlags, VkAccessFlags, VkImageLayout>>
+    images_;
+
+  Vec<Tuple<DescriptorSet *, VkShaderStageFlags>> descriptor_sets_;
+  Vec<Entry>                                      passes_;
+  cmd::Command *                                  first_cmd_;
+  cmd::Command *                                  last_cmd_;
+
+  CommandTracker(Allocator allocator) :
+    buffers_{allocator},
+    images_{allocator},
+    descriptor_sets_{allocator},
+    passes_{allocator},
+    first_cmd_{nullptr},
+    last_cmd_{nullptr}
+  {
   }
 
-  bool is_in_compute_pass() const
+  u32 begin_pass();
+
+  void command(cmd::Command * cmd);
+
+  void end_pass();
+
+  void track(Buffer * buffer, VkPipelineStageFlags stages,
+             VkAccessFlags access);
+
+  void track(Image * image, VkPipelineStageFlags stages, VkAccessFlags access,
+             VkImageLayout layout);
+
+  void track(ImageView * image, VkPipelineStageFlags stages,
+             VkAccessFlags access, VkImageLayout layout);
+
+  void track(DescriptorSet * set, VkShaderStageFlags stages);
+
+  void reset();
+};
+
+enum class CommandBufferState : u8
+{
+  Reset     = 0,
+  Recording = 1,
+  Recorded  = 2,
+  Submitted = 3
+};
+
+struct PassContext
+{
+  GraphicsPipeline * graphics_pipeline = nullptr;
+
+  ComputePipeline * compute_pipeline = nullptr;
+
+  InplaceVec<gpu::RenderingAttachment, gpu::MAX_PIPELINE_COLOR_ATTACHMENTS>
+    color_attachments = {};
+
+  Option<gpu::RenderingAttachment> depth_attachment = none;
+
+  Option<gpu::RenderingAttachment> stencil_attachment = none;
+
+  InplaceVec<DescriptorSet *, gpu::MAX_PIPELINE_DESCRIPTOR_SETS>
+    descriptor_sets = {};
+
+  InplaceVec<Buffer *, gpu::MAX_VERTEX_ATTRIBUTES> vertex_buffers = {};
+
+  Buffer * index_buffer = nullptr;
+
+  gpu::IndexType index_type = gpu::IndexType::U16;
+
+  u64 index_buffer_offset = 0;
+
+  bool has_graphics_state = false;
+
+  PassContext()                                = default;
+  PassContext(PassContext const &)             = delete;
+  PassContext(PassContext &&)                  = delete;
+  PassContext & operator=(PassContext const &) = delete;
+  PassContext & operator=(PassContext &&)      = delete;
+  ~PassContext()                               = default;
+
+  void clear();
+};
+
+struct CommandEncoder final : gpu::ICommandEncoder
+{
+  enum class Pass : u8
   {
-    return state == CommandEncoderState::ComputePass;
+    None    = 0,
+    Compute = 1,
+    Render  = 2
+  };
+
+  Device *           dev_;
+  ArenaPool          pool_;
+  Status             status_;
+  CommandBufferState state_;
+  Pass               pass_;
+  CommandTracker     tracker_;
+  PassContext        ctx_;
+  Swapchain *        swapchain_;
+
+  CommandEncoder(Device * dev, Allocator allocator) :
+    dev_{dev},
+    pool_{allocator},
+    status_{Status::Success},
+    state_{CommandBufferState::Reset},
+    pass_{Pass::None},
+    tracker_{allocator},
+    ctx_{},
+    swapchain_{nullptr}
+  {
   }
 
-  bool is_in_pass() const
+  template <typename Cmd>
+  Cmd * push(Cmd const & cmd)
   {
-    return is_in_render_pass() || is_in_compute_pass();
+    Cmd * p_cmd;
+    if (!pool_.nalloc(1, p_cmd))
+    {
+      return nullptr;
+    }
+
+    new (p_cmd) Cmd{cmd};
+
+    tracker_.command(p_cmd);
   }
 
-  bool is_recording() const
-  {
-    return state == CommandEncoderState::Begin ||
-           state == CommandEncoderState::RenderPass ||
-           state == CommandEncoderState::ComputePass;
-  }
+  virtual void begin() override;
 
-  void validate_render_pass_compatible(gpu::GraphicsPipeline pipeline);
+  virtual Result<Void, Status> end() override;
 
-  void access_image_aspect(Image & image, VkPipelineStageFlags stages,
-                           VkAccessFlags access, VkImageLayout layout,
-                           gpu::ImageAspects aspects, u32 aspect_index);
+  virtual void reset() override;
 
-  void access_buffer(Buffer & buffer, VkPipelineStageFlags stages,
-                     VkAccessFlags access);
-
-  void access_image_all_aspects(Image & image, VkPipelineStageFlags stages,
-                                VkAccessFlags access, VkImageLayout layout);
-
-  void access_image_depth(Image & image, VkPipelineStageFlags stages,
-                          VkAccessFlags access, VkImageLayout layout)
-  {
-    access_image_aspect(image, stages, access, layout, gpu::ImageAspects::Depth,
-                        DEPTH_ASPECT_IDX);
-  }
-
-  void access_image_stencil(Image & image, VkPipelineStageFlags stages,
-                            VkAccessFlags access, VkImageLayout layout)
-  {
-    access_image_aspect(image, stages, access, layout,
-                        gpu::ImageAspects::Stencil, STENCIL_ASPECT_IDX);
-  }
-
-  void access_compute_bindings(DescriptorSet const & set);
-
-  void access_graphics_bindings(DescriptorSet const & set);
-
-  void clear_context()
-  {
-    state = CommandEncoderState::Begin;
-    render_ctx.clear();
-    compute_ctx.clear();
-  }
-
-  virtual void reset_timestamp_query(gpu::TimeStampQuery query,
+  virtual void reset_timestamp_query(gpu::TimestampQuery query,
                                      Slice32             range) override;
 
   virtual void reset_statistics_query(gpu::StatisticsQuery query,
                                       Slice32              range) override;
 
-  virtual void write_timestamp(gpu::TimeStampQuery query,
+  virtual void write_timestamp(gpu::TimestampQuery query,
                                gpu::PipelineStages stage, u32 index) override;
 
   virtual void begin_statistics(gpu::StatisticsQuery query, u32 index) override;
 
   virtual void end_statistics(gpu::StatisticsQuery query, u32 index) override;
 
-  virtual void begin_debug_marker(Str region_name, Vec4 color) override;
+  virtual void begin_debug_marker(Str region_name, f32x4 color) override;
 
   virtual void end_debug_marker() override;
 
-  virtual void fill_buffer(gpu::Buffer dst, u64 offset, u64 size,
-                           u32 data) override;
+  virtual void fill_buffer(gpu::Buffer dst, Slice64 range, u32 data) override;
 
   virtual void copy_buffer(gpu::Buffer src, gpu::Buffer dst,
                            Span<gpu::BufferCopy const> copies) override;
@@ -756,8 +1230,7 @@ struct CommandEncoder final : gpu::CommandEncoder
 
   virtual void push_constants(Span<u8 const> push_constants_data) override;
 
-  virtual void dispatch(u32 group_count_x, u32 group_count_y,
-                        u32 group_count_z) override;
+  virtual void dispatch(u32x3 group_count) override;
 
   virtual void dispatch_indirect(gpu::Buffer buffer, u64 offset) override;
 
@@ -769,63 +1242,119 @@ struct CommandEncoder final : gpu::CommandEncoder
   virtual void bind_index_buffer(gpu::Buffer index_buffer, u64 offset,
                                  gpu::IndexType index_type) override;
 
-  virtual void draw(u32 vertex_count, u32 instance_count, u32 first_vertex,
-                    u32 first_instance) override;
+  virtual void draw(Slice32 vertices, Slice32 instances) override;
 
-  virtual void draw_indexed(u32 first_index, u32 num_indices, i32 vertex_offset,
-                            u32 first_instance, u32 num_instances) override;
+  virtual void draw_indexed(Slice32 indices, Slice32 instances,
+                            i32 vertex_offset) override;
 
   virtual void draw_indirect(gpu::Buffer buffer, u64 offset, u32 draw_count,
                              u32 stride) override;
 
   virtual void draw_indexed_indirect(gpu::Buffer buffer, u64 offset,
                                      u32 draw_count, u32 stride) override;
+
+  virtual void present(gpu::Swapchain swapchain) override;
 };
 
-struct FrameContext
+struct CommandBuffer final : gpu::ICommandBuffer
 {
-  gpu::FrameId          tail_frame                          = 0;
-  gpu::FrameId          current_frame                       = 0;
-  u32                   ring_index                          = 0;
-  u32                   buffering                           = 0;
-  CommandEncoder        encs[gpu::MAX_FRAME_BUFFERING]      = {};
-  gpu::CommandEncoder * encs_impl[gpu::MAX_FRAME_BUFFERING] = {};
-  VkSemaphore           acquire_s[gpu::MAX_FRAME_BUFFERING] = {};
-  VkFence               submit_f[gpu::MAX_FRAME_BUFFERING]  = {};
-  VkSemaphore           submit_s[gpu::MAX_FRAME_BUFFERING]  = {};
-  Swapchain *           swapchain                           = nullptr;
+  Device *              dev_;
+  VkCommandPool         vk_pool_;
+  VkCommandBuffer       vk_;
+  Swapchain *           swapchain_;
+  Status                status_;
+  CommandBufferState    state_;
+  EncoderResourceStates resource_states_;
+  ArenaPool             pool_;
+
+  CommandBuffer(Device * dev, VkCommandPool vk_pool, VkCommandBuffer vk_buffer,
+                Allocator allocator) :
+    dev_{dev},
+    vk_pool_{vk_pool},
+    vk_{vk_buffer},
+    swapchain_{nullptr},
+    status_{Status::Success},
+    state_{CommandBufferState::Reset},
+    resource_states_{allocator},
+    pool_{allocator}
+  {
+  }
+
+  virtual void begin() override;
+
+  virtual Result<Void, Status> end() override;
+
+  virtual void reset() override;
+
+  virtual void record(gpu::CommandEncoder encoder) override;
+
+  void commit_resource_states();
 };
 
-struct Device final : gpu::Device
+struct QueueScope
 {
-  AllocatorRef       allocator     = {};
-  Instance *         instance      = nullptr;
-  PhysicalDevice     phy_dev       = {};
-  DeviceTable        vk_table      = {};
-  VmaVulkanFunctions vma_table     = {};
-  VkDevice           vk_dev        = nullptr;
-  u32                queue_family  = 0;
-  VkQueue            vk_queue      = nullptr;
-  VmaAllocator       vma_allocator = nullptr;
-  FrameContext       frame_ctx     = {};
+  u64                      buffering_;
+  u64                      tail_frame_;
+  u64                      current_frame_;
+  u64                      ring_index_;
+  SmallVec<VkSemaphore, 4> submit_semaphores_;
+  SmallVec<VkFence, 4>     submit_fences_;
+
+  QueueScope(u64 buffering, SmallVec<VkSemaphore, 4> submit_semaphores,
+             SmallVec<VkFence, 4> submit_fences) :
+    buffering_{buffering},
+    tail_frame_{0},
+    current_frame_{0},
+    ring_index_{0},
+    submit_semaphores_{std::move(submit_semaphores)},
+    submit_fences_{std::move(submit_fences)}
+  {
+  }
+};
+
+struct Device final : gpu::IDevice
+{
+  Allocator            allocator_;
+  Instance *           instance_;
+  PhysicalDevice       phy_dev_;
+  DeviceTable          vk_table_;
+  VmaVulkanFunctions   vma_table_;
+  VkDevice             vk_dev_;
+  u32                  queue_family_;
+  VkQueue              vk_queue_;
+  VmaAllocator         vma_allocator_;
+  Vec<u8>              scratch_;
+  DeviceResourceStates resource_states_;
+
+  Device(Allocator allocator, Instance * instance, PhysicalDevice phy_dev,
+         DeviceTable vk_table, VmaVulkanFunctions vma_table, VkDevice vk_dev,
+         u32 queue_family, VkQueue vk_queue, VmaAllocator vma_allocator) :
+    allocator_{allocator},
+    instance_{instance},
+    phy_dev_{phy_dev},
+    vk_table_{vk_table},
+    vma_table_{vma_table},
+    vk_dev_{vk_dev},
+    queue_family_{queue_family},
+    vk_queue_{vk_queue},
+    vma_allocator_{vma_allocator},
+    scratch_{allocator},
+    resource_states_{allocator}
+  {
+  }
 
   void set_resource_name(Str label, void const * resource, VkObjectType type,
                          VkDebugReportObjectTypeEXT debug_type);
 
-  VkResult recreate_swapchain(Swapchain * swapchain);
+  AliasId allocate_alias_id();
 
-  Status init_command_encoder(CommandEncoder * enc);
+  void release_alias_id(AliasId id);
 
-  void uninit(CommandEncoder * enc);
+  DescriptorSetId allocate_descriptor_set_id();
 
-  Status init_frame_context(u32 buffering);
+  void release_descriptor_set_id(DescriptorSetId id);
 
   void uninit();
-
-  virtual gpu::DeviceProperties get_properties() override;
-
-  virtual Result<gpu::FormatProperties, Status>
-    get_format_properties(gpu::Format format) override;
 
   virtual Result<gpu::Buffer, Status>
     create_buffer(gpu::BufferInfo const & info) override;
@@ -838,6 +1367,12 @@ struct Device final : gpu::Device
 
   virtual Result<gpu::ImageView, Status>
     create_image_view(gpu::ImageViewInfo const & info) override;
+
+  virtual Result<gpu::MemoryGroup, Status>
+    create_memory_group(gpu::MemoryGroupInfo const & info) override;
+
+  Result<gpu::MemoryGroup, Status>
+    create_shim_memory_group(gpu::MemoryGroupInfo const & info);
 
   virtual Result<gpu::Sampler, Status>
     create_sampler(gpu::SamplerInfo const & info) override;
@@ -861,14 +1396,24 @@ struct Device final : gpu::Device
     create_graphics_pipeline(gpu::GraphicsPipelineInfo const & info) override;
 
   virtual Result<gpu::Swapchain, Status>
-    create_swapchain(gpu::Surface               surface,
-                     gpu::SwapchainInfo const & info) override;
+    create_swapchain(gpu::SwapchainInfo const & info) override;
 
-  virtual Result<gpu::TimeStampQuery, Status>
-    create_timestamp_query(u32 count) override;
+  Result<Void, Status> recreate_swapchain(Swapchain * swapchain);
+
+  virtual Result<gpu::TimestampQuery, Status>
+    create_timestamp_query(gpu::TimestampQueryInfo const & info) override;
 
   virtual Result<gpu::StatisticsQuery, Status>
-    create_statistics_query(u32 count) override;
+    create_statistics_query(gpu::StatisticsQueryInfo const & info) override;
+
+  virtual Result<gpu::CommandEncoder, Status>
+    create_command_encoder(gpu::CommandEncoderInfo const & info) override;
+
+  virtual Result<gpu::CommandBuffer, Status>
+    create_command_buffer(gpu::CommandBufferInfo const & info) override;
+
+  virtual Result<gpu::QueueScope, Status>
+    create_queue_scope(gpu::QueueScopeInfo const & info) override;
 
   virtual void uninit(gpu::Buffer buffer) override;
 
@@ -877,6 +1422,8 @@ struct Device final : gpu::Device
   virtual void uninit(gpu::Image image) override;
 
   virtual void uninit(gpu::ImageView image_view) override;
+
+  virtual void uninit(gpu::MemoryGroup memory_group) override;
 
   virtual void uninit(gpu::Sampler sampler) override;
 
@@ -892,25 +1439,32 @@ struct Device final : gpu::Device
 
   virtual void uninit(gpu::GraphicsPipeline pipeline) override;
 
+  void release(Swapchain & swapchain);
+
   virtual void uninit(gpu::Swapchain swapchain) override;
 
-  virtual void uninit(gpu::TimeStampQuery query) override;
+  virtual void uninit(gpu::TimestampQuery query) override;
 
   virtual void uninit(gpu::StatisticsQuery query) override;
 
-  virtual gpu::FrameContext get_frame_context() override;
+  virtual void uninit(gpu::CommandEncoder encoder) override;
 
-  virtual Result<void *, Status> map_buffer_memory(gpu::Buffer buffer) override;
+  virtual void uninit(gpu::CommandBuffer buffer) override;
 
-  virtual void unmap_buffer_memory(gpu::Buffer buffer) override;
+  virtual void uninit(gpu::QueueScope scope) override;
 
-  virtual Result<Void, Status>
-    invalidate_mapped_buffer_memory(gpu::Buffer      buffer,
-                                    gpu::MemoryRange range) override;
+  virtual gpu::DeviceProperties get_properties() override;
 
-  virtual Result<Void, Status>
-    flush_mapped_buffer_memory(gpu::Buffer      buffer,
-                               gpu::MemoryRange range) override;
+  virtual Result<gpu::FormatProperties, Status>
+    get_format_properties(gpu::Format format) override;
+
+  virtual Result<Span<u8>, Status> get_memory_map(gpu::Buffer buffer) override;
+
+  virtual Result<Void, Status> invalidate_mapped_memory(gpu::Buffer buffer,
+                                                        Slice64 range) override;
+
+  virtual Result<Void, Status> flush_mapped_memory(gpu::Buffer buffer,
+                                                   Slice64     range) override;
 
   virtual Result<usize, Status>
     get_pipeline_cache_size(gpu::PipelineCache cache) override;
@@ -922,11 +1476,11 @@ struct Device final : gpu::Device
     merge_pipeline_cache(gpu::PipelineCache             dst,
                          Span<gpu::PipelineCache const> srcs) override;
 
-  virtual void unbind_descriptor_set(gpu::DescriptorSet set, u32 binding,
-                                     Slice32 elements) override;
-
   virtual void
     update_descriptor_set(gpu::DescriptorSetUpdate const & update) override;
+
+  virtual gpu::QueueScopeState
+    get_queue_scope_state(gpu::QueueScope scope) override;
 
   virtual Result<Void, Status> wait_idle() override;
 
@@ -947,20 +1501,17 @@ struct Device final : gpu::Device
     get_swapchain_state(gpu::Swapchain swapchain) override;
 
   virtual Result<Void, Status>
-    invalidate_swapchain(gpu::Swapchain             swapchain,
-                         gpu::SwapchainInfo const & info) override;
-
-  virtual Result<Void, Status> begin_frame(gpu::Swapchain swapchain) override;
-
-  virtual Result<Void, Status> submit_frame(gpu::Swapchain swapchain) override;
-
-  virtual Result<Void, Status>
-    get_timestamp_query_result(gpu::TimeStampQuery query, Slice32 range,
-                               Vec<u64> & timestamps) override;
+    get_timestamp_query_result(gpu::TimestampQuery query, u32 first,
+                               Span<u64> timestamps) override;
 
   virtual Result<Void, Status> get_statistics_query_result(
-    gpu::StatisticsQuery query, Slice32 range,
-    Vec<gpu::PipelineStatistics> & statistics) override;
+    gpu::StatisticsQuery query, u32 first,
+    Span<gpu::PipelineStatistics> statistics) override;
+
+  virtual Result<Void, Status> acquire_next(gpu::Swapchain swapchain) override;
+
+  virtual Result<Void, Status> submit(gpu::CommandBuffer buffer,
+                                      gpu::QueueScope    scope) override;
 };
 
 }    // namespace vk

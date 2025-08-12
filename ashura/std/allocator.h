@@ -21,7 +21,7 @@ namespace ash
 ///
 /// @param alignment must be a power of 2. UB if 0 or otherwise.
 ///
-struct Allocator
+struct IAllocator
 {
   [[nodiscard]] constexpr virtual bool alloc(Layout layout, u8 *& mem) = 0;
 
@@ -89,7 +89,7 @@ struct Allocator
   }
 };
 
-struct NoopAllocator final : Allocator
+struct NoopAllocator final : IAllocator
 {
   virtual bool alloc(Layout, u8 *&) override
   {
@@ -114,7 +114,7 @@ struct NoopAllocator final : Allocator
 /// @brief General Purpose Heap allocator. guarantees at least
 /// MAX_STANDARD_ALIGNMENT alignment, when overaligned memory allocators are
 /// available and supported it can allocate over-aligned memory.
-struct HeapAllocator final : Allocator
+struct HeapAllocator final : IAllocator
 {
   virtual bool alloc(Layout, u8 *& mem) override;
 
@@ -129,46 +129,46 @@ extern NoopAllocator noop_allocator_impl;
 
 extern HeapAllocator heap_allocator_impl;
 
-struct [[nodiscard]] AllocatorRef
+struct [[nodiscard]] Allocator
 {
-  Allocator * self;
+  IAllocator * self;
 
-  constexpr AllocatorRef(Allocator & allocator = heap_allocator_impl) :
+  constexpr Allocator(IAllocator & allocator = heap_allocator_impl) :
     self{&allocator}
   {
   }
 
-  constexpr AllocatorRef(AllocatorRef const &)             = default;
-  constexpr AllocatorRef(AllocatorRef &&)                  = default;
-  constexpr AllocatorRef & operator=(AllocatorRef const &) = default;
-  constexpr AllocatorRef & operator=(AllocatorRef &&)      = default;
-  constexpr ~AllocatorRef()                                = default;
+  constexpr Allocator(Allocator const &)             = default;
+  constexpr Allocator(Allocator &&)                  = default;
+  constexpr Allocator & operator=(Allocator const &) = default;
+  constexpr Allocator & operator=(Allocator &&)      = default;
+  constexpr ~Allocator()                             = default;
 
-  constexpr Allocator * operator->() const
+  constexpr IAllocator * operator->() const
   {
     return self;
   }
 
-  constexpr Allocator & operator*() const
+  constexpr IAllocator & operator*() const
   {
     return *self;
   }
 
-  constexpr Allocator * ptr() const
+  constexpr IAllocator * ptr() const
   {
     return self;
   }
 
-  constexpr Allocator & unref() const
+  constexpr IAllocator & unref() const
   {
     return *self;
   }
 };
 
-inline constexpr AllocatorRef heap_allocator{heap_allocator_impl};
+inline constexpr Allocator heap_allocator{heap_allocator_impl};
 
-inline constexpr AllocatorRef noop_allocator{noop_allocator_impl};
+inline constexpr Allocator noop_allocator{noop_allocator_impl};
 
-inline constexpr AllocatorRef default_allocator{};
+inline constexpr Allocator default_allocator{};
 
 }    // namespace ash

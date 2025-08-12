@@ -1,26 +1,28 @@
 /// SPDX-License-Identifier: MIT
 
-#include "modules/kawase.slang"
+#include "modules/core.slang"
 #include "modules/types.slang"
 
+#ifndef DOWNSAMPLE
+#  define DOWNSAMPLE 1
+#endif
+
 /// @param radius relative to texture dimensions
-struct BlurShaderParam
+struct Blur
 {
-  f32x4             uv;
-  f32x2             radius;
-  u32               sampler;
-  u32               tex;
-  row_major f32x4x4 uv_transform;
+  f32x2     uv0;
+  f32x2     uv1;
+  f32x2     radius;
+  SamplerId sampler;
+  TextureId tex;
 };
 
 struct VertexOutput
 {
-  f32x4                     position : SV_Position;
-  [[vk::location(0)]] f32x2 uv : UV_COORD;
+  f32x4                                   position : SV_Position;
+  [[vk::location(0)]] f32x2               uv : UV_COORD;
+  [[vk::location(1)]] nointerpolation u32 instance : INSTANCE;
 };
-
-[[vk::push_constant]]
-row_major ConstantBuffer<BlurShaderParam, Std430DataLayout> constants;
 
 [[vk::binding(0, 0)]]
 SamplerState samplers[];
@@ -28,38 +30,50 @@ SamplerState samplers[];
 [[vk::binding(0, 1)]]
 Texture2D textures[];
 
+[[vk::binding(0, 2)]]
+StructuredBuffer<Blur> blurs;
+
 static constexpr f32x2 VERTEX_BUFFER[] = {f32x2(-0.5, -0.5), f32x2(0.5, -0.5),
                                           f32x2(0.5, 0.5), f32x2(-0.5, 0.5)};
 
 [[shader("vertex")]]
-VertexOutput vs_main(u32 vertex_idx : SV_VertexID)
+VertexOutput vert(u32 instance : SV_InstanceID, u32 vertex_idx : SV_VertexID)
 {
-  f32x2 local_pos = VERTEX_BUFFER[vertex_idx];
-  return VertexOutput(f32x4(local_pos * 2, 0, 1), local_pos + 0.5);
+  f32x2 rel_pos   = VERTEX_BUFFER[vertex_idx];
+  f32x2 local_uv  = rel_pos + 0.5;
+  var   blur      = blurs[instance];
+  f32x2 region_uv = lerp(blur.uv0, blur.uv1, local_uv);
+  return VertexOutput(f32x4(rel_pos * 2, 0, 1), region_uv, instance);
 }
 
-[[shader("fragment")]]
-f32x4 fs_upsample_main([[vk::location(0)]] f32x2 uv : UV_COORD) :
-  COLOR
-{
-  var tex_uv = lerp(constants.uv.xy, constants.uv.zw, uv);
-  return f32x4(
-    kawase::upsample(samplers[NonUniformResourceIndex(constants.sampler)],
-                     textures[NonUniformResourceIndex(constants.tex)], tex_uv,
-                     constants.radius)
-      .xyz,
-    1.0);
-}
+#if DOWNSAMPLE
+
+// [ ] config cmake
 
 [[shader("fragment")]]
-f32x4 fs_downsample_main([[vk::location(0)]] f32x2 uv : UV_COORD) :
+f32x4 frag(VertexOutput in) :
   COLOR
 {
-  var tex_uv = lerp(constants.uv.xy, constants.uv.zw, uv);
-  return f32x4(
-    kawase::downsample(samplers[NonUniformResourceIndex(constants.sampler)],
-                       textures[NonUniformResourceIndex(constants.tex)], tex_uv,
-                       constants.radius)
-      .xyz,
-    1.0);
+  var blur = blurs[in.instance];
+  return f32x4(downsample(samplers[NonUniformResourceIndex(blur.sampler)],
+                          textures[NonUniformResourceIndex(blur.tex)], in.uv,
+                          blur.radius)
+                 .xyz,
+               1.0);
 }
+
+#else
+
+[[shader("fragment")]]
+f32x4 frag(VertexOutput in) :
+  COLOR
+{
+  var blur = blurs[in.instance];
+  return f32x4(upsample(samplers[NonUniformResourceIndex(blur.sampler)],
+                        textures[NonUniformResourceIndex(blur.tex)], in.uv,
+                        blur.radius)
+                 .xyz,
+               1.0);
+}
+
+#endif

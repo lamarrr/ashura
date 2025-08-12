@@ -23,6 +23,8 @@ Ash is still in development and preparing for it's first public release in March
 
 ## Design Goals
 
+## Architecture
+
 ## Documentation
 
 ## Examples
@@ -30,5 +32,7 @@ Ash is still in development and preparing for it's first public release in March
 ## Building
 
 ## Contributing
+
+## Porting
 
 ## License

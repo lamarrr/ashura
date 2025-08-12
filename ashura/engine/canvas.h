@@ -1,77 +1,140 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
-#include "ashura/engine/color.h"
-#include "ashura/engine/passes.h"
+#include "ashura/engine/encoders.h"
+#include "ashura/engine/pass_bundle.h"
+#include "ashura/engine/shaders.gen.h"
 #include "ashura/engine/text.h"
 #include "ashura/std/allocators.h"
+#include "ashura/std/color.h"
 #include "ashura/std/math.h"
+#include "ashura/std/rc.h"
 #include "ashura/std/types.h"
 
 namespace ash
 {
 
-/// @brief all points are stored in the [-0.5, +0.5] range, all arguments must be
-/// normalized to same range.
 namespace path
 {
 
-void rect(Vec<Vec2> & vtx);
+// Don't allow linearized segments to be off by more than 1/4th of a pixel from
+// the true curve. This value should be scaled by the max basis of the
+// X and Y directions.
+constexpr f32 cubic_subdivisions(f32 scale_factor, f32x2 p0, f32x2 p1, f32x2 p2,
+                                 f32x2 p3, f32 precision = 4)
+{
+  auto k = scale_factor * .75F * precision;
+  auto a = (p0 - p1 * 2 + p2).abs();
+  auto b = (p1 - p2 * 2 + p3).abs();
+  return sqrt(k * a.max(b).length());
+}
+
+constexpr f32 quadratic_subdivisions(f32 scale_factor, f32x2 p0, f32x2 p1,
+                                     f32x2 p2, f32 precision = 4)
+{
+  f32 k = scale_factor * .25F * precision;
+  return sqrt(k * (p0 - p1 * 2 + p2).length());
+}
+
+// Returns Wang's formula specialized for a conic curve.
+//
+// This is not actually due to Wang, but is an analogue from:
+//   (Theorem 3, corollary 1):
+//   J. Zheng, T. Sederberg. "Estimating Tessellation Parameter Intervals for
+//   Rational Curves and Surfaces." ACM Transactions on Graphics 19(1). 2000.
+constexpr f32 conic_subdivisions(f32 scale_factor, f32x2 p0, f32x2 p1, f32x2 p2,
+                                 f32 w, f32 precision = 4)
+{
+  // Compute center of bounding box in projected space
+  auto C = 0.5F * p0.min(p1).min(p2) + p0.max(p1).max(p2);
+
+  // Translate by -C. This improves translation-invariance of the formula,
+  // see Sec. 3.3 of cited paper
+  p0 -= C;
+  p1 -= C;
+  p2 -= C;
+
+  // Compute max length
+  auto max_len = sqrt(max(p0.dot(p0), max(p1.dot(p1), p2.dot(p2))));
+
+  // Compute forward differences
+  auto dp = -2 * w * p1 + p0 + p2;
+  auto dw = abs(-2 * w + 2);
+
+  // Compute numerator and denominator for parametric step size of
+  // linearization. Here, the epsilon referenced from the cited paper
+  // is 1/precision.
+  auto k          = scale_factor * precision;
+  auto rp_minus_1 = max(0.0F, max_len * k - 1);
+  auto numer      = sqrt(dp.dot(dp)) * k + rp_minus_1 * dw;
+  auto denom      = 4 * min(w, 1.0F);
+
+  // Number of segments = sqrt(numer / denom).
+  // This assumes parametric interval of curve being linearized is
+  //   [t0,t1] = [0, 1].
+  // If not, the number of segments is (tmax - tmin) / sqrt(denom / numer).
+  return sqrt(numer / denom);
+}
+
+void rect(Vec<f32x2> & vtx, f32x2 extent, f32x2 center);
 
 /// @brief generate vertices for an arc
 /// @param segments upper bound on the number of segments to divide the arc
 /// into
 /// @param start start angle
-/// @param stop stop angle
-void arc(Vec<Vec2> & vtx, f32 start, f32 stop, usize segments);
+/// @param turn turn angle
+void arc(Vec<f32x2> & vtx, f32x2 radii, f32x2 center, f32 start, f32 turn,
+         usize segments);
 
 /// @brief generate vertices for a circle
 /// @param segments upper bound on the number of segments to divide the circle
 /// into
-void circle(Vec<Vec2> & vtx, usize segments);
+void circle(Vec<f32x2> & vtx, f32x2 extent, f32x2 center, usize segments);
 
 /// @brief generate vertices for a circle
 /// @param segments upper bound on the number of segments to divide the circle
 /// into
 /// @param degree number of degrees of the super-ellipse
-void squircle(Vec<Vec2> & vtx, f32 degree, usize segments);
+void squircle(Vec<f32x2> & vtx, f32x2 extent, f32x2 center, f32 degree,
+              usize segments);
 
 /// @brief generate vertices for a circle
 /// @param segments upper bound on the number of segments to divide the circle
 /// into
 /// @param corner_radii border radius of each corner
-void rrect(Vec<Vec2> & vtx, Vec4 corner_radii, usize segments);
+void rrect(Vec<f32x2> & vtx, f32x2 extent, f32x2 center, f32x4 corner_radii,
+           usize segments);
 
 /// @brief generate vertices of a bevel rect
 /// @param vtx
 /// @param slants each component represents the relative distance from the
 /// corners of each bevel
-void brect(Vec<Vec2> & vtx, Vec4 slants);
+void brect(Vec<f32x2> & vtx, f32x2 extent, f32x2 center, f32x4 slants);
 
 /// @brief generate vertices for a quadratic bezier curve
 /// @param segments upper bound on the number of segments to divide the bezier
 /// curve into
 /// @param cp[0-2] control points
-void bezier(Vec<Vec2> & vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, usize segments);
+void bezier(Vec<f32x2> & vtx, f32x2 cp0, f32x2 cp1, f32x2 cp2, usize segments);
 
 /// @brief generate vertices for a quadratic bezier curve
 /// @param segments upper bound on the number of segments to divide the bezier
 /// curve into
 /// @param cp[0-3] control points
-void cubic_bezier(Vec<Vec2> & vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, Vec2 cp3,
+void cubic_bezier(Vec<f32x2> & vtx, f32x2 cp0, f32x2 cp1, f32x2 cp2, f32x2 cp3,
                   usize segments);
 
 /// @brief generate a catmull rom spline
 /// @param segments upper bound on the number of segments to divide the bezier
 /// curve into
 /// @param cp[0-3] control points
-void catmull_rom(Vec<Vec2> & vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, Vec2 cp3,
+void catmull_rom(Vec<f32x2> & vtx, f32x2 cp0, f32x2 cp1, f32x2 cp2, f32x2 cp3,
                  usize segments);
 
 /// @brief triangulate a stroke path, given the vertices for its points
-void triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> & vtx,
+void triangulate_stroke(Span<f32x2 const> points, Vec<f32x2> & vtx,
                         Vec<u32> & idx, f32 thickness);
 
-void triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> & vtx,
+void triangulate_stroke(Span<f32x2 const> points, Vec<f32x2> & vtx,
                         Vec<u16> & idx, f32 thickness);
 
 /// @brief generate indices for a triangle list
@@ -95,8 +158,10 @@ enum class TileMode : u8
 /// @brief a normative clip rect that will cover the entire Canvas.
 constexpr f32 MAX_CLIP_DISTANCE = 0xFF'FFFF;
 
-inline constexpr CRect MAX_CLIP{.center = Vec2::splat(0),
-                                .extent = Vec2::splat(MAX_CLIP_DISTANCE)};
+inline constexpr CRect MAX_CLIP{.center = f32x2::splat(0),
+                                .extent = f32x2::splat(MAX_CLIP_DISTANCE)};
+
+using shader::sdf::ShadeType;
 
 /// @brief Canvas Shape Description
 struct ShapeInfo
@@ -105,16 +170,14 @@ struct ShapeInfo
   CRect area = {};
 
   /// @brief object-world-space transform matrix
-  Mat4 transform = Mat4::IDENTITY;
+  f32x4x4 transform = f32x4x4::identity();
 
-  /// @brief corner radii of each corner if rrect
-  Vec4 corner_radii = {};
+  f32x4 radii = {};
 
-  /// @brief lerp intensity between stroke and fill, 0 to fill, 1 to stroke
-  f32 stroke = 0.0F;
+  ShadeType shade_type = ShadeType::Flood;
 
-  /// @brief thickness thickness of the stroke
-  Vec2 thickness = Vec2::splat(1.0F);
+  /// @brief thickness of the stroke
+  f32 feather = 0;
 
   /// @brief Linear Color gradient to use as tint
   ColorGradient tint = {};
@@ -127,18 +190,20 @@ struct ShapeInfo
 
   /// @brief uv coordinates of the upper-left and lower-right part of the
   /// texture to sample from
-  Vec2 uv[2] = {
+  f32x2 uv[2] = {
     {0, 0},
     {1, 1}
   };
 
-  /// @brief tiling factor
-  f32 tiling = 1;
-
-  /// @brief edge smoothness to apply if it is a rrect
-  f32 edge_smoothness = 1;
-
   CRect clip = MAX_CLIP;
+};
+
+struct Quad
+{
+  f32x4 top_left     = {};
+  f32x4 top_right    = {};
+  f32x4 bottom_right = {};
+  f32x4 bottom_left  = {};
 };
 
 /// ┏━━━━━━━━━━━━━━━━━┑
@@ -149,7 +214,7 @@ struct ShapeInfo
 /// ┃  6  ┃  7  ┃  8  ┃
 /// ┗━━━━━━━━━━━━━━━━━┛
 ///
-/// Scaling:
+/// Stretching:
 ///
 /// 0 2 6 8; None
 /// 1 7; Horizontal
@@ -157,60 +222,64 @@ struct ShapeInfo
 /// 4;	Horizontal + Vertical
 struct NineSlice
 {
-  TileMode mode   = TileMode::Stretch;
-  Vec4     uvs[9] = {};
+  TileMode mode             = TileMode::Stretch;
+  f32x2    top_left[2]      = {};
+  f32x2    top_center[2]    = {};
+  f32x2    top_right[2]     = {};
+  f32x2    mid_left[2]      = {};
+  f32x2    mid_center[2]    = {};
+  f32x2    mid_right[2]     = {};
+  f32x2    bottom_left[2]   = {};
+  f32x2    bottom_center[2] = {};
+  f32x2    bottom_right[2]  = {};
 };
 
 struct FrameGraph;
 
-struct PassContext;
+struct PassBundle;
 
-// [ ] dashed-line single pass shader?: will need uv-transforms
-// [ ] bezier line renderer + line renderer : cap + opacity + blending
-// [ ] fill path renderer
-// [ ] shader functions
-// [ ] convex tesselation is free and doesn't need fill rules
-// [ ] for concave; use stencil then cover
+enum class ContourEdgeType : u8
+{
+  Line        = 0,
+  Arc         = 1,
+  Bezier      = 2,
+  CubicBezier = 3
+};
+
+static constexpr u8 num_control_points(ContourEdgeType edge)
+{
+  switch (edge)
+  {
+    case ContourEdgeType::Line:
+      return 2;
+    case ContourEdgeType::Arc:
+    case ContourEdgeType::Bezier:
+      return 3;
+    case ContourEdgeType::CubicBezier:
+      return 4;
+    default:
+      return 0;
+  }
+}
 
 struct Canvas
 {
-  enum class BatchType : u8
-  {
-    None     = 0,
-    RRect    = 1,
-    Squircle = 2,
-    Ngon     = 3,
-    Blur     = 4,
-    Pass     = 5
-  };
+  typedef Fn<void(FrameGraph &, PassBundle &)> PassFnRef;
 
-  struct Batch
-  {
-    BatchType type = BatchType::None;
+  typedef Dyn<PassFnRef> PassFn;
 
-    Slice32 run{};
+  using Encoder = Enum<None, SdfEncoder, QuadEncoder, NgonEncoder,
+                       FillStencilEncoder, BezierStencilEncoder, PassFn>;
 
-    CRect clip = MAX_CLIP;
-  };
+  InplaceVec<ColorTexture, 4> color_textures_;
 
-  struct Blur
-  {
-    RRectShaderParam rrect         = {};
-    RectU            area          = {};
-    Vec2U            spread_radius = {};
-  };
+  InplaceVec<Option<ColorMsaaTexture>, 4> msaa_color_textures_;
 
-  typedef Dyn<
-    Fn<void(FrameGraph &, PassContext &, Canvas const &, Framebuffer const &,
-            Span<ColorTexture const>, Span<DepthStencilTexture const>)>>
-    PassFn;
+  InplaceVec<DepthStencilTexture, 4> depth_stencil_textures_;
 
-  struct Pass
-  {
-    Str label = {};
+  u32 target_;
 
-    PassFn task{};
-  };
+  Option<Tuple<u32, PassStencil>> stencil_;
 
   /// @brief the viewport of the framebuffer this canvas will be targetting
   /// this is in the Framebuffer coordinates (Physical px coordinates)
@@ -219,12 +288,12 @@ struct Canvas
   /// @brief the viewport's local extent. This will scale to the viewport's extent.
   /// This is typically the screen's virtual size (Logical px coordinates).
   /// This distinction helps support high-density displays.
-  Vec2 extent_;
+  f32x2 extent_;
 
   /// @brief the pixel size of the backing framebuffer (Physical px coordinates)
-  Vec2U framebuffer_extent_;
+  u32x2 framebuffer_extent_;
 
-  Vec2 framebuffer_uv_base_;
+  f32x2 framebuffer_uv_base_;
 
   /// @brief aspect ratio of the viewport
   f32 aspect_ratio_;
@@ -234,52 +303,44 @@ struct Canvas
   f32 virtual_scale_;
 
   /// @brief the world to viewport transformation matrix for the shader (-1.0, 1.0)
-  Affine4 world_to_ndc_;
+  affinef32x4 world_to_ndc_;
 
-  Affine4 ndc_to_viewport_;
+  affinef32x4 ndc_to_viewport_;
 
-  Affine4 viewport_to_fb_;
+  affinef32x4 viewport_to_fb_;
 
-  Vec<RRectShaderParam> rrect_params_;
+  affinef32x4 world_to_fb_;
 
-  Vec<SquircleShaderParam> squircle_params_;
+  Encoder encoder_;
 
-  Vec<NgonShaderParam> ngon_params_;
+  ref<FrameGraph> frame_graph_;
 
-  Vec<Vec2> ngon_vertices_;
-
-  Vec<u32> ngon_indices_;
-
-  Vec<u32> ngon_index_counts_;
-
-  Vec<Blur> blurs_;
-
-  Vec<Pass> passes_;
-
-  Vec<Batch> batches_;
+  ref<PassBundle> passes_;
 
   // declared last so it would release allocated memory after all operations
   // are done executing
   ArenaPool frame_arena_;
 
-  explicit Canvas(AllocatorRef allocator) :
+  explicit Canvas(Allocator allocator, FrameGraph & frame_graph,
+                  PassBundle & passes) :
+    color_textures_{},
+    msaa_color_textures_{},
+    depth_stencil_textures_{},
+    target_{0},
+    stencil_{none},
     viewport_{},
     extent_{},
     framebuffer_extent_{},
     framebuffer_uv_base_{},
     aspect_ratio_{1},
     virtual_scale_{1},
-    world_to_ndc_{Affine4::IDENTITY},
-    ndc_to_viewport_{Affine4::IDENTITY},
-    viewport_to_fb_{Affine4::IDENTITY},
-    rrect_params_{allocator},
-    ngon_params_{allocator},
-    ngon_vertices_{allocator},
-    ngon_indices_{allocator},
-    ngon_index_counts_{allocator},
-    blurs_{allocator},
-    passes_{allocator},
-    batches_{allocator},
+    world_to_ndc_{affinef32x4::identity()},
+    ndc_to_viewport_{affinef32x4::identity()},
+    viewport_to_fb_{affinef32x4::identity()},
+    world_to_fb_{affinef32x4::identity()},
+    encoder_{none},
+    frame_graph_{frame_graph},
+    passes_{passes},
     frame_arena_{allocator}
   {
   }
@@ -290,14 +351,168 @@ struct Canvas
   Canvas & operator=(Canvas &&)      = default;
   ~Canvas()                          = default;
 
-  Canvas & begin_recording(gpu::Viewport const & viewport, Vec2 extent,
-                           Vec2U framebuffer_extent);
+  Canvas &
+    begin_recording(FrameGraph & frame_graph, PassBundle & passes,
+                    Span<ColorTexture const>             color_textures,
+                    Span<Option<ColorMsaaTexture> const> msaa_color_textures,
+                    Span<DepthStencilTexture const>      depth_stencil_textures,
+                    gpu::Viewport const & viewport, f32x2 extent,
+                    u32x2 framebuffer_extent);
 
   Canvas & end_recording();
 
   Canvas & reset();
 
   RectU clip_to_scissor(CRect const & clip) const;
+
+  u32 num_targets() const;
+
+  Canvas & clear_target(gpu::Color color);
+
+  Canvas & set_target(u32 target);
+
+  u32 target() const;
+
+  u32 num_stencils() const;
+
+  u32 num_stencil_bits() const;
+
+  Canvas & clear_stencil(u32 stencil_value);
+
+  Canvas & set_stencil(Option<Tuple<u32, PassStencil>> stencil);
+
+  Option<Tuple<u32, PassStencil>> stencil() const;
+
+  void flush_encoder_();
+
+  template <typename Shape, typename Material>
+  Canvas & push_sdf_(SdfEncoder::Item<Shape, Material> const & item)
+  {
+    // [ ] refactor; this is a mess, should be a function that can be called on the types or an alternative function if the active item is not matched
+    encoder_.match([&](None) { encoder_ = SdfEncoder(frame_arena_, item); },
+                   [&](SdfEncoder & enc) {
+                     if (!enc.push(item))
+                     {
+                       flush_encoder_();
+                       encoder_ = SdfEncoder(frame_arena_, item);
+                     }
+                   },
+                   [&](QuadEncoder &) {
+                     flush_encoder_();
+                     encoder_ = SdfEncoder(frame_arena_, item);
+                   },
+                   [&](NgonEncoder &) {
+                     flush_encoder_();
+                     encoder_ = SdfEncoder(frame_arena_, item);
+                   },
+                   [&](FillStencilEncoder &) {
+                     flush_encoder_();
+                     encoder_ = SdfEncoder(frame_arena_, item);
+                   },
+                   [&](BezierStencilEncoder &) {
+                     flush_encoder_();
+                     encoder_ = SdfEncoder(frame_arena_, item);
+                   },
+                   [&](PassFn &) {
+                     flush_encoder_();
+                     encoder_ = SdfEncoder(frame_arena_, item);
+                   });
+
+    return *this;
+  }
+
+  template <typename Material>
+  Canvas & push_ngon_(NgonEncoder::Item<Material> const & item)
+  {
+    encoder_.match([&](None) { encoder_ = NgonEncoder(frame_arena_, item); },
+                   [&](SdfEncoder &) {
+                     flush_encoder_();
+                     encoder_ = NgonEncoder(frame_arena_, item);
+                   },
+                   [&](QuadEncoder &) {
+                     flush_encoder_();
+                     encoder_ = NgonEncoder(frame_arena_, item);
+                   },
+                   [&](NgonEncoder & enc) {
+                     if (!enc.push(item))
+                     {
+                       flush_encoder_();
+                       encoder_ = NgonEncoder(frame_arena_, item);
+                     }
+                   },
+                   [&](FillStencilEncoder &) {
+                     flush_encoder_();
+                     encoder_ = NgonEncoder(frame_arena_, item);
+                   },
+                   [&](BezierStencilEncoder &) {
+                     flush_encoder_();
+                     encoder_ = NgonEncoder(frame_arena_, item);
+                   },
+                   [&](PassFn &) {
+                     flush_encoder_();
+                     encoder_ = NgonEncoder(frame_arena_, item);
+                   });
+
+    return *this;
+  }
+
+  template <typename Material>
+  Canvas & push_quad_(QuadEncoder::Item<Material> const & item)
+  {
+    encoder_.match([&](None) { encoder_ = QuadEncoder(frame_arena_, item); },
+                   [&](SdfEncoder &) {
+                     flush_encoder_();
+                     encoder_ = QuadEncoder(frame_arena_, item);
+                   },
+                   [&](QuadEncoder & enc) {
+                     if (!enc.push(item))
+                     {
+                       flush_encoder_();
+                       encoder_ = QuadEncoder(frame_arena_, item);
+                     }
+                   },
+                   [&](NgonEncoder &) {
+                     flush_encoder_();
+                     encoder_ = QuadEncoder(frame_arena_, item);
+                   },
+                   [&](FillStencilEncoder &) {
+                     flush_encoder_();
+                     encoder_ = QuadEncoder(frame_arena_, item);
+                   },
+                   [&](BezierStencilEncoder &) {
+                     flush_encoder_();
+                     encoder_ = QuadEncoder(frame_arena_, item);
+                   },
+                   [&](PassFn &) {
+                     flush_encoder_();
+                     encoder_ = QuadEncoder(frame_arena_, item);
+                   });
+  }
+
+  Canvas & sdf_shape_(ShapeInfo const & info, shader::sdf::ShapeType shape);
+
+  Canvas & ngon_shape_(ShapeInfo const & info, Span<f32x2 const> vertices,
+                       Span<u32 const> indices);
+
+  /// @brief register a custom canvas pass to be executed in the render thread
+  template <Callable<FrameGraph &, PassBundle &> Lambda>
+  Canvas & pass(Lambda task)
+  {
+    flush_encoder_();
+    // relocate lambda to heap
+    Dyn<Lambda *> lambda =
+      dyn(frame_arena_, static_cast<Lambda &&>(task)).unwrap();
+    // allocator is noop-ed but destructor still runs when the dynamic object is
+    // uninitialized. the memory is freed by at the end of the frame anyway so
+    // no need to free it
+    lambda.allocator_ = noop_allocator;
+
+    auto f = PassFnRef(lambda.get());
+
+    encoder_ = transmute(std::move(lambda), f);
+
+    return *this;
+  }
 
   /// @brief render a circle
   Canvas & circle(ShapeInfo const & info);
@@ -308,9 +523,6 @@ struct Canvas
   /// @brief render a rounded rectangle
   Canvas & rrect(ShapeInfo const & info);
 
-  /// @brief render a beveled rectangle
-  Canvas & brect(ShapeInfo const & info);
-
   /// @brief render a squircle (triangulation based)
   /// @param num_segments an upper bound on the number of segments to
   /// @param elasticity elasticity of the squircle [0, 1]
@@ -320,37 +532,54 @@ struct Canvas
   Canvas & nine_slice(ShapeInfo const & info, NineSlice const & slice);
 
   /// @brief Render Non-Indexed Triangles
-  Canvas & triangles(ShapeInfo const & info, Span<Vec2 const> vertices);
+  Canvas & triangles(ShapeInfo const & info, Span<f32x2 const> vertices);
 
   /// @brief Render Indexed Triangles
-  Canvas & triangles(ShapeInfo const & info, Span<Vec2 const> vertices,
+  Canvas & triangles(ShapeInfo const & info, Span<f32x2 const> vertices,
                      Span<u32 const> indices);
 
   /// @brief triangulate and render line
-  Canvas & line(ShapeInfo const & info, Span<Vec2 const> vertices);
+  //  [ ] joints & caps
+  // [ ] path-command-style arguments
+  // [ ] +tesselation arguments
+  Canvas & line(ShapeInfo const & info, Span<f32x2 const> vertices);
 
   /// @brief perform a Canvas-space blur
   /// @param area region in the canvas to apply the blur to
   Canvas & blur(ShapeInfo const & info);
 
-  /// @brief register a custom canvas pass to be executed in the render thread
-  Canvas & pass(Pass pass);
+  template <typename Material>
+  Canvas & quad(ShaderVariantId shader, Quad const & quad,
+                Material const & material);
 
-  template <typename Lambda>
-  Canvas & pass(Str label, Lambda task)
-  {
-    // relocate lambda to heap
-    Dyn<Lambda *> lambda =
-      dyn(frame_arena_, static_cast<Lambda &&>(task)).unwrap();
-    // allocator is noop-ed but destructor still runs when the dynamic object is
-    // uninitialized. the memory is freed by at the end of the frame anyway so
-    // no need to free it
-    lambda.allocator_ = noop_allocator;
+  Canvas & quad(Quad const & quad, shader::quad::FlatMaterial const & material);
 
-    auto f = fn(*lambda);
+  // [ ] blending for noise material
+  Canvas & quad(Quad const &                        quad,
+                shader::quad::NoiseMaterial const & material);
 
-    return pass(Pass{.label = label, .task = transmute(std::move(lambda), f)});
-  }
+  // [ ] Rendering Lines
+  // [ ] Handling Self-Intersection; Fill Rules; STC
+  // [ ] Masks
+  // [ ] filling or lines; line caps; line joints;
+  // [ ] dashed-line single pass shader?: will need uv-transforms
+  // [ ] bezier line renderer + line renderer : cap + opacity + blending
+  // [ ] batch multiple contour stencil passes so we can perform them in a single write, different write masks. rect-allocation?
+  // [ ] render to layer
+  // [ ] with_mask()?
+  // [ ] draw linec
+  // [ ] linear encoding variant
+  // [ ] how will depth/stencil in framegraph work with canvas?
+  Canvas & contour_stencil_(u32 stencil, u32 write_mask, bool tesselate,
+                            Span<f32x2 const>           control_points,
+                            Span<ContourEdgeType const> edge_types,
+                            Span<u16 const> subdivision_counts, bool invert,
+                            FillRule fill_rule, f32x4x4 const & transform,
+                            CRect const & clip);
+
+  Canvas & contour_line_(Span<f32x2 const>           control_points,
+                         Span<ContourEdgeType const> edge_types,
+                         Span<u16 const>             subdivision_counts);
 
   Canvas & text(Span<TextLayer const> layers, Span<ShapeInfo const> shapes,
                 Span<TextRenderInfo const> infos, Span<usize const> sorted);
@@ -363,10 +592,6 @@ struct Canvas
          Span<TextRenderInfo const> infos,
          Span<usize const> sorted) { p->text(layers, shapes, infos, sorted); }};
   }
-
-  // [ ] render to layer
-  // [ ] with_mask()?
-  // [ ] quad pass
 };
 
 }    // namespace ash

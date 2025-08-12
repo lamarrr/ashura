@@ -74,7 +74,7 @@ ImageInfo ImageSystem::upload_(Vec<char> label, gpu::ImageInfo const & info,
                     gpu::ImageUsage::TransferDst)) == gpu::ImageUsage::None,
     "");
   CHECK(info.aspects == gpu::ImageAspects::Color, "");
-  CHECK(info.extent.z == 1, "");
+  CHECK(info.extent.z() == 1, "");
   CHECK(info.mip_levels == 1, "");
   CHECK(info.array_layers > 0, "");
   CHECK(view_infos.size() > 0, "");
@@ -164,8 +164,8 @@ ImageInfo ImageSystem::upload_(Vec<char> label, gpu::ImageInfo const & info,
       span({
         gpu::BufferImageCopy{
                              .buffer_offset       = slice.offset,
-                             .buffer_row_length   = info.extent.x,
-                             .buffer_image_height = info.extent.y,
+                             .buffer_row_length   = info.extent.x(),
+                             .buffer_image_height = info.extent.y(),
                              .image_layers{.aspects           = gpu::ImageAspects::Color,
                         .mip_level         = 0,
                         .first_array_layer = 0,

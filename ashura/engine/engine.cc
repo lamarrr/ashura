@@ -116,8 +116,8 @@ Result<EngineCfg> EngineCfg::parse(AllocatorRef allocator, Vec<u8> & json)
     std::string_view id   = entry.escaped_key().value();
     std::string_view path = entry.value().get_string().value();
     out.shaders
-      .insert(vec(allocator, span(id)).unwrap(),
-              vec(allocator, span(path)).unwrap())
+      .push(vec(allocator, span(id)).unwrap(),
+            vec(allocator, span(path)).unwrap())
       .unwrap();
   }
 
@@ -127,8 +127,8 @@ Result<EngineCfg> EngineCfg::parse(AllocatorRef allocator, Vec<u8> & json)
     std::string_view id   = entry.escaped_key().value();
     std::string_view path = entry.value().get_string().value();
     out.fonts
-      .insert(vec(allocator, span(id)).unwrap(),
-              vec(allocator, span(path)).unwrap())
+      .push(vec(allocator, span(id)).unwrap(),
+            vec(allocator, span(path)).unwrap())
       .unwrap();
   }
 
@@ -141,8 +141,8 @@ Result<EngineCfg> EngineCfg::parse(AllocatorRef allocator, Vec<u8> & json)
     std::string_view id   = entry.escaped_key().value();
     std::string_view path = entry.value().get_string().value();
     out.images
-      .insert(vec(allocator, span(id)).unwrap(),
-              vec(allocator, span(path)).unwrap())
+      .push(vec(allocator, span(id)).unwrap(),
+            vec(allocator, span(path)).unwrap())
       .unwrap();
   }
 

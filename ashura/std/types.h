@@ -15,31 +15,62 @@
 namespace ash
 {
 
-typedef char8_t   c8;
-typedef char16_t  c16;
-typedef char32_t  c32;
-typedef uint8_t   u8;
-typedef uint16_t  u16;
-typedef uint32_t  u32;
-typedef uint64_t  u64;
-typedef int8_t    i8;
-typedef int16_t   i16;
-typedef int32_t   i32;
-typedef int64_t   i64;
+typedef char8_t  c8;
+typedef char16_t c16;
+typedef char32_t c32;
+
+typedef uint8_t  u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
+typedef uint64_t u64;
+
+typedef int8_t  i8;
+typedef int16_t i16;
+typedef int32_t i32;
+typedef int64_t i64;
+
 typedef size_t    usize;
 typedef ptrdiff_t isize;
+
 typedef uintptr_t uptr;
 typedef intptr_t  iptr;
-typedef u8        bool8;
-typedef u16       bool16;
-typedef u32       bool32;
-typedef u64       bool64;
-typedef usize     sbool;
-typedef float     f32;
-typedef double    f64;
-typedef u16       hash16;
-typedef u32       hash32;
-typedef u64       hash64;
+
+typedef u8    bool8;
+typedef u16   bool16;
+typedef u32   bool32;
+typedef u64   bool64;
+typedef usize sbool;
+
+struct f8
+{
+  u8 repr_;
+
+  constexpr f8(float);
+  constexpr f8(f8 const &)             = default;
+  constexpr f8(f8 &&)                  = default;
+  constexpr f8 & operator=(f8 const &) = default;
+  constexpr f8 & operator=(f8 &&)      = default;
+  constexpr ~f8()                      = default;
+};
+
+#if ASH_CFG(COMPILER, GCC) || ASH_CFG(COMPILER, CLANG)
+typedef _Float16 f16;
+#else
+struct f16
+{
+  u16 repr_;
+
+  constexpr f16(float);
+  constexpr f16(f16 const &)             = default;
+  constexpr f16(f16 &&)                  = default;
+  constexpr f16 & operator=(f16 const &) = default;
+  constexpr f16 & operator=(f16 &&)      = default;
+  constexpr ~f16()                       = default;
+};
+#endif
+
+typedef float  f32;
+typedef double f64;
 
 /// regular void
 struct Void
@@ -81,6 +112,12 @@ inline constexpr isize ISIZE_MAX = PTRDIFF_MAX;
 
 inline constexpr c32 UTF32_MIN = 0x0000'0000;
 inline constexpr c32 UTF32_MAX = 0x0010'FFFF;
+
+inline constexpr f16 F16_MIN          = -65504.0F;    // -2^16 * (1 - 2^-10)
+inline constexpr f16 F16_MIN_POSITIVE = 0.00006103515625F;    // 2^-10
+inline constexpr f16 F16_MAX          = 65504.0F;    // 2^16 * (1 - 2^-10)
+inline constexpr f16 F16_EPS          = 0.00006103515625F;
+inline constexpr f16 F16_INF          = INFINITY;
 
 inline constexpr f32 F32_MIN          = -FLT_MAX;
 inline constexpr f32 F32_MIN_POSITIVE = FLT_MIN;
@@ -169,6 +206,15 @@ struct NumTraits<i64>
   static constexpr i64  MAX            = I64_MAX;
   static constexpr bool SIGNED         = true;
   static constexpr bool FLOATING_POINT = false;
+};
+
+template <>
+struct NumTraits<f16>
+{
+  static constexpr f16  MIN            = F16_MIN;
+  static constexpr f16  MAX            = F16_MAX;
+  static constexpr bool SIGNED         = true;
+  static constexpr bool FLOATING_POINT = true;
 };
 
 template <>
@@ -719,7 +765,7 @@ ref(T &) -> ref<T>;
 /// To prevent `.offset + .span` from overflow or out-of-bounds call the resolve operator
 ///
 template <typename S>
-struct CoreSlice
+struct [[nodiscard]] CoreSlice
 {
   static constexpr S END = NumTraits<S>::MAX;
 
@@ -786,6 +832,22 @@ struct CoreSlice
   {
     return begin() < size && end() >= size;
   }
+
+  constexpr CoreSlice<u32> as_u32() const
+  {
+    return CoreSlice<u32>{static_cast<u32>(offset), static_cast<u32>(span)};
+  }
+
+  constexpr CoreSlice<u64> as_u64() const
+  {
+    return CoreSlice<u64>{static_cast<u64>(offset), static_cast<u64>(span)};
+  }
+
+  constexpr CoreSlice<usize> as_usize() const
+  {
+    return CoreSlice<usize>{static_cast<usize>(offset),
+                            static_cast<usize>(span)};
+  }
 };
 
 template <typename S>
@@ -807,13 +869,13 @@ struct IterEnd
 inline constexpr IterEnd iter_end;
 
 template <typename T>
-struct SpanIter
+struct [[nodiscard]] SpanIter
 {
   using Type = T;
   using Ref  = T &;
 
-  T * iter_ = nullptr;
-  T * end_  = nullptr;
+  T *       iter_ = nullptr;
+  T const * end_  = nullptr;
 
   constexpr SpanIter & operator++()
   {
@@ -829,6 +891,42 @@ struct SpanIter
   constexpr bool operator!=(IterEnd) const
   {
     return iter_ != end_;
+  }
+
+  constexpr usize size() const
+  {
+    return static_cast<usize>(end_ - iter_);
+  }
+};
+
+template <typename T>
+struct [[nodiscard]] RevSpanIter
+{
+  using Type = T;
+  using Ref  = T &;
+
+  T *       iter_  = nullptr;
+  T const * begin_ = nullptr;
+
+  constexpr RevSpanIter & operator++()
+  {
+    --iter_;
+    return *this;
+  }
+
+  constexpr T & operator*() const
+  {
+    return *(iter_ - 1);
+  }
+
+  constexpr bool operator!=(IterEnd) const
+  {
+    return iter_ != begin_;
+  }
+
+  constexpr usize size() const
+  {
+    return static_cast<usize>(iter_ - begin_);
   }
 };
 
@@ -880,66 +978,6 @@ constexpr auto size(T && a) -> decltype(a.size())
   return a.size();
 }
 
-template <typename T, u32 N>
-constexpr u32 size32(T (&)[N])
-{
-  return N;
-}
-
-template <typename T>
-constexpr auto size32(T && a) -> decltype(a.size32())
-{
-  return a.size32();
-}
-
-template <typename T, u64 N>
-constexpr u64 size64(T (&)[N])
-{
-  return N;
-}
-
-template <typename T>
-constexpr auto size64(T && a) -> decltype(a.size64())
-{
-  return a.size64();
-}
-
-template <typename T, usize N>
-constexpr usize size_bytes(T (&)[N])
-{
-  return sizeof(T) * N;
-}
-
-template <typename T>
-constexpr auto size_bytes(T && a) -> decltype(a.size())
-{
-  return sizeof(T) * a.size();
-}
-
-template <typename T, usize N>
-constexpr usize size_bits(T (&)[N])
-{
-  return sizeof(T) * 8 * N;
-}
-
-template <typename T>
-constexpr auto size_bits(T && a) -> decltype(a.size())
-{
-  return sizeof(T) * a.size() * 8;
-}
-
-template <typename T>
-constexpr auto is_empty(T && a)
-{
-  return size(a) == 0;
-}
-
-template <typename T>
-constexpr auto is_empty(T && a) -> decltype(a.is_empty())
-{
-  return a.is_empty();
-}
-
 /// @brief Iterator Model. Iterators are only required to
 /// produce values, they are not required to provide
 /// references to the values
@@ -974,6 +1012,124 @@ concept OutIter = Iter<T>;
 template <typename T>
 concept OutRange = Range<T>;
 
+template <typename Iter>
+concept SizedIter = requires (Iter iter) {
+  { static_cast<usize>(iter.size()) };
+};
+
+template <typename Iter>
+concept BoundedSizeIter = requires (Iter iter) {
+  { static_cast<usize>(iter.max_size()) };
+};
+
+template <typename Iter, typename T>
+concept IterOf = requires (Iter iter) {
+  { static_cast<T>(*iter) };
+};
+
+template <typename Iter>
+struct IterView
+{
+  Iter iter_;
+
+  constexpr auto begin() const
+  {
+    return iter_;
+  }
+
+  constexpr auto end() const
+  {
+    return IterEnd{};
+  }
+
+  constexpr auto size() const requires (SizedIter<Iter>)
+  {
+    return iter_.size();
+  }
+
+  constexpr auto max_size() const requires (BoundedSizeIter<Iter>)
+  {
+    return iter_.max_size();
+  }
+};
+
+template <typename T>
+concept Sized = requires (T t) {
+  { size(t) };
+};
+
+template <typename T, u8 N>
+constexpr u8 size8(T (&)[N])
+{
+  return N;
+}
+
+template <Sized T>
+constexpr auto size8(T && a)
+{
+  return static_cast<u8>(a.size());
+}
+
+template <typename T, u16 N>
+constexpr u16 size16(T (&)[N])
+{
+  return N;
+}
+
+template <Sized T>
+constexpr auto size16(T && a)
+{
+  return static_cast<u16>(a.size());
+}
+
+template <typename T, u32 N>
+constexpr u32 size32(T (&)[N])
+{
+  return N;
+}
+
+template <Sized T>
+constexpr auto size32(T && a)
+{
+  return static_cast<u32>(a.size());
+}
+
+template <typename T, u64 N>
+constexpr u64 size64(T (&)[N])
+{
+  return N;
+}
+
+template <Sized T>
+constexpr auto size64(T && a)
+{
+  return static_cast<u64>(a.size());
+}
+
+template <typename T, usize N>
+constexpr usize size_bytes(T (&)[N])
+{
+  return sizeof(T) * N;
+}
+
+template <typename T>
+constexpr auto size_bytes(T && a) -> decltype(a.size_bytes())
+{
+  return a.size_bytes();
+}
+
+template <typename T>
+constexpr auto is_empty(T && a)
+{
+  return size(a) == 0;
+}
+
+template <typename T>
+constexpr auto is_empty(T && a) -> decltype(a.is_empty())
+{
+  return a.is_empty();
+}
+
 template <typename U, typename T>
 concept SpanCompatible = Convertible<U (*)[], T (*)[]>;
 
@@ -992,11 +1148,13 @@ concept SpanCompatibleContainer =
   SpanContainer<Container> && SpanCompatible<ContainerDataType<Container>, T>;
 
 template <typename T>
-struct Span
+struct [[nodiscard]] Span
 {
-  using Type = T;
-  using Repr = T;
-  using Iter = SpanIter<T>;
+  using Type    = T;
+  using Repr    = T;
+  using Iter    = SpanIter<T>;
+  using RevIter = RevSpanIter<T>;
+  using Rev     = IterView<RevIter>;
 
   T *   data_ = nullptr;
   usize size_ = 0;
@@ -1052,16 +1210,6 @@ struct Span
     return size_;
   }
 
-  constexpr u32 size32() const
-  {
-    return (u32) size();
-  }
-
-  constexpr u64 size64() const
-  {
-    return (u64) size();
-  }
-
   constexpr usize size_bytes() const
   {
     return sizeof(T) * size();
@@ -1072,7 +1220,7 @@ struct Span
     return size() == 0;
   }
 
-  constexpr Iter begin() const
+  constexpr auto begin() const
   {
     return Iter{.iter_ = pbegin(), .end_ = pend()};
   }
@@ -1080,6 +1228,13 @@ struct Span
   constexpr auto end() const
   {
     return IterEnd{};
+  }
+
+  constexpr auto rev() const
+  {
+    return Rev{
+      .iter_ = RevIter{.iter_ = pend(), .begin_ = pbegin()}
+    };
   }
 
   constexpr T * pbegin() const
@@ -1118,38 +1273,38 @@ struct Span
     data()[index] = T{static_cast<Args &&>(args)...};
   }
 
-  constexpr Span<T const> as_const() const
+  constexpr auto as_const() const
   {
     return Span<T const>{data(), size()};
   }
 
-  constexpr Span<u8> as_u8() const requires (NonConst<T>)
+  constexpr auto as_u8() const requires (NonConst<T>)
   {
     return Span<u8>{reinterpret_cast<u8 *>(data()), size_bytes()};
   }
 
-  constexpr Span<u8 const> as_u8() const requires (Const<T>)
+  constexpr auto as_u8() const requires (Const<T>)
   {
     return Span<u8 const>{reinterpret_cast<u8 const *>(data()), size_bytes()};
   }
 
-  constexpr Span<char> as_char() const requires (NonConst<T>)
+  constexpr auto as_char() const requires (NonConst<T>)
   {
     return Span<char>{reinterpret_cast<char *>(data()), size_bytes()};
   }
 
-  constexpr Span<char const> as_char() const requires (Const<T>)
+  constexpr auto as_char() const requires (Const<T>)
   {
     return Span<char const>{reinterpret_cast<char const *>(data()),
                             size_bytes()};
   }
 
-  constexpr Span<c8> as_c8() const requires (NonConst<T>)
+  constexpr auto as_c8() const requires (NonConst<T>)
   {
     return Span<c8>{reinterpret_cast<c8 *>(data()), size_bytes()};
   }
 
-  constexpr Span<c8 const> as_c8() const requires (Const<T>)
+  constexpr auto as_c8() const requires (Const<T>)
   {
     return Span<c8 const>{reinterpret_cast<c8 const *>(data()), size_bytes()};
   }
@@ -1165,6 +1320,16 @@ struct Span
     return Span{data() + s.offset, s.span};
   }
 
+  constexpr Span slice(Slice16 s) const
+  {
+    return slice(s.as_usize());
+  }
+
+  constexpr Span slice(Slice32 s) const
+  {
+    return slice(s.as_usize());
+  }
+
   constexpr Span slice(usize offset, usize span) const
   {
     return slice(Slice{offset, span});
@@ -1173,18 +1338,6 @@ struct Span
   constexpr Span slice(usize offset) const
   {
     return slice(offset, USIZE_MAX);
-  }
-
-  constexpr Span slice(Slice32 s) const
-  {
-    s = s((u32) size());
-    return Span{data() + s.offset, s.span};
-  }
-
-  constexpr Span slice(Slice16 s) const
-  {
-    s = s((u16) size());
-    return Span{data() + s.offset, s.span};
   }
 
   template <typename U>
@@ -1443,7 +1596,7 @@ struct BitSpan
   using Repr = R;
   using Iter = BitSpanIter<R>;
 
-  R *   storage_ = 0;
+  R *   storage_ = nullptr;
   usize size_    = 0;
 
   constexpr BitSpan() = default;
@@ -1617,16 +1770,6 @@ struct Array
     return SIZE;
   }
 
-  static constexpr u32 size32()
-  {
-    return (u32) size();
-  }
-
-  static constexpr u64 size64()
-  {
-    return (u64) size();
-  }
-
   static constexpr usize capacity()
   {
     return size();
@@ -1637,24 +1780,44 @@ struct Array
     return sizeof(T) * size();
   }
 
-  constexpr T * begin()
+  constexpr T const * pbegin() const
   {
     return data();
   }
 
-  constexpr T const * begin() const
+  constexpr T const * pend() const
+  {
+    return data() + size();
+  }
+
+  constexpr T * pbegin()
   {
     return data();
   }
 
-  constexpr T * end()
+  constexpr T * pend()
   {
     return data() + size();
   }
 
-  constexpr T const * end() const
+  constexpr auto begin()
   {
-    return data() + size();
+    return Iter{.iter_ = pbegin(), .end_ = pend()};
+  }
+
+  constexpr auto begin() const
+  {
+    return ConstIter{.iter_ = pbegin(), .end_ = pend()};
+  }
+
+  constexpr auto end()
+  {
+    return IterEnd{};
+  }
+
+  constexpr auto end() const
+  {
+    return IterEnd{};
   }
 
   constexpr T & first()
@@ -1713,12 +1876,12 @@ struct Array
     return data();
   }
 
-  constexpr ConstView view() const
+  constexpr auto view() const
   {
     return ConstView{data(), size()};
   }
 
-  constexpr View view()
+  constexpr auto view()
   {
     return View{data(), size()};
   }
@@ -1755,16 +1918,6 @@ struct Array<T, 0>
     return SIZE;
   }
 
-  static constexpr u32 size32()
-  {
-    return (u32) size();
-  }
-
-  static constexpr u64 size64()
-  {
-    return (u64) size();
-  }
-
   static constexpr usize capacity()
   {
     return size();
@@ -1775,24 +1928,44 @@ struct Array<T, 0>
     return sizeof(T) * size();
   }
 
-  constexpr T * begin()
+  constexpr T const * pbegin() const
   {
     return data();
   }
 
-  constexpr T const * begin() const
+  constexpr T const * pend() const
+  {
+    return data() + size();
+  }
+
+  constexpr T * pbegin()
   {
     return data();
   }
 
-  constexpr T * end()
+  constexpr T * pend()
   {
     return data() + size();
   }
 
-  constexpr T const * end() const
+  constexpr auto begin()
   {
-    return data() + size();
+    return Iter{.iter_ = pbegin(), .end_ = pend()};
+  }
+
+  constexpr auto begin() const
+  {
+    return ConstIter{.iter_ = pbegin(), .end_ = pend()};
+  }
+
+  constexpr auto end()
+  {
+    return IterEnd{};
+  }
+
+  constexpr auto end() const
+  {
+    return IterEnd{};
   }
 
   constexpr T & first() requires (SIZE > 1)
@@ -1851,12 +2024,12 @@ struct Array<T, 0>
     return data();
   }
 
-  constexpr ConstView view() const
+  constexpr auto view() const
   {
     return ConstView{data(), size()};
   }
 
-  constexpr View view()
+  constexpr auto view()
   {
     return View{data(), size()};
   }
@@ -2302,10 +2475,16 @@ using Storage = InplaceStorage<alignof(T), sizeof(T)>;
 
 struct alignas(u64) Version
 {
-  u32 major   = 0;
-  u32 minor   = 0;
-  u32 patch   = 0;
-  u32 variant = 0;
+  u16 variant = 0;
+  u16 major   = 0;
+  u16 minor   = 0;
+  u16 patch   = 0;
 };
+
+#define ASH_VERSION                               \
+  (::ash::Version{.variant = ASH_VARIANT_VERSION, \
+                  .major   = ASH_MAJOR_VERSION,   \
+                  .minor   = ASH_MINOR_VERSION,   \
+                  .patch   = ASH_PATCH_VERSION})
 
 }    // namespace ash

@@ -1,9 +1,9 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 
-#include "ashura/engine/color.h"
 #include "ashura/engine/font.h"
 #include "ashura/engine/ids.h"
+#include "ashura/std/color.h"
 #include "ashura/std/types.h"
 #include "ashura/std/vec.h"
 
@@ -236,21 +236,21 @@ constexpr TextDirection level_to_direction(u8 level)
 
 struct TextHighlightStyle
 {
-  Vec4U8 color        = {};
-  Vec4   corner_radii = Vec4::splat(0);
-  f32    stroke       = 0;
-  f32    thickness    = 1;
+  u8x4  color        = {};
+  f32x4 corner_radii = f32x4::splat(0);
+  f32   stroke       = 0;
+  f32   thickness    = 1;
 };
 
 struct CaretStyle
 {
-  Vec4U8 color        = {};
-  f32    thickness    = 1;
-  Vec4   corner_radii = Vec4::splat(0.25F);
+  u8x4  color        = {};
+  f32   thickness    = 1;
+  f32x4 corner_radii = f32x4::splat(0.25F);
 
   constexpr bool is_none() const
   {
-    return thickness == 0 || color == Vec4U8{};
+    return thickness == 0 || color == u8x4{};
   }
 };
 
@@ -414,13 +414,13 @@ struct TextStyle
   f32           underline_offset        = 2.0F;
   f32           strikethrough_thickness = 0;
   f32           shadow_scale            = 0;
-  Vec2          shadow_offset           = Vec2{0, 0};
+  f32x2         shadow_offset           = f32x2{0, 0};
   ColorGradient color                   = {};
   ColorGradient background              = {};
   ColorGradient underline               = {};
   ColorGradient strikethrough           = {};
   ColorGradient shadow                  = {};
-  Vec4          corner_radii            = Vec4::splat(0.5F);
+  f32x4         corner_radii            = f32x4::splat(0.5F);
   void *        user_data               = nullptr;
 
   constexpr bool has_shadow() const
@@ -482,7 +482,7 @@ struct GlyphShape
   usize glyph   = 0;
   usize cluster = 0;
   i32   advance = 0;
-  Vec2I offset  = {};
+  i32x2 offset  = {};
 };
 
 /// @param style the text/font style of the current run
@@ -713,13 +713,13 @@ struct TextLayout
   f32             max_width;
   usize           num_carets;
   usize           num_codepoints;
-  Vec2            extent;
+  f32x2           extent;
   Vec<GlyphShape> glyphs;
   Vec<TextRun>    runs;
   Vec<Line>       lines;
   Vec<Paragraph>  paragraphs;
 
-  explicit TextLayout(AllocatorRef allocator) :
+  explicit TextLayout(Allocator allocator) :
     laid_out{false},
     max_width{0},
     num_carets{0},
@@ -744,7 +744,7 @@ struct TextLayout
     max_width      = 0;
     num_carets     = 0;
     num_codepoints = 0;
-    extent         = Vec2{0, 0};
+    extent         = f32x2{0, 0};
     glyphs.clear();
     runs.clear();
     lines.clear();
@@ -767,7 +767,7 @@ struct TextLayout
   /// to and its location.
   /// @param pos relative position in laid-out text to hit
   Tuple<isize, CaretAlignment>
-    hit(TextBlock const & block, TextBlockStyle const & style, Vec2 pos) const;
+    hit(TextBlock const & block, TextBlockStyle const & style, f32x2 pos) const;
 
   /// @brief Render Text using pre-computed layout
   /// @param info only info.center, info.transform, info.tiling, and info.sampler are used
@@ -783,7 +783,7 @@ struct TextLayout
               TextBlock const & block, TextBlockStyle const & style,
               Span<Slice const> highlights, Span<usize const> carets,
               CRect const & clip,
-              AllocatorRef  allocator = default_allocator) const;
+              Allocator  allocator = default_allocator) const;
 };
 
 }    // namespace ash

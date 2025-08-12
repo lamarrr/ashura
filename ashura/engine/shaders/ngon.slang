@@ -1,71 +1,68 @@
 /// SPDX-License-Identifier: MIT
 
 #pragma once
+#include "materials/custom.inl.slang"
+#include "materials/ngon.slang"
 #include "modules/core.slang"
 #include "modules/types.slang"
 
-struct NgonShaderParam
-{
-  row_major f32x4x4 transform;
-  f32x4             tint[4];
-  f32x4             uv;
-  f32               tiling;
-  u32               sampler;
-  u32               albedo;
-  u32               first_index;
-  u32               first_vertex;
-};
-
-struct ShaderConstants
-{
-  row_major f32x4x4 world_to_ndc;
-  row_major f32x4x4 uv_transform;
-};
-
 struct VertexOutput
 {
-  f32x4                                   position : SV_Position;
-  [[vk::location(0)]] nointerpolation u32 instance : INSTANCE;
-  [[vk::location(1)]] f32x2               uv : UV_COORD;
+  [[vk::location(0)]] f32x4               screen_pos : SV_Position;
+  [[vk::location(1)]] f32x4               world_pos : WORLD_POSITION;
+  [[vk::location(2)]] f32x4               rel_pos : REL_POS;
+  [[vk::location(3)]] nointerpolation u32 instance : INSTANCE;
 };
 
-[[vk::push_constant]]
-row_major ConstantBuffer<ShaderConstants, Std430DataLayout> constants;
-
 [[vk::binding(0, 0)]]
-StructuredBuffer<f32x2> vtx_buffer;
-
-[[vk::binding(0, 1)]]
-StructuredBuffer<u32> idx_buffer;
-
-[[vk::binding(0, 2)]]
-row_major StructuredBuffer<NgonShaderParam> params;
-
-[[vk::binding(0, 3)]]
 SamplerState samplers[];
 
-[[vk::binding(0, 4)]]
+[[vk::binding(0, 1)]]
 Texture2D textures[];
 
+[[vk::binding(0, 2)]]
+ConstantBuffer<f32x4x4> world_to_ndc;
+
+[[vk::binding(0, 3)]]
+StructuredBuffer<f32x4x4> transforms;
+
+[[vk::binding(0, 4)]]
+StructuredBuffer<f32x2> vertices;
+
+[[vk::binding(0, 5)]]
+StructuredBuffer<u32> indices;
+
+#ifndef MATERIAL_TYPE
+
+typedef quad::FlatMaterial MaterialType;
+
+#else
+
+typedef MATERIAL_TYPE MaterialType;
+
+#endif
+
+// [ ] line shader; material with tiling? for dashed lines
+
+[[vk::binding(0, 6)]]
+StructuredBuffer<MaterialType> materials;
+
 [[shader("vertex")]]
-VertexOutput vs_main(u32 instance : SV_InstanceID, u32 vertex : SV_VertexID)
+VertexOutput vert(u32 instance : SV_InstanceID, u32 vertex : SV_VertexID)
 {
-  var p   = params[instance];
-  var idx = idx_buffer[p.first_index + vertex];
-  var pos = vtx_buffer[p.first_vertex + idx];
-  return VertexOutput(
-    mul(constants.world_to_ndc, mul(p.transform, f32x4(pos, 0.0, 1.0))),
-    instance, pos + 0.5);
+  u32     idx             = indices[vertex];
+  f32x2   rel_pos         = vertices[idx];
+  f32x4x4 world_transform = transforms[instance];
+  f32x4   world_pos       = mul(world_transform, f32x4(rel_pos, 0.0, 1.0));
+  f32x4   screen_pos      = mul(world_to_ndc, world_pos);
+  return VertexOutput(screen_pos, world_pos, f32x4(rel_pos, 0, 1), instance);
 }
 
 [[shader("fragment")]]
-f32x4 fs_main([[vk::location(0)]] u32   instance : INSTANCE,
-              [[vk::location(1)]] f32x2 uv : UV_COORD) :
+f32x4 frag(VertexOutput in) :
   COLOR
 {
-  var p      = params[instance];
-  var tex_uv = lerp(p.uv.xy, p.uv.zw, uv);
-  return bilerp(p.tint, uv) *
-         textures[NonUniformResourceIndex(p.albedo)].Sample(
-           samplers[NonUniformResourceIndex(p.sampler)], tex_uv * p.tiling);
+  var material = materials[in.instance];
+  var frag     = ngon::FragmentInfo(in.rel_pos, in.world_pos, in.screen_pos);
+  return material.shade(frag, samplers, textures);
 }
