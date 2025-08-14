@@ -251,15 +251,16 @@ struct BindLocation
 };
 
 /// @brief An allocated block of memory that can be aliased by multiple resources.
+
+// [ ] how to get partition offsets from buffers; this will be tricky to size for
+
 struct MemoryGroup
 {
   VmaAllocation        vma_allocation = nullptr;
-  u64                  alignment      = 0;
+  Layout64             layout         = {.alignment = 1, .size = 0};
   void *               map            = nullptr;
   SmallVec<u64, 8>     alias_offsets  = {};
   SmallVec<AliasId, 8> alias_ids      = {};
-
-  Layout64 layout() const;
 };
 
 struct MemoryInfo
@@ -291,7 +292,7 @@ struct MemoryBarrier
   VkMemoryBarrier      barrier    = {};
 };
 
-using BindLocations = SmallVec<BindLocation, 8>;
+using BindLocations = SmallVec<BindLocation, 8, 0>;
 
 struct Buffer
 {
@@ -347,8 +348,9 @@ struct DescriptorSetLayout
   bool is_mutating = false;
 };
 
-using SyncResources = Enum<None, SmallVec<Buffer *, 4>,
-                           SmallVec<BufferView *, 4>, SmallVec<ImageView *, 4>>;
+using SyncResources =
+  Enum<None, SmallVec<Buffer *, 4, 0>, SmallVec<BufferView *, 4, 0>,
+       SmallVec<ImageView *, 4, 0>>;
 
 struct DescriptorBinding
 {
@@ -871,6 +873,14 @@ struct MemAccess
   VkAccessFlags        access = VK_ACCESS_NONE;
 };
 
+// [ ] allocate for each segment; when set_temporal is called, update the offsets and make it discard previous content but wait on all previous stages
+
+struct BufferMemState
+{
+  /// @brief alias element
+  u32 element = 0;
+};
+
 struct ImageMemState
 {
   /// @brief alias element
@@ -878,12 +888,6 @@ struct ImageMemState
 
   /// @brief current image layout
   VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
-};
-
-struct BufferMemState
-{
-  /// @brief alias element
-  u32 element = 0;
 };
 
 using MemState = Enum<None, BufferMemState, ImageMemState>;
@@ -1293,15 +1297,15 @@ struct CommandBuffer final : gpu::ICommandBuffer
 
 struct QueueScope
 {
-  u64                      buffering_;
-  u64                      tail_frame_;
-  u64                      current_frame_;
-  u64                      ring_index_;
-  SmallVec<VkSemaphore, 4> submit_semaphores_;
-  SmallVec<VkFence, 4>     submit_fences_;
+  u64                         buffering_;
+  u64                         tail_frame_;
+  u64                         current_frame_;
+  u64                         ring_index_;
+  SmallVec<VkSemaphore, 4, 0> submit_semaphores_;
+  SmallVec<VkFence, 4, 0>     submit_fences_;
 
-  QueueScope(u64 buffering, SmallVec<VkSemaphore, 4> submit_semaphores,
-             SmallVec<VkFence, 4> submit_fences) :
+  QueueScope(u64 buffering, SmallVec<VkSemaphore, 4, 0> submit_semaphores,
+             SmallVec<VkFence, 4, 0> submit_fences) :
     buffering_{buffering},
     tail_frame_{0},
     current_frame_{0},

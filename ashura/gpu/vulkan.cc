@@ -293,13 +293,6 @@ void load_vma_table(InstanceTable const & instance_table,
 #undef SET_VMA_DEV
 }
 
-Layout64 MemoryGroup::layout() const
-{
-  return alias_offsets.is_empty() ?
-           Layout64{.alignment = alignment, .size = 0} :
-           Layout64{.alignment = alignment, .size = alias_offsets.last()};
-}
-
 u32 DescriptorBinding::sync_size() const
 {
   return sync_resources.match(
@@ -1456,7 +1449,7 @@ static VkBool32 VKAPI_ATTR VKAPI_CALL
 }
 
 Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
-                                                   bool enable_validation)
+                                                   bool      enable_validation)
 {
   u32  num_exts;
   auto result =
@@ -1787,7 +1780,7 @@ void check_device_features(VkPhysicalDeviceFeatures feat)
 }
 
 Result<gpu::Device, Status>
-  Instance::create_device(Allocator                allocator,
+  Instance::create_device(Allocator                   allocator,
                           Span<gpu::DeviceType const> preferred_types)
 {
   constexpr u32 MAX_QUEUE_FAMILIES = 16;
@@ -2837,7 +2830,7 @@ Result<gpu::MemoryGroup, Status>
   CHECK(allocator_->nalloc(1, group), "");
 
   new (group) MemoryGroup{.vma_allocation = vma_allocation,
-                          .alignment      = 0,
+                          .layout         = group_layout,
                           .map            = vma_allocation_info.pMappedData,
                           .alias_offsets  = std::move(alias_offsets),
                           .alias_ids      = std::move(alias_ids)};
@@ -2896,7 +2889,7 @@ Result<gpu::MemoryGroup, Status>
   CHECK(allocator_->nalloc(1, group), "");
 
   new (group) MemoryGroup{.vma_allocation = nullptr,
-                          .alignment      = 0,
+                          .layout         = {},
                           .map            = nullptr,
                           .alias_offsets  = {},
                           .alias_ids      = std::move(alias_ids)};
@@ -3799,6 +3792,9 @@ Result<gpu::GraphicsPipeline, Status>
 
 Result<Void, Status> Device::recreate_swapchain(Swapchain * swapchain)
 {
+  char              scratch_buffer_[512];
+  FallbackAllocator scratch_{Arena::from(scratch_buffer_), allocator_};
+
   auto info = std::move(swapchain->preference);
   CHECK(info.preferred_extent.x() > 0, "");
   CHECK(info.preferred_extent.y() > 0, "");
@@ -3956,7 +3952,7 @@ Result<Void, Status> Device::recreate_swapchain(Swapchain * swapchain)
   }
 
   auto swapchain_label =
-    ssformat<256>(allocator_, "{}:Swapchain"_str, info.label).unwrap();
+    sformat(scratch_, "{} / Swapchain"_str, info.label).unwrap();
 
   set_resource_name(swapchain_label, vk, VK_OBJECT_TYPE_SWAPCHAIN_KHR,
                     VK_DEBUG_REPORT_OBJECT_TYPE_SWAPCHAIN_KHR_EXT);
@@ -3964,15 +3960,12 @@ Result<Void, Status> Device::recreate_swapchain(Swapchain * swapchain)
        zip(range(images.size()), images, acquire_semaphores))
   {
     auto label =
-      ssformat<256>(allocator_, "{}:Swapchain.Image:{}"_str, info.label, i)
-        .unwrap();
+      sformat(scratch_, "{} / SwapchainImage {}"_str, info.label, i).unwrap();
     set_resource_name(label, image->vk, VK_OBJECT_TYPE_IMAGE,
                       VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT);
 
     auto acq_sem_label =
-      ssformat<256>(allocator_, "{}:QueueScope.AcquireSemaphore:{}"_str,
-                    info.label, i)
-        .unwrap();
+      sformat(scratch_, "{} / AcquireSemaphore {}"_str, info.label, i).unwrap();
 
     set_resource_name(acq_sem_label, acquire_semaphore,
                       VK_OBJECT_TYPE_SEMAPHORE,
@@ -4174,6 +4167,10 @@ Result<gpu::CommandEncoder, Status>
 Result<gpu::CommandBuffer, Status>
   Device::create_command_buffer(gpu::CommandBufferInfo const & info)
 {
+  // [ ] better mechanism for scratch allocation
+  char              scratch_buffer_[512];
+  FallbackAllocator scratch_{Arena::from(scratch_buffer_), allocator_};
+
   VkCommandPoolCreateInfo pool_create_info{
     .sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
     .pNext            = nullptr,
@@ -4197,7 +4194,7 @@ Result<gpu::CommandBuffer, Status>
   }};
 
   auto pool_label =
-    ssformat<512>(allocator_, "{}:CommandPool"_str, info.label).unwrap();
+    sformat(scratch_, "{} / CommandPool"_str, info.label).unwrap();
   set_resource_name(pool_label, vk_pool, VK_OBJECT_TYPE_COMMAND_POOL,
                     VK_DEBUG_REPORT_OBJECT_TYPE_COMMAND_POOL_EXT);
 
@@ -4244,6 +4241,9 @@ Result<gpu::CommandBuffer, Status>
 Result<gpu::QueueScope, Status>
   Device::create_queue_scope(gpu::QueueScopeInfo const & info)
 {
+  char              scratch_buffer_[512];
+  FallbackAllocator scratch_{Arena::from(scratch_buffer_), allocator_};
+
   SmallVec<VkSemaphore, 4> submit_semaphores{allocator_};
   SmallVec<VkFence, 4>     submit_fences{allocator_};
 
@@ -4271,13 +4271,9 @@ Result<gpu::QueueScope, Status>
   for (auto i : range(info.buffering))
   {
     auto sbm_sem_label =
-      ssformat<256>(allocator_, "{}:QueueScope.SubmitSemaphore:{}"_str,
-                    info.label, i)
-        .unwrap();
+      sformat(scratch_, "{} / SubmitSemaphore {}"_str, info.label, i).unwrap();
     auto sbm_fnc_label =
-      ssformat<256>(allocator_, "{}:QueueScope.SubmitFence:{}"_str, info.label,
-                    i)
-        .unwrap();
+      sformat(scratch_, "{} / SubmitFence {}"_str, info.label, i).unwrap();
 
     VkSemaphore acquire_sem;
     auto        result =
@@ -5195,8 +5191,8 @@ Result<gpu::SwapchainState, Status>
 }
 
 Result<Void, Status>
-  Device::get_timestamp_query_result(gpu::TimestampQuery query_, Slice32 range,
-                                     Vec<u64> & timestamps)
+  Device::get_timestamp_query_result(gpu::TimestampQuery query_, u32 first,
+                                     Span<u64> timestamps)
 {
   if (range.is_empty())
   {
@@ -5222,9 +5218,8 @@ Result<Void, Status>
 }
 
 Result<Void, Status>
-  Device::get_statistics_query_result(gpu::StatisticsQuery           query_,
-                                      Slice32                        range,
-                                      Vec<gpu::PipelineStatistics> & statistics)
+  Device::get_statistics_query_result(gpu::StatisticsQuery query_, u32 first,
+                                      Span<gpu::PipelineStatistics> statistics)
 {
   if (phy_dev_.vk_features.pipelineStatisticsQuery != VK_TRUE)
   {
