@@ -754,12 +754,12 @@ struct [[nodiscard]] SmallVec
 
   constexpr Type * data() const
   {
-    return assume_aligned<ALIGNMENT>(storage_);
+    return assume_aligned_to<ALIGNMENT>(storage_);
   }
 
   constexpr Type * inline_storage() const
   {
-    return assume_aligned<ALIGNMENT>(
+    return assume_aligned_to<ALIGNMENT>(
       reinterpret_cast<Type *>(inline_.storage_));
   }
 
@@ -1327,7 +1327,8 @@ struct [[nodiscard]] InplaceVec
 
   constexpr Type * data() const
   {
-    return assume_aligned<ALIGNMENT>(reinterpret_cast<Type *>(this->storage_));
+    return assume_aligned_to<ALIGNMENT>(
+      reinterpret_cast<Type *>(this->storage_));
   }
 
   static constexpr usize alignment()

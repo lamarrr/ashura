@@ -1147,6 +1147,18 @@ template <typename Container, typename T>
 concept SpanCompatibleContainer =
   SpanContainer<Container> && SpanCompatible<ContainerDataType<Container>, T>;
 
+template <usize Alignment, typename T>
+[[nodiscard]] constexpr T * assume_aligned_to(T * ptr)
+{
+  if (std::is_constant_evaluated())
+  {
+    return ptr;
+  }
+  else
+  {
+    return static_cast<T *>(__builtin_assume_aligned(ptr, Alignment));
+  }
+}
 template <typename T>
 struct [[nodiscard]] Span
 {
