@@ -108,7 +108,7 @@ static_assert(TASK_ARENA_SIZE >= MAX_TASK_FLEX_LAYOUT.size,
 struct TaskAllocator
 {
   /// @brief The source allocator the arenas are allocated from
-  AllocatorRef source;
+  Allocator source;
 
   /// @brief Arena free list. all arenas on the free list a fully reclaimed and
   /// can be immediately used.
@@ -139,7 +139,7 @@ struct TaskAllocator
 
   } current_arena{};
 
-  explicit TaskAllocator(AllocatorRef src) : source{src}
+  explicit TaskAllocator(Allocator src) : source{src}
   {
   }
 
