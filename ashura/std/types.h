@@ -585,6 +585,11 @@ constexpr bool is_pow2(u64 x)
   return (x & (x - 1)) == 0ULL;
 }
 
+constexpr u64 operator""_B(u64 x)
+{
+  return x;
+}
+
 constexpr u64 operator""_KB(u64 x)
 {
   return x << 10;
@@ -2369,7 +2374,7 @@ constexpr usize cstr_len(Char * c_str)
 }
 
 template <typename Char>
-constexpr Span<Char> cstr_span(Char * c_str)
+constexpr Span<Char> cstr(Char * c_str)
 {
   return {c_str, cstr_len(c_str)};
 }
@@ -2388,18 +2393,18 @@ struct SourceLocation
   static constexpr SourceLocation current(
 #if ASH_HAS_BUILTIN(FILE) || (defined(__cpp_lib_source_location) && \
                               __cpp_lib_source_location >= 201'907L)
-    Str file = cstr_span(__builtin_FILE()),
+    Str file = cstr(__builtin_FILE()),
 #elif defined(__FILE__)
-    Str file = cstr_span(__FILE__),
+    Str file = cstr(__FILE__),
 #else
-    Str file = cstr_span("unknown"),
+    Str file = cstr("unknown"),
 #endif
 
 #if ASH_HAS_BUILTIN(FUNCTION) || (defined(__cpp_lib_source_location) && \
                                   __cpp_lib_source_location >= 201'907L)
-    Str function = cstr_span(__builtin_FUNCTION()),
+    Str function = cstr(__builtin_FUNCTION()),
 #else
-    Str function = cstr_span("unknown"),
+    Str function = cstr("unknown"),
 #endif
 
 #if ASH_HAS_BUILTIN(LINE) || (defined(__cpp_lib_source_location) && \

@@ -149,7 +149,7 @@ struct [[nodiscard]] Vec
 
   constexpr Type * data() const
   {
-    return assume_aligned<ALIGNMENT>(storage_);
+    return assume_aligned_to<ALIGNMENT>(storage_);
   }
 
   static constexpr usize alignment()
@@ -2424,12 +2424,6 @@ struct IsTriviallyRelocatable<Vec<T>>
   static constexpr bool value = true;
 };
 
-template <typename T>
-struct IsTriviallyRelocatable<PinVec<T>>
-{
-  static constexpr bool value = true;
-};
-
 template <typename V>
 struct IsTriviallyRelocatable<CoreBitVec<V>>
 {
@@ -2443,11 +2437,6 @@ struct IsTriviallyRelocatable<InplaceVec<T, C>>
 };
 
 inline void format(fmt::Sink sink, fmt::Spec spec, Vec<char> const & str)
-{
-  format(sink, spec, str.view());
-}
-
-inline void format(fmt::Sink sink, fmt::Spec spec, PinVec<char> const & str)
 {
   format(sink, spec, str.view());
 }

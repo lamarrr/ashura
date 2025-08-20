@@ -45,8 +45,6 @@ bool is_ptr_aligned(usize alignment, T * p)
   return is_aligned(alignment, (uptr) p);
 }
 
-using std::assume_aligned;
-
 namespace mem
 {
 
@@ -177,19 +175,6 @@ ASH_FORCE_INLINE void prefetch(T const * src, Access rw, Locality locality)
 }
 
 }    // namespace mem
-
-/// @brief copy non-null-terminated string `str` to `c_str` and null-terminate `c_str`.
-[[nodiscard]] inline bool to_c_str(Str str, Span<char> c_str)
-{
-  if ((str.size() + 1) > c_str.size()) [[unlikely]]
-  {
-    return false;
-  }
-
-  mem::copy(str, c_str);
-  c_str[str.size()] = 0;
-  return true;
-}
 
 /// @brief Memory layout of a type
 template <typename T = usize>

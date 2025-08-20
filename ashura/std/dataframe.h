@@ -58,8 +58,8 @@ struct ArrayMetaData
 /// @brief A cross-ABI data-interchange format for columnar data.
 struct ArrayInfo
 {
-  static constexpr u64 NULL_MASK_INDEX = 0;
-  static constexpr u64 DATA_ALIGNMENT  = MIN_VEC_ALIGNMENT;
+  static constexpr u64 NULL_MASK_INDEX          = 0;
+  static constexpr u64 PREFERRED_DATA_ALIGNMENT = SIMD_ALIGNMENT;
 
   /// @brief data type of the array
   Type type = Type::None;
@@ -68,7 +68,7 @@ struct ArrayInfo
   /// i.e. for strings: scattered indices or run-end encoded indices
   Slicing slicing = Slicing::None;
 
-  /// @brief bit-width of the stored type,
+  /// @brief bit-width of the stored element type,
   /// i.e. u64 is 64, and bits are 1
   u16 bit_size = 0;
 
@@ -76,24 +76,26 @@ struct ArrayInfo
   /// i.e bits can be stored in u64 types. the atom-bit-size will be 64
   u16 atom_bit_size = 0;
 
+  /// @brief the number of component arrays
+  u16 num_components = 0;
+
   /// @brief the number of elements
   u64 size = 0;
 
-  /// @brief the total amount of memory allocated for the
-  /// data this array component represents
+  /// @brief the number of elements the array is capable of holding
+  u64 capacity = 0;
+
+  /// @brief the total amount of used memory for this array
+  u64 size_bytes = 0;
+
+  /// @brief the base alignment of the allocated memory
+  u64 alignment_bytes = 0;
+
+  /// @brief the total amount of memory allocated for this array
   u64 capacity_bytes = 0;
 
-  /// @brief the number of component arrays
-  u64 num_components = 0;
-
   /// @brief the component arrays, they do not have children
-  ArrayInfo ** components = nullptr;
-
-  /// @brief the number of structure arrays
-  u64 num_structs = 0;
-
-  /// @brief the component structures
-  ArrayInfo ** structs = nullptr;
+  ArrayInfo * ASH_RESTRICT * ASH_RESTRICT components = nullptr;
 
   /// @brief the storage data
   void * ASH_RESTRICT data = nullptr;
