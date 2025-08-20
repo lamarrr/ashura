@@ -6,6 +6,7 @@
 #include "ashura/std/math.h"
 #include "ashura/std/option.h"
 #include "ashura/std/result.h"
+#include "ashura/std/time.h"
 #include "ashura/std/types.h"
 #include "ashura/std/vec.h"
 
@@ -22,7 +23,7 @@ typedef struct Buffer_T *              Buffer;
 typedef struct BufferView_T *          BufferView;
 typedef struct Image_T *               Image;
 typedef struct ImageView_T *           ImageView;
-typedef struct MemoryGroup_T *         MemoryGroup;
+typedef struct Alias_T *               Alias;
 typedef struct Sampler_T *             Sampler;
 typedef struct Shader_T *              Shader;
 typedef struct DescriptorSetLayout_T * DescriptorSetLayout;
@@ -39,29 +40,6 @@ typedef struct ICommandEncoder *       CommandEncoder;
 typedef struct ICommandBuffer *        CommandBuffer;
 typedef struct IDevice *               Device;
 typedef struct IInstance *             Instance;
-
-enum class ObjectType : u32
-{
-  None                = 0,
-  Instance            = 1,
-  Device              = 2,
-  CommandEncoder      = 3,
-  Buffer              = 4,
-  BufferView          = 5,
-  Image               = 6,
-  ImageView           = 7,
-  Sampler             = 8,
-  Shader              = 9,
-  DescriptorSetLayout = 10,
-  DescriptorSet       = 11,
-  PipelineCache       = 12,
-  ComputePipeline     = 13,
-  GraphicsPipeline    = 14,
-  TimestampQuery      = 15,
-  StatisticsQuery     = 16,
-  Surface             = 17,
-  Swapchain           = 18
-};
 
 enum class Backend : u8
 {
@@ -368,22 +346,30 @@ enum class ColorSpace : i32
   EXTENDED_SRGB_NONLINEAR = 1'000'104'014
 };
 
-enum class FormatFeatures : u32
+enum class FormatFeatures : u64
 {
-  None                     = 0x0000U,
-  SampledImage             = 0x0001U,
-  StorageImage             = 0x0002U,
-  StorageImageAtomic       = 0x0004U,
-  UniformTexelBuffer       = 0x0008U,
-  StorageTexelBuffer       = 0x0010U,
-  StorageTexelBufferAtomic = 0x0020U,
-  VertexBuffer             = 0x0040U,
-  ColorAttachment          = 0x0080U,
-  ColorAttachmentBlend     = 0x0100U,
-  DepthStencilAttachment   = 0x0200U,
-  BlitSrc                  = 0x0400U,
-  BlitDst                  = 0x0800U,
-  SampledImageFilterLinear = 0x1000U
+  None                              = 0x0000U,
+  SampledImage                      = 0x0001U,
+  StorageImage                      = 0x0002U,
+  StorageImageAtomic                = 0x0004U,
+  UniformTexelBuffer                = 0x0008U,
+  StorageTexelBuffer                = 0x0010U,
+  StorageTexelBufferAtomic          = 0x0020U,
+  VertexBuffer                      = 0x0040U,
+  ColorAttachment                   = 0x0080U,
+  ColorAttachmentBlend              = 0x0100U,
+  DepthStencilAttachment            = 0x0200U,
+  BlitSrc                           = 0x0400U,
+  BlitDst                           = 0x0800U,
+  SampledImageFilterLinear          = 0x1000U,
+  VideoDecodeOutput                 = 0x0200'0000,
+  VideoDecodeDpb                    = 0x0400'0000,
+  AccelerationStructureVertexBuffer = 0x2000'0000,
+  SampledImageFilterCubic           = 0x0000'2000,
+  FragmentDensityMap                = 0x0100'0000,
+  FragmentShadingRateAttachment     = 0x4000'0000,
+  VideoEncodeInput                  = 0x0800'0000,
+  VideoEncodeDpb                    = 0x1000'0000,
 };
 
 ASH_BIT_ENUM_OPS(FormatFeatures)
@@ -733,14 +719,14 @@ ASH_BIT_ENUM_OPS(ResolveModes)
 enum class MemoryType : u8
 {
   /// the resource is the sole owner
-  Unique = 0,
-  /// the resource's memory is grouped with other resources
-  Group  = 1
+  Unique  = 0,
+  /// the resource's memory is aliased with other resources
+  Aliased = 1
 };
 
 using Object =
   Enum<Instance, Device, CommandEncoder, CommandBuffer, Buffer, BufferView,
-       Image, ImageView, MemoryGroup, Sampler, Shader, DescriptorSetLayout,
+       Image, ImageView, Alias, Sampler, Shader, DescriptorSetLayout,
        DescriptorSet, PipelineCache, ComputePipeline, GraphicsPipeline,
        TimestampQuery, StatisticsQuery, Surface, Swapchain, QueueScope>;
 
@@ -802,11 +788,10 @@ struct ImageSubresourceLayers
   Slice32      array_layers = {};
 };
 
-struct MemoryGroupInfo
+struct AliasInfo
 {
   Str                             label     = {};
   Span<Enum<Buffer, Image> const> resources = {};
-  Span<u32 const>                 aliases   = {};
 };
 
 struct BufferInfo
@@ -1024,15 +1009,15 @@ struct ColorBlendState
 
 struct RasterizationState
 {
-  bool             depth_clamp_enable         = false;
-  PolygonMode      polygon_mode               = PolygonMode::Fill;
-  CullMode         cull_mode                  = CullMode::None;
-  FrontFace        front_face                 = FrontFace::CounterClockWise;
-  bool             depth_bias_enable          = false;
-  f32              depth_bias_constant_factor = 0;
-  f32              depth_bias_clamp           = 0;
-  f32              depth_bias_slope_factor    = 0;
-  gpu::SampleCount sample_count               = gpu::SampleCount::C1;
+  bool        depth_clamp_enable         = false;
+  PolygonMode polygon_mode               = PolygonMode::Fill;
+  CullMode    cull_mode                  = CullMode::None;
+  FrontFace   front_face                 = FrontFace::CounterClockWise;
+  bool        depth_bias_enable          = false;
+  f32         depth_bias_constant_factor = 0;
+  f32         depth_bias_clamp           = 0;
+  f32         depth_bias_slope_factor    = 0;
+  SampleCount sample_count               = SampleCount::C1;
 };
 
 struct GraphicsState
@@ -1212,26 +1197,98 @@ struct PipelineStatistics
   u64 compute_shader_invocations  = 0;
 };
 
+struct DeviceFeatures
+{
+  bool geometry_shader              = true;
+  bool tessellation_shader          = true;
+  bool depth_bounds                 = true;
+  bool wide_lines                   = true;
+  bool large_points                 = true;
+  bool alpha_to_one                 = true;
+  bool multi_viewport               = true;
+  bool texture_compression_etc2     = true;
+  bool texture_compression_astc_ldr = true;
+  bool texture_compression_bc       = true;
+  bool shader_float64               = true;
+  bool shader_int64                 = true;
+  bool shader_int16                 = true;
+};
+
+struct DeviceLimits
+{
+  u32 image_extent_1d    = U32_MAX;
+  u32 image_extent_2d    = U32_MAX;
+  u32 image_extent_3d    = U32_MAX;
+  u32 image_extent_cube  = U32_MAX;
+  u32 image_array_layers = U32_MAX;
+
+  u32 uniform_buffer_range = U32_MAX;
+  u32 storage_buffer_range = U32_MAX;
+  u32 push_constants_size  = U32_MAX;
+
+  u32 bound_descriptor_sets = U32_MAX;
+
+  u32 per_stage_samplers          = U32_MAX;
+  u32 per_stage_uniform_buffers   = U32_MAX;
+  u32 per_stage_storage_buffers   = U32_MAX;
+  u32 per_stage_sampled_images    = U32_MAX;
+  u32 per_stage_storage_images    = U32_MAX;
+  u32 per_stage_input_attachments = U32_MAX;
+  u32 per_stage_resources         = U32_MAX;
+
+  u32 descriptor_set_samplers                = U32_MAX;
+  u32 descriptor_set_uniform_buffers         = U32_MAX;
+  u32 descriptor_set_uniform_buffers_dynamic = U32_MAX;
+  u32 descriptor_set_storage_buffers         = U32_MAX;
+  u32 descriptor_set_storage_buffers_dynamic = U32_MAX;
+  u32 descriptor_set_sampled_images          = U32_MAX;
+  u32 descriptor_set_storage_images          = U32_MAX;
+  u32 descriptor_set_input_attachments       = U32_MAX;
+
+  u32   compute_work_group_invocations = U32_MAX;
+  u32   compute_shared_memory_size     = U32_MAX;
+  u32x3 compute_work_groups            = u32x3::splat(U32_MAX);
+  u32x3 compute_work_group_size        = u32x3::splat(U32_MAX);
+
+  u32 draw_indirect = U32_MAX;
+
+  f32 sampler_lod        = F32_INF;
+  f32 sampler_anisotropy = F32_INF;
+
+  u32   viewports       = U32_MAX;
+  u32x2 viewport_extent = u32x2::splat(U32_MAX);
+
+  u64 uniform_buffer_offset_alignment = 1;
+  u64 texel_buffer_offset_alignment   = 1;
+  u64 storage_buffer_offset_alignment = 1;
+
+  u32x2 framebuffer_extent = u32x2::splat(U32_MAX);
+  u32   framebuffer_layers = U32_MAX;
+
+  u32 framebuffer_color_samples   = U32_MAX;
+  u32 framebuffer_depth_samples   = U32_MAX;
+  u32 framebuffer_stencil_samples = U32_MAX;
+
+  u32 sampled_image_color_samples   = U32_MAX;
+  u32 sampled_image_depth_samples   = U32_MAX;
+  u32 sampled_image_stencil_samples = U32_MAX;
+  u32 storage_image_sample_samples  = U32_MAX;
+};
+
 /// @param timestamp_period number of timestamp ticks equivalent to 1
 /// nanosecond
 struct DeviceProperties
 {
-  u32        api_version                        = 0;
-  u32        driver_version                     = 0;
-  u32        vendor_id                          = 0;
-  u32        device_id                          = 0;
-  Str        device_name                        = {};
-  DeviceType type                               = DeviceType::Other;
-  bool       has_unified_memory                 = false;
-  bool       has_non_solid_fill_mode            = false;
-  u64        texel_buffer_offset_alignment      = 0;
-  u64        uniform_buffer_offset_alignment    = 0;
-  u64        storage_buffer_offset_alignment    = 0;
-  f32        timestamp_period                   = 0;
-  u32        max_compute_work_group_count[3]    = {};
-  u32        max_compute_work_group_size[3]     = {};
-  u32        max_compute_work_group_invocations = 0;
-  u32        max_compute_shared_memory_size     = 0;
+  u32            api_version        = 0;
+  u32            driver_version     = 0;
+  u32            vendor_id          = 0;
+  u32            device_id          = 0;
+  Str            device_name        = {};
+  DeviceType     type               = DeviceType::Other;
+  bool           has_unified_memory = false;
+  f32            timestamp_period   = 0;
+  DeviceFeatures features           = {};
+  DeviceLimits   limits             = {};
 };
 
 /// @param generation increases everytime the swapchain for the surface is
@@ -1251,10 +1308,11 @@ struct SwapchainState
 
 struct QueueScopeState
 {
-  u64 tail_frame    = 0;
-  u64 current_frame = 0;
-  u64 ring_index    = 0;
-  u64 buffering     = 0;
+  /// @brief the ring index when using (buffering) as the ring-buffer size
+  u64 ring_index = 0;
+
+  /// @brief the number of allowed concurrent submissions on the queue scope
+  u64 buffering = 0;
 };
 
 struct RenderingAttachment
@@ -1398,8 +1456,7 @@ struct IDevice
   virtual Result<ImageView, Status>
     create_image_view(ImageViewInfo const & info) = 0;
 
-  virtual Result<MemoryGroup, Status>
-    create_memory_group(MemoryGroupInfo const & info) = 0;
+  virtual Result<Alias, Status> create_alias(AliasInfo const & info) = 0;
 
   virtual Result<Sampler, Status> create_sampler(SamplerInfo const & info) = 0;
 
@@ -1446,7 +1503,7 @@ struct IDevice
 
   virtual void uninit(ImageView image_view) = 0;
 
-  virtual void uninit(MemoryGroup memory_group) = 0;
+  virtual void uninit(Alias alias) = 0;
 
   virtual void uninit(Sampler sampler) = 0;
 
@@ -1502,9 +1559,9 @@ struct IDevice
 
   virtual QueueScopeState get_queue_scope_state(QueueScope scope) = 0;
 
-  virtual Result<Void, Status> wait_idle() = 0;
+  virtual Result<Void, Status> await_idle( ) = 0;
 
-  virtual Result<Void, Status> wait_queue_idle() = 0;
+  virtual Result<Void, Status> await_queue_idle( ) = 0;
 
   virtual Result<Void, Status>
     get_surface_formats(Surface surface, Vec<SurfaceFormat> & formats) = 0;
@@ -1528,31 +1585,32 @@ struct IDevice
 
   virtual Result<Void, Status> acquire_next(Swapchain swapchain) = 0;
 
-  virtual Result<Void, Status> submit(CommandBuffer buffer,
-                                      QueueScope    scope) = 0;
+  virtual Result<u64, Status> submit(CommandBuffer buffer,
+                                     QueueScope    scope) = 0;
+
+  virtual Result<Void, Status> await_queue_scope_idle(QueueScope  scope,
+                                                      nanoseconds timeout) = 0;
+
+  virtual Result<Void, Status> await_queue_scope_frame(QueueScope  scope,
+                                                       u64         frame,
+                                                       nanoseconds timeout) = 0;
 };
 
-inline void IDevice::uninit_object(gpu::Object object)
+inline void IDevice::uninit_object(Object object)
 {
   object.match(
-    [](gpu::Instance) { CHECK_UNREACHABLE(); },
-    [](gpu::Device) { CHECK_UNREACHABLE(); },
-    [&](gpu::CommandEncoder r) { uninit(r); },
-    [&](gpu::CommandBuffer r) { uninit(r); }, [&](gpu::Buffer r) { uninit(r); },
-    [&](gpu::BufferView r) { uninit(r); }, [&](gpu::Image r) { uninit(r); },
-    [&](gpu::ImageView r) { uninit(r); },
-    [&](gpu::MemoryGroup r) { uninit(r); }, [&](gpu::Sampler r) { uninit(r); },
-    [&](gpu::Shader r) { uninit(r); },
-    [&](gpu::DescriptorSetLayout r) { uninit(r); },
-    [&](gpu::DescriptorSet r) { uninit(r); },
-    [&](gpu::PipelineCache r) { uninit(r); },
-    [&](gpu::ComputePipeline r) { uninit(r); },
-    [&](gpu::GraphicsPipeline r) { uninit(r); },
-    [&](gpu::TimestampQuery r) { uninit(r); },
-    [&](gpu::StatisticsQuery r) { uninit(r); },
-    [&](gpu::Surface) { CHECK_UNREACHABLE(); },
-    [&](gpu::Swapchain r) { uninit(r); },
-    [&](gpu::QueueScope r) { uninit(r); });
+    [](Instance) { CHECK_UNREACHABLE(); }, [](Device) { CHECK_UNREACHABLE(); },
+    [&](CommandEncoder r) { uninit(r); }, [&](CommandBuffer r) { uninit(r); },
+    [&](Buffer r) { uninit(r); }, [&](BufferView r) { uninit(r); },
+    [&](Image r) { uninit(r); }, [&](ImageView r) { uninit(r); },
+    [&](Alias r) { uninit(r); }, [&](Sampler r) { uninit(r); },
+    [&](Shader r) { uninit(r); }, [&](DescriptorSetLayout r) { uninit(r); },
+    [&](DescriptorSet r) { uninit(r); }, [&](PipelineCache r) { uninit(r); },
+    [&](ComputePipeline r) { uninit(r); },
+    [&](GraphicsPipeline r) { uninit(r); },
+    [&](TimestampQuery r) { uninit(r); }, [&](StatisticsQuery r) { uninit(r); },
+    [&](Surface) { CHECK_UNREACHABLE(); }, [&](Swapchain r) { uninit(r); },
+    [&](QueueScope r) { uninit(r); });
 }
 
 struct IInstance
@@ -1573,44 +1631,13 @@ struct IInstance
 Result<Dyn<Instance>, Status> create_vulkan_instance(Allocator allocator,
                                                      bool enable_validation);
 
-/// REQUIRED LIMITS AND PROPERTIES
-
-inline constexpr u32         MAX_IMAGE_EXTENT_1D                  = 8'192;
-inline constexpr u32         MAX_IMAGE_EXTENT_2D                  = 8'192;
-inline constexpr u32         MAX_IMAGE_EXTENT_3D                  = 2'048;
-inline constexpr u32         MAX_IMAGE_EXTENT_CUBE                = 8'192;
-inline constexpr u32         MAX_IMAGE_ARRAY_LAYERS               = 1'024;
-inline constexpr u32         MAX_VIEWPORT_EXTENT                  = 8'192;
-inline constexpr u32         MAX_FRAMEBUFFER_EXTENT               = 8'192;
-inline constexpr u32         MAX_FRAMEBUFFER_LAYERS               = 1'024;
-inline constexpr u32         MAX_VERTEX_ATTRIBUTES                = 16;
-inline constexpr u32         MAX_PUSH_CONSTANTS_SIZE              = 128;
-inline constexpr u32         MAX_UPDATE_BUFFER_SIZE               = 65'536;
-inline constexpr u32         MAX_PIPELINE_DESCRIPTOR_SETS         = 8;
-inline constexpr u32         MAX_PIPELINE_DYNAMIC_UNIFORM_BUFFERS = 8;
-inline constexpr u32         MAX_PIPELINE_DYNAMIC_STORAGE_BUFFERS = 8;
-inline constexpr u32         MAX_PIPELINE_INPUT_ATTACHMENTS       = 8;
-inline constexpr u32         MAX_PIPELINE_COLOR_ATTACHMENTS       = 8;
-inline constexpr u32         MAX_DESCRIPTOR_SET_DESCRIPTORS       = 4'096;
-inline constexpr u32         MAX_BINDING_DESCRIPTORS              = 4'096;
-inline constexpr u32         MAX_DESCRIPTOR_SET_BINDINGS          = 16;
-inline constexpr u32         MAX_SWAPCHAIN_IMAGES                 = 4;
-inline constexpr u64         MAX_UNIFORM_BUFFER_RANGE             = 65'536;
-inline constexpr f32         MAX_SAMPLER_ANISOTROPY               = 16;
-inline constexpr u32         MAX_CLIP_DISTANCES                   = 8;
-inline constexpr u32         MAX_CULL_DISTANCES                   = 8;
-inline constexpr u32         MAX_COMBINED_CLIP_AND_CULL_DISTANCES = 8;
-inline constexpr u32         BUFFER_OFFSET_ALIGNMENT              = 512;
-inline constexpr SampleCount REQUIRED_COLOR_SAMPLE_COUNTS =
-  SampleCount::C1 | SampleCount::C2 | SampleCount::C4;
-inline constexpr SampleCount REQUIRED_DEPTH_SAMPLE_COUNTS =
-  SampleCount::C1 | SampleCount::C2 | SampleCount::C4;
+static constexpr u32 BUFFER_OFFSET_ALIGNMENT = 512;
 
 }    // namespace gpu
 
 inline void format(fmt::Sink sink, fmt::Spec, gpu::Status const & status)
 {
-  sink(gpu::to_str(status));
+  sink(to_str(status));
 }
 
 }    // namespace ash
