@@ -2,6 +2,7 @@
 #pragma once
 
 #include "ashura/std/allocator.h"
+#include "ashura/std/growth.h"
 #include "ashura/std/mem.h"
 #include "ashura/std/obj.h"
 #include "ashura/std/option.h"
@@ -16,24 +17,6 @@ namespace ash
 /// Only InplaceVec doesn't use this alignment as it is usually in-place and
 /// compacted along with other struct members/stack variables.
 inline constexpr usize SIMD_ALIGNMENT = 64;
-
-struct DoubleGrowth
-{
-  static constexpr usize grow(usize capacity)
-  {
-    return capacity << 1;
-  }
-};
-
-struct HalfGrowth
-{
-  static constexpr usize grow(usize capacity)
-  {
-    return capacity + (capacity >> 1);
-  }
-};
-
-using Growth = DoubleGrowth;
 
 template <typename T, usize MinAlignment = SIMD_ALIGNMENT>
 requires (NonConst<T>)
