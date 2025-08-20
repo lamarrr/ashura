@@ -11,11 +11,11 @@ TEST(AsyncTest, Basic)
 {
   using namespace ash;
 
-  Semaphore sem = semaphore({}, 1).unwrap();
+  RcSemaphore sem = semaphore({}).unwrap();
 
-  Dyn<Scheduler *> sched =
-    Scheduler::create({}, std::this_thread::get_id(),
-                      span<nanoseconds>({1ns, 2ns}), span({2ns, 5ns}));
+  Dyn<Scheduler> sched =
+    IScheduler::create({}, std::this_thread::get_id(),
+                       span<nanoseconds>({1ns, 2ns}), span({2ns, 5ns}));
 
   hook_scheduler(sched);
 
