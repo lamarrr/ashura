@@ -56,14 +56,6 @@ constexpr Result<Vec<char>, fmt::Result>
   });
 }
 
-/// @brief format to a dynamic string using default allocator
-template <typename... Args>
-constexpr Result<Vec<char>, fmt::Result> sformat(Span<char const> fstr,
-                                                 Args const &... args)
-{
-  return sformat(default_allocator, fstr, args...);
-}
-
 /// @brief format to a static capacity string
 template <usize Capacity, typename... Args>
 constexpr Result<InplaceVec<char, Capacity>, fmt::Result>

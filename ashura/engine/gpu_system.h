@@ -434,6 +434,8 @@ struct IGpuFramePlan
 {
   Allocator allocator_;
 
+  GpuSys sys_;
+
   Vec<GpuFrameTask> pre_frame_tasks_;
 
   Vec<GpuFrameTask> post_frame_tasks_;
@@ -464,8 +466,9 @@ struct IGpuFramePlan
 
   ArenaPool arena_;
 
-  IGpuFramePlan(Allocator allocator, Dyn<Semaphore> semaphore) :
+  IGpuFramePlan(Allocator allocator, GpuSys sys, Dyn<Semaphore> semaphore) :
     allocator_{allocator},
+    sys_{sys},
     pre_frame_tasks_{allocator},
     post_frame_tasks_{allocator},
     frame_completed_tasks_{allocator},
@@ -536,6 +539,10 @@ struct IGpuFramePlan
   {
     return push_gpu(data.as_u8().as_const());
   }
+
+  GpuSys sys() const;
+
+  gpu::Device device() const;
 
   void begin();
 
@@ -751,7 +758,7 @@ struct IGpuFrame
 ///
 struct IGpuSys
 {
-  static constexpr u32 MAX_SWAPCHAIN_BUFFERING = 4;
+  static constexpr u32 MAX_BUFFERING = 4;
 
   bool initialized_;
 
@@ -773,6 +780,8 @@ struct IGpuSys
   gpu::Format color_format_;
 
   gpu::Format depth_stencil_format_;
+
+  gpu::SampleCount sample_count_;
 
   GpuDescriptorsLayout descriptors_layout_;
 
@@ -853,7 +862,19 @@ struct IGpuSys
   /// of the next frame
   void release_texture_id(TextureId id);
 
+  gpu::Device device();
+
+  Allocator allocator() const;
+
   GpuFramePlan plan();
+
+  gpu::Format color_format() const;
+
+  gpu::Format depth_stencil_format() const;
+
+  gpu::SampleCount sample_count() const;
+
+  gpu::PipelineCache pipeline_cache() const;
 
   void submit_frame();
 };

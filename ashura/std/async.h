@@ -421,14 +421,14 @@ struct ISemaphore
   }
 
   /// @brief returns true if the polled stage is completed.
-  [[nodiscard]] bool is_ready(u64 poll_stage)
+  [[nodiscard]] bool is_completed(u64 poll_stage)
   {
     std::atomic_ref stage{stage_};
     auto            current = stage.load(std::memory_order_acquire);
     return current == U64_MAX || current > poll_stage;
   }
 
-  bool complete()
+  [[nodiscard]] bool complete()
   {
     std::atomic_ref stage{stage_};
     return stage.exchange(U64_MAX, std::memory_order_release) != U64_MAX;
@@ -464,7 +464,7 @@ struct ISemaphore
   /// @brief
   /// @param inc stage increment of semaphore. increment of >= num_stages is
   /// equivalent to driving it to completion.
-  u64 increment(u64 inc)
+  [[nodiscard]] u64 increment(u64 inc)
   {
     u64             current = 0;
     u64             target  = inc;
@@ -478,54 +478,13 @@ struct ISemaphore
 
     return current;
   }
+
+  [[nodiscard]] bool await(u64 stage, nanoseconds timeout);
 };
 
 typedef Rc<Semaphore> RcSemaphore;
 
 typedef Dyn<Semaphore> DynSemaphore;
-
-/// @brief A Stop Sequence Token
-typedef struct IStopToken * StopToken;
-
-struct IStopToken
-{
-  /// @brief stage to stop execution before.
-  /// this means the stage represented by `stop_before_` and all proceeding
-  /// stages are canceled.
-  u64 stop_point_;
-
-  constexpr IStopToken() : stop_point_{U64_MAX}
-  {
-  }
-
-  constexpr IStopToken(u64 stop_point) : stop_point_{stop_point}
-  {
-  }
-
-  /// @brief check whether the specified stage has been canceled. synchronizes
-  /// with the scope
-  /// @return
-  bool is_stop_requested(u64 stage = 0)
-  {
-    std::atomic_ref stop_point{stop_point_};
-    return stop_point.load(std::memory_order_acquire) <= stage;
-  }
-
-  /// @brief stop the execution at the specified stage, all tasks beyond that
-  /// stage are also stopped. synchronizes with the scope
-  void request_stop(u64 stage = 0)
-  {
-    std::atomic_ref stop_point{stop_point_};
-    u64             expected = U64_MAX;
-    u64             target   = min(expected, stage);
-    while (!stop_point.compare_exchange_weak(
-      expected, target, std::memory_order_release, std::memory_order_relaxed))
-      [[unlikely]]
-    {
-      target = min(expected, stage);
-    }
-  }
-};
 
 ///
 /// @brief Create an independently allocated semaphore object
@@ -541,13 +500,6 @@ inline Result<RcSemaphore> semaphore(Allocator allocator)
 inline Result<RcSemaphore> semaphore(Allocator allocator, u64 initial_stage)
 {
   return rc<ISemaphore>(inplace, allocator, initial_stage);
-}
-
-typedef Rc<StopToken> RcStopToken;
-
-inline Result<RcStopToken> stop_token(Allocator allocator)
-{
-  return rc<IStopToken>(inplace, allocator);
 }
 
 namespace impl
@@ -591,7 +543,7 @@ template <typename Sem, typename Stage, typename SemaphoreKey,
     {
       ISemaphore & semaphore = semaphore_key(semaphores[next]);
       u64 const    stage     = stage_key(stages[next]);
-      bool const   is_ready  = semaphore.is_ready(stage);
+      bool const   is_ready  = semaphore.is_completed(stage);
 
       if (!is_ready)
       {
@@ -735,9 +687,9 @@ struct [[nodiscard]] Stream
     return Stream{data_.alias(), semaphore_.alias()};
   }
 
-  [[nodiscard]] bool is_ready(u64 stage) const
+  [[nodiscard]] bool is_completed(u64 stage) const
   {
-    return semaphore_->is_ready(stage);
+    return semaphore_->is_completed(stage);
   }
 
   [[nodiscard]] bool is_completed() const
@@ -749,7 +701,7 @@ struct [[nodiscard]] Stream
   void yield_unsequenced(F && op, u64 increment) const
   {
     static_cast<F &&>(op)(*data_.get());
-    semaphore_->increment(increment);
+    (void) semaphore_->increment(increment);
   }
 
   template <Callable<T &> F>
@@ -1013,16 +965,23 @@ struct TaskInstance
   u64 idx = 0;
 };
 
-inline bool await_semaphores(Span<Semaphore const> streams,
-                             Span<u64 const> stages, nanoseconds timeout)
+[[nodiscard]] inline bool await_semaphores(Span<Semaphore const> semaphores,
+                                           Span<u64 const>       stages,
+                                           nanoseconds           timeout)
 {
   return impl::await_semaphores(
-    streams, stages, timeout, [](Semaphore s) -> ISemaphore & { return *s; },
+    semaphores, stages, timeout, [](Semaphore s) -> ISemaphore & { return *s; },
     [](u64 stage) -> u64 { return stage; });
 }
 
-inline bool await_streams(Span<AnyStream const> streams, Span<u64 const> stages,
-                          nanoseconds timeout)
+[[nodiscard]] inline bool ISemaphore::await(u64 stage, nanoseconds timeout)
+{
+  return await_semaphores(span({this}), span({stage}), timeout);
+}
+
+[[nodiscard]] inline bool await_streams(Span<AnyStream const> streams,
+                                        Span<u64 const>       stages,
+                                        nanoseconds           timeout)
 {
   return impl::await_semaphores(
     streams, stages, timeout,
@@ -1030,7 +989,8 @@ inline bool await_streams(Span<AnyStream const> streams, Span<u64 const> stages,
     [](u64 stage) -> u64 { return stage; });
 }
 
-inline bool await_futures(Span<AnyFuture const> futures, nanoseconds timeout)
+[[nodiscard]] inline bool await_futures(Span<AnyFuture const> futures,
+                                        nanoseconds           timeout)
 {
   return impl::await_futures(
     futures, timeout,
@@ -1088,10 +1048,12 @@ struct [[nodiscard]] Ready
   }
 };
 
-enum class ThreadId : u64
+enum class ThreadId : u32
 {
-  Main      = 0,
-  Undefined = U64_MAX
+  FirstDedicated = 0,
+  Main           = U32_MAX - 2,
+  AnyWorker      = U32_MAX - 1,
+  Undefined      = U32_MAX
 };
 
 /// @brief Static Thread Pool Scheduler.
@@ -1113,21 +1075,28 @@ enum class ThreadId : u64
 ///
 typedef struct IScheduler * Scheduler;
 
+struct SchedulerInfo
+{
+  // thread-safe allocator to allocate tasks from, must be able to allocate page-sized allocations
+  Allocator allocator = {};
+
+  /// max sleep time for the dedicated threads.
+  /// enables responsiveness. `.size()` represents the number of dedicated
+  /// threads to create.
+  Span<nanoseconds const> dedicated_thread_sleep = {};
+
+  /// maximum sleep time for the worker threads.
+  /// enables responsiveness. `.size()` represents the number of worker threads
+  /// to create.
+  Span<nanoseconds const> worker_thread_sleep = {};
+
+  std::thread::id main_thread_id = {};
+};
+
 struct IScheduler
 {
   /// @brief Create a Scheduler
-  /// @param allocator thread-safe allocator to allocate tasks from, must be
-  /// able to allocate page-sized allocations
-  /// @param dedicated_thread_sleep max sleep time for the dedicated threads.
-  /// enables responsiveness. `.size()` represents the number of dedicated
-  /// threads to create.
-  /// @param worker_thread_sleep maximum sleep time for the worker threads.
-  /// enables responsiveness. `.size()` represents the number of worker threads
-  /// to create.
-  static Dyn<Scheduler> create(Allocator               allocator,
-                               std::thread::id         main_thread_id,
-                               Span<nanoseconds const> dedicated_thread_sleep,
-                               Span<nanoseconds const> worker_thread_sleep);
+  static Dyn<Scheduler> create(SchedulerInfo const & info);
 
   /// @brief Destroys the scheduler. The scheduler must have been joined.
   virtual ~IScheduler() = default;
@@ -1145,7 +1114,7 @@ struct IScheduler
   /// @param thread the index of the thread to schedule to. If none is specified,
   /// the task is scheduled to the main thread.
   virtual void schedule(TaskInfo const & info,
-                        Option<ThreadId> thread = none) = 0;
+                        ThreadId         thread = ThreadId::AnyWorker) = 0;
 
   /// @brief Execute work on the main thread queue
   /// @param grace_period minimum time (within duration) to wait for tasks when
@@ -1153,11 +1122,12 @@ struct IScheduler
   /// @param duration maximum timeout to spend executing tasks
   virtual void run_main_loop(nanoseconds duration, nanoseconds poll_max) = 0;
 
+  virtual Semaphore get_drain_semaphore(ThreadId thread) = 0;
+
   template <TaskFrame F>
-  void schedule(F && task, Option<ThreadId> thread = none)
+  void schedule(F && task, ThreadId thread = ThreadId::AnyWorker)
   {
-    TaskInfo info = to_task_info(task);
-    schedule(info, thread);
+    schedule(to_task_info(task), thread);
   }
 
   /// @brief Launch a one-shot task
@@ -1167,7 +1137,7 @@ struct IScheduler
   /// @param poll Poller functor that returns true when ready
   /// @param schedule How to schedule the task
   template <Callable F, Poll P = Ready>
-  void once(F fn, P poll = {}, Option<ThreadId> thread = none)
+  void once(F fn, P poll = {}, ThreadId thread = ThreadId::AnyWorker)
   {
     this->schedule(TaskBody{static_cast<P &&>(poll),
                             [fn = static_cast<F &&>(fn)]() mutable -> bool {
@@ -1178,7 +1148,8 @@ struct IScheduler
   }
 
   template <Callable F, Callable... F1, Poll P = Ready>
-  void once(Tuple<F, F1...> fns, P poll = {}, Option<ThreadId> thread = none)
+  void once(Tuple<F, F1...> fns, P poll = {},
+            ThreadId thread = ThreadId::AnyWorker)
   {
     this->schedule(
       TaskBody{static_cast<P &&>(poll),
@@ -1197,7 +1168,7 @@ struct IScheduler
   /// @param schedule How to schedule the task
   template <Callable F, Poll P = Ready>
   requires (Convertible<CallResult<F>, bool>)
-  void loop(F fn, P poll = {}, Option<ThreadId> thread = none)
+  void loop(F fn, P poll = {}, ThreadId thread = ThreadId::AnyWorker)
   {
     this->schedule(
       TaskBody{static_cast<P &&>(poll),
@@ -1216,7 +1187,7 @@ struct IScheduler
   template <Callable<u64> F, Poll P = Ready>
   requires (Same<CallResult<F, u64>, void> ||
             Convertible<CallResult<F, u64>, bool>)
-  void repeat(F fn, u64 n, P poll = {}, Option<ThreadId> thread = none)
+  void repeat(F fn, u64 n, P poll = {}, ThreadId thread = ThreadId::AnyWorker)
   {
     if (n == 0)
     {
@@ -1254,7 +1225,7 @@ struct IScheduler
   /// @param schedule How to schedule the shards
   template <typename State, Poll P = Ready>
   void shard(Rc<State> state, Fn<void(TaskInstance, State)> fn, u64 n,
-             P poll = {}, Option<ThreadId> thread = none)
+             P poll = {}, ThreadId thread = ThreadId::AnyWorker)
   {
     if (n == 0)
     {

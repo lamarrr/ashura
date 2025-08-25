@@ -1,7 +1,16 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
-#include "ashura/engine/pass_bundle.h"
+#include "ashura/engine/pipeline_system.h"
+#include "ashura/engine/pipelines/bezier_stencil.h"
+#include "ashura/engine/pipelines/bloom.h"
+#include "ashura/engine/pipelines/blur.h"
+#include "ashura/engine/pipelines/fill_stencil.h"
+#include "ashura/engine/pipelines/ngon.h"
+#include "ashura/engine/pipelines/pbr.h"
+#include "ashura/engine/pipelines/quad.h"
+#include "ashura/engine/pipelines/sdf.h"
 #include "ashura/engine/shaders.gen.h"
+#include "ashura/engine/systems.h"
 #include "ashura/std/allocator.h"
 #include "ashura/std/math.h"
 #include "ashura/std/obj.h"
@@ -15,22 +24,22 @@ struct SdfEncoder
   template <typename Shape, typename Material>
   struct Item
   {
-    Framebuffer         framebuffer;
-    Option<PassStencil> stencil;
-    RectU               scissor;
-    gpu::Viewport       viewport;
-    gpu::DescriptorSet  samplers;
-    gpu::DescriptorSet  textures;
-    f32x4x4             world_to_ndc;
-    Shape               shape;
-    f32x4x4             transform;
-    Material            material;
-    ShaderVariantId     shader_variant;
+    Framebuffer             framebuffer;
+    Option<PipelineStencil> stencil;
+    RectU                   scissor;
+    gpu::Viewport           viewport;
+    gpu::DescriptorSet      samplers;
+    gpu::DescriptorSet      textures;
+    f32x4x4                 world_to_ndc;
+    Shape                   shape;
+    f32x4x4                 transform;
+    Material                material;
+    ShaderVariantId         shader_variant;
   };
 
   Framebuffer framebuffer_;
 
-  Option<PassStencil> stencil_;
+  Option<PipelineStencil> stencil_;
 
   RectU scissor_;
 
@@ -51,8 +60,7 @@ struct SdfEncoder
   ShaderVariantId shader_variant_;
 
   template <typename Shape, typename Material>
-  explicit SdfEncoder(Allocator                  allocator,
-                      Item<Shape, Material> const & item) :
+  explicit SdfEncoder(Allocator allocator, Item<Shape, Material> const & item) :
     framebuffer_{item.framebuffer},
     stencil_{item.stencil},
     scissor_{item.scissor},
@@ -103,48 +111,46 @@ struct SdfEncoder
     return true;
   }
 
-  void pass(FrameGraph & frame_graph, PassBundle & passes) const
+  void pass(GpuFramePlan plan) const
   {
     auto shapes     = shapes_.view();
     auto transforms = transforms_.view();
     auto materials  = materials_.view();
 
-    auto i_world_to_ndc = frame_graph.push_ssbo(span({world_to_ndc_}));
-    auto i_shapes       = frame_graph.push_ssbo(shapes);
-    auto i_transforms   = frame_graph.push_ssbo(transforms);
-    auto i_materials    = frame_graph.push_ssbo(materials);
+    auto i_world_to_ndc = plan->push_gpu(span({world_to_ndc_}));
+    auto i_shapes       = plan->push_gpu(shapes);
+    auto i_transforms   = plan->push_gpu(transforms);
+    auto i_materials    = plan->push_gpu(materials);
 
     auto num_instances = size32(shapes);
 
-    frame_graph.add_pass(
-      "SDF"_str,
-      [&passes, framebuffer = this->framebuffer_, stencil = this->stencil_,
-       scissor = this->scissor_, viewport = this->viewport_,
-       samplers = this->samplers_, textures = this->textures_, i_world_to_ndc,
-       i_shapes, i_transforms, i_materials,
-       shader_variant = this->shader_variant_,
-       num_instances](FrameGraph & frame_graph, gpu::CommandEncoder & enc) {
-        auto world_to_ndc = frame_graph.get(i_world_to_ndc);
-        auto shapes       = frame_graph.get(i_shapes);
-        auto transforms   = frame_graph.get(i_transforms);
-        auto materials    = frame_graph.get(i_materials);
+    plan->add_pass([framebuffer = this->framebuffer_, stencil = this->stencil_,
+                    scissor = this->scissor_, viewport = this->viewport_,
+                    samplers = this->samplers_, textures = this->textures_,
+                    i_world_to_ndc, i_shapes, i_transforms, i_materials,
+                    shader_variant = this->shader_variant_,
+                    num_instances](GpuFrame frame, gpu::CommandEncoder enc) {
+      auto world_to_ndc = frame->get(i_world_to_ndc);
+      auto shapes       = frame->get(i_shapes);
+      auto transforms   = frame->get(i_transforms);
+      auto materials    = frame->get(i_materials);
 
-        auto params = SdfPassParams{
-          .framebuffer  = framebuffer,
-          .stencil      = stencil,
-          .scissor      = scissor,
-          .viewport     = viewport,
-          .samplers     = samplers,
-          .textures     = textures,
-          .world_to_ndc = world_to_ndc,
-          .shapes       = shapes,
-          .transforms   = transforms,
-          .materials    = materials,
-          .instances{0, num_instances}
-        };
+      auto params = SdfPipelineParams{
+        .framebuffer  = framebuffer,
+        .stencil      = stencil,
+        .scissor      = scissor,
+        .viewport     = viewport,
+        .samplers     = samplers,
+        .textures     = textures,
+        .world_to_ndc = world_to_ndc,
+        .shapes       = shapes,
+        .transforms   = transforms,
+        .materials    = materials,
+        .instances{0, num_instances}
+      };
 
-        passes.sdf->encode(enc, params, shader_variant);
-      });
+      sys.pipeline->sdf().encode(enc, params, shader_variant);
+    });
   }
 };
 
@@ -153,22 +159,22 @@ struct QuadEncoder
   template <typename Material>
   struct Item
   {
-    Framebuffer         framebuffer;
-    Option<PassStencil> stencil;
-    RectU               scissor;
-    gpu::Viewport       viewport;
-    gpu::DescriptorSet  samplers;
-    gpu::DescriptorSet  textures;
-    f32x4x4             world_to_ndc;
-    f32x4x4             quad;
-    f32x4x4             transform;
-    Material            material;
-    ShaderVariantId     shader_variant;
+    Framebuffer             framebuffer;
+    Option<PipelineStencil> stencil;
+    RectU                   scissor;
+    gpu::Viewport           viewport;
+    gpu::DescriptorSet      samplers;
+    gpu::DescriptorSet      textures;
+    f32x4x4                 world_to_ndc;
+    f32x4x4                 quad;
+    f32x4x4                 transform;
+    Material                material;
+    ShaderVariantId         shader_variant;
   };
 
   Framebuffer framebuffer_;
 
-  Option<PassStencil> stencil_;
+  Option<PipelineStencil> stencil_;
 
   RectU scissor_;
 
@@ -242,31 +248,30 @@ struct QuadEncoder
     return true;
   }
 
-  void pass(FrameGraph & frame_graph, PassBundle & passes)
+  void pass(GpuFramePlan plan)
   {
     auto quads      = quads_.view();
     auto transforms = transforms_.view();
     auto materials  = materials_.view();
 
-    auto i_world_to_ndc = frame_graph.push_ssbo(span({world_to_ndc_}));
-    auto i_quads        = frame_graph.push_ssbo(quads);
-    auto i_transforms   = frame_graph.push_ssbo(transforms);
-    auto i_materials    = frame_graph.push_ssbo(materials);
+    auto i_world_to_ndc = plan->push_gpu(span({world_to_ndc_}));
+    auto i_quads        = plan->push_gpu(quads);
+    auto i_transforms   = plan->push_gpu(transforms);
+    auto i_materials    = plan->push_gpu(materials);
 
-    frame_graph.add_pass(
-      "Quad"_str,
-      [&passes, framebuffer = this->framebuffer_, stencil = this->stencil_,
+    plan->add_pass(
+      [framebuffer = this->framebuffer_, stencil = this->stencil_,
        scissor = this->scissor_, viewport = this->viewport_,
        samplers = this->samplers_, textures = this->textures_, i_world_to_ndc,
        i_quads, i_transforms, i_materials, num_instances = size32(quads),
-       shader_variant = this->shader_variant_](FrameGraph & frame_graph,
-                                               gpu::CommandEncoder & enc) {
-        auto world_to_ndc = frame_graph.get(i_world_to_ndc);
-        auto quads        = frame_graph.get(i_quads);
-        auto transforms   = frame_graph.get(i_transforms);
-        auto materials    = frame_graph.get(i_materials);
+       shader_variant = this->shader_variant_](GpuFrame            frame,
+                                               gpu::CommandEncoder enc) {
+        auto world_to_ndc = frame->get(i_world_to_ndc);
+        auto quads        = frame->get(i_quads);
+        auto transforms   = frame->get(i_transforms);
+        auto materials    = frame->get(i_materials);
 
-        auto params = QuadPassParams{
+        auto params = QuadPipelineParams{
           .framebuffer  = framebuffer,
           .stencil      = stencil,
           .scissor      = scissor,
@@ -280,7 +285,7 @@ struct QuadEncoder
           .instances{0, num_instances}
         };
 
-        passes.quad->encode(enc, params, shader_variant);
+        sys.pipeline->quad().encode(enc, params, shader_variant);
       });
   }
 };
@@ -290,23 +295,23 @@ struct NgonEncoder
   template <typename Material>
   struct Item
   {
-    Framebuffer         framebuffer;
-    Option<PassStencil> stencil;
-    RectU               scissor;
-    gpu::Viewport       viewport;
-    gpu::DescriptorSet  samplers;
-    gpu::DescriptorSet  textures;
-    f32x4x4             world_to_ndc;
-    f32x4x4             transform;
-    Span<f32x2 const>   vertices;
-    Span<u32 const>     indices;
-    Material            material;
-    ShaderVariantId     shader_variant;
+    Framebuffer             framebuffer;
+    Option<PipelineStencil> stencil;
+    RectU                   scissor;
+    gpu::Viewport           viewport;
+    gpu::DescriptorSet      samplers;
+    gpu::DescriptorSet      textures;
+    f32x4x4                 world_to_ndc;
+    f32x4x4                 transform;
+    Span<f32x2 const>       vertices;
+    Span<u32 const>         indices;
+    Material                material;
+    ShaderVariantId         shader_variant;
   };
 
   Framebuffer framebuffer_;
 
-  Option<PassStencil> stencil_;
+  Option<PipelineStencil> stencil_;
 
   RectU scissor_;
 
@@ -386,7 +391,7 @@ struct NgonEncoder
     return true;
   }
 
-  void pass(FrameGraph & frame_graph, PassBundle & passes) const
+  void pass(GpuFramePlan plan) const
   {
     auto index_counts = index_counts_.view();
     auto transforms   = transforms_.view();
@@ -394,43 +399,42 @@ struct NgonEncoder
     auto indices      = indices_.view();
     auto materials    = materials_.view();
 
-    auto i_world_to_ndc = frame_graph.push_ssbo(span({world_to_ndc_}));
-    auto i_transforms   = frame_graph.push_ssbo(transforms);
-    auto i_vertices     = frame_graph.push_ssbo(vertices);
-    auto i_indices      = frame_graph.push_ssbo(indices);
-    auto i_materials    = frame_graph.push_ssbo(materials);
-    auto i_index_counts = frame_graph.push_buffer(index_counts);
+    auto i_world_to_ndc = plan->push_gpu(span({world_to_ndc_}));
+    auto i_transforms   = plan->push_gpu(transforms);
+    auto i_vertices     = plan->push_gpu(vertices);
+    auto i_indices      = plan->push_gpu(indices);
+    auto i_materials    = plan->push_gpu(materials);
+    auto i_index_counts = plan->push_cpu(index_counts);
 
-    frame_graph.add_pass(
-      "Ngon"_str,
-      [&passes, framebuffer = framebuffer_, stencil = this->stencil_,
+    plan->add_pass(
+      [framebuffer = framebuffer_, stencil = this->stencil_,
        scissor = this->scissor_, viewport = this->viewport_,
        samplers = this->samplers_, textures = this->textures_, i_world_to_ndc,
        i_transforms, i_vertices, i_indices, i_materials, i_index_counts,
-       shader_variant = this->shader_variant_](FrameGraph & frame_graph,
-                                               gpu::CommandEncoder & enc) {
-        auto world_to_ndc = frame_graph.get(i_world_to_ndc);
-        auto transforms   = frame_graph.get(i_transforms);
-        auto vertices     = frame_graph.get(i_vertices);
-        auto indices      = frame_graph.get(i_indices);
-        auto materials    = frame_graph.get(i_materials);
-        auto index_counts = frame_graph.get<u32>(i_index_counts);
+       shader_variant = this->shader_variant_](GpuFrame            frame,
+                                               gpu::CommandEncoder enc) {
+        auto world_to_ndc = frame->get(i_world_to_ndc);
+        auto transforms   = frame->get(i_transforms);
+        auto vertices     = frame->get(i_vertices);
+        auto indices      = frame->get(i_indices);
+        auto materials    = frame->get(i_materials);
+        auto index_counts = frame->get<u32>(i_index_counts);
 
-        auto params = NgonPassParams{.framebuffer    = framebuffer,
-                                     .stencil        = stencil,
-                                     .scissor        = scissor,
-                                     .viewport       = viewport,
-                                     .samplers       = samplers,
-                                     .textures       = textures,
-                                     .world_to_ndc   = world_to_ndc,
-                                     .transforms     = transforms,
-                                     .vertices       = vertices,
-                                     .indices        = indices,
-                                     .materials      = materials,
-                                     .first_instance = 0,
-                                     .index_counts   = index_counts};
+        auto params = NgonPipelineParams{.framebuffer    = framebuffer,
+                                         .stencil        = stencil,
+                                         .scissor        = scissor,
+                                         .viewport       = viewport,
+                                         .samplers       = samplers,
+                                         .textures       = textures,
+                                         .world_to_ndc   = world_to_ndc,
+                                         .transforms     = transforms,
+                                         .vertices       = vertices,
+                                         .indices        = indices,
+                                         .materials      = materials,
+                                         .first_instance = 0,
+                                         .index_counts   = index_counts};
 
-        passes.ngon->encode(enc, params, shader_variant);
+        sys.pipeline->ngon().encode(enc, params, shader_variant);
       });
   }
 };
@@ -523,47 +527,45 @@ struct FillStencilEncoder
     return true;
   }
 
-  void pass(FrameGraph & frame_graph, PassBundle & passes) const
+  void pass(GpuFramePlan plan) const
   {
     auto index_counts = index_counts_.view();
     auto transforms   = transforms_.view();
     auto vertices     = vertices_.view();
     auto indices      = indices_.view();
 
-    auto i_world_to_ndc = frame_graph.push_ssbo(span({world_to_ndc_}));
-    auto i_transforms   = frame_graph.push_ssbo(transforms);
-    auto i_vertices     = frame_graph.push_ssbo(vertices);
-    auto i_indices      = frame_graph.push_ssbo(indices);
-    auto i_index_counts = frame_graph.push_buffer(index_counts);
+    auto i_world_to_ndc = plan->push_gpu(span({world_to_ndc_}));
+    auto i_transforms   = plan->push_gpu(transforms);
+    auto i_vertices     = plan->push_gpu(vertices);
+    auto i_indices      = plan->push_gpu(indices);
+    auto i_index_counts = plan->push_cpu(index_counts);
 
-    frame_graph.add_pass(
-      "FillStencil"_str,
-      [&passes, stencil = stencil_, write_mask = this->write_mask_,
-       scissor = this->scissor_, viewport = this->viewport_,
-       fill_rule = this->fill_rule_, invert = this->invert_, i_world_to_ndc,
-       i_transforms, i_vertices, i_indices,
-       i_index_counts](FrameGraph & frame_graph, gpu::CommandEncoder & enc) {
-        auto world_to_ndc = frame_graph.get(i_world_to_ndc);
-        auto transforms   = frame_graph.get(i_transforms);
-        auto vertices     = frame_graph.get(i_vertices);
-        auto indices      = frame_graph.get(i_indices);
-        auto index_counts = frame_graph.get<u32>(i_index_counts);
+    plan->add_pass([stencil = stencil_, write_mask = this->write_mask_,
+                    scissor = this->scissor_, viewport = this->viewport_,
+                    fill_rule = this->fill_rule_, invert = this->invert_,
+                    i_world_to_ndc, i_transforms, i_vertices, i_indices,
+                    i_index_counts](GpuFrame frame, gpu::CommandEncoder enc) {
+      auto world_to_ndc = frame->get(i_world_to_ndc);
+      auto transforms   = frame->get(i_transforms);
+      auto vertices     = frame->get(i_vertices);
+      auto indices      = frame->get(i_indices);
+      auto index_counts = frame->get<u32>(i_index_counts);
 
-        auto params = FillStencilPassParams{.stencil        = stencil,
-                                            .write_mask     = write_mask,
-                                            .scissor        = scissor,
-                                            .viewport       = viewport,
-                                            .fill_rule      = fill_rule,
-                                            .invert         = invert,
-                                            .world_to_ndc   = world_to_ndc,
-                                            .transforms     = transforms,
-                                            .vertices       = vertices,
-                                            .indices        = indices,
-                                            .first_instance = 0,
-                                            .index_counts   = index_counts};
+      auto params = FillStencilPipelineParams{.stencil        = stencil,
+                                              .write_mask     = write_mask,
+                                              .scissor        = scissor,
+                                              .viewport       = viewport,
+                                              .fill_rule      = fill_rule,
+                                              .invert         = invert,
+                                              .world_to_ndc   = world_to_ndc,
+                                              .transforms     = transforms,
+                                              .vertices       = vertices,
+                                              .indices        = indices,
+                                              .first_instance = 0,
+                                              .index_counts   = index_counts};
 
-        passes.fill_stencil->encode(enc, params);
-      });
+      sys.pipeline->fill_stencil().encode(enc, params);
+    });
   }
 };
 
@@ -663,7 +665,7 @@ struct BezierStencilEncoder
     return true;
   }
 
-  void pass(FrameGraph & frame_graph, PassBundle & passes) const
+  void pass(GpuFramePlan plan) const
   {
     auto vertices            = vertices_.view();
     auto indices             = indices_.view();
@@ -671,44 +673,42 @@ struct BezierStencilEncoder
     auto regions             = regions_.view();
     auto region_index_counts = region_index_counts_.view();
 
-    auto i_vertices            = frame_graph.push_ssbo(vertices);
-    auto i_indices             = frame_graph.push_ssbo(indices);
-    auto i_world_to_ndc        = frame_graph.push_ssbo(span({world_to_ndc_}));
-    auto i_transforms          = frame_graph.push_ssbo(transforms);
-    auto i_regions             = frame_graph.push_ssbo(regions);
-    auto i_region_index_counts = frame_graph.push_buffer(region_index_counts);
+    auto i_vertices            = plan->push_gpu(vertices);
+    auto i_indices             = plan->push_gpu(indices);
+    auto i_world_to_ndc        = plan->push_gpu(span({world_to_ndc_}));
+    auto i_transforms          = plan->push_gpu(transforms);
+    auto i_regions             = plan->push_gpu(regions);
+    auto i_region_index_counts = plan->push_cpu(region_index_counts);
 
-    frame_graph.add_pass(
-      "Bezier Stencil"_str,
-      [&passes, stencil = this->stencil_, write_mask = this->write_mask_,
-       scissor = this->scissor_, viewport = this->viewport_,
-       fill_rule = this->fill_rule_, invert = this->invert_, i_vertices,
-       i_indices, i_world_to_ndc, i_transforms, i_regions,
-       i_region_index_counts](FrameGraph &          frame_graph,
-                              gpu::CommandEncoder & enc) {
-        auto vertices            = frame_graph.get(i_vertices);
-        auto indices             = frame_graph.get(i_indices);
-        auto world_to_ndc        = frame_graph.get(i_world_to_ndc);
-        auto transforms          = frame_graph.get(i_transforms);
-        auto regions             = frame_graph.get(i_regions);
-        auto region_index_counts = frame_graph.get<u32>(i_region_index_counts);
+    plan->add_pass([stencil = this->stencil_, write_mask = this->write_mask_,
+                    scissor = this->scissor_, viewport = this->viewport_,
+                    fill_rule = this->fill_rule_, invert = this->invert_,
+                    i_vertices, i_indices, i_world_to_ndc, i_transforms,
+                    i_regions, i_region_index_counts](GpuFrame            frame,
+                                                      gpu::CommandEncoder enc) {
+      auto vertices            = frame->get(i_vertices);
+      auto indices             = frame->get(i_indices);
+      auto world_to_ndc        = frame->get(i_world_to_ndc);
+      auto transforms          = frame->get(i_transforms);
+      auto regions             = frame->get(i_regions);
+      auto region_index_counts = frame->get<u32>(i_region_index_counts);
 
-        auto params =
-          BezierStencilPassParams{.stencil             = stencil,
-                                  .write_mask          = write_mask,
-                                  .scissor             = scissor,
-                                  .viewport            = viewport,
-                                  .fill_rule           = fill_rule,
-                                  .invert              = invert,
-                                  .world_to_ndc        = world_to_ndc,
-                                  .transforms          = transforms,
-                                  .vertices            = vertices,
-                                  .indices             = indices,
-                                  .regions             = regions,
-                                  .region_index_counts = region_index_counts};
+      auto params =
+        BezierStencilPipelineParams{.stencil             = stencil,
+                                    .write_mask          = write_mask,
+                                    .scissor             = scissor,
+                                    .viewport            = viewport,
+                                    .fill_rule           = fill_rule,
+                                    .invert              = invert,
+                                    .world_to_ndc        = world_to_ndc,
+                                    .transforms          = transforms,
+                                    .vertices            = vertices,
+                                    .indices             = indices,
+                                    .regions             = regions,
+                                    .region_index_counts = region_index_counts};
 
-        passes.bezier_stencil->encode(enc, params);
-      });
+      sys.pipeline->bezier_stencil().encode(enc, params);
+    });
   }
 };
 
@@ -717,25 +717,25 @@ struct PbrEncoder
   template <typename World, typename Material, typename Light>
   struct Item
   {
-    Framebuffer         framebuffer;
-    Option<PassStencil> stencil;
-    RectU               scissor;
-    gpu::Viewport       viewport;
-    gpu::PolygonMode    polygon_mode;
-    gpu::DescriptorSet  samplers;
-    gpu::DescriptorSet  textures;
-    StructBufferSpan    vertices;
-    StructBufferSpan    indices;
-    u32                 num_indices;
-    World               world;
-    Material            material;
-    Span<Light>         lights;
-    ShaderVariantId     shader_variant;
+    Framebuffer             framebuffer;
+    Option<PipelineStencil> stencil;
+    RectU                   scissor;
+    gpu::Viewport           viewport;
+    gpu::PolygonMode        polygon_mode;
+    gpu::DescriptorSet      samplers;
+    gpu::DescriptorSet      textures;
+    GpuBufferSpan           vertices;
+    GpuBufferSpan           indices;
+    u32                     num_indices;
+    World                   world;
+    Material                material;
+    Span<Light>             lights;
+    ShaderVariantId         shader_variant;
   };
 
   Framebuffer framebuffer_;
 
-  Option<PassStencil> stencil_;
+  Option<PipelineStencil> stencil_;
 
   RectU scissor_;
 
@@ -747,9 +747,9 @@ struct PbrEncoder
 
   gpu::DescriptorSet textures_;
 
-  StructBufferSpan vertices_;    // = shader::pbr::Vertex
+  GpuBufferSpan vertices_;    // = shader::pbr::Vertex
 
-  StructBufferSpan indices_;    // = shader::pbr::Index
+  GpuBufferSpan indices_;    // = shader::pbr::Index
 
   u32 num_indices_;
 
@@ -762,7 +762,7 @@ struct PbrEncoder
   ShaderVariantId shader_variant_;
 
   template <typename World, typename Material, typename Light>
-  explicit PbrEncoder(Allocator                         allocator,
+  explicit PbrEncoder(Allocator                            allocator,
                       Item<World, Material, Light> const & item) :
     framebuffer_{item.framebuffer},
     stencil_{item.stencil},
@@ -790,40 +790,39 @@ struct PbrEncoder
   PbrEncoder & operator=(PbrEncoder &&)      = default;
   ~PbrEncoder()                              = default;
 
-  void pass(FrameGraph & frame_graph, PassBundle & passes)
+  void pass(GpuFramePlan plan)
   {
-    auto i_world    = frame_graph.push_ssbo(world_.view());
-    auto i_material = frame_graph.push_ssbo(material_.view());
-    auto i_lights   = frame_graph.push_ssbo(lights_.view());
+    auto i_world    = plan->push_gpu(world_.view());
+    auto i_material = plan->push_gpu(material_.view());
+    auto i_lights   = plan->push_gpu(lights_.view());
 
-    frame_graph.add_pass(
-      "PBR"_str,
-      [&passes, framebuffer = framebuffer_, stencil = this->stencil_,
+    plan->add_pass(
+      [framebuffer = framebuffer_, stencil = this->stencil_,
        scissor = this->scissor_, polygon_mode = this->polygon_mode_,
        viewport = this->viewport_, samplers = this->samplers_,
        textures = this->textures_, vertices = this->vertices_,
        indices = this->indices_, num_indices = this->num_indices_, i_world,
        i_material, i_lights, shader_variant = this->shader_variant_](
-        FrameGraph & frame_graph, gpu::CommandEncoder & enc) {
-        auto world    = frame_graph.get(i_world);
-        auto material = frame_graph.get(i_material);
-        auto lights   = frame_graph.get(i_lights);
+        GpuFrame frame, gpu::CommandEncoder enc) {
+        auto world    = frame->get(i_world);
+        auto material = frame->get(i_material);
+        auto lights   = frame->get(i_lights);
 
-        auto params = PBRPassParams{.framebuffer  = framebuffer,
-                                    .stencil      = stencil,
-                                    .scissor      = scissor,
-                                    .viewport     = viewport,
-                                    .polygon_mode = polygon_mode,
-                                    .samplers     = samplers,
-                                    .textures     = textures,
-                                    .vertices     = vertices,
-                                    .indices      = indices,
-                                    .world        = world,
-                                    .material     = material,
-                                    .lights       = lights,
-                                    .num_indices  = num_indices};
+        auto params = PBRPipelineParams{.framebuffer  = framebuffer,
+                                        .stencil      = stencil,
+                                        .scissor      = scissor,
+                                        .viewport     = viewport,
+                                        .polygon_mode = polygon_mode,
+                                        .samplers     = samplers,
+                                        .textures     = textures,
+                                        .vertices     = vertices,
+                                        .indices      = indices,
+                                        .world        = world,
+                                        .material     = material,
+                                        .lights       = lights,
+                                        .num_indices  = num_indices};
 
-        passes.pbr->encode(enc, params, shader_variant);
+        sys.pipeline->pbr().encode(enc, params, shader_variant);
       });
   }
 };

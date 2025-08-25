@@ -1587,9 +1587,9 @@ struct mat
     return *this;
   }
 
-  constexpr Row operator*(mat const & b) const requires (R == C)
+  constexpr mat operator*(mat const & b) const requires (R == C)
   {
-    Row c;
+    mat c;
 #pragma unroll
     for (usize i = 0; i < NUM_ROWS; i++)
     {
@@ -1767,12 +1767,12 @@ struct affine
     return col(0);
   }
 
-  constexpr Col y() const requires (R > 1)
+  constexpr Col y() const
   {
     return col(1);
   }
 
-  constexpr Col z() const requires (R > 2)
+  constexpr Col z() const
   {
     return col(2);
   }
@@ -1784,17 +1784,52 @@ struct affine
 
   constexpr Col i() const
   {
-    return col(0);
+    return x();
   }
 
-  constexpr Col j() const requires (R > 1)
+  constexpr Col j() const
   {
-    return col(1);
+    return y();
   }
 
-  constexpr Col k() const requires (R > 2)
+  constexpr Col k() const
   {
-    return col(2);
+    return z();
+  }
+
+  constexpr Row x_ext() const
+  {
+    return col(0).append(0);
+  }
+
+  constexpr Row y_ext() const
+  {
+    return col(1).append(0);
+  }
+
+  constexpr Row z_ext() const
+  {
+    return col(2).append(R == 3 ? 1 : 0);
+  }
+
+  constexpr Row w_ext() const requires (R > 3)
+  {
+    return col(3).append(1);
+  }
+
+  constexpr Row i_ext() const
+  {
+    return x_ext();
+  }
+
+  constexpr Row j_ext() const
+  {
+    return y_ext();
+  }
+
+  constexpr Row k_ext() const
+  {
+    return z_ext();
   }
 
   constexpr bool operator==(affine const & b) const

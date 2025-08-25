@@ -1,13 +1,11 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/engine/encoders.h"
-#include "ashura/engine/pass_bundle.h"
 #include "ashura/engine/shaders.gen.h"
 #include "ashura/engine/text.h"
 #include "ashura/std/allocators.h"
 #include "ashura/std/color.h"
 #include "ashura/std/math.h"
-#include "ashura/std/rc.h"
 #include "ashura/std/types.h"
 
 namespace ash
@@ -183,7 +181,7 @@ struct ShapeInfo
   ColorGradient tint = {};
 
   /// @brief sampler to use in rendering the shape
-  SamplerId sampler = SamplerId::LinearBlack;
+  SamplerId sampler = SamplerId::LinearEdgeClampBlackFloat;
 
   /// @brief texture to use in rendering the shape
   TextureId texture = TextureId::White;
@@ -234,10 +232,6 @@ struct NineSlice
   f32x2    bottom_right[2]  = {};
 };
 
-struct FrameGraph;
-
-struct PassBundle;
-
 enum class ContourEdgeType : u8
 {
   Line        = 0,
@@ -246,40 +240,16 @@ enum class ContourEdgeType : u8
   CubicBezier = 3
 };
 
-static constexpr u8 num_control_points(ContourEdgeType edge)
+typedef struct ICanvas * Canvas;
+
+struct ICanvas
 {
-  switch (edge)
-  {
-    case ContourEdgeType::Line:
-      return 2;
-    case ContourEdgeType::Arc:
-    case ContourEdgeType::Bezier:
-      return 3;
-    case ContourEdgeType::CubicBezier:
-      return 4;
-    default:
-      return 0;
-  }
-}
-
-struct Canvas
-{
-  typedef Fn<void(FrameGraph &, PassBundle &)> PassFnRef;
-
-  typedef Dyn<PassFnRef> PassFn;
-
   using Encoder = Enum<None, SdfEncoder, QuadEncoder, NgonEncoder,
-                       FillStencilEncoder, BezierStencilEncoder, PassFn>;
-
-  InplaceVec<ColorTexture, 4> color_textures_;
-
-  InplaceVec<Option<ColorMsaaTexture>, 4> msaa_color_textures_;
-
-  InplaceVec<DepthStencilTexture, 4> depth_stencil_textures_;
+                       FillStencilEncoder, BezierStencilEncoder, GpuPass>;
 
   u32 target_;
 
-  Option<Tuple<u32, PassStencil>> stencil_;
+  Option<Tuple<u32, PipelineStencil>> stencil_;
 
   /// @brief the viewport of the framebuffer this canvas will be targetting
   /// this is in the Framebuffer coordinates (Physical px coordinates)
@@ -313,19 +283,19 @@ struct Canvas
 
   Encoder encoder_;
 
-  ref<FrameGraph> frame_graph_;
+  GpuFramePlan plan_;
 
-  ref<PassBundle> passes_;
+  // we need to be able to know which layers to use for rendering and to select or switch between them
+  //
+  // texture allocation for each layer or canvas. Should canvas be per-layer?
+  //
+  // BitVec<u64> available_layers_;
 
   // declared last so it would release allocated memory after all operations
   // are done executing
   ArenaPool frame_arena_;
 
-  explicit Canvas(Allocator allocator, FrameGraph & frame_graph,
-                  PassBundle & passes) :
-    color_textures_{},
-    msaa_color_textures_{},
-    depth_stencil_textures_{},
+  explicit ICanvas(Allocator allocator) :
     target_{0},
     stencil_{none},
     viewport_{},
@@ -339,37 +309,33 @@ struct Canvas
     viewport_to_fb_{affinef32x4::identity()},
     world_to_fb_{affinef32x4::identity()},
     encoder_{none},
-    frame_graph_{frame_graph},
-    passes_{passes},
     frame_arena_{allocator}
   {
   }
 
-  Canvas(Canvas const &)             = delete;
-  Canvas(Canvas &&)                  = default;
-  Canvas & operator=(Canvas const &) = delete;
-  Canvas & operator=(Canvas &&)      = default;
-  ~Canvas()                          = default;
+  ICanvas(ICanvas const &)             = delete;
+  ICanvas(ICanvas &&)                  = delete;
+  ICanvas & operator=(ICanvas const &) = delete;
+  ICanvas & operator=(ICanvas &&)      = delete;
+  ~ICanvas()                           = default;
 
-  Canvas &
-    begin_recording(FrameGraph & frame_graph, PassBundle & passes,
-                    Span<ColorTexture const>             color_textures,
-                    Span<Option<ColorMsaaTexture> const> msaa_color_textures,
-                    Span<DepthStencilTexture const>      depth_stencil_textures,
-                    gpu::Viewport const & viewport, f32x2 extent,
-                    u32x2 framebuffer_extent);
+  ICanvas & begin(GpuFramePlan plan, gpu::Viewport const & viewport,
+                  f32x2 extent, u32x2 framebuffer_extent);
 
-  Canvas & end_recording();
+  ICanvas & end();
 
-  Canvas & reset();
+  // [ ] begin_offscreen
+  // [ ] end_offscreen
+
+  ICanvas & reset();
 
   RectU clip_to_scissor(CRect const & clip) const;
 
   u32 num_targets() const;
 
-  Canvas & clear_target(gpu::Color color);
+  ICanvas & clear_target(gpu::Color color);
 
-  Canvas & set_target(u32 target);
+  ICanvas & set_target(u32 target);
 
   u32 target() const;
 
@@ -377,186 +343,118 @@ struct Canvas
 
   u32 num_stencil_bits() const;
 
-  Canvas & clear_stencil(u32 stencil_value);
+  ICanvas & clear_stencil(u32 stencil_value);
 
-  Canvas & set_stencil(Option<Tuple<u32, PassStencil>> stencil);
+  ICanvas & set_stencil(Option<Tuple<u32, PipelineStencil>> stencil);
 
-  Option<Tuple<u32, PassStencil>> stencil() const;
+  Option<Tuple<u32, PipelineStencil>> stencil() const;
 
-  void flush_encoder_();
+  gpu::Viewport viewport() const;
+
+  f32x2 extent() const;
+
+  u32x2 framebuffer_extent() const;
+
+  f32x2 framebuffer_uv_base() const;
+
+  f32 aspect_ratio() const;
+
+  f32 virtual_scale() const;
+
+  affinef32x4 world_to_ndc() const;
+
+  affinef32x4 ndc_to_viewport() const;
+
+  affinef32x4 viewport_to_fb() const;
+
+  affinef32x4 world_to_fb() const;
+
+  void reset_encoder_();
 
   template <typename Shape, typename Material>
-  Canvas & push_sdf_(SdfEncoder::Item<Shape, Material> const & item)
+  ICanvas & push_sdf_(SdfEncoder::Item<Shape, Material> const & item)
   {
     // [ ] refactor; this is a mess, should be a function that can be called on the types or an alternative function if the active item is not matched
-    encoder_.match([&](None) { encoder_ = SdfEncoder(frame_arena_, item); },
-                   [&](SdfEncoder & enc) {
-                     if (!enc.push(item))
-                     {
-                       flush_encoder_();
-                       encoder_ = SdfEncoder(frame_arena_, item);
-                     }
-                   },
-                   [&](QuadEncoder &) {
-                     flush_encoder_();
-                     encoder_ = SdfEncoder(frame_arena_, item);
-                   },
-                   [&](NgonEncoder &) {
-                     flush_encoder_();
-                     encoder_ = SdfEncoder(frame_arena_, item);
-                   },
-                   [&](FillStencilEncoder &) {
-                     flush_encoder_();
-                     encoder_ = SdfEncoder(frame_arena_, item);
-                   },
-                   [&](BezierStencilEncoder &) {
-                     flush_encoder_();
-                     encoder_ = SdfEncoder(frame_arena_, item);
-                   },
-                   [&](PassFn &) {
-                     flush_encoder_();
-                     encoder_ = SdfEncoder(frame_arena_, item);
-                   });
+
+    bool is_same = encoder_.match(
+      [](auto &) { return false; }, [](SdfEncoder &) { return true; },
+      [](auto &) { return false; }, [](auto &) { return false; },
+      [](auto &) { return false; }, [](auto &) { return false; },
+      [](auto &) { return false; });
 
     return *this;
   }
 
   template <typename Material>
-  Canvas & push_ngon_(NgonEncoder::Item<Material> const & item)
+  ICanvas & push_ngon_(NgonEncoder::Item<Material> const & item)
   {
-    encoder_.match([&](None) { encoder_ = NgonEncoder(frame_arena_, item); },
-                   [&](SdfEncoder &) {
-                     flush_encoder_();
-                     encoder_ = NgonEncoder(frame_arena_, item);
-                   },
-                   [&](QuadEncoder &) {
-                     flush_encoder_();
-                     encoder_ = NgonEncoder(frame_arena_, item);
-                   },
-                   [&](NgonEncoder & enc) {
-                     if (!enc.push(item))
-                     {
-                       flush_encoder_();
-                       encoder_ = NgonEncoder(frame_arena_, item);
-                     }
-                   },
-                   [&](FillStencilEncoder &) {
-                     flush_encoder_();
-                     encoder_ = NgonEncoder(frame_arena_, item);
-                   },
-                   [&](BezierStencilEncoder &) {
-                     flush_encoder_();
-                     encoder_ = NgonEncoder(frame_arena_, item);
-                   },
-                   [&](PassFn &) {
-                     flush_encoder_();
-                     encoder_ = NgonEncoder(frame_arena_, item);
-                   });
-
     return *this;
   }
 
   template <typename Material>
-  Canvas & push_quad_(QuadEncoder::Item<Material> const & item)
+  ICanvas & push_quad_(QuadEncoder::Item<Material> const & item)
   {
-    encoder_.match([&](None) { encoder_ = QuadEncoder(frame_arena_, item); },
-                   [&](SdfEncoder &) {
-                     flush_encoder_();
-                     encoder_ = QuadEncoder(frame_arena_, item);
-                   },
-                   [&](QuadEncoder & enc) {
-                     if (!enc.push(item))
-                     {
-                       flush_encoder_();
-                       encoder_ = QuadEncoder(frame_arena_, item);
-                     }
-                   },
-                   [&](NgonEncoder &) {
-                     flush_encoder_();
-                     encoder_ = QuadEncoder(frame_arena_, item);
-                   },
-                   [&](FillStencilEncoder &) {
-                     flush_encoder_();
-                     encoder_ = QuadEncoder(frame_arena_, item);
-                   },
-                   [&](BezierStencilEncoder &) {
-                     flush_encoder_();
-                     encoder_ = QuadEncoder(frame_arena_, item);
-                   },
-                   [&](PassFn &) {
-                     flush_encoder_();
-                     encoder_ = QuadEncoder(frame_arena_, item);
-                   });
+    return *this;
   }
 
-  Canvas & sdf_shape_(ShapeInfo const & info, shader::sdf::ShapeType shape);
+  ICanvas & sdf_shape_(ShapeInfo const & info, shader::sdf::ShapeType shape);
 
-  Canvas & ngon_shape_(ShapeInfo const & info, Span<f32x2 const> vertices,
-                       Span<u32 const> indices);
+  ICanvas & ngon_shape_(ShapeInfo const & info, Span<f32x2 const> vertices,
+                        Span<u32 const> indices);
 
   /// @brief register a custom canvas pass to be executed in the render thread
-  template <Callable<FrameGraph &, PassBundle &> Lambda>
-  Canvas & pass(Lambda task)
+  template <Callable<GpuFrame> Lambda>
+  ICanvas & pass(Lambda && task)
   {
     flush_encoder_();
-    // relocate lambda to heap
-    Dyn<Lambda *> lambda =
-      dyn(frame_arena_, static_cast<Lambda &&>(task)).unwrap();
-    // allocator is noop-ed but destructor still runs when the dynamic object is
-    // uninitialized. the memory is freed by at the end of the frame anyway so
-    // no need to free it
-    lambda.allocator_ = noop_allocator;
-
-    auto f = PassFnRef(lambda.get());
-
-    encoder_ = transmute(std::move(lambda), f);
-
+    plan_->add_pass(static_cast<Lambda &&>(task));
     return *this;
   }
 
   /// @brief render a circle
-  Canvas & circle(ShapeInfo const & info);
+  ICanvas & circle(ShapeInfo const & info);
 
   /// @brief render a rectangle
-  Canvas & rect(ShapeInfo const & info);
+  ICanvas & rect(ShapeInfo const & info);
 
   /// @brief render a rounded rectangle
-  Canvas & rrect(ShapeInfo const & info);
+  ICanvas & rrect(ShapeInfo const & info);
 
   /// @brief render a squircle (triangulation based)
   /// @param num_segments an upper bound on the number of segments to
   /// @param elasticity elasticity of the squircle [0, 1]
-  Canvas & squircle(ShapeInfo const & info);
+  ICanvas & squircle(ShapeInfo const & info);
 
   /// @brief draw a nine-sliced image
-  Canvas & nine_slice(ShapeInfo const & info, NineSlice const & slice);
+  ICanvas & nine_slice(ShapeInfo const & info, NineSlice const & slice);
 
   /// @brief Render Non-Indexed Triangles
-  Canvas & triangles(ShapeInfo const & info, Span<f32x2 const> vertices);
+  ICanvas & triangles(ShapeInfo const & info, Span<f32x2 const> vertices);
 
   /// @brief Render Indexed Triangles
-  Canvas & triangles(ShapeInfo const & info, Span<f32x2 const> vertices,
-                     Span<u32 const> indices);
+  ICanvas & triangles(ShapeInfo const & info, Span<f32x2 const> vertices,
+                      Span<u32 const> indices);
 
   /// @brief triangulate and render line
-  //  [ ] joints & caps
+  // [ ] joints & caps
   // [ ] path-command-style arguments
   // [ ] +tesselation arguments
-  Canvas & line(ShapeInfo const & info, Span<f32x2 const> vertices);
+  ICanvas & line(ShapeInfo const & info, Span<f32x2 const> vertices);
 
-  /// @brief perform a Canvas-space blur
+  /// @brief perform a ICanvas-space blur
   /// @param area region in the canvas to apply the blur to
-  Canvas & blur(ShapeInfo const & info);
+  ICanvas & blur(ShapeInfo const & info);
 
   template <typename Material>
-  Canvas & quad(ShaderVariantId shader, Quad const & quad,
-                Material const & material);
+  ICanvas & quad(ShaderVariantId shader, Quad const & quad,
+                 Material const & material);
 
-  Canvas & quad(Quad const & quad, shader::quad::FlatMaterial const & material);
+  ICanvas & quad(Quad const &                       quad,
+                 shader::quad::FlatMaterial const & material);
 
   // [ ] blending for noise material
-  Canvas & quad(Quad const &                        quad,
-                shader::quad::NoiseMaterial const & material);
+  ICanvas & quad(Quad const &                        quad,
+                 shader::quad::NoiseMaterial const & material);
 
   // [ ] Rendering Lines
   // [ ] Handling Self-Intersection; Fill Rules; STC
@@ -570,25 +468,25 @@ struct Canvas
   // [ ] draw linec
   // [ ] linear encoding variant
   // [ ] how will depth/stencil in framegraph work with canvas?
-  Canvas & contour_stencil_(u32 stencil, u32 write_mask, bool tesselate,
-                            Span<f32x2 const>           control_points,
-                            Span<ContourEdgeType const> edge_types,
-                            Span<u16 const> subdivision_counts, bool invert,
-                            FillRule fill_rule, f32x4x4 const & transform,
-                            CRect const & clip);
+  ICanvas & contour_stencil_(u32 stencil, u32 write_mask, bool tesselate,
+                             Span<f32x2 const>           control_points,
+                             Span<ContourEdgeType const> edge_types,
+                             Span<u16 const> subdivision_counts, bool invert,
+                             FillRule fill_rule, f32x4x4 const & transform,
+                             CRect const & clip);
 
-  Canvas & contour_line_(Span<f32x2 const>           control_points,
-                         Span<ContourEdgeType const> edge_types,
-                         Span<u16 const>             subdivision_counts);
+  ICanvas & contour_line_(Span<f32x2 const>           control_points,
+                          Span<ContourEdgeType const> edge_types,
+                          Span<u16 const>             subdivision_counts);
 
-  Canvas & text(Span<TextLayer const> layers, Span<ShapeInfo const> shapes,
-                Span<TextRenderInfo const> infos, Span<usize const> sorted);
+  ICanvas & text(Span<TextLayer const> layers, Span<ShapeInfo const> shapes,
+                 Span<TextRenderInfo const> infos, Span<usize const> sorted);
 
   TextRenderer text_renderer()
   {
     return TextRenderer{
       this,
-      [](Canvas * p, Span<TextLayer const> layers, Span<ShapeInfo const> shapes,
+      [](Canvas p, Span<TextLayer const> layers, Span<ShapeInfo const> shapes,
          Span<TextRenderInfo const> infos,
          Span<usize const> sorted) { p->text(layers, shapes, infos, sorted); }};
   }

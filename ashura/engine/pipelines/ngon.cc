@@ -1,23 +1,29 @@
 /// SPDX-License-Identifier: MIT
-#include "ashura/engine/passes/sdf.h"
+#include "ashura/engine/pipelines/ngon.h"
+#include "ashura/engine/shader_system.h"
 #include "ashura/engine/systems.h"
 #include "ashura/std/math.h"
+#include "ashura/std/range.h"
 #include "ashura/std/sformat.h"
 
 namespace ash
 {
 
-SdfPass::SdfPass(Allocator allocator) : variants_{allocator}
+Str NgonPipeline::label()
 {
+  return "Ngon"_str;
 }
 
-Str SdfPass::label()
+gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
+                                      gpu::Shader shader)
 {
-  return "SDF"_str;
-}
+  char              scratch_buffer_[1'024];
+  auto &            gpu = *plan->sys();
+  FallbackAllocator scratch{Arena::from(scratch_buffer_), gpu.allocator()};
 
-gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader)
-{
+  auto tagged_label =
+    sformat(scratch, "Ngon Graphics Pipeline: {}"_str, label).unwrap();
+
   auto raster_state =
     gpu::RasterizationState{.depth_clamp_enable = false,
                             .polygon_mode       = gpu::PolygonMode::Fill,
@@ -27,7 +33,7 @@ gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader)
                             .depth_bias_constant_factor = 0,
                             .depth_bias_clamp           = 0,
                             .depth_bias_slope_factor    = 0,
-                            .sample_count = sys->gpu.sample_count_};
+                            .sample_count               = gpu.sample_count()};
 
   auto depth_stencil_state =
     gpu::DepthStencilState{.depth_test_enable        = false,
@@ -56,17 +62,14 @@ gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader)
   };
 
   gpu::DescriptorSetLayout set_layouts[] = {
-    sys->gpu.samplers_layout_,    // 0: samplers
-    sys->gpu.textures_layout_,    // 1: textures
-    sys->gpu.sb_layout_,          // 2: world_to_ndc
-    sys->gpu.sb_layout_,          // 3: shapes
-    sys->gpu.sb_layout_,          // 4: transforms
-    sys->gpu.sb_layout_           // 5: materials
+    gpu.descriptors_layout_.samplers,               // 0: samplers
+    gpu.descriptors_layout_.sampled_textures,       // 1: textures
+    gpu.descriptors_layout_.read_storage_buffer,    // 2: world_to_ndc
+    gpu.descriptors_layout_.read_storage_buffer,    // 3: transforms
+    gpu.descriptors_layout_.read_storage_buffer,    // 4: vtx_buffer
+    gpu.descriptors_layout_.read_storage_buffer,    // 5: idx_buffer
+    gpu.descriptors_layout_.read_storage_buffer     // 6: materials
   };
-
-  auto tagged_label =
-    snformat<gpu::MAX_LABEL_SIZE>("SDF Graphics Pipeline: {}"_str, label)
-      .unwrap();
 
   auto pipeline_info = gpu::GraphicsPipelineInfo{
     .label         = tagged_label,
@@ -79,46 +82,54 @@ gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader)
                                           .entry_point                   = "frag"_str,
                                           .specialization_constants      = {},
                                           .specialization_constants_data = {}},
-    .color_formats          = {&sys->gpu.color_format_, 1},
+    .color_formats          = span({gpu.color_format()}
+      ),
     .depth_format           = {},
-    .stencil_format         = sys->gpu.depth_stencil_format_,
+    .stencil_format         = gpu.depth_stencil_format(),
     .vertex_input_bindings  = {},
     .vertex_attributes      = {},
     .push_constants_size    = 0,
     .descriptor_set_layouts = set_layouts,
-    .primitive_topology     = gpu::PrimitiveTopology::TriangleFan,
+    .primitive_topology     = gpu::PrimitiveTopology::TriangleList,
     .rasterization_state    = raster_state,
     .depth_stencil_state    = depth_stencil_state,
     .color_blend_state      = color_blend_state,
-    .cache                  = sys->gpu.pipeline_cache_
+    .cache                  = gpu.pipeline_cache()
   };
 
-  return sys->gpu.device_->create_graphics_pipeline(pipeline_info).unwrap();
+  return gpu.device()->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
-void SdfPass::acquire()
+NgonPipeline::NgonPipeline(Allocator allocator) : pipelines_{allocator}
 {
-  auto id =
-    add_variant("Base"_str, sys->shader.get("SDF.Base"_str).unwrap().shader);
+}
+
+void NgonPipeline::acquire(GpuFramePlan plan)
+{
+  auto id = add_variant(plan, "Base"_str,
+                        sys.shader->get("Ngon.Base"_str).unwrap().shader);
   CHECK(id == ShaderVariantId::Base, "");
 }
 
-ShaderVariantId SdfPass::add_variant(Str label, gpu::Shader shader)
+ShaderVariantId NgonPipeline::add_variant(GpuFramePlan plan, Str label,
+                                          gpu::Shader shader)
 {
-  auto pipeline = create_pipeline(label, shader);
-  auto id       = variants_.push(Tuple{label, pipeline}).unwrap();
+  auto pipeline = create_pipeline(plan, label, shader);
+  auto id       = pipelines_.push(Tuple{label, pipeline}).unwrap();
   return (ShaderVariantId) id;
 }
 
-void SdfPass::remove_variant(ShaderVariantId id)
+void NgonPipeline::remove_variant(GpuFramePlan plan, ShaderVariantId id)
 {
-  auto pipeline = variants_[(usize) id].v0;
-  variants_.erase((usize) id);
-  sys->gpu.release(pipeline.v1);
+  auto pipeline = pipelines_[(usize) id];
+  pipelines_.erase((usize) id);
+  plan->add_preframe_task(
+    [p = pipeline.v0, d = plan->device()] { d->uninit(p.v1); });
 }
 
-void SdfPass::encode(gpu::CommandEncoder & e, SdfPassParams const & params,
-                     ShaderVariantId variant)
+void NgonPipeline::encode(gpu::CommandEncoder        e,
+                          NgonPipelineParams const & params,
+                          ShaderVariantId            variant)
 {
   InplaceVec<gpu::RenderingAttachment, 1> color;
 
@@ -145,7 +156,7 @@ void SdfPass::encode(gpu::CommandEncoder & e, SdfPassParams const & params,
         .unwrap();
     });
 
-  auto stencil = params.stencil.map([&](PassStencil const &) {
+  auto stencil = params.stencil.map([&](PipelineStencil const &) {
     return gpu::RenderingAttachment{
       .view         = params.framebuffer.depth_stencil.stencil_view,
       .resolve      = nullptr,
@@ -162,11 +173,29 @@ void SdfPass::encode(gpu::CommandEncoder & e, SdfPassParams const & params,
                        .depth_attachment   = {},
                        .stencil_attachment = stencil};
 
-  auto pipeline = variants_[(usize) variant].v0.v1;
+  e->begin_rendering(info);
 
-  e.begin_rendering(info);
-  e.bind_graphics_pipeline(pipeline);
-  e.set_graphics_state(gpu::GraphicsState{
+  auto pipeline = pipelines_[(usize) variant].v0.v1;
+
+  e->bind_graphics_pipeline(pipeline);
+  e->bind_descriptor_sets(
+    span({
+      params.samplers,                                   //
+      params.textures,                                   //
+      params.world_to_ndc.buffer.read_storage_buffer,    //
+      params.transforms.buffer.read_storage_buffer,      //
+      params.vertices.buffer.read_storage_buffer,        //
+      params.indices.buffer.read_storage_buffer,         //
+      params.materials.buffer.read_storage_buffer        //
+    }),
+    span({
+      params.world_to_ndc.slice.as_u32().offset,    //
+      params.transforms.slice.as_u32().offset,      //
+      params.vertices.slice.as_u32().offset,        //
+      params.indices.slice.as_u32().offset,         //
+      params.materials.slice.as_u32().offset        //
+    }));
+  e->set_graphics_state(gpu::GraphicsState{
     .scissor             = params.scissor,
     .viewport            = params.viewport,
     .stencil_test_enable = params.stencil.is_some(),
@@ -174,30 +203,22 @@ void SdfPass::encode(gpu::CommandEncoder & e, SdfPassParams const & params,
       params.stencil.map([](auto s) { return s.front; }).unwrap_or(),
     .back_face_stencil =
       params.stencil.map([](auto s) { return s.back; }).unwrap_or()});
-  e.bind_descriptor_sets(
-    span({
-      params.samplers,                           // 0: samplers
-      params.textures,                           // 1: textures
-      params.world_to_ndc.buffer.descriptor_,    // 2: world_to_ndc
-      params.shapes.buffer.descriptor_,          // 3: shapes
-      params.transforms.buffer.descriptor_,      // 4: transforms
-      params.materials.buffer.descriptor_        // 5: materials
-    }),
-    span({
-      params.world_to_ndc.slice.offset,    // 2: world_to_ndc
-      params.shapes.slice.offset,          // 3: shapes
-      params.transforms.slice.offset,      // 4: transforms
-      params.materials.slice.offset        // 5: materials
-    }));
-  e.draw(4, params.instances.span, 0, params.instances.offset);
-  e.end_rendering();
+
+  u32 first_index = 0;
+  for (auto [i, index_count] : enumerate<u32>(params.index_counts))
+  {
+    e->draw({first_index, index_count}, {params.first_instance + i, 1});
+    first_index += index_count;
+  }
+
+  e->end_rendering();
 }
 
-void SdfPass::release()
+void NgonPipeline::release(GpuFramePlan plan)
 {
-  for (auto [v] : variants_)
+  for (auto [v] : pipelines_)
   {
-    sys->gpu.device_->uninit(v.v1);
+    plan->add_preframe_task([p = v.v1, d = plan->device()] { d->uninit(p); });
   }
 }
 

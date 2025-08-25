@@ -1,5 +1,6 @@
 /// SPDX-License-Identifier: MIT
-#include "ashura/engine/passes/quad.h"
+#include "ashura/engine/pipelines/sdf.h"
+#include "ashura/engine/shader_system.h"
 #include "ashura/engine/systems.h"
 #include "ashura/std/math.h"
 #include "ashura/std/sformat.h"
@@ -7,17 +8,24 @@
 namespace ash
 {
 
-QuadPass::QuadPass(Allocator allocator) : variants_{allocator}
+SdfPipeline::SdfPipeline(Allocator allocator) : variants_{allocator}
 {
 }
 
-Str QuadPass::label()
+Str SdfPipeline::label()
 {
-  return "Quad"_str;
+  return "SDF"_str;
 }
 
-gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader)
+gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
+                                      gpu::Shader shader)
 {
+  char scratch_buffer_[1'024];
+
+  auto & gpu = *plan->sys();
+
+  FallbackAllocator scratch_{Arena::from(scratch_buffer_), gpu.allocator()};
+
   auto raster_state =
     gpu::RasterizationState{.depth_clamp_enable = false,
                             .polygon_mode       = gpu::PolygonMode::Fill,
@@ -27,7 +35,7 @@ gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader)
                             .depth_bias_constant_factor = 0,
                             .depth_bias_clamp           = 0,
                             .depth_bias_slope_factor    = 0,
-                            .sample_count = sys->gpu.sample_count_};
+                            .sample_count               = gpu.sample_count()};
 
   auto depth_stencil_state =
     gpu::DepthStencilState{.depth_test_enable        = false,
@@ -56,17 +64,16 @@ gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader)
   };
 
   gpu::DescriptorSetLayout set_layouts[] = {
-    sys->gpu.samplers_layout_,    // 0: samplers
-    sys->gpu.textures_layout_,    // 1: textures
-    sys->gpu.sb_layout_,          // 2: world_to_ndc
-    sys->gpu.sb_layout_,          // 3: quads
-    sys->gpu.sb_layout_,          // 4: transforms
-    sys->gpu.sb_layout_           // 5: materials
+    gpu.descriptors_layout_.samplers,               // 0: samplers
+    gpu.descriptors_layout_.sampled_textures,       // 1: textures
+    gpu.descriptors_layout_.read_storage_buffer,    // 2: world_to_ndc
+    gpu.descriptors_layout_.read_storage_buffer,    // 3: shapes
+    gpu.descriptors_layout_.read_storage_buffer,    // 4: transforms
+    gpu.descriptors_layout_.read_storage_buffer     // 5: materials
   };
 
   auto tagged_label =
-    snformat<gpu::MAX_LABEL_SIZE>("Quad Graphics Pipeline: {}"_str, label)
-      .unwrap();
+    sformat(scratch_, "SDF Graphics Pipeline: {}"_str, label).unwrap();
 
   auto pipeline_info = gpu::GraphicsPipelineInfo{
     .label         = tagged_label,
@@ -79,9 +86,10 @@ gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader)
                                           .entry_point                   = "frag"_str,
                                           .specialization_constants      = {},
                                           .specialization_constants_data = {}},
-    .color_formats          = {&sys->gpu.color_format_, 1},
+    .color_formats          = span({gpu.color_format()}
+      ),
     .depth_format           = {},
-    .stencil_format         = sys->gpu.depth_stencil_format_,
+    .stencil_format         = gpu.depth_stencil_format(),
     .vertex_input_bindings  = {},
     .vertex_attributes      = {},
     .push_constants_size    = 0,
@@ -90,35 +98,38 @@ gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader)
     .rasterization_state    = raster_state,
     .depth_stencil_state    = depth_stencil_state,
     .color_blend_state      = color_blend_state,
-    .cache                  = sys->gpu.pipeline_cache_
+    .cache                  = gpu.pipeline_cache()
   };
 
-  return sys->gpu.device_->create_graphics_pipeline(pipeline_info).unwrap();
+  return gpu.device()->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
-void QuadPass::acquire()
+void SdfPipeline::acquire(GpuFramePlan plan)
 {
-  auto id =
-    add_variant("Base"_str, sys->shader.get("Quad.Base"_str).unwrap().shader);
+  auto id = add_variant(plan, "Base"_str,
+                        sys.shader->get("SDF.Base"_str).unwrap().shader);
   CHECK(id == ShaderVariantId::Base, "");
 }
 
-ShaderVariantId QuadPass::add_variant(Str label, gpu::Shader shader)
+ShaderVariantId SdfPipeline::add_variant(GpuFramePlan plan, Str label,
+                                         gpu::Shader shader)
 {
-  auto pipeline = create_pipeline(label, shader);
+  auto pipeline = create_pipeline(plan, label, shader);
   auto id       = variants_.push(Tuple{label, pipeline}).unwrap();
   return (ShaderVariantId) id;
 }
 
-void QuadPass::remove_variant(ShaderVariantId id)
+void SdfPipeline::remove_variant(GpuFramePlan plan, ShaderVariantId id)
 {
-  auto pipeline = variants_[(usize) id].v0.v1;
+  auto pipeline = variants_[(usize) id].v0;
   variants_.erase((usize) id);
-  sys->gpu.release(pipeline);
+  plan->add_preframe_task(
+    [d = plan->device(), p = pipeline.v1] { d->uninit(p); });
 }
 
-void QuadPass::encode(gpu::CommandEncoder & e, QuadPassParams const & params,
-                      ShaderVariantId variant)
+void SdfPipeline::encode(gpu::CommandEncoder       e,
+                         SdfPipelineParams const & params,
+                         ShaderVariantId           variant)
 {
   InplaceVec<gpu::RenderingAttachment, 1> color;
 
@@ -145,7 +156,7 @@ void QuadPass::encode(gpu::CommandEncoder & e, QuadPassParams const & params,
         .unwrap();
     });
 
-  auto stencil = params.stencil.map([&](PassStencil const &) {
+  auto stencil = params.stencil.map([&](PipelineStencil const &) {
     return gpu::RenderingAttachment{
       .view         = params.framebuffer.depth_stencil.stencil_view,
       .resolve      = nullptr,
@@ -164,9 +175,9 @@ void QuadPass::encode(gpu::CommandEncoder & e, QuadPassParams const & params,
 
   auto pipeline = variants_[(usize) variant].v0.v1;
 
-  e.begin_rendering(info);
-  e.bind_graphics_pipeline(pipeline);
-  e.set_graphics_state(gpu::GraphicsState{
+  e->begin_rendering(info);
+  e->bind_graphics_pipeline(pipeline);
+  e->set_graphics_state(gpu::GraphicsState{
     .scissor             = params.scissor,
     .viewport            = params.viewport,
     .stencil_test_enable = params.stencil.is_some(),
@@ -174,30 +185,30 @@ void QuadPass::encode(gpu::CommandEncoder & e, QuadPassParams const & params,
       params.stencil.map([](auto s) { return s.front; }).unwrap_or(),
     .back_face_stencil =
       params.stencil.map([](auto s) { return s.back; }).unwrap_or()});
-  e.bind_descriptor_sets(
+  e->bind_descriptor_sets(
     span({
-      params.samplers,                           // 0: samplers
-      params.textures,                           // 1: textures
-      params.world_to_ndc.buffer.descriptor_,    // 2: world_to_ndc
-      params.quads.buffer.descriptor_,           // 3: quads
-      params.transforms.buffer.descriptor_,      // 4: transforms
-      params.materials.buffer.descriptor_        // 5: materials
+      params.samplers,                                   // 0: samplers
+      params.textures,                                   // 1: textures
+      params.world_to_ndc.buffer.read_storage_buffer,    // 2: world_to_ndc
+      params.shapes.buffer.read_storage_buffer,          // 3: shapes
+      params.transforms.buffer.read_storage_buffer,      // 4: transforms
+      params.materials.buffer.read_storage_buffer        // 5: materials
     }),
     span({
-      params.world_to_ndc.slice.offset,    // 2: world_to_ndc
-      params.quads.slice.offset,           // 3: quads
-      params.transforms.slice.offset,      // 4: transforms
-      params.materials.slice.offset        // 5: materials
+      params.world_to_ndc.slice.as_u32().offset,    // 2: world_to_ndc
+      params.shapes.slice.as_u32().offset,          // 3: shapes
+      params.transforms.slice.as_u32().offset,      // 4: transforms
+      params.materials.slice.as_u32().offset        // 5: materials
     }));
-  e.draw(4, params.instances.span, 0, params.instances.offset);
-  e.end_rendering();
+  e->draw({0, 4}, params.instances);
+  e->end_rendering();
 }
 
-void QuadPass::release()
+void SdfPipeline::release(GpuFramePlan plan)
 {
   for (auto [v] : variants_)
   {
-    sys->gpu.device_->uninit(v.v1);
+    plan->add_preframe_task([d = plan->device(), p = v.v1] { d->uninit(p); });
   }
 }
 

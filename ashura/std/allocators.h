@@ -204,7 +204,7 @@ struct ArenaPoolCfg
 /// @source: allocation memory source
 struct ArenaPool final : IAllocator
 {
-  Allocator source        = {};
+  Allocator    source        = {};
   Arena *      arenas        = nullptr;
   usize        num_arenas    = 0;
   usize        current_arena = 0;
@@ -469,7 +469,7 @@ struct ArenaPool final : IAllocator
 
 struct FallbackAllocator : IAllocator
 {
-  Arena        arena;
+  Arena     arena;
   Allocator fallback;
 
   constexpr FallbackAllocator(Arena arena, Allocator fallback) :

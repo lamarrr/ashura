@@ -1,6 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/engine/font_system_impl.h"
-#include "ashura/engine/font_impl.h"
+#include "ashura/engine/file_system.h"
 #include "ashura/engine/rect_pack.h"
 #include "ashura/engine/systems.h"
 #include "ashura/std/range.h"
@@ -17,21 +17,57 @@ extern "C"
 namespace ash
 {
 
-Dyn<FontSystem *> FontSystem::create(AllocatorRef allocator)
+Dyn<FontSys> IFontSys::create(Allocator allocator)
 {
   hb_buffer_t * hb_buffer = hb_buffer_create();
   CHECK(hb_buffer != nullptr && hb_buffer_allocation_successful(hb_buffer), "");
 
-  return cast<FontSystem *>(
-    dyn<FontSystemImpl>(inplace, allocator, allocator, hb_buffer).unwrap());
+  return cast<FontSys>(
+    dyn<FontSysImpl>(inplace, allocator, allocator, hb_buffer).unwrap());
 }
 
-FontSystemImpl::~FontSystemImpl()
+FontImpl::~FontImpl()
+{
+  gpu_atlas.unwrap_none("GPU font atlas has not been unloaded"_str);
+  hb_font_destroy(hb_font);
+  hb_face_destroy(hb_face);
+  hb_blob_destroy(hb_blob);
+  FT_Done_Face(ft_face);
+  FT_Done_FreeType(ft_lib);
+}
+
+FontInfo FontImpl::info()
+{
+  FontInfo info{.label             = label,
+                .has_color         = has_color,
+                .postscript_name   = postscript_name,
+                .family_name       = family_name,
+                .style_name        = style_name,
+                .glyphs            = glyphs,
+                .replacement_glyph = replacement_glyph,
+                .space_glyph       = space_glyph,
+                .ellipsis_glyph    = ellipsis_glyph,
+                .metrics           = metrics};
+
+  if (cpu_atlas.is_some())
+  {
+    info.cpu_atlas = cpu_atlas.v();
+  }
+
+  if (gpu_atlas.is_some())
+  {
+    info.gpu_atlas = gpu_atlas.v();
+  }
+
+  return info;
+}
+
+FontSysImpl::~FontSysImpl()
 {
   hb_buffer_destroy(hb_buffer_);
 }
 
-void FontSystemImpl::shutdown()
+void FontSysImpl::shutdown()
 {
   while (!fonts_.is_empty())
   {
@@ -39,8 +75,8 @@ void FontSystemImpl::shutdown()
   }
 }
 
-Result<Dyn<Font *>, FontLoadErr>
-  FontSystemImpl::decode_(Str label_ref, Span<u8 const> encoded, u32 face)
+Result<Dyn<Font>, FontLoadErr>
+  FontSysImpl::decode_(Str label_ref, Span<u8 const> encoded, u32 face)
 {
   Vec<char> font_data{allocator_};
   if (!font_data.extend(encoded.as_char()))
@@ -147,17 +183,17 @@ Result<Dyn<Font *>, FontLoadErr>
 
   if (ft_postscript_name != nullptr)
   {
-    postscript_name.extend(cstr_span(ft_postscript_name)).unwrap();
+    postscript_name.extend(cstr(ft_postscript_name)).unwrap();
   }
 
   if (ft_face->family_name != nullptr)
   {
-    family_name.extend(cstr_span(ft_face->family_name)).unwrap();
+    family_name.extend(cstr(ft_face->family_name)).unwrap();
   }
 
   if (ft_face->style_name != nullptr)
   {
-    style_name.extend(cstr_span(ft_face->style_name)).unwrap();
+    style_name.extend(cstr(ft_face->style_name)).unwrap();
   }
 
   u32 const num_glyphs        = (u32) ft_face->num_glyphs;
@@ -203,10 +239,10 @@ Result<Dyn<Font *>, FontLoadErr>
   }
 
   Result font = dyn<FontImpl>(
-    inplace, allocator_, FontId::None, std::move(label), std::move(font_data),
-    has_color, std::move(postscript_name), std::move(family_name),
-    std::move(style_name), hb_blob, hb_face, hb_font, ft_lib, ft_face, face,
-    std::move(glyphs), replacement_glyph, ellipsis_glyph, space_glyph,
+    inplace, allocator_, std::move(label), std::move(font_data), has_color,
+    std::move(postscript_name), std::move(family_name), std::move(style_name),
+    hb_blob, hb_face, hb_font, ft_lib, ft_face, face, std::move(glyphs),
+    replacement_glyph, ellipsis_glyph, space_glyph,
     FontMetrics{.ascent = ascent, .descent = descent, .advance = advance});
 
   if (!font)
@@ -220,19 +256,19 @@ Result<Dyn<Font *>, FontLoadErr>
   ft_lib  = nullptr;
   ft_face = nullptr;
 
-  return Ok{cast<ash::Font *>(std::move(font.v()))};
+  return Ok{cast<ash::Font>(std::move(font.v()))};
 }
 
-Result<> FontSystemImpl::rasterize(Font & font_, u32 font_height)
+Result<> FontSysImpl::rasterize(Font font_, u32 font_height)
 {
-  FontImpl &           font             = (FontImpl &) font_;
+  FontImpl &           font             = (FontImpl &) *font_;
   static constexpr u32 MIN_ATLAS_EXTENT = 512;
   static_assert(MIN_ATLAS_EXTENT > 0, "Font atlas extent must be non-zero");
   static_assert(MIN_ATLAS_EXTENT >= 128,
                 "Font atlas extent must be at least 128px");
   static_assert(MIN_ATLAS_EXTENT % 64 == 0,
                 "Font atlas extent should be a multiple of 64");
-  static_assert(MIN_ATLAS_EXTENT <= gpu::MAX_IMAGE_EXTENT_2D,
+  static_assert(MIN_ATLAS_EXTENT <= 1'024,
                 "Font atlas extent too large for GPU platform");
 
   font.cpu_atlas.unwrap_none("CPU font atlas has already been loaded"_str);
@@ -424,7 +460,7 @@ Result<> FontSystemImpl::rasterize(Font & font_, u32 font_height)
   return Ok{};
 }
 
-FontId FontSystemImpl::upload_(Dyn<Font *> font_)
+FontId FontSysImpl::upload_(Dyn<Font> font_)
 {
   FontImpl & font = (FontImpl &) *font_.get();
   CHECK(font.cpu_atlas.is_some(), "");
@@ -449,33 +485,33 @@ FontId FontSystemImpl::upload_(Dyn<Font *> font_)
   for (u32 i = 0; i < atlas.num_layers; i++)
   {
     view_infos
-      .push(gpu::ImageViewInfo{.label             = font.label,
-                               .view_type         = gpu::ImageViewType::Type2D,
-                               .view_format       = format,
-                               .mapping           = {},
-                               .aspects           = gpu::ImageAspects::Color,
-                               .first_mip_level   = 0,
-                               .num_mip_levels    = 1,
-                               .first_array_layer = i,
-                               .num_array_layers  = 1})
+      .push(gpu::ImageViewInfo{
+        .label        = font.label,
+        .view_type    = gpu::ImageViewType::Type2D,
+        .view_format  = format,
+        .mapping      = {},
+        .aspects      = gpu::ImageAspects::Color,
+        .mip_levels   = {0, 1},
+        .array_layers = {i, 1}
+    })
       .unwrap();
   }
 
   ImageInfo image =
-    sys->image
-      .load_from_memory(font.label.clone().unwrap(),
-                        gpu::ImageInfo{.label  = font.label,
-                                       .type   = gpu::ImageType::Type2D,
-                                       .format = format,
-                                       .usage  = gpu::ImageUsage::Sampled |
-                                                gpu::ImageUsage::TransferDst |
-                                                gpu::ImageUsage::TransferSrc,
-                                       .aspects      = gpu::ImageAspects::Color,
-                                       .extent       = atlas.extent.append(1),
-                                       .mip_levels   = 1,
-                                       .array_layers = atlas.num_layers,
-                                       .sample_count = gpu::SampleCount::C1},
-                        view_infos, atlas.channels)
+    sys.image
+      ->load_from_memory(font.label.clone().unwrap(),
+                         gpu::ImageInfo{.label  = font.label,
+                                        .type   = gpu::ImageType::Type2D,
+                                        .format = format,
+                                        .usage  = gpu::ImageUsage::Sampled |
+                                                 gpu::ImageUsage::TransferDst |
+                                                 gpu::ImageUsage::TransferSrc,
+                                        .aspects    = gpu::ImageAspects::Color,
+                                        .extent     = atlas.extent.append(1),
+                                        .mip_levels = 1,
+                                        .array_layers = atlas.num_layers,
+                                        .sample_count = gpu::SampleCount::C1},
+                         view_infos, atlas.channels)
       .unwrap();
 
   gpu_atlas.textures.extend(image.textures).unwrap();
@@ -488,16 +524,12 @@ FontId FontSystemImpl::upload_(Dyn<Font *> font_)
 
   FontId id = FontId{fonts_.push(std::move(font_)).unwrap()};
 
-  FontImpl & f = (FontImpl &) *fonts_[(usize) id].v0;
-
-  f.id = id;
-
   return id;
 }
 
 Future<Result<FontId, FontLoadErr>>
-  FontSystemImpl::load_from_memory(Vec<char> label, Vec<u8> encoded,
-                                   u32 font_height, u32 face)
+  FontSysImpl::load_from_memory(Vec<char> label, Vec<u8> encoded,
+                                u32 font_height, u32 face)
 {
   Future fut = future<Result<FontId, FontLoadErr>>(allocator_).unwrap();
   scheduler->once(
@@ -505,9 +537,9 @@ Future<Result<FontId, FontLoadErr>>
      this, face, font_height]() mutable {
       decode_(label, encoded, face)
         .match(
-          [&, this](Dyn<Font *> & font) {
+          [&, this](Dyn<Font> & font) {
             trace("Rasterizing font: {} @{}px"_str, label, font_height);
-            rasterize(*font, font_height)
+            rasterize(font, font_height)
               .match(
                 [&, this](Void) {
                   scheduler->once(
@@ -521,7 +553,7 @@ Future<Result<FontId, FontLoadErr>>
 
                       fut.yield(Ok{id}).unwrap();
                     },
-                    Ready{}, TaskSchedule{.target = TaskTarget::Main});
+                    Ready{}, ThreadId::Main);
                 },
                 [&](Void) {
                   fut.yield(Err{FontLoadErr::OutOfMemory}).unwrap();
@@ -529,16 +561,17 @@ Future<Result<FontId, FontLoadErr>>
           },
           [&](FontLoadErr err) { fut.yield(Err{err}).unwrap(); });
     },
-    Ready{}, TaskSchedule{.target = TaskTarget::Worker});
+    Ready{}, ThreadId::AnyWorker);
 
   return fut;
 }
 
-Future<Result<FontId, FontLoadErr>>
-  FontSystemImpl::load_from_path(Vec<char> label, Str path, u32 font_height,
-                                 u32 face)
+Future<Result<FontId, FontLoadErr>> FontSysImpl::load_from_path(Vec<char> label,
+                                                                Str       path,
+                                                                u32 font_height,
+                                                                u32 face)
 {
-  Future file_load_fut = sys->file.load_file(path);
+  Future file_load_fut = sys.file->load_file(allocator_, path);
 
   Future fut = future<Result<FontId, FontLoadErr>>(allocator_).unwrap();
 
@@ -554,8 +587,7 @@ Future<Result<FontId, FontLoadErr>>
             [fut = fut.alias(), mem_load_fut = mem_load_fut.alias()]() {
               fut.yield(mem_load_fut.get()).unwrap();
             },
-            AwaitFutures{mem_load_fut.alias()},
-            TaskSchedule{.target = TaskTarget::Worker});
+            AwaitFutures{mem_load_fut.alias()}, ThreadId::AnyWorker);
         },
         [&](IoErr err) {
           fut
@@ -570,13 +602,13 @@ Future<Result<FontId, FontLoadErr>>
   return fut;
 }
 
-FontInfo FontSystemImpl::get(FontId id)
+FontInfo FontSysImpl::get(FontId id)
 {
   CHECK(fonts_.is_valid_id((usize) id), "");
   return fonts_[(usize) id].v0->info();
 }
 
-Option<FontInfo> FontSystemImpl::get(Str label)
+Option<FontInfo> FontSysImpl::get(Str label)
 {
   for (auto & font : fonts_.dense.v0)
   {
@@ -589,11 +621,11 @@ Option<FontInfo> FontSystemImpl::get(Str label)
   return none;
 }
 
-void FontSystemImpl::unload(FontId id)
+void FontSysImpl::unload(FontId id)
 {
-  Dyn<Font *> & f    = fonts_[(usize) id].v0;
-  FontImpl &    font = (FontImpl &) *f;
-  sys->image.unload(font.gpu_atlas.v().image);
+  Dyn<Font> & f    = fonts_[(usize) id].v0;
+  FontImpl &  font = (FontImpl &) *f;
+  sys.image->unload(font.gpu_atlas.v().image);
   font.gpu_atlas = none;
 
   fonts_.erase((usize) id);
@@ -889,8 +921,8 @@ static inline void reorder_line(Span<TextRun> runs)
 /// see:
 /// https://stackoverflow.com/questions/62374506/how-do-i-align-glyphs-along-the-baseline-with-freetype
 ///
-void FontSystemImpl::layout_text(TextBlock const & block, f32 max_width,
-                                 TextLayout & layout)
+void FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
+                              TextLayout & layout)
 {
   segments_.clear();
   layout.clear();

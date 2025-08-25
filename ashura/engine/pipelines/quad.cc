@@ -1,23 +1,29 @@
 /// SPDX-License-Identifier: MIT
-#include "ashura/engine/passes/ngon.h"
+#include "ashura/engine/pipelines/quad.h"
+#include "ashura/engine/shader_system.h"
 #include "ashura/engine/systems.h"
 #include "ashura/std/math.h"
-#include "ashura/std/range.h"
 #include "ashura/std/sformat.h"
 
 namespace ash
 {
 
-Str NgonPass::label()
+QuadPipeline::QuadPipeline(Allocator allocator) : variants_{allocator}
 {
-  return "Ngon"_str;
 }
 
-gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader)
+Str QuadPipeline::label()
 {
-  auto tagged_label =
-    snformat<gpu::MAX_LABEL_SIZE>("Ngon Graphics Pipeline: {}"_str, label)
-      .unwrap();
+  return "Quad"_str;
+}
+
+gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
+                                      gpu::Shader shader)
+{
+  char   scratch_buffer_[1'024];
+  auto & gpu = *plan->sys();
+
+  FallbackAllocator scratch_{Arena::from(scratch_buffer_), gpu.allocator()};
 
   auto raster_state =
     gpu::RasterizationState{.depth_clamp_enable = false,
@@ -28,7 +34,7 @@ gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader)
                             .depth_bias_constant_factor = 0,
                             .depth_bias_clamp           = 0,
                             .depth_bias_slope_factor    = 0,
-                            .sample_count = sys->gpu.sample_count_};
+                            .sample_count               = gpu.sample_count()};
 
   auto depth_stencil_state =
     gpu::DepthStencilState{.depth_test_enable        = false,
@@ -57,14 +63,16 @@ gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader)
   };
 
   gpu::DescriptorSetLayout set_layouts[] = {
-    sys->gpu.samplers_layout_,    // 0: samplers
-    sys->gpu.textures_layout_,    // 1: textures
-    sys->gpu.sb_layout_,          // 2: world_to_ndc
-    sys->gpu.sb_layout_,          // 3: transforms
-    sys->gpu.sb_layout_,          // 4: vtx_buffer
-    sys->gpu.sb_layout_,          // 5: idx_buffer
-    sys->gpu.sb_layout_           // 6: materials
+    gpu.descriptors_layout_.samplers,               // 0: samplers
+    gpu.descriptors_layout_.sampled_textures,       // 1: textures
+    gpu.descriptors_layout_.read_storage_buffer,    // 2: world_to_ndc
+    gpu.descriptors_layout_.read_storage_buffer,    // 3: quads
+    gpu.descriptors_layout_.read_storage_buffer,    // 4: transforms
+    gpu.descriptors_layout_.read_storage_buffer     // 5: materials
   };
+
+  auto tagged_label =
+    sformat(scratch_, "Quad Graphics Pipeline: {}"_str, label).unwrap();
 
   auto pipeline_info = gpu::GraphicsPipelineInfo{
     .label         = tagged_label,
@@ -77,50 +85,49 @@ gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader)
                                           .entry_point                   = "frag"_str,
                                           .specialization_constants      = {},
                                           .specialization_constants_data = {}},
-    .color_formats          = {&sys->gpu.color_format_, 1},
+    .color_formats          = span({gpu.color_format()}
+      ),
     .depth_format           = {},
-    .stencil_format         = sys->gpu.depth_stencil_format_,
+    .stencil_format         = gpu.depth_stencil_format(),
     .vertex_input_bindings  = {},
     .vertex_attributes      = {},
     .push_constants_size    = 0,
     .descriptor_set_layouts = set_layouts,
-    .primitive_topology     = gpu::PrimitiveTopology::TriangleList,
+    .primitive_topology     = gpu::PrimitiveTopology::TriangleFan,
     .rasterization_state    = raster_state,
     .depth_stencil_state    = depth_stencil_state,
     .color_blend_state      = color_blend_state,
-    .cache                  = sys->gpu.pipeline_cache_
+    .cache                  = gpu.pipeline_cache()
   };
 
-  return sys->gpu.device_->create_graphics_pipeline(pipeline_info).unwrap();
+  return gpu.device()->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
-NgonPass::NgonPass(Allocator allocator) : pipelines_{allocator}
+void QuadPipeline::acquire(GpuFramePlan plan)
 {
-}
-
-void NgonPass::acquire()
-{
-  auto id =
-    add_variant("Base"_str, sys->shader.get("Ngon.Base"_str).unwrap().shader);
+  auto id = add_variant(plan, "Base"_str,
+                        sys.shader->get("Quad.Base"_str).unwrap().shader);
   CHECK(id == ShaderVariantId::Base, "");
 }
 
-ShaderVariantId NgonPass::add_variant(Str label, gpu::Shader shader)
+ShaderVariantId QuadPipeline::add_variant(GpuFramePlan plan, Str label,
+                                          gpu::Shader shader)
 {
-  auto pipeline = create_pipeline(label, shader);
-  auto id       = pipelines_.push(Tuple{label, pipeline}).unwrap();
+  auto pipeline = create_pipeline(plan, label, shader);
+  auto id       = variants_.push(Tuple{label, pipeline}).unwrap();
   return (ShaderVariantId) id;
 }
 
-void NgonPass::remove_variant(ShaderVariantId id)
+void QuadPipeline::remove_variant(GpuFramePlan plan, ShaderVariantId id)
 {
-  auto pipeline = pipelines_[(usize) id];
-  pipelines_.erase((usize) id);
-  sys->gpu.release(pipeline.v0.v1);
+  auto pipeline = variants_[(usize) id].v0.v1;
+  variants_.erase((usize) id);
+  plan->add_preframe_task([p = pipeline, d = plan->device()] { d->uninit(p); });
 }
 
-void NgonPass::encode(gpu::CommandEncoder & e, NgonPassParams const & params,
-                      ShaderVariantId variant)
+void QuadPipeline::encode(gpu::CommandEncoder        e,
+                          QuadPipelineParams const & params,
+                          ShaderVariantId            variant)
 {
   InplaceVec<gpu::RenderingAttachment, 1> color;
 
@@ -147,7 +154,7 @@ void NgonPass::encode(gpu::CommandEncoder & e, NgonPassParams const & params,
         .unwrap();
     });
 
-  auto stencil = params.stencil.map([&](PassStencil const &) {
+  auto stencil = params.stencil.map([&](PipelineStencil const &) {
     return gpu::RenderingAttachment{
       .view         = params.framebuffer.depth_stencil.stencil_view,
       .resolve      = nullptr,
@@ -164,28 +171,11 @@ void NgonPass::encode(gpu::CommandEncoder & e, NgonPassParams const & params,
                        .depth_attachment   = {},
                        .stencil_attachment = stencil};
 
-  e.begin_rendering(info);
+  auto pipeline = variants_[(usize) variant].v0.v1;
 
-  auto pipeline = pipelines_[(usize) variant].v0.v1;
-
-  e.bind_graphics_pipeline(pipeline);
-  e.bind_descriptor_sets(span({
-                           params.samplers,                           //
-                           params.textures,                           //
-                           params.world_to_ndc.buffer.descriptor_,    //
-                           params.transforms.buffer.descriptor_,      //
-                           params.vertices.buffer.descriptor_,        //
-                           params.indices.buffer.descriptor_,         //
-                           params.materials.buffer.descriptor_        //
-                         }),
-                         span({
-                           params.world_to_ndc.slice.offset,    //
-                           params.transforms.slice.offset,      //
-                           params.vertices.slice.offset,        //
-                           params.indices.slice.offset,         //
-                           params.materials.slice.offset        //
-                         }));
-  e.set_graphics_state(gpu::GraphicsState{
+  e->begin_rendering(info);
+  e->bind_graphics_pipeline(pipeline);
+  e->set_graphics_state(gpu::GraphicsState{
     .scissor             = params.scissor,
     .viewport            = params.viewport,
     .stencil_test_enable = params.stencil.is_some(),
@@ -193,22 +183,30 @@ void NgonPass::encode(gpu::CommandEncoder & e, NgonPassParams const & params,
       params.stencil.map([](auto s) { return s.front; }).unwrap_or(),
     .back_face_stencil =
       params.stencil.map([](auto s) { return s.back; }).unwrap_or()});
-
-  u32 first_index = 0;
-  for (auto [i, index_count] : enumerate<u32>(params.index_counts))
-  {
-    e.draw(index_count, 1, first_index, params.first_instance + i);
-    first_index += index_count;
-  }
-
-  e.end_rendering();
+  e->bind_descriptor_sets(
+    span({
+      params.samplers,                                   // 0: samplers
+      params.textures,                                   // 1: textures
+      params.world_to_ndc.buffer.read_storage_buffer,    // 2: world_to_ndc
+      params.quads.buffer.read_storage_buffer,           // 3: quads
+      params.transforms.buffer.read_storage_buffer,      // 4: transforms
+      params.materials.buffer.read_storage_buffer        // 5: materials
+    }),
+    span({
+      params.world_to_ndc.slice.as_u32().offset,    // 2: world_to_ndc
+      params.quads.slice.as_u32().offset,           // 3: quads
+      params.transforms.slice.as_u32().offset,      // 4: transforms
+      params.materials.slice.as_u32().offset        // 5: materials
+    }));
+  e->draw({0, 4}, params.instances);
+  e->end_rendering();
 }
 
-void NgonPass::release()
+void QuadPipeline::release(GpuFramePlan plan)
 {
-  for (auto [v] : pipelines_)
+  for (auto [v] : variants_)
   {
-    sys->gpu.device_->uninit(v.v1);
+    plan->add_preframe_task([d = plan->device(), p = v.v1] { d->uninit(p); });
   }
 }
 

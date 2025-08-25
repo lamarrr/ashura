@@ -35,9 +35,9 @@ struct [[nodiscard]] Rc
 {
   typedef H Handle;
 
-  H            handle_;
+  H         handle_;
   Allocator allocator_;
-  AliasOp      alias_;
+  AliasOp   alias_;
 
   constexpr Rc(H handle, Allocator allocator, AliasOp alias) :
     handle_{handle},
@@ -142,8 +142,8 @@ struct IsTriviallyRelocatable<Rc<H>>
 template <typename T>
 struct RcObject
 {
-  AliasCount alias_count{};
-  T          v0;
+  AtomicAliasCount alias_count{};
+  T                v0;
 
   static constexpr usize rc_op(RcObject * obj, Allocator allocator, i32 op)
   {

@@ -472,6 +472,16 @@ GpuBufferId IGpuFramePlan::push_gpu(Span<u8 const> data)
   return GpuBufferId{(u32) idx};
 }
 
+GpuSys IGpuFramePlan::sys() const
+{
+  return sys_;
+}
+
+gpu::Device IGpuFramePlan::device() const
+{
+  return sys_->dev_;
+}
+
 void IGpuFramePlan::begin()
 {
   CHECK(state_ == GpuFramePlanState::Reset, "");
@@ -507,8 +517,7 @@ void IGpuFramePlan::reset()
 
 bool IGpuFramePlan::await(nanoseconds timeout)
 {
-  return await_semaphores(span({semaphore_.get()}), span({submission_stage_}),
-                          timeout);
+  return semaphore_->await(submission_stage_, timeout);
 }
 
 void TextureUnion::uninit(gpu::Device device)
@@ -1085,7 +1094,7 @@ void IGpuFrame::submit()
   char              scratch_buffer_[1_KB];
   FallbackAllocator scratch{Arena::from(scratch_buffer_), allocator_};
 
-  // [ ] collect timepoint traces
+  // [ ] collect time and statistics traces
 
   {
     auto label = sformat(scratch, "GpuFrame {} / Buffer"_str, id_).unwrap();
@@ -1241,8 +1250,7 @@ void IGpuFrame::reset()
 
 bool IGpuFrame::await(nanoseconds timeout)
 {
-  return await_semaphores(span({semaphore_.get()}), span({submission_stage_}),
-                          timeout);
+  return semaphore_->await(submission_stage_, timeout);
 }
 
 static Option<gpu::Format> select_color_format(gpu::Device             dev,
@@ -1325,8 +1333,10 @@ gpu::Swapchain create_surface_swapchain(
 
 void IGpuSys::uninit(Vec<u8> & cache)
 {
-  // [ ] signal worker to drain and await device and worker idle
-
+  auto drain_semaphore = scheduler_->get_drain_semaphore(thread_id_);
+  CHECK(drain_semaphore->complete(0), "");
+  drain_semaphore->await(1ULL, nanoseconds::max());
+  dev_->await_idle().unwrap();
   dev_->get_pipeline_cache_data(pipeline_cache_, cache).unwrap();
 
   for (auto & frame : frames_)
@@ -1559,10 +1569,10 @@ void IGpuSys::init(Allocator allocator, gpu::Device device,
                    GpuSysPreferences const & preferences, Scheduler scheduler,
                    ThreadId thread_id)
 {
-  // [ ] init render thread
-
   char              scratch_buffer_[1_KB];
   FallbackAllocator scratch{Arena::from(scratch_buffer_), allocator_};
+
+  // [ ] use timeline semaphore
 
   CHECK(preferences.buffering > 0, "");
   CHECK(preferences.buffering <= MAX_BUFFERING, "");
@@ -1612,11 +1622,10 @@ void IGpuSys::init(Allocator allocator, gpu::Device device,
   for (auto i : range(buffering_))
   {
     // start as signaled semaphore
-    // [ ] will this work with the subsequent frames? once it is increased
     auto semaphore = dyn<ISemaphore>(inplace, allocator_, 1ULL).unwrap();
 
     auto encoder_label =
-      sformat("/ GpuFrame / CommandEncoder {}"_str, i).unwrap();
+      sformat(scratch, "/ GpuFrame / CommandEncoder {}"_str, i).unwrap();
 
     auto encoder = dev_
                      ->create_command_encoder(
@@ -1624,7 +1633,7 @@ void IGpuSys::init(Allocator allocator, gpu::Device device,
                      .unwrap();
 
     auto buffer_label =
-      sformat("/ GpuFrame / CommandBuffer {}"_str, i).unwrap();
+      sformat(scratch, "/ GpuFrame / CommandBuffer {}"_str, i).unwrap();
 
     auto buffer =
       dev_->create_command_buffer(gpu::CommandBufferInfo{.label = buffer_label})
@@ -1645,9 +1654,9 @@ void IGpuSys::init(Allocator allocator, gpu::Device device,
   {
     // start as signaled semaphore
     auto semaphore = dyn<ISemaphore>(inplace, allocator_, 1ULL).unwrap();
-    auto plan =
-      dyn<IGpuFramePlan>(inplace, allocator_, allocator_, std::move(semaphore))
-        .unwrap();
+    auto plan      = dyn<IGpuFramePlan>(inplace, allocator_, allocator_, this,
+                                        std::move(semaphore))
+                  .unwrap();
     plans.push(std::move(plan)).unwrap();
   }
 
@@ -1748,10 +1757,41 @@ void IGpuSys::release_texture_id(TextureId id)
   });
 }
 
+gpu::Device IGpuSys::device()
+{
+  CHECK(initialized_, "");
+  return dev_;
+}
+
+Allocator IGpuSys::allocator() const
+{
+  return allocator_;
+}
+
 GpuFramePlan IGpuSys::plan()
 {
   CHECK(initialized_, "");
   return plans_[frame_ring_index_].get();
+}
+
+gpu::Format IGpuSys::color_format() const
+{
+  return color_format_;
+}
+
+gpu::Format IGpuSys::depth_stencil_format() const
+{
+  return depth_stencil_format_;
+}
+
+gpu::SampleCount IGpuSys::sample_count() const
+{
+  return sample_count_;
+}
+
+gpu::PipelineCache IGpuSys::pipeline_cache() const
+{
+  return pipeline_cache_;
 }
 
 void IGpuSys::submit_frame()
@@ -1780,6 +1820,7 @@ void IGpuSys::submit_frame()
   plans_[frame_ring_index_]->await(nanoseconds::max());
 }
 
+// [ ] move to scene construction
 /*
 void GpuSys::frame(gpu::Swapchain swapchain)
 {

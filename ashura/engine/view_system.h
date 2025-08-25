@@ -9,7 +9,7 @@ namespace ash
 namespace ui
 {
 
-struct RootView : View
+struct RootView : ui::View
 {
   static constexpr u16 NODE     = 0;
   static constexpr u16 PARENT   = 0;
@@ -21,11 +21,11 @@ struct RootView : View
   {
   }
 
-  constexpr virtual State tick(Ctx const &      ctx, Events const &,
-                               Fn<void(View &)> build) override
+  constexpr virtual ui::State tick(ui::Ctx const &, ui::Events const &,
+                                   Fn<void(View &)> build) override
   {
     next_.match(build);
-    return State{.viewport = true};
+    return ui::State{.viewport = true};
   }
 
   constexpr virtual void size(f32x2 allocated, Span<f32x2> sizes) override
@@ -33,11 +33,11 @@ struct RootView : View
     fill(sizes, allocated);
   }
 
-  constexpr virtual Layout fit(f32x2       allocated, Span<f32x2 const>,
-                               Span<f32x2> centers) override
+  constexpr virtual ui::Layout fit(f32x2       allocated, Span<f32x2 const>,
+                                   Span<f32x2> centers) override
   {
     fill(centers, f32x2{0, 0});
-    return Layout{.extent = allocated, .viewport_extent = allocated};
+    return ui::Layout{.extent = allocated, .viewport_extent = allocated};
   }
 
   constexpr virtual i32 layer(i32, Span<i32> indices) override
@@ -52,11 +52,11 @@ struct RootView : View
     return 0;
   }
 
-  constexpr virtual void render(Canvas &           canvas,
-                                RenderInfo const & info) override
+  constexpr virtual void render(Canvas                 canvas,
+                                ui::RenderInfo const & info) override
   {
     // [ ] Body
-    canvas.rect(ShapeInfo{
+    canvas->rect(ShapeInfo{
       .area = info.canvas_region, .tint = mdc::GRAY_900, .clip = info.clip});
   }
 
@@ -82,8 +82,10 @@ enum class FocusAction : u8
 // [ ] mouse displacement for transformed/distorted views
 // [ ] view click area re-targeting
 
+typedef struct IViewSys * ViewSys;
+
 /// @brief A compact View Hierarchy
-struct System
+struct IViewSys
 {
   struct DragState
   {
@@ -119,14 +121,14 @@ struct System
     using Seq::Start;
     using Seq::Update;
 
-    Seq            seq = Start;
-    Option<ViewId> src = none;
-    Option<ViewId> tgt = none;
+    Seq                seq = Start;
+    Option<ui::ViewId> src = none;
+    Option<ui::ViewId> tgt = none;
   };
 
   struct XFramePointState
   {
-    Option<ViewId> tgt = none;
+    Option<ui::ViewId> tgt = none;
   };
 
   using XFrameHitState = Enum<None, XFrameDragState, XFramePointState>;
@@ -136,7 +138,7 @@ struct System
     /// @brief if focusing is active
     bool active = false;
 
-    ViewId tgt = ViewId::None;
+    ui::ViewId tgt = ui::ViewId::None;
   };
 
   /// @brief flattened hierarchical tree node, all siblings are
@@ -192,10 +194,10 @@ struct System
 
   struct Event
   {
-    u16                dst    = 0;
-    Events::Type       type   = Events::PointerIn;
-    Option<HitInfo>    hit    = none;
-    Option<ScrollInfo> scroll = none;
+    u16                    dst    = 0;
+    ui::Events::Type       type   = ui::Events::PointerIn;
+    Option<ui::HitInfo>    hit    = none;
+    Option<ui::ScrollInfo> scroll = none;
   };
 
   /// @brief id to current frame's view tree index map of hot views
@@ -209,13 +211,13 @@ struct System
   u64 next_id = 0;
 
   /// @brief Build context for views
-  Ctx ctx;
+  ui::Ctx ctx;
 
   /// Tree Nodes
 
-  Vec<ref<View>>       views;
-  Nodes                nodes;
-  BitDict<ViewId, u16> ids;
+  Vec<ref<ui::View>>       views;
+  Nodes                    nodes;
+  BitDict<ui::ViewId, u16> ids;
 
   Attrs att;
 
@@ -264,14 +266,14 @@ struct System
 
   Vec<Event> events;
 
-  BitDict<ViewId, Events> event_queue;
+  BitDict<ui::ViewId, ui::Events> event_queue;
 
-  Option<FocusRect>     focus_rect;
+  Option<ui::FocusRect> focus_rect;
   Option<TextInputInfo> input_info;
   Option<Cursor>        cursor;
   f32                   scroll_delta;
 
-  explicit System(Allocator allocator) :
+  explicit IViewSys(Allocator allocator) :
     root_view{none},
     frame{0},
     next_id{0},
@@ -308,22 +310,22 @@ struct System
   {
   }
 
-  System(System const &)             = delete;
-  System(System &&)                  = default;
-  System & operator=(System const &) = delete;
-  System & operator=(System &&)      = default;
-  ~System()                          = default;
+  IViewSys(IViewSys const &)             = delete;
+  IViewSys(IViewSys &&)                  = default;
+  IViewSys & operator=(IViewSys const &) = delete;
+  IViewSys & operator=(IViewSys &&)      = default;
+  ~IViewSys()                            = default;
 
   void clear_frame();
 
-  void push_view(View & view, u16 depth, u16 breadth, u16 parent);
+  void push_view(ui::View & view, u16 depth, u16 breadth, u16 parent);
 
-  Events drain_events(View & view, u16 idx);
+  ui::Events drain_events(ui::View & view, u16 idx);
 
-  void build_children(Ctx const & ctx, View & view, u16 idx, u16 depth,
+  void build_children(ui::Ctx const & ctx, ui::View & view, u16 idx, u16 depth,
                       u16 viewport, i32 & tab_index);
 
-  void build(Ctx const & ctx, RootView & root);
+  void build(ui::Ctx const & ctx, RootView & root);
 
   void prepare_for(u16 n);
 
@@ -341,7 +343,7 @@ struct System
 
   Option<u16> hit_test(f32x2 position) const;
 
-  HitInfo get_hit_info(u16 view, f32x2 position) const;
+  ui::HitInfo get_hit_info(u16 view, f32x2 position) const;
 
   template <typename Match>
   Option<u16> bubble(u16 from, Match && match) const
@@ -383,31 +385,31 @@ struct System
 
   u16 navigate_focus(u16 from, bool forward) const;
 
-  HitState none_seq(Ctx const & ctx);
+  HitState none_seq(ui::Ctx const & ctx);
 
-  HitState drag_start_seq(Ctx const & ctx, Option<u16> src);
+  HitState drag_start_seq(ui::Ctx const & ctx, Option<u16> src);
 
-  HitState drag_update_seq(Ctx const & ctx, Option<u16> src, Option<u16> tgt);
+  HitState drag_update_seq(ui::Ctx const & ctx, Option<u16> src,
+                           Option<u16> tgt);
 
-  HitState point_seq(Ctx const & ctx, Option<u16> tgt);
+  HitState point_seq(ui::Ctx const & ctx, Option<u16> tgt);
 
-  void hit_seq(Ctx const & ctx);
+  void hit_seq(ui::Ctx const & ctx);
 
-  void focus_seq(Ctx const & ctx);
+  void focus_seq(ui::Ctx const & ctx);
 
-  void compose_event(ViewId id, Events::Type event, Option<HitInfo> hit,
-                     Option<ScrollInfo> scroll);
+  void compose_event(ui::ViewId id, ui::Events::Type event,
+                     Option<ui::HitInfo> hit, Option<ui::ScrollInfo> scroll);
 
-  void process_input(Ctx const & ctx);
+  void process_input(ui::Ctx const & ctx);
 
   // [ ] IME rect
   // [ ] IME editing events
   Option<TextInputInfo> text_input() const;
 
   // [ ] make positions relative to center of the screen; especially in the inputstate goptten from the view
-  bool tick(InputState const & input, View & root, Canvas & canvas,
-            Fn<void(Ctx const &)> loop);
+  bool tick(InputState const & input, ui::View & root, Canvas & canvas,
+            Fn<void(ui::Ctx const &)> loop);
 };
 
-}    // namespace ui
 }    // namespace ash

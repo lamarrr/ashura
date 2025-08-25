@@ -1,5 +1,6 @@
 /// SPDX-License-Identifier: MIT
-#include "ashura/engine/passes/blur.h"
+#include "ashura/engine/pipelines/blur.h"
+#include "ashura/engine/shader_system.h"
 #include "ashura/engine/systems.h"
 #include "ashura/std/math.h"
 #include "ashura/std/sformat.h"
@@ -17,16 +18,20 @@ namespace ash
 // https://community.arm.com/cfs-file/__key/communityserver-blogs-components-weblogfiles/00-00-00-20-66/siggraph2015_2D00_mmg_2D00_marius_2D00_slides.pdf
 //
 
-Str BlurPass::label()
+Str BlurPipeline::label()
 {
   return "Blur"_str;
 }
 
-gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader)
+gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
+                                      gpu::Shader shader)
 {
+  char              scratch_buffer_[1'024];
+  auto &            gpu = *plan->sys();
+  FallbackAllocator scratch{Arena::from(scratch_buffer_), gpu.allocator()};
+
   auto tagged_label =
-    snformat<gpu::MAX_LABEL_SIZE>("Blur Graphics Pipeline: {}"_str, label)
-      .unwrap();
+    sformat(scratch, "Blur Graphics Pipeline: {}"_str, label).unwrap();
 
   auto raster_state =
     gpu::RasterizationState{.depth_clamp_enable = false,
@@ -65,9 +70,9 @@ gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader)
     .attachments = attachment_states, .blend_constant = {}};
 
   gpu::DescriptorSetLayout set_layouts[] = {
-    sys->gpu.samplers_layout_,    // 0: samplers
-    sys->gpu.textures_layout_,    // 1: textures
-    sys->gpu.sb_layout_           // 2: blur
+    gpu.descriptors_layout_.samplers,              // 0: samplers
+    gpu.descriptors_layout_.sampled_textures,      // 1: textures
+    gpu.descriptors_layout_.read_storage_buffer    // 2: blur
   };
 
   auto pipeline_info = gpu::GraphicsPipelineInfo{
@@ -81,9 +86,10 @@ gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader)
                                           .entry_point                   = "frag"_str,
                                           .specialization_constants      = {},
                                           .specialization_constants_data = {}},
-    .color_formats          = {&sys->gpu.color_format_, 1},
+    .color_formats          = span({gpu.color_format()}
+      ),
     .depth_format           = {},
-    .stencil_format         = sys->gpu.depth_stencil_format_,
+    .stencil_format         = gpu.depth_stencil_format(),
     .vertex_input_bindings  = {},
     .vertex_attributes      = {},
     .push_constants_size    = 0,
@@ -92,27 +98,32 @@ gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader)
     .rasterization_state    = raster_state,
     .depth_stencil_state    = depth_stencil_state,
     .color_blend_state      = color_blend_state,
-    .cache                  = sys->gpu.pipeline_cache_
+    .cache                  = gpu.pipeline_cache()
   };
 
-  return sys->gpu.device_->create_graphics_pipeline(pipeline_info).unwrap();
+  return gpu.device()->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
-void BlurPass::acquire()
+void BlurPipeline::acquire(GpuFramePlan plan)
 {
-  downsample_pipeline_ = create_pipeline(
-    "Downsample"_str, sys->shader.get("Blur.Downsample"_str).unwrap().shader);
+  downsample_pipeline_ =
+    create_pipeline(plan, "Downsample"_str,
+                    sys.shader->get("Blur.Downsample"_str).unwrap().shader);
   upsample_pipeline_ = create_pipeline(
-    "Upsample"_str, sys->shader.get("Blur.Upsample"_str).unwrap().shader);
+    plan, "Upsample"_str, sys.shader->get("Blur.Upsample"_str).unwrap().shader);
 }
 
-void BlurPass::release()
+void BlurPipeline::release(GpuFramePlan plan)
 {
-  sys->gpu.device_->uninit(downsample_pipeline_);
-  sys->gpu.device_->uninit(upsample_pipeline_);
+  plan->add_preframe_task(
+    [p0 = downsample_pipeline_, p1 = upsample_pipeline_, d = plan->device()] {
+      d->uninit(p0);
+      d->uninit(p1);
+    });
 }
 
-void BlurPass::encode(gpu::CommandEncoder & e, BlurPassParams const & params)
+void BlurPipeline::encode(gpu::CommandEncoder        e,
+                          BlurPipelineParams const & params)
 {
   InplaceVec<gpu::RenderingAttachment, 1> color;
 
@@ -125,7 +136,7 @@ void BlurPass::encode(gpu::CommandEncoder & e, BlurPassParams const & params)
                                    .clear        = {}})
     .unwrap();
 
-  auto stencil = params.stencil.map([&](PassStencil const &) {
+  auto stencil = params.stencil.map([&](PipelineStencil const &) {
     return gpu::RenderingAttachment{
       .view         = params.framebuffer.depth_stencil.stencil_view,
       .resolve      = nullptr,
@@ -135,7 +146,7 @@ void BlurPass::encode(gpu::CommandEncoder & e, BlurPassParams const & params)
       .clear        = {}};
   });
 
-  e.begin_rendering(gpu::RenderingInfo{
+  e->begin_rendering(gpu::RenderingInfo{
     .render_area{.offset = {}, .extent = params.framebuffer.extent().xy()},
     .num_layers         = 1,
     .color_attachments  = color,
@@ -143,9 +154,9 @@ void BlurPass::encode(gpu::CommandEncoder & e, BlurPassParams const & params)
     .stencil_attachment = stencil
   });
 
-  e.bind_graphics_pipeline(params.upsample ? upsample_pipeline_ :
-                                             downsample_pipeline_);
-  e.set_graphics_state(gpu::GraphicsState{
+  e->bind_graphics_pipeline(params.upsample ? upsample_pipeline_ :
+                                              downsample_pipeline_);
+  e->set_graphics_state(gpu::GraphicsState{
     .scissor             = params.scissor,
     .viewport            = params.viewport,
     .stencil_test_enable = params.stencil.is_some(),
@@ -153,16 +164,17 @@ void BlurPass::encode(gpu::CommandEncoder & e, BlurPassParams const & params)
       params.stencil.map([](auto s) { return s.front; }).unwrap_or(),
     .back_face_stencil =
       params.stencil.map([](auto s) { return s.back; }).unwrap_or()});
-  e.bind_descriptor_sets(span({
-                           params.samplers,                   // 0: samplers
-                           params.textures,                   // 1: textures
-                           params.blurs.buffer.descriptor_    // 2: blur
-                         }),
-                         span({
-                           params.blurs.slice.offset    // 2: blur
-                         }));
-  e.draw(4, params.instances.span, 0, params.instances.offset);
-  e.end_rendering();
+  e->bind_descriptor_sets(
+    span({
+      params.samplers,                           // 0: samplers
+      params.textures,                           // 1: textures
+      params.blurs.buffer.read_storage_buffer    // 2: blur
+    }),
+    span({
+      params.blurs.slice.as_u32().offset    // 2: blur
+    }));
+  e->draw({0, 4}, params.instances);
+  e->end_rendering();
 }
 
 }    // namespace ash

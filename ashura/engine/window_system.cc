@@ -1,5 +1,5 @@
 /// SPDX-License-Identifier: MIT
-#include "ashura/engine/window.h"
+#include "ashura/engine/window_system.h"
 #include "SDL3/SDL.h"
 #include "SDL3/SDL_vulkan.h"
 #include "ashura/gpu/vulkan.h"
@@ -14,25 +14,25 @@ namespace ash
 
 struct WindowImpl
 {
-  SDL_Window *                                  win       = nullptr;
-  gpu::Surface                                  surface   = nullptr;
-  SDL_WindowID                                  id        = 0;
-  SparseVec< Fn<void(WindowEvent const &)>> listeners = {};
-  gpu::Instance *                               instance  = nullptr;
+  SDL_Window *                             win       = nullptr;
+  gpu::Surface                             surface   = nullptr;
+  SDL_WindowID                             id        = 0;
+  SparseVec<Fn<void(WindowEvent const &)>> listeners = {};
+  gpu::Instance                            instance  = nullptr;
   Fn<WindowRegion(u32x2)> hit_test = [](u32x2) { return WindowRegion::Normal; };
 
   WindowImpl(Allocator allocator, SDL_Window * window, gpu::Surface surface,
-             SDL_WindowID id, gpu::Instance & instance) :
+             SDL_WindowID id, gpu::Instance instance) :
     win{window},
     surface{surface},
     id{id},
     listeners{allocator},
-    instance{&instance}
+    instance{instance}
   {
   }
 };
 
-struct ClipBoardImpl : ClipBoard
+struct ClipBoardImpl : IClipBoard
 {
   static constexpr usize MAX_MIME_SIZE = 256;
   Vec<u8>                local_;
@@ -49,10 +49,11 @@ struct ClipBoardImpl : ClipBoard
 
   virtual Result<> get(Str mime, Vec<u8> & out) override
   {
-    char mime_c_str[MAX_MIME_SIZE + 1];
-    CHECK(to_c_str(mime, mime_c_str), "");
+    InplaceVec<char, MAX_MIME_SIZE + 1> mime_c_str{};
+    mime_c_str.extend(mime).unwrap();
+    mime_c_str.push('\0').unwrap();
     usize  mime_data_len;
-    void * data = SDL_GetClipboardData(mime_c_str, &mime_data_len);
+    void * data = SDL_GetClipboardData(mime_c_str.data(), &mime_data_len);
     if (data == nullptr)
     {
       return Err{};
@@ -94,10 +95,11 @@ struct ClipBoardImpl : ClipBoard
       return Ok{};
     }
 
-    char mime_c_str[MAX_MIME_SIZE + 1];
-    CHECK(to_c_str(mime, mime_c_str), "");
+    InplaceVec<char, MAX_MIME_SIZE + 1> mime_c_str{};
+    mime_c_str.extend(mime).unwrap();
+    mime_c_str.push('\0').unwrap();
 
-    char const * mime_types[] = {mime_c_str};
+    char const * mime_types[] = {mime_c_str.data()};
 
     local_.extend(data).unwrap();
 
@@ -111,14 +113,14 @@ struct ClipBoardImpl : ClipBoard
   }
 };
 
-struct WindowSystemImpl : WindowSystem
+struct WindowSysImpl : IWindowSys
 {
-  Allocator                                  allocator;
+  Allocator                                allocator;
   SparseVec<Fn<void(SystemEvent const &)>> listeners;
-  ClipBoardImpl                                 clipboard;
-  SDL_Cursor *                                  cursor;
+  ClipBoardImpl                            clipboard;
+  SDL_Cursor *                             cursor;
 
-  WindowSystemImpl(Allocator allocator) :
+  WindowSysImpl(Allocator allocator) :
     allocator{allocator},
     listeners{allocator},
     clipboard{allocator},
@@ -126,11 +128,11 @@ struct WindowSystemImpl : WindowSystem
   {
   }
 
-  WindowSystemImpl(WindowSystemImpl const &)             = delete;
-  WindowSystemImpl(WindowSystemImpl &&)                  = delete;
-  WindowSystemImpl & operator=(WindowSystemImpl const &) = delete;
-  WindowSystemImpl & operator=(WindowSystemImpl &&)      = delete;
-  ~WindowSystemImpl() override                           = default;
+  WindowSysImpl(WindowSysImpl const &)             = delete;
+  WindowSysImpl(WindowSysImpl &&)                  = delete;
+  WindowSysImpl & operator=(WindowSysImpl const &) = delete;
+  WindowSysImpl & operator=(WindowSysImpl &&)      = delete;
+  ~WindowSysImpl() override                        = default;
 
   void shutdown() override
   {
@@ -147,8 +149,8 @@ struct WindowSystemImpl : WindowSystem
     return ((WindowImpl *) window)->win;
   }
 
-  virtual Option<Window> create_window(gpu::Instance & instance,
-                                       Str             title) override
+  virtual Option<ash::Window> create_window(gpu::Instance instance,
+                                            Str           title) override
   {
     char * title_c_str;
     if (!allocator->nalloc(title.size() + 1, title_c_str))
@@ -168,13 +170,13 @@ struct WindowSystemImpl : WindowSystem
     SDL_WindowID id = SDL_GetWindowID(window);
     CHECK_SDL(id != 0);
 
-    CHECK(instance.get_backend() == gpu::Backend::Vulkan, "");
+    CHECK(instance->get_backend() == gpu::Backend::Vulkan, "");
 
-    vk::Instance & vk_instance = (vk::Instance &) instance;
+    vk::Instance & vk_instance = (vk::Instance &) *instance;
     VkSurfaceKHR   surface;
 
-    CHECK_SDL(SDL_Vulkan_CreateSurface(window, vk_instance.vk_instance, nullptr,
-                                       &surface));
+    CHECK_SDL(
+      SDL_Vulkan_CreateSurface(window, vk_instance.vk_, nullptr, &surface));
 
     WindowImpl * impl;
 
@@ -736,9 +738,9 @@ struct WindowSystemImpl : WindowSystem
     }
   }
 
-  virtual ClipBoard & get_clipboard() override
+  virtual ClipBoard get_clipboard() override
   {
-    return clipboard;
+    return &clipboard;
   }
 
   static constexpr KeyCode to_keycode(SDL_Keycode code)
@@ -1527,11 +1529,11 @@ struct WindowSystemImpl : WindowSystem
   }
 };
 
-Dyn<WindowSystem *> WindowSystem::create_SDL(AllocatorRef allocator)
+Dyn<WindowSys> IWindowSys::create_SDL(Allocator allocator)
 {
   CHECK_SDL(SDL_Init(SDL_INIT_VIDEO));
-  return cast<WindowSystem *>(
-    dyn<WindowSystemImpl>(inplace, allocator, allocator).unwrap());
+  return cast<WindowSys>(
+    dyn<WindowSysImpl>(inplace, allocator, allocator).unwrap());
 }
 
 }    // namespace ash

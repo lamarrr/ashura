@@ -8,9 +8,9 @@ namespace ash
 
 StdioSink stdio_sink{};
 
-Logger * logger = nullptr;
+Logger logger = nullptr;
 
-void hook_logger(Logger * instance)
+void hook_logger(Logger instance)
 {
   logger = instance;
 }

@@ -7,6 +7,22 @@
 namespace ash
 {
 
+static constexpr u8 num_control_points(ContourEdgeType edge)
+{
+  switch (edge)
+  {
+    case ContourEdgeType::Line:
+      return 2;
+    case ContourEdgeType::Arc:
+    case ContourEdgeType::Bezier:
+      return 3;
+    case ContourEdgeType::CubicBezier:
+      return 4;
+    default:
+      return 0;
+  }
+}
+
 void path::rect(Vec<f32x2> & vtx, f32x2 extent, f32x2 center)
 {
   f32x2 const coords[] = {
@@ -365,14 +381,11 @@ void path::triangulate_convex(Vec<u16> & idx, u16 first_vertex,
   ::ash::triangulate_convex(idx, first_vertex, num_vertices);
 }
 
-Canvas & Canvas::begin_recording(
-  FrameGraph & frame_graph, PassBundle & passes,
-  Span<ColorTexture const>             color_textures,
-  Span<Option<ColorMsaaTexture> const> msaa_color_textures,
-  Span<DepthStencilTexture const>      depth_stencil_textures,
-  gpu::Viewport const & viewport, f32x2 extent, u32x2 framebuffer_extent)
+ICanvas & ICanvas::begin(GpuFramePlan plan, gpu::Viewport const & viewport,
+                         f32x2 extent, u32x2 framebuffer_extent)
 {
-  reset();
+  // [ ] use CANVASSTATE
+  // reset();
 
   CHECK(color_textures.size() >= 3, "");
   CHECK(msaa_color_textures.size() >= 3, "");
@@ -420,12 +433,12 @@ Canvas & Canvas::begin_recording(
   return *this;
 }
 
-Canvas & Canvas::end_recording()
+ICanvas & ICanvas::end()
 {
   return *this;
 }
 
-Canvas & Canvas::reset()
+ICanvas & ICanvas::reset()
 {
   color_textures_.reset();
   msaa_color_textures_.reset();
@@ -447,7 +460,7 @@ Canvas & Canvas::reset()
   return *this;
 }
 
-RectU Canvas::clip_to_scissor(CRect const & clip) const
+RectU ICanvas::clip_to_scissor(CRect const & clip) const
 {
   // clips are always unscaled
   Rect scissor_f{.offset = viewport_.offset +
@@ -462,12 +475,12 @@ RectU Canvas::clip_to_scissor(CRect const & clip) const
                       scissor_f.end().to<u32>().min(framebuffer_extent_));
 }
 
-u32 Canvas::num_targets() const
+u32 ICanvas::num_targets() const
 {
   return size32(color_textures_);
 }
 
-Canvas & Canvas::clear_target(gpu::Color color)
+ICanvas & ICanvas::clear_target(gpu::Color color)
 {
   pass([image      = color_textures_[target_],
         msaa_image = msaa_color_textures_[target_],
@@ -503,24 +516,24 @@ Canvas & Canvas::clear_target(gpu::Color color)
   return *this;
 }
 
-Canvas & Canvas::set_target(u32 target)
+ICanvas & ICanvas::set_target(u32 target)
 {
   CHECK(target < num_targets(), "");
   target_ = target;
   return *this;
 }
 
-u32 Canvas::target() const
+u32 ICanvas::target() const
 {
   return target_;
 }
 
-u32 Canvas::num_stencils() const
+u32 ICanvas::num_stencils() const
 {
   return size32(depth_stencil_textures_);
 }
 
-Canvas & Canvas::clear_stencil(u32 stencil_value)
+ICanvas & ICanvas::clear_stencil(u32 stencil_value)
 {
   stencil_.match([this, stencil_value](auto s) {
     pass([image = depth_stencil_textures_[s.v0],
@@ -546,14 +559,14 @@ Canvas & Canvas::clear_stencil(u32 stencil_value)
   return *this;
 }
 
-Canvas & Canvas::set_stencil(Option<Tuple<u32, PassStencil>> stencil)
+ICanvas & ICanvas::set_stencil(Option<Tuple<u32, PipelineStencil>> stencil)
 {
   stencil.match([&](auto s) { CHECK(s.v0 < num_stencils(), ""); });
   stencil_ = stencil;
   return *this;
 }
 
-Option<Tuple<u32, PassStencil>> Canvas::stencil() const
+Option<Tuple<u32, PipelineStencil>> ICanvas::stencil() const
 {
   return stencil_;
 }
@@ -564,7 +577,7 @@ constexpr f32x4x4 object_to_world(f32x4x4 const & transform, CRect const & area)
          scale3d(area.extent.append(1));
 }
 
-Canvas & Canvas::circle(ShapeInfo const & info_)
+ICanvas & ICanvas::circle(ShapeInfo const & info_)
 {
   auto info            = info_;
   info.area.extent.x() = max(info.area.extent.x(), info.area.extent.y());
@@ -572,15 +585,15 @@ Canvas & Canvas::circle(ShapeInfo const & info_)
   return sdf_shape_(info, shader::sdf::ShapeType::RRect);
 }
 
-Canvas & Canvas::rect(ShapeInfo const & info_)
+ICanvas & ICanvas::rect(ShapeInfo const & info_)
 {
   auto info  = info_;
   info.radii = f32x4::splat(0);
   return sdf_shape_(info, shader::sdf::ShapeType::RRect);
 }
 
-Canvas & Canvas::sdf_shape_(ShapeInfo const &      info,
-                            shader::sdf::ShapeType shape_tyoe)
+ICanvas & ICanvas::sdf_shape_(ShapeInfo const &      info,
+                              shader::sdf::ShapeType shape_tyoe)
 {
   auto const framebuffer = Framebuffer{
     .color      = color_textures_[target_],
@@ -633,8 +646,9 @@ Canvas & Canvas::sdf_shape_(ShapeInfo const &      info,
   return *this;
 }
 
-Canvas & Canvas::ngon_shape_(ShapeInfo const & info, Span<f32x2 const> vertices,
-                             Span<u32 const> indices)
+ICanvas & ICanvas::ngon_shape_(ShapeInfo const & info,
+                               Span<f32x2 const> vertices,
+                               Span<u32 const>   indices)
 {
   auto const framebuffer = Framebuffer{
     .color      = color_textures_[target_],
@@ -672,7 +686,7 @@ Canvas & Canvas::ngon_shape_(ShapeInfo const & info, Span<f32x2 const> vertices,
   return push_ngon_(item);
 }
 
-Canvas & Canvas::rrect(ShapeInfo const & info_)
+ICanvas & ICanvas::rrect(ShapeInfo const & info_)
 {
   auto       info = info_;
   auto const max_radius =
@@ -681,7 +695,7 @@ Canvas & Canvas::rrect(ShapeInfo const & info_)
   return sdf_shape_(info, shader::sdf::ShapeType::RRect);
 }
 
-Canvas & Canvas::squircle(ShapeInfo const & info_)
+ICanvas & ICanvas::squircle(ShapeInfo const & info_)
 {
   auto       info = info_;
   auto const max_radius =
@@ -691,13 +705,13 @@ Canvas & Canvas::squircle(ShapeInfo const & info_)
   return sdf_shape_(info, shader::sdf::ShapeType::Squircle);
 }
 
-Canvas & Canvas::nine_slice(ShapeInfo const & info, NineSlice const & slice)
+ICanvas & ICanvas::nine_slice(ShapeInfo const & info, NineSlice const & slice)
 {
   // [ ] implement
   return *this;
 }
 
-Canvas & Canvas::triangles(ShapeInfo const & info, Span<f32x2 const> points)
+ICanvas & ICanvas::triangles(ShapeInfo const & info, Span<f32x2 const> points)
 {
   if (points.size() < 3)
   {
@@ -710,8 +724,8 @@ Canvas & Canvas::triangles(ShapeInfo const & info, Span<f32x2 const> points)
   return triangles(info, points, indices);
 }
 
-Canvas & Canvas::triangles(ShapeInfo const & info, Span<f32x2 const> points,
-                           Span<u32 const> indices)
+ICanvas & ICanvas::triangles(ShapeInfo const & info, Span<f32x2 const> points,
+                             Span<u32 const> indices)
 {
   if (points.size() < 3)
   {
@@ -721,7 +735,7 @@ Canvas & Canvas::triangles(ShapeInfo const & info, Span<f32x2 const> points,
   return ngon_shape_(info, points, indices);
 }
 
-Canvas & Canvas::line(ShapeInfo const & info, Span<f32x2 const> points)
+ICanvas & ICanvas::line(ShapeInfo const & info, Span<f32x2 const> points)
 {
   if (points.size() < 2)
   {
@@ -735,7 +749,7 @@ Canvas & Canvas::line(ShapeInfo const & info, Span<f32x2 const> points)
   return ngon_shape_(info, vertices, indices);
 }
 
-Canvas & Canvas::blur(ShapeInfo const & info_)
+ICanvas & ICanvas::blur(ShapeInfo const & info_)
 {
   auto info            = info_;
   auto max_radius      = 0.5F * min(info.area.extent.x(), info.area.extent.y());
@@ -978,12 +992,13 @@ Canvas & Canvas::blur(ShapeInfo const & info_)
   return *this;
 }
 
-Canvas & Canvas::contour_stencil_(u32 stencil, u32 write_mask, bool tesselate,
-                                  Span<f32x2 const>           control_points,
-                                  Span<ContourEdgeType const> edge_types,
-                                  Span<u16 const> subdivision_counts,
-                                  bool invert, FillRule fill_rule,
-                                  f32x4x4 const & transform, CRect const & clip)
+ICanvas & ICanvas::contour_stencil_(u32 stencil, u32 write_mask, bool tesselate,
+                                    Span<f32x2 const>           control_points,
+                                    Span<ContourEdgeType const> edge_types,
+                                    Span<u16 const> subdivision_counts,
+                                    bool invert, FillRule fill_rule,
+                                    f32x4x4 const & transform,
+                                    CRect const &   clip)
 {
   if (edge_types.is_empty() || control_points.is_empty())
   {
@@ -1196,9 +1211,9 @@ Canvas & Canvas::contour_stencil_(u32 stencil, u32 write_mask, bool tesselate,
   return *this;
 }
 
-Canvas & Canvas::text(Span<TextLayer const> layers,
-                      Span<ShapeInfo const> shapes, Span<TextRenderInfo const>,
-                      Span<usize const>     sorted)
+ICanvas & ICanvas::text(Span<TextLayer const> layers,
+                        Span<ShapeInfo const> shapes,
+                        Span<TextRenderInfo const>, Span<usize const> sorted)
 {
   for (auto i : sorted)
   {

@@ -15,15 +15,17 @@ namespace ash
 
 typedef struct Window_T * Window;
 
-struct WindowSystem
-{
-  static Dyn<WindowSystem *> create_SDL(Allocator allocator);
+typedef struct IWindowSys * WindowSys;
 
-  virtual ~WindowSystem() = default;
+struct IWindowSys
+{
+  static Dyn<WindowSys> create_SDL(Allocator allocator);
+
+  virtual ~IWindowSys() = default;
 
   virtual void shutdown() = 0;
 
-  virtual Option<Window> create_window(gpu::Instance & instance, Str title) = 0;
+  virtual Option<Window> create_window(gpu::Instance instance, Str title) = 0;
 
   virtual void uninit_window(Window window) = 0;
 
@@ -94,7 +96,7 @@ struct WindowSystem
 
   virtual void poll_events() = 0;
 
-  virtual ClipBoard & get_clipboard() = 0;
+  virtual ClipBoard get_clipboard() = 0;
 
   virtual Tuple<KeyModifiers, Window>
     get_keyboard_state(BitSpan<u64> scan_state, BitSpan<u64> key_state) = 0;

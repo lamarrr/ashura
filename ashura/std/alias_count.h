@@ -28,13 +28,9 @@ namespace ash
 ///
 /// https://lwn.net/Articles/693038/
 ///
-struct AliasCount
+struct AtomicAliasCount
 {
-  /// @brief Guards against overflow.
-  static constexpr usize MAX = USIZE_MAX - 1;
-
-  /// @brief number of other aliases. range: [0, MAX], overflow is
-  /// well-checked.
+  /// @brief number of other aliases. range: [0, MAX]
   usize count_{0};
 
   /// @brief called before sharing an object
@@ -47,8 +43,7 @@ struct AliasCount
     while (!count.compare_exchange_weak(
       expected, desired, std::memory_order_release, std::memory_order_relaxed))
     {
-      CHECK(expected <= MAX, "");
-      desired = expected + 1;
+      desired = sat_add(expected, 1ULL);
     }
     return expected;
   }
@@ -67,7 +62,7 @@ struct AliasCount
     while (!count.compare_exchange_weak(
       expected, desired, std::memory_order_release, std::memory_order_relaxed))
     {
-      desired = max((usize) 1, expected) - 1;
+      desired = sat_sub(expected, 1ULL);
     }
     return expected;
   }
@@ -76,6 +71,38 @@ struct AliasCount
   {
     std::atomic_ref count{count_};
     return count.load(std::memory_order_relaxed);
+  }
+};
+
+struct AliasCount
+{
+  /// @brief number of other aliases.
+  usize count_{0};
+
+  /// @brief called before sharing an object
+  /// @returns returns the old alias count
+  usize alias()
+  {
+    auto previous = sat_add(count_, 1ULL);
+    return previous;
+  }
+
+  /// @brief called when done with an object.
+  /// @brief returns the old alias count. If 0 then the resource is ready to be released.
+  ///
+  /// WARNING: if accompanied by a destructive reclamation procedure and
+  /// `unalias` is called again after it has already returned 0, it will lead
+  /// to a double-release (i.e. double-free).
+  [[nodiscard]] usize unalias()
+  {
+    auto old = count_;
+    count_   = sat_sub(count_, 1ULL);
+    return old;
+  }
+
+  [[nodiscard]] usize count()
+  {
+    return count_;
   }
 };
 

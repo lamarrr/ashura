@@ -132,14 +132,14 @@ struct [[nodiscard]] Dict
     }
   };
 
-  Distance *   probe_dists_;
-  Entry *      probes_;
-  usize        num_probes_;
-  usize        num_entries_;
-  Distance     max_probe_dist_;
-  Allocator allocator_;
-  Hasher       hasher_;
-  KeyCmp       cmp_;
+  Distance * probe_dists_;
+  Entry *    probes_;
+  usize      num_probes_;
+  usize      num_entries_;
+  Distance   max_probe_dist_;
+  Allocator  allocator_;
+  Hasher     hasher_;
+  KeyCmp     cmp_;
 
   constexpr Dict(Allocator allocator = {}, Hasher hasher = {},
                  KeyCmp cmp = {}) :

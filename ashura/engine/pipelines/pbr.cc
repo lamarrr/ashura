@@ -1,5 +1,6 @@
 /// SPDX-License-Identifier: MIT
-#include "ashura/engine/passes/pbr.h"
+#include "ashura/engine/pipelines/pbr.h"
+#include "ashura/engine/shader_system.h"
 #include "ashura/engine/systems.h"
 #include "ashura/std/math.h"
 #include "ashura/std/sformat.h"
@@ -7,17 +8,21 @@
 namespace ash
 {
 
-Str PBRPass::label()
+Str PBRPipeline::label()
 {
   return "PBR"_str;
 }
 
-gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader,
+gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
+                                      gpu::Shader      shader,
                                       gpu::PolygonMode polygon_mode)
 {
+  char              scratch_buffer_[1'024];
+  auto &            gpu = *plan->sys();
+  FallbackAllocator scratch{Arena::from(scratch_buffer_), gpu.allocator()};
+
   auto tagged_label =
-    snformat<gpu::MAX_LABEL_SIZE>("PBR Graphics Pipeline: {}"_str, label)
-      .unwrap();
+    sformat(scratch, "PBR Graphics Pipeline: {}"_str, label).unwrap();
 
   auto raster_state =
     gpu::RasterizationState{.depth_clamp_enable = false,
@@ -28,7 +33,7 @@ gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader,
                             .depth_bias_constant_factor = 0,
                             .depth_bias_clamp           = 0,
                             .depth_bias_slope_factor    = 0,
-                            .sample_count = sys->gpu.sample_count_};
+                            .sample_count               = gpu.sample_count()};
 
   auto depth_stencil_state =
     gpu::DepthStencilState{.depth_test_enable        = false,
@@ -57,13 +62,13 @@ gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader,
   };
 
   gpu::DescriptorSetLayout const set_layouts[] = {
-    sys->gpu.samplers_layout_,    // 0: samplers
-    sys->gpu.textures_layout_,    // 1: textures
-    sys->gpu.sb_layout_,          // 2: vertices
-    sys->gpu.sb_layout_,          // 3: indices
-    sys->gpu.sb_layout_,          // 4: world constantts
-    sys->gpu.sb_layout_,          // 5: materials
-    sys->gpu.sb_layout_           // 6: lights
+    gpu.descriptors_layout_.samplers,               // 0: samplers
+    gpu.descriptors_layout_.sampled_textures,       // 1: textures
+    gpu.descriptors_layout_.read_storage_buffer,    // 2: vertices
+    gpu.descriptors_layout_.read_storage_buffer,    // 3: indices
+    gpu.descriptors_layout_.read_storage_buffer,    // 4: world constantts
+    gpu.descriptors_layout_.read_storage_buffer,    // 5: materials
+    gpu.descriptors_layout_.read_storage_buffer     // 6: lights
   };
 
   auto pipeline_info = gpu::GraphicsPipelineInfo{
@@ -77,9 +82,10 @@ gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader,
                                           .entry_point                   = "frag"_str,
                                           .specialization_constants      = {},
                                           .specialization_constants_data = {}},
-    .color_formats          = {&sys->gpu.color_format_, 1},
-    .depth_format           = sys->gpu.depth_stencil_format_,
-    .stencil_format         = sys->gpu.depth_stencil_format_,
+    .color_formats          = span({gpu.color_format()}
+      ),
+    .depth_format           = gpu.depth_stencil_format(),
+    .stencil_format         = gpu.depth_stencil_format(),
     .vertex_input_bindings  = {},
     .vertex_attributes      = {},
     .push_constants_size    = 0,
@@ -88,51 +94,58 @@ gpu::GraphicsPipeline create_pipeline(Str label, gpu::Shader shader,
     .rasterization_state    = raster_state,
     .depth_stencil_state    = depth_stencil_state,
     .color_blend_state      = color_blend_state,
-    .cache                  = sys->gpu.pipeline_cache_
+    .cache                  = gpu.pipeline_cache()
   };
 
-  return sys->gpu.device_->create_graphics_pipeline(pipeline_info).unwrap();
+  return gpu.device()->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
-PBRPass::Pipeline create_pipeline(Str label, gpu::Shader shader)
+PBRPipeline::Pipeline create_pipeline(GpuFramePlan plan, Str label,
+                                      gpu::Shader shader)
 {
   return {
-    .fill  = create_pipeline(label, shader, gpu::PolygonMode::Fill),
-    .line  = create_pipeline(label, shader, gpu::PolygonMode::Line),
-    .point = create_pipeline(label, shader, gpu::PolygonMode::Point),
+    .fill  = create_pipeline(plan, label, shader, gpu::PolygonMode::Fill),
+    .line  = create_pipeline(plan, label, shader, gpu::PolygonMode::Line),
+    .point = create_pipeline(plan, label, shader, gpu::PolygonMode::Point),
   };
 }
 
-PBRPass::PBRPass(Allocator allocator) : variants_{allocator}
+PBRPipeline::PBRPipeline(Allocator allocator) : variants_{allocator}
 {
 }
 
-void PBRPass::acquire()
+void PBRPipeline::acquire(GpuFramePlan plan)
 {
-  auto id =
-    add_variant("Base"_str, sys->shader.get("PBR.Base"_str).unwrap().shader);
+  auto id = add_variant(plan, "Base"_str,
+                        sys.shader->get("PBR.Base"_str).unwrap().shader);
   CHECK(id == ShaderVariantId::Base, "");
 }
 
-ShaderVariantId PBRPass::add_variant(Str label, gpu::Shader shader)
+ShaderVariantId PBRPipeline::add_variant(GpuFramePlan plan, Str label,
+                                         gpu::Shader shader)
 {
-  auto pipeline = create_pipeline(label, shader);
+  auto pipeline = create_pipeline(plan, label, shader);
   auto id = (ShaderVariantId) variants_.push(Tuple{label, pipeline}).unwrap();
   CHECK(id == ShaderVariantId::Base, "");
   return id;
 }
 
-void PBRPass::remove_variant(ShaderVariantId id)
+void PBRPipeline::remove_variant(GpuFramePlan plan, ShaderVariantId id)
 {
   auto pipeline = variants_[(usize) id].v0.v1;
-  sys->gpu.release(pipeline.fill);
-  sys->gpu.release(pipeline.line);
-  sys->gpu.release(pipeline.point);
+
   variants_.erase((usize) id);
+
+  plan->add_preframe_task([p = pipeline, d = plan->device()] {
+    d->uninit(p.fill);
+    d->uninit(p.line);
+    d->uninit(p.point);
+  });
 }
 
-void PBRPass::encode(gpu::CommandEncoder & e, PBRPassParams const & params,
-                     ShaderVariantId variant)
+void PBRPipeline::encode(gpu::CommandEncoder       e,
+                         PBRPipelineParams const & params,
+                         ShaderVariantId           variant)
 {
   InplaceVec<gpu::RenderingAttachment, 1> color;
 
@@ -159,15 +172,15 @@ void PBRPass::encode(gpu::CommandEncoder & e, PBRPassParams const & params,
         .unwrap();
     });
 
-  auto depth =
-    gpu::RenderingAttachment{.view    = params.framebuffer.depth_stencil.view,
-                             .resolve = nullptr,
-                             .resolve_mode = gpu::ResolveModes::None,
-                             .load_op      = gpu::LoadOp::Load,
-                             .store_op     = gpu::StoreOp::Store,
-                             .clear        = {}};
+  auto depth = gpu::RenderingAttachment{
+    .view         = params.framebuffer.depth_stencil.depth_view,
+    .resolve      = nullptr,
+    .resolve_mode = gpu::ResolveModes::None,
+    .load_op      = gpu::LoadOp::Load,
+    .store_op     = gpu::StoreOp::Store,
+    .clear        = {}};
 
-  auto stencil = params.stencil.map([&](PassStencil const &) {
+  auto stencil = params.stencil.map([&](PipelineStencil const &) {
     return gpu::RenderingAttachment{
       .view         = params.framebuffer.depth_stencil.stencil_view,
       .resolve      = nullptr,
@@ -184,7 +197,7 @@ void PBRPass::encode(gpu::CommandEncoder & e, PBRPassParams const & params,
                        .depth_attachment   = depth,
                        .stencil_attachment = stencil};
 
-  e.begin_rendering(info);
+  e->begin_rendering(info);
 
   auto pipelines = variants_[(usize) variant].v0.v1;
 
@@ -203,9 +216,9 @@ void PBRPass::encode(gpu::CommandEncoder & e, PBRPassParams const & params,
       break;
   }
 
-  e.bind_graphics_pipeline(pipeline);
+  e->bind_graphics_pipeline(pipeline);
 
-  e.set_graphics_state(gpu::GraphicsState{
+  e->set_graphics_state(gpu::GraphicsState{
     .scissor             = params.scissor,
     .viewport            = params.viewport,
     .blend_constant      = {1, 1, 1, 1},
@@ -220,34 +233,36 @@ void PBRPass::encode(gpu::CommandEncoder & e, PBRPassParams const & params,
     .depth_compare_op   = gpu::CompareOp::Less,
     .depth_write_enable = true
   });
-  e.bind_descriptor_sets(
+  e->bind_descriptor_sets(
     span({
-      params.samplers,                       // 0: samplers
-      params.textures,                       // 1: textures
-      params.vertices.buffer.descriptor_,    // 2: vertices
-      params.indices.buffer.descriptor_,     // 3: indices
-      params.world.buffer.descriptor_,       // 4: world constantts
-      params.material.buffer.descriptor_,    // 5: materials
-      params.lights.buffer.descriptor_,      // 6: lights
+      params.samplers,                               // 0: samplers
+      params.textures,                               // 1: textures
+      params.vertices.buffer.read_storage_buffer,    // 2: vertices
+      params.indices.buffer.read_storage_buffer,     // 3: indices
+      params.world.buffer.read_storage_buffer,       // 4: world constantts
+      params.material.buffer.read_storage_buffer,    // 5: materials
+      params.lights.buffer.read_storage_buffer,      // 6: lights
     }),
     span({
-      params.vertices.slice.offset,    // 2: vertices
-      params.indices.slice.offset,     // 3: indices
-      params.world.slice.offset,       // 4: world constantts
-      params.material.slice.offset,    // 5: materials
-      params.lights.slice.offset       // 6: lights
+      params.vertices.slice.as_u32().offset,    // 2: vertices
+      params.indices.slice.as_u32().offset,     // 3: indices
+      params.world.slice.as_u32().offset,       // 4: world constantts
+      params.material.slice.as_u32().offset,    // 5: materials
+      params.lights.slice.as_u32().offset       // 6: lights
     }));
-  e.draw(params.num_indices, 1, 0, 0);
-  e.end_rendering();
+  e->draw({0, params.num_indices}, {0, 1});
+  e->end_rendering();
 }
 
-void PBRPass::release()
+void PBRPipeline::release(GpuFramePlan plan)
 {
   for (auto [v] : variants_)
   {
-    sys->gpu.device_->uninit(v.v1.fill);
-    sys->gpu.device_->uninit(v.v1.line);
-    sys->gpu.device_->uninit(v.v1.point);
+    plan->add_preframe_task([p = v.v1, d = plan->device()] {
+      d->uninit(p.fill);
+      d->uninit(p.line);
+      d->uninit(p.point);
+    });
   }
 }
 

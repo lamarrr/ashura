@@ -1,6 +1,7 @@
 /// SPDX-License-Identifier: MIT
-#include "ashura/engine/passes/bezier_stencil.h"
-#include "ashura/engine/passes/fill_stencil_state.h"
+#include "ashura/engine/pipelines/bezier_stencil.h"
+#include "ashura/engine/pipelines/fill_stencil_state.h"
+#include "ashura/engine/shader_system.h"
 #include "ashura/engine/systems.h"
 #include "ashura/std/math.h"
 #include "ashura/std/range.h"
@@ -8,14 +9,22 @@
 namespace ash
 {
 
-Str BezierStencilPass::label()
+BezierStencilPipeline::BezierStencilPipeline(Allocator)
+{
+}
+
+Str BezierStencilPipeline::label()
 {
   return "BezierStencil"_str;
 }
 
-void BezierStencilPass::acquire()
+void BezierStencilPipeline::acquire(GpuFramePlan plan)
 {
-  auto shader = sys->shader.get("BezierStencil"_str).unwrap().shader;
+  char              scratch_buffer_[1'024];
+  auto &            gpu = *plan->sys();
+  FallbackAllocator scratch{Arena::from(scratch_buffer_), gpu.allocator()};
+
+  auto shader = sys.shader->get("BezierStencil"_str).unwrap().shader;
 
   auto raster_state =
     gpu::RasterizationState{.depth_clamp_enable = false,
@@ -26,7 +35,7 @@ void BezierStencilPass::acquire()
                             .depth_bias_constant_factor = 0,
                             .depth_bias_clamp           = 0,
                             .depth_bias_slope_factor    = 0,
-                            .sample_count = sys->gpu.sample_count_};
+                            .sample_count               = gpu.sample_count()};
 
   auto depth_stencil_state =
     gpu::DepthStencilState{.depth_test_enable        = false,
@@ -40,11 +49,11 @@ void BezierStencilPass::acquire()
                            .max_depth_bounds         = 0};
 
   gpu::DescriptorSetLayout set_layouts[] = {
-    sys->gpu.sb_layout_,    // 0: world_to_ndc
-    sys->gpu.sb_layout_,    // 1: transforms
-    sys->gpu.sb_layout_,    // 2: vertices
-    sys->gpu.sb_layout_,    // 3: indices
-    sys->gpu.sb_layout_     // 4: regions
+    gpu.descriptors_layout_.read_storage_buffer,    // 0: world_to_ndc
+    gpu.descriptors_layout_.read_storage_buffer,    // 1: transforms
+    gpu.descriptors_layout_.read_storage_buffer,    // 2: vertices
+    gpu.descriptors_layout_.read_storage_buffer,    // 3: indices
+    gpu.descriptors_layout_.read_storage_buffer     // 4: regions
   };
 
   auto pipeline_info = gpu::GraphicsPipelineInfo{
@@ -60,7 +69,7 @@ void BezierStencilPass::acquire()
                                           .specialization_constants_data = {}},
     .color_formats          = {},
     .depth_format           = {},
-    .stencil_format         = sys->gpu.depth_stencil_format_,
+    .stencil_format         = gpu.depth_stencil_format(),
     .vertex_input_bindings  = {},
     .vertex_attributes      = {},
     .push_constants_size    = 0,
@@ -69,15 +78,14 @@ void BezierStencilPass::acquire()
     .rasterization_state    = raster_state,
     .depth_stencil_state    = depth_stencil_state,
     .color_blend_state      = {},
-    .cache                  = sys->gpu.pipeline_cache_
+    .cache                  = gpu.pipeline_cache()
   };
 
-  pipeline_ =
-    sys->gpu.device_->create_graphics_pipeline(pipeline_info).unwrap();
+  pipeline_ = gpu.device()->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
-void BezierStencilPass::encode(gpu::CommandEncoder &           e,
-                               BezierStencilPassParams const & params)
+void BezierStencilPipeline::encode(gpu::CommandEncoder                 e,
+                                   BezierStencilPipelineParams const & params)
 {
   auto stencil =
     gpu::RenderingAttachment{.view         = params.stencil.stencil_view,
@@ -94,46 +102,47 @@ void BezierStencilPass::encode(gpu::CommandEncoder &           e,
                        .depth_attachment   = {},
                        .stencil_attachment = stencil};
 
-  e.begin_rendering(info);
-  e.bind_graphics_pipeline(pipeline_);
+  e->begin_rendering(info);
+  e->bind_graphics_pipeline(pipeline_);
 
   auto [front_stencil, back_stencil] =
     fill_stencil_state(params.fill_rule, params.invert, params.write_mask);
 
-  e.set_graphics_state(gpu::GraphicsState{.scissor  = params.scissor,
-                                          .viewport = params.viewport,
-                                          .stencil_test_enable = false,
-                                          .front_face_stencil  = front_stencil,
-                                          .back_face_stencil   = back_stencil});
+  e->set_graphics_state(gpu::GraphicsState{.scissor  = params.scissor,
+                                           .viewport = params.viewport,
+                                           .stencil_test_enable = false,
+                                           .front_face_stencil  = front_stencil,
+                                           .back_face_stencil = back_stencil});
 
-  e.bind_descriptor_sets(
+  e->bind_descriptor_sets(
     span({
-      params.world_to_ndc.buffer.descriptor_,    // 0: world_to_ndc
-      params.transforms.buffer.descriptor_,      // 1: transforms
-      params.vertices.buffer.descriptor_,        // 2: vertices
-      params.indices.buffer.descriptor_,         // 3: indices
-      params.regions.buffer.descriptor_,         // 4: regions
+      params.world_to_ndc.buffer.read_storage_buffer,    // 0: world_to_ndc
+      params.transforms.buffer.read_storage_buffer,      // 1: transforms
+      params.vertices.buffer.read_storage_buffer,        // 2: vertices
+      params.indices.buffer.read_storage_buffer,         // 3: indices
+      params.regions.buffer.read_storage_buffer,         // 4: regions
     }),
     span({
-      params.world_to_ndc.slice.offset,    // 0: world_to_ndc
-      params.transforms.slice.offset,      // 1: transforms
-      params.vertices.slice.offset,        // 2: vertices
-      params.indices.slice.offset,         // 3: indices
-      params.regions.slice.offset,         // 4: regions
+      params.world_to_ndc.slice.as_u32().offset,    // 0: world_to_ndc
+      params.transforms.slice.as_u32().offset,      // 1: transforms
+      params.vertices.slice.as_u32().offset,        // 2: vertices
+      params.indices.slice.as_u32().offset,         // 3: indices
+      params.regions.slice.as_u32().offset,         // 4: regions
     }));
 
   u32 first_index = 0;
   for (auto [i, index_count] : enumerate<u32>(params.region_index_counts))
   {
-    e.draw(index_count, 1, first_index, i);
+    e->draw({first_index, index_count}, {i, 1});
     first_index += index_count;
   }
-  e.end_rendering();
+  e->end_rendering();
 }
 
-void BezierStencilPass::release()
+void BezierStencilPipeline::release(GpuFramePlan plan)
 {
-  sys->gpu.device_->uninit(pipeline_);
+  plan->add_preframe_task(
+    [p = pipeline_, d = plan->device()] { d->uninit(p); });
 }
 
 }    // namespace ash

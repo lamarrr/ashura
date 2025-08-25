@@ -141,7 +141,7 @@ void copy_alpha_image_to_BGRA(ImageSpan<T const, 1> src, ImageSpan<T, 4> dst,
 template <typename T>
 void copy_RGBA_to_BGRA(ImageSpan<T const, 4> src, ImageSpan<T, 4> dst)
 {
- src.extent = src.extent.min(dst.extent);
+  src.extent = src.extent.min(dst.extent);
 
   auto const * ASH_RESTRICT in_row  = src.channels.data();
   auto * ASH_RESTRICT       out_row = dst.channels.data();
