@@ -26,9 +26,9 @@ Str BlurPipeline::label()
 gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
                                       gpu::Shader shader)
 {
-  char              scratch_buffer_[1'024];
+  u8                scratch_buffer_[1'024];
   auto &            gpu = *plan->sys();
-  FallbackAllocator scratch{Arena::from(scratch_buffer_), gpu.allocator()};
+  FallbackAllocator scratch{scratch_buffer_, gpu.allocator()};
 
   auto tagged_label =
     sformat(scratch, "Blur Graphics Pipeline: {}"_str, label).unwrap();
@@ -69,10 +69,12 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
   auto color_blend_state = gpu::ColorBlendState{
     .attachments = attachment_states, .blend_constant = {}};
 
+  auto const & layout = gpu.descriptors_layout();
+
   gpu::DescriptorSetLayout set_layouts[] = {
-    gpu.descriptors_layout_.samplers,              // 0: samplers
-    gpu.descriptors_layout_.sampled_textures,      // 1: textures
-    gpu.descriptors_layout_.read_storage_buffer    // 2: blur
+    layout.samplers,              // 0: samplers
+    layout.sampled_textures,      // 1: textures
+    layout.read_storage_buffer    // 2: blur
   };
 
   auto pipeline_info = gpu::GraphicsPipelineInfo{

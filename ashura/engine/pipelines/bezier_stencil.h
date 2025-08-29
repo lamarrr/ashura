@@ -11,18 +11,18 @@ namespace ash
 
 struct BezierStencilPipelineParams
 {
-  DepthStencilTexture stencil             = {};
-  u32                 write_mask          = 0;
-  RectU               scissor             = {};
-  gpu::Viewport       viewport            = {};
-  FillRule            fill_rule           = FillRule::EvenOdd;
-  bool                invert              = false;
-  GpuBufferSpan       world_to_ndc        = {};
-  GpuBufferSpan       transforms          = {};
-  GpuBufferSpan       vertices            = {};
-  GpuBufferSpan       indices             = {};
-  GpuBufferSpan       regions             = {};
-  Span<u32 const>     region_index_counts = {};
+  DepthStencilImage stencil             = {};
+  u32               write_mask          = 0;
+  RectU             scissor             = {};
+  gpu::Viewport     viewport            = {};
+  FillRule          fill_rule           = FillRule::EvenOdd;
+  bool              invert              = false;
+  GpuBufferSpan     world_to_ndc        = {};
+  GpuBufferSpan     transforms          = {};
+  GpuBufferSpan     vertices            = {};
+  GpuBufferSpan     indices             = {};
+  GpuBufferSpan     regions             = {};
+  Span<u32 const>   region_index_counts = {};
 };
 
 struct BezierStencilPipeline final : IPipeline

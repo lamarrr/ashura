@@ -11,18 +11,18 @@ namespace ash
 
 struct FillStencilPipelineParams
 {
-  DepthStencilTexture stencil        = {};
-  u32                 write_mask     = 0;
-  RectU               scissor        = {};
-  gpu::Viewport       viewport       = {};
-  FillRule            fill_rule      = FillRule::EvenOdd;
-  bool                invert         = false;
-  GpuBufferSpan       world_to_ndc   = {};
-  GpuBufferSpan       transforms     = {};
-  GpuBufferSpan       vertices       = {};
-  GpuBufferSpan       indices        = {};
-  u32                 first_instance = 0;
-  Span<u32 const>     index_counts   = {};
+  DepthStencilImage stencil        = {};
+  u32               write_mask     = 0;
+  RectU             scissor        = {};
+  gpu::Viewport     viewport       = {};
+  FillRule          fill_rule      = FillRule::EvenOdd;
+  bool              invert         = false;
+  GpuBufferSpan     world_to_ndc   = {};
+  GpuBufferSpan     transforms     = {};
+  GpuBufferSpan     vertices       = {};
+  GpuBufferSpan     indices        = {};
+  u32               first_instance = 0;
+  Span<u32 const>   index_counts   = {};
 };
 
 struct FillStencilPipeline final : IPipeline

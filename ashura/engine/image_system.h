@@ -20,7 +20,7 @@ struct ImageInfo
 
   Str label{};
 
-  Span<TextureId const> textures{};
+  Span<TextureIndex const> textures{};
 
   gpu::ImageInfo info{};
 
@@ -37,7 +37,7 @@ struct Image
 
   Vec<char> label{};
 
-  Vec<TextureId> textures{};
+  Vec<TextureIndex> textures{};
 
   gpu::ImageInfo info{};
 

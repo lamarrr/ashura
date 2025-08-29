@@ -2,18 +2,17 @@
 #include "ashura/engine/gpu_system.h"
 #include "ashura/std/range.h"
 #include "ashura/std/sformat.h"
-#include "ashura/std/str.h"
 #include "ashura/std/trace.h"
 
 namespace ash
 {
 
-u32x3 ColorTexture::extent() const
+u32x3 ColorImage::extent() const
 {
   return info.extent;
 }
 
-void ColorTexture::uninit(gpu::Device device)
+void ColorImage::uninit(gpu::Device device)
 {
   device->uninit(sampled_texture);
   device->uninit(storage_texture);
@@ -22,28 +21,28 @@ void ColorTexture::uninit(gpu::Device device)
   device->uninit(image);
 }
 
-gpu::SampleCount ColorMsaaTexture::sample_count() const
+gpu::SampleCount ColorMsaaImage::sample_count() const
 {
   return info.sample_count;
 }
 
-u32x3 ColorMsaaTexture::extent() const
+u32x3 ColorMsaaImage::extent() const
 {
   return info.extent;
 }
 
-void ColorMsaaTexture::uninit(gpu::Device device)
+void ColorMsaaImage::uninit(gpu::Device device)
 {
   device->uninit(view);
   device->uninit(image);
 }
 
-u32x3 DepthStencilTexture::extent() const
+u32x3 DepthStencilImage::extent() const
 {
   return info.extent;
 }
 
-void DepthStencilTexture::uninit(gpu::Device device)
+void DepthStencilImage::uninit(gpu::Device device)
 {
   device->uninit(depth_sampled_texture);
   device->uninit(depth_storage_texture);
@@ -377,22 +376,19 @@ GpuDescriptors GpuDescriptors::create(GpuSys sys, Str label, Allocator scratch)
           span({sys->descriptors_layout_.sampled_textures_capacity})})
       .unwrap();
 
-  SparseVec<> samplers_map{sys->allocator_};
-  samplers_map.reserve(sys->descriptors_layout_.samplers_capacity).unwrap();
+  BitVec<u64> samplers_slots{sys->allocator_};
+  samplers_slots.reserve(sys->descriptors_layout_.samplers_capacity).unwrap();
 
-  SparseVec<> sampled_textures_map{sys->allocator_};
-  sampled_textures_map
-    .reserve(sys->descriptors_layout_.sampled_textures_capacity)
+  BitVec<u64> sampled_textures_slots{sys->allocator_};
+  sampled_textures_slots
+    .resize(sys->descriptors_layout_.sampled_textures_capacity)
     .unwrap();
 
-  return GpuDescriptors{
-    .samplers          = samplers,
-    .samplers_capacity = sys->descriptors_layout_.samplers_capacity,
-    .samplers_map      = std::move(samplers_map),
-    .sampled_textures  = sampled_textures,
-    .sampled_textures_capacity =
-      sys->descriptors_layout_.sampled_textures_capacity,
-    .sampled_textures_map = std::move(sampled_textures_map)};
+  return GpuDescriptors{.samplers         = samplers,
+                        .samplers_slots   = std::move(samplers_slots),
+                        .sampled_textures = sampled_textures,
+                        .sampled_textures_slots =
+                          std::move(sampled_textures_slots)};
 }
 
 void IGpuFramePlan::uninit()
@@ -417,10 +413,10 @@ void IGpuFramePlan::reserve_scratch_buffers(Span<u64 const> sizes)
   }
 }
 
-void IGpuFramePlan::reserve_scratch_textures(u32 num_scratch_textures)
+void IGpuFramePlan::reserve_scratch_images(u32 num_scratch_images)
 {
   CHECK(state_ == GpuFramePlanState::Recording, "");
-  num_scratch_textures_ = max(num_scratch_textures_, num_scratch_textures);
+  num_scratch_images_ = max(num_scratch_images_, num_scratch_images);
 }
 
 void IGpuFramePlan::add_preframe_task(GpuFrameTask && task)
@@ -441,7 +437,7 @@ void IGpuFramePlan::add_pass(GpuPass && pass)
   passes_.push(std::move(pass)).unwrap();
 }
 
-BufferId IGpuFramePlan::push_cpu(Span<u8 const> data)
+CpuBufferId IGpuFramePlan::push_cpu(Span<u8 const> data)
 {
   CHECK(state_ == GpuFramePlanState::Recording, "");
   auto offset = cpu_buffer_data_.size();
@@ -453,7 +449,7 @@ BufferId IGpuFramePlan::push_cpu(Span<u8 const> data)
   auto aligned_size =
     align_offset<usize>(SIMD_ALIGNMENT, cpu_buffer_data_.size());
   cpu_buffer_data_.resize_uninit(aligned_size).unwrap();
-  return BufferId{(u32) idx};
+  return CpuBufferId{(u32) idx};
 }
 
 GpuBufferId IGpuFramePlan::push_gpu(Span<u8 const> data)
@@ -508,7 +504,7 @@ void IGpuFramePlan::reset()
   cpu_buffer_data_.shrink_clear().unwrap();
   cpu_buffer_entries_.shrink_clear().unwrap();
   scratch_buffer_sizes_.shrink_clear().unwrap();
-  num_scratch_textures_ = 0;
+  num_scratch_images_ = 0;
   passes_.shrink_clear().unwrap();
   target_ = {};
   arena_.reclaim();
@@ -520,17 +516,17 @@ bool IGpuFramePlan::await(nanoseconds timeout)
   return semaphore_->await(submission_stage_, timeout);
 }
 
-void TextureUnion::uninit(gpu::Device device)
+void ImageUnion::uninit(gpu::Device device)
 {
   color.uninit(device);
   depth_stencil.uninit(device);
   device->uninit(alias);
 }
 
-TextureUnion TextureUnion::create(GpuSys sys, u32x2 target_size,
-                                  gpu::Format color_format,
-                                  gpu::Format depth_stencil_format, Str label,
-                                  Allocator scratch)
+ImageUnion ImageUnion::create(GpuSys sys, u32x2 target_size,
+                              gpu::Format color_format,
+                              gpu::Format depth_stencil_format, Str label,
+                              Allocator scratch)
 {
   // [ ] MSAA scratch and target textures
   auto tag = [&](Str component) {
@@ -542,7 +538,7 @@ TextureUnion TextureUnion::create(GpuSys sys, u32x2 target_size,
   auto color_info = gpu::ImageInfo{.label        = color_label,
                                    .type         = gpu::ImageType::Type2D,
                                    .format       = color_format,
-                                   .usage        = ColorTexture::USAGE,
+                                   .usage        = ColorImage::USAGE,
                                    .aspects      = gpu::ImageAspects::Color,
                                    .extent       = target_size.append(1),
                                    .mip_levels   = 1,
@@ -623,20 +619,20 @@ TextureUnion TextureUnion::create(GpuSys sys, u32x2 target_size,
     .texel_buffers = {},
     .buffers       = {}});
 
-  auto color = ColorTexture{.info             = color_info,
-                            .view_info        = color_view_info,
-                            .image            = color_image,
-                            .view             = color_image_view,
-                            .sampled_texture  = color_sampled_texture,
-                            .storage_texture  = color_storage_texture,
-                            .input_attachment = color_input_attachment};
+  auto color = ColorImage{.info             = color_info,
+                          .view_info        = color_view_info,
+                          .image            = color_image,
+                          .view             = color_image_view,
+                          .sampled_texture  = color_sampled_texture,
+                          .storage_texture  = color_storage_texture,
+                          .input_attachment = color_input_attachment};
 
   auto depth_stencil_label = tag("Depth Stencil Image"_str);
   auto depth_stencil_info  = gpu::ImageInfo{
      .label        = depth_stencil_label,
      .type         = gpu::ImageType::Type2D,
      .format       = depth_stencil_format,
-     .usage        = DepthStencilTexture::USAGE,
+     .usage        = DepthStencilImage::USAGE,
      .aspects      = gpu::ImageAspects::Depth | gpu::ImageAspects::Stencil,
      .extent       = target_size.append(1),
      .mip_levels   = 1,
@@ -735,15 +731,15 @@ TextureUnion TextureUnion::create(GpuSys sys, u32x2 target_size,
     .buffers       = {}});
 
   auto depth_stencil =
-    DepthStencilTexture{.info                   = depth_stencil_info,
-                        .depth_view_info        = depth_view_info,
-                        .stencil_view_info      = stencil_view_info,
-                        .image                  = depth_stencil_image,
-                        .depth_view             = depth_image_view,
-                        .stencil_view           = stencil_image_view,
-                        .depth_sampled_texture  = depth_sampled_texture,
-                        .depth_storage_texture  = depth_storage_texture,
-                        .depth_input_attachment = depth_input_attachment};
+    DepthStencilImage{.info                   = depth_stencil_info,
+                      .depth_view_info        = depth_view_info,
+                      .stencil_view_info      = stencil_view_info,
+                      .image                  = depth_stencil_image,
+                      .depth_view             = depth_image_view,
+                      .stencil_view           = stencil_image_view,
+                      .depth_sampled_texture  = depth_sampled_texture,
+                      .depth_storage_texture  = depth_storage_texture,
+                      .depth_input_attachment = depth_input_attachment};
 
   auto alias_label = tag("Alias"_str);
   auto alias       = sys->dev_
@@ -753,38 +749,36 @@ TextureUnion TextureUnion::create(GpuSys sys, u32x2 target_size,
                      {color_image, depth_stencil_image})})
                  .unwrap();
 
-  return TextureUnion{
+  return ImageUnion{
     .color = color, .depth_stencil = depth_stencil, .alias = alias};
 }
 
-void ScratchTextures::uninit(gpu::Device device)
+void ScratchImages::uninit(gpu::Device device)
 {
-  for (auto & scratch : textures)
+  for (auto & scratch : images)
   {
     scratch.uninit(device);
   }
-  textures.clear();
+  images.clear();
 }
 
-ScratchTextures ScratchTextures::create(GpuSys sys, u32 num_scratch,
-                                        u32x2       target_size,
-                                        gpu::Format color_format,
-                                        gpu::Format depth_stencil_format,
-                                        Str label, Allocator allocator,
-                                        Allocator scratch)
+ScratchImages ScratchImages::create(GpuSys sys, u32 num_scratch,
+                                    u32x2 target_size, gpu::Format color_format,
+                                    gpu::Format depth_stencil_format, Str label,
+                                    Allocator allocator, Allocator scratch)
 {
-  Vec<TextureUnion> textures{allocator};
+  Vec<ImageUnion> images{allocator};
 
   for (auto i : range(num_scratch))
   {
     auto union_label = sformat(scratch, "{} / {}"_str, label, i).unwrap();
-    auto union_texture =
-      TextureUnion::create(sys, target_size, color_format, depth_stencil_format,
-                           union_label, scratch);
-    textures.push(union_texture).unwrap();
+    auto union_image =
+      ImageUnion::create(sys, target_size, color_format, depth_stencil_format,
+                         union_label, scratch);
+    images.push(union_image).unwrap();
   }
 
-  return ScratchTextures{.textures = std::move(textures)};
+  return ScratchImages{.images = std::move(images)};
 }
 
 void ScratchBuffers::uninit(gpu::Device device)
@@ -809,114 +803,11 @@ ScratchBuffers ScratchBuffers::create(GpuSys sys, Span<u64 const> sizes,
   return ScratchBuffers{.buffers = std::move(buffers)};
 }
 
-ColorTexture create_target_texture(GpuSys sys, u32x2 target_size,
-                                   gpu::Format color_format, Str label,
-                                   Allocator scratch)
-{
-  auto tag = [&](Str component) {
-    return sformat(scratch, "{} / {}"_str, label, component).unwrap();
-  };
-
-  auto color_label = tag("Color Image"_str);
-
-  auto color_info = gpu::ImageInfo{.label        = color_label,
-                                   .type         = gpu::ImageType::Type2D,
-                                   .format       = color_format,
-                                   .usage        = ColorTexture::USAGE,
-                                   .aspects      = gpu::ImageAspects::Color,
-                                   .extent       = target_size.append(1),
-                                   .mip_levels   = 1,
-                                   .array_layers = 1,
-                                   .sample_count = gpu::SampleCount::C1,
-                                   .memory_type  = gpu::MemoryType::Unique};
-
-  auto color_image = sys->dev_->create_image(color_info).unwrap();
-
-  auto color_view_label = tag("Color Image View"_str);
-
-  auto color_view_info = gpu::ImageViewInfo{
-    .label        = color_view_label,
-    .image        = color_image,
-    .view_type    = gpu::ImageViewType::Type2D,
-    .view_format  = color_format,
-    .mapping      = {},
-    .aspects      = gpu::ImageAspects::Color,
-    .mip_levels   = {0, 1},
-    .array_layers = {0, 1}
-  };
-
-  auto color_image_view =
-    sys->dev_->create_image_view(color_view_info).unwrap();
-
-  auto sampled_color_texture_label = tag("Sampled Color Texture"_str);
-  auto sampled_color_texture =
-    sys->dev_
-      ->create_descriptor_set(gpu::DescriptorSetInfo{
-        .label            = sampled_color_texture_label,
-        .layout           = sys->descriptors_layout_.sampled_textures,
-        .variable_lengths = span({1U})})
-      .unwrap();
-
-  sys->dev_->update_descriptor_set(gpu::DescriptorSetUpdate{
-    .set           = sampled_color_texture,
-    .binding       = 0,
-    .first_element = 0,
-    .images        = span({gpu::ImageBinding{.image_view = color_image_view}}),
-    .texel_buffers = {},
-    .buffers       = {}});
-
-  auto storage_color_texture_label = tag("Storage Color Texture"_str);
-  auto storage_color_texture =
-    sys->dev_
-      ->create_descriptor_set(gpu::DescriptorSetInfo{
-        .label            = storage_color_texture_label,
-        .layout           = sys->descriptors_layout_.storage_textures,
-        .variable_lengths = span({1U})})
-      .unwrap();
-
-  sys->dev_->update_descriptor_set(gpu::DescriptorSetUpdate{
-    .set           = storage_color_texture,
-    .binding       = 0,
-    .first_element = 0,
-    .images        = span({gpu::ImageBinding{.image_view = color_image_view}}),
-    .texel_buffers = {},
-    .buffers       = {}});
-
-  auto input_attachment_label = tag("Input Attachment"_str);
-  auto input_attachment =
-    sys->dev_
-      ->create_descriptor_set(gpu::DescriptorSetInfo{
-        .label            = input_attachment_label,
-        .layout           = sys->descriptors_layout_.input_attachments,
-        .variable_lengths = span({1U})})
-      .unwrap();
-
-  sys->dev_->update_descriptor_set(gpu::DescriptorSetUpdate{
-    .set           = input_attachment,
-    .binding       = 0,
-    .first_element = 0,
-    .images        = span({gpu::ImageBinding{.image_view = color_image_view}}),
-    .texel_buffers = {},
-    .buffers       = {}});
-
-  color_info.label      = {};
-  color_view_info.label = {};
-
-  return ColorTexture{.info             = color_info,
-                      .view_info        = color_view_info,
-                      .image            = color_image,
-                      .view             = color_image_view,
-                      .sampled_texture  = sampled_color_texture,
-                      .storage_texture  = storage_color_texture,
-                      .input_attachment = input_attachment};
-}
-
 void GpuFrameResources::uninit(gpu::Device device)
 {
   buffer.uninit(device);
-  target.uninit(device);
   scratch_buffers.uninit(device);
-  scratch_textures.uninit(device);
+  scratch_images.uninit(device);
   queries.uninit(device);
 }
 
@@ -967,11 +858,6 @@ GpuSys IGpuFrame::sys() const
 gpu::Swapchain IGpuFrame::swapchain() const
 {
   return sys_->swapchain_;
-}
-
-ColorTexture IGpuFrame::target() const
-{
-  return resources_.target;
 }
 
 gpu::DescriptorSet IGpuFrame::sampled_textures() const
@@ -1027,27 +913,16 @@ Option<Tuple<gpu::StatisticsQuery, u32>> IGpuFrame::allocate_statistics()
   return Tuple{resources_.queries.statistics, idx};
 }
 
-void IGpuFrame::get_scratch_textures(Span<TextureUnion> textures)
+Span<ImageUnion const> IGpuFrame::get_scratch_images() const
 {
   CHECK(state_ == GpuFrameState::Recording, "");
-  CHECK(textures.size() <= resources_.scratch_textures.textures.size(), "");
-  for (auto & tex : textures)
-  {
-    tex = resources_.scratch_textures.textures[next_scratch_texture_];
-    next_scratch_texture_++;
-    next_scratch_texture_ =
-      next_scratch_texture_ % resources_.scratch_textures.textures.size();
-  }
+  return resources_.scratch_images.images;
 }
 
-void IGpuFrame::get_scratch_buffers(Span<GpuBuffer> buffers)
+Span<GpuBuffer const> IGpuFrame::get_scratch_buffers() const
 {
   CHECK(state_ == GpuFrameState::Recording, "");
-  CHECK(buffers.size() <= resources_.scratch_buffers.buffers.size(), "");
-  for (auto [tgt, src] : zip(buffers, resources_.scratch_buffers.buffers))
-  {
-    tgt = src;
-  }
+  return resources_.scratch_buffers.buffers;
 }
 
 GpuBufferSpan IGpuFrame::get(GpuBufferId id)
@@ -1057,12 +932,39 @@ GpuBufferSpan IGpuFrame::get(GpuBufferId id)
   return {resources_.buffer, slice};
 }
 
-Span<u8 const> IGpuFrame::get(BufferId id)
+Span<u8 const> IGpuFrame::get(CpuBufferId id)
 {
   CHECK(state_ == GpuFrameState::Recording, "");
   CHECK(current_plan_ != nullptr, "");
   auto slice = current_plan_->cpu_buffer_entries_.get((usize) id);
   return current_plan_->cpu_buffer_data_.view().slice(slice);
+}
+
+gpu::DescriptorSet IGpuFrame::get(TextureSet tex)
+{
+  return tex.match(
+    [&](ScratchTexture s) {
+      auto img = get_scratch_images()[s.image];
+
+      switch (s.type)
+      {
+        case ash::ScratchTexureType::SampledColor:
+          return img.color.sampled_texture;
+        case ash::ScratchTexureType::StorageColor:
+          return img.color.storage_texture;
+        case ash::ScratchTexureType::InputAttachmentColor:
+          return img.color.input_attachment;
+        case ash::ScratchTexureType::SampledDepthStencil:
+          return img.depth_stencil.depth_sampled_texture;
+        case ash::ScratchTexureType::StorageDepthStencil:
+          return img.depth_stencil.depth_storage_texture;
+        case ash::ScratchTexureType::InputAttachmentDepthStencil:
+          return img.depth_stencil.depth_input_attachment;
+        default:
+          ASH_UNREACHABLE;
+      }
+    },
+    [&](SampledTextures) { return sys_->sampled_textures(); });
 }
 
 void IGpuFrame::begin()
@@ -1091,8 +993,8 @@ void IGpuFrame::end()
 void IGpuFrame::submit()
 {
   CHECK(state_ == GpuFrameState::Recorded, "");
-  char              scratch_buffer_[1_KB];
-  FallbackAllocator scratch{Arena::from(scratch_buffer_), allocator_};
+  u8                scratch_buffer_[1_KB];
+  FallbackAllocator scratch{scratch_buffer_, allocator_};
 
   // [ ] collect time and statistics traces
 
@@ -1104,14 +1006,6 @@ void IGpuFrame::submit()
     grow_buffer(sys_, label, resources_.buffer, size, scratch);
     mem::copy(current_plan_->gpu_buffer_data_.view(),
               dev_->get_memory_map(resources_.buffer.buffer).unwrap());
-  }
-
-  if (target_info_ != current_plan_->target_)
-  {
-    resources_.target.uninit(dev_);
-    auto label = sformat(scratch, "GpuFrame {} / Target"_str, id_).unwrap();
-    resources_.target = create_target_texture(
-      sys_, target_info_.extent, target_info_.color_format, label, scratch);
   }
 
   {
@@ -1139,22 +1033,21 @@ void IGpuFrame::submit()
     resources_.scratch_buffers.grow(sys_, sizes, label, allocator_, scratch);
   }
 
-  CHECK(current_plan_->num_scratch_textures_ <= cfg_.max_scratch_textures, "");
+  CHECK(current_plan_->num_scratch_images_ <= cfg_.max_scratch_images, "");
 
-  auto num_scratch_textures =
-    clamp(current_plan_->num_scratch_textures_, cfg_.min_scratch_textures,
-          cfg_.max_scratch_textures);
+  auto num_scratch_images =
+    clamp(current_plan_->num_scratch_images_, cfg_.min_scratch_images,
+          cfg_.max_scratch_images);
 
   if (target_info_ != current_plan_->target_ ||
-      resources_.scratch_textures.textures.size() != num_scratch_textures)
+      resources_.scratch_images.images.size() != num_scratch_images)
   {
-    resources_.scratch_textures.uninit(dev_);
+    resources_.scratch_images.uninit(dev_);
     auto label =
-      sformat(scratch, "GpuFrame {} / Scratch Textures"_str, id_).unwrap();
-    resources_.scratch_textures = ScratchTextures::create(
-      sys_, num_scratch_textures, target_info_.extent,
-      target_info_.color_format, target_info_.depth_stencil_format, label,
-      allocator_, scratch);
+      sformat(scratch, "GpuFrame {} / Scratch Images"_str, id_).unwrap();
+    resources_.scratch_images = ScratchImages::create(
+      sys_, num_scratch_images, target_info_.extent, target_info_.color_format,
+      target_info_.depth_stencil_format, label, allocator_, scratch);
   }
 
   target_info_ = current_plan_->target_;
@@ -1186,11 +1079,11 @@ void IGpuFrame::submit()
 
   for (auto & pass : current_plan_->passes_)
   {
-    pass(this);
+    pass(this, this->command_encoder());
   }
 
   command_encoder_->end().unwrap();
-  current_plan_->semaphore_->increment(1);
+  (void) current_plan_->semaphore_->increment(1);
 
   command_buffer_->begin();
   command_buffer_->record(command_encoder_);
@@ -1232,7 +1125,7 @@ bool IGpuFrame::try_complete(nanoseconds timeout)
 
   current_plan_->state_ = GpuFramePlanState::Executed;
   state_                = GpuFrameState::Completed;
-  semaphore_->increment(1);
+  (void) semaphore_->increment(1);
 
   return true;
 }
@@ -1240,9 +1133,7 @@ bool IGpuFrame::try_complete(nanoseconds timeout)
 void IGpuFrame::reset()
 {
   CHECK(state_ != GpuFrameState::Submitted, "");
-  next_scratch_texture_ = 0;
-  next_scratch_texture_ = 0;
-  next_statistics_      = 0;
+  next_statistics_ = 0;
   command_encoder_->reset();
   command_buffer_->reset();
   current_plan_ = nullptr;
@@ -1259,7 +1150,7 @@ static Option<gpu::Format> select_color_format(gpu::Device             dev,
   for (auto fmt : formats)
   {
     gpu::FormatProperties props = dev->get_format_properties(fmt).unwrap();
-    if (has_bits(props.optimal_tiling_features, ColorTexture::FEATURES))
+    if (has_bits(props.optimal_tiling_features, ColorImage::FEATURES))
     {
       return fmt;
     }
@@ -1274,7 +1165,7 @@ static Option<gpu::Format>
   for (auto fmt : formats)
   {
     gpu::FormatProperties props = dev->get_format_properties(fmt).unwrap();
-    if (has_bits(props.optimal_tiling_features, DepthStencilTexture::FEATURES))
+    if (has_bits(props.optimal_tiling_features, DepthStencilImage::FEATURES))
     {
       return fmt;
     }
@@ -1335,7 +1226,7 @@ void IGpuSys::uninit(Vec<u8> & cache)
 {
   auto drain_semaphore = scheduler_->get_drain_semaphore(thread_id_);
   CHECK(drain_semaphore->complete(0), "");
-  drain_semaphore->await(1ULL, nanoseconds::max());
+  CHECK(drain_semaphore->await(1ULL, nanoseconds::max()), "");
   dev_->await_idle().unwrap();
   dev_->get_pipeline_cache_data(pipeline_cache_, cache).unwrap();
 
@@ -1439,101 +1330,101 @@ void create_default_textures(GpuSys sys)
   })
       .unwrap();
 
-  static constexpr Array<Tuple<Str, TextureId, gpu::ComponentMapping>,
+  static constexpr Array<Tuple<Str, TextureIndex, gpu::ComponentMapping>,
                          NUM_DEFAULT_TEXTURES>
     mappings{
       {{"Transparent Texture"_str,
-        TextureId::Transparent,
+        TextureIndex::Transparent,
         {.r = gpu::ComponentSwizzle::Zero,
          .g = gpu::ComponentSwizzle::Zero,
          .b = gpu::ComponentSwizzle::Zero,
          .a = gpu::ComponentSwizzle::Zero}},
        {"RedTransparent Texture"_str,
-        TextureId::RedTransparent,
+        TextureIndex::RedTransparent,
         {.r = gpu::ComponentSwizzle::One,
          .g = gpu::ComponentSwizzle::Zero,
          .b = gpu::ComponentSwizzle::Zero,
          .a = gpu::ComponentSwizzle::Zero}},
        {"GreenTransparent Texture"_str,
-        TextureId::GreenTransparent,
+        TextureIndex::GreenTransparent,
         {.r = gpu::ComponentSwizzle::Zero,
          .g = gpu::ComponentSwizzle::One,
          .b = gpu::ComponentSwizzle::Zero,
          .a = gpu::ComponentSwizzle::Zero}},
        {"BlueTransparent Texture"_str,
-        TextureId::BlueTransparent,
+        TextureIndex::BlueTransparent,
         {.r = gpu::ComponentSwizzle::Zero,
          .g = gpu::ComponentSwizzle::Zero,
          .b = gpu::ComponentSwizzle::One,
          .a = gpu::ComponentSwizzle::Zero}},
        {"YellowTransparent Texture"_str,
-        TextureId::YellowTransparent,
+        TextureIndex::YellowTransparent,
         {.r = gpu::ComponentSwizzle::One,
          .g = gpu::ComponentSwizzle::One,
          .b = gpu::ComponentSwizzle::Zero,
          .a = gpu::ComponentSwizzle::Zero}},
        {"MagentaTransparent Texture"_str,
-        TextureId::MagentaTransparent,
+        TextureIndex::MagentaTransparent,
         {.r = gpu::ComponentSwizzle::One,
          .g = gpu::ComponentSwizzle::Zero,
          .b = gpu::ComponentSwizzle::One,
          .a = gpu::ComponentSwizzle::Zero}},
        {"CyanTransparent Texture"_str,
-        TextureId::CyanTransparent,
+        TextureIndex::CyanTransparent,
         {.r = gpu::ComponentSwizzle::Zero,
          .g = gpu::ComponentSwizzle::One,
          .b = gpu::ComponentSwizzle::One,
          .a = gpu::ComponentSwizzle::Zero}},
        {"WhiteTransparent Texture"_str,
-        TextureId::WhiteTransparent,
+        TextureIndex::WhiteTransparent,
         {.r = gpu::ComponentSwizzle::One,
          .g = gpu::ComponentSwizzle::One,
          .b = gpu::ComponentSwizzle::One,
          .a = gpu::ComponentSwizzle::Zero}},
        {"Black Texture"_str,
-        TextureId::Black,
+        TextureIndex::Black,
         {.r = gpu::ComponentSwizzle::Zero,
          .g = gpu::ComponentSwizzle::Zero,
          .b = gpu::ComponentSwizzle::Zero,
          .a = gpu::ComponentSwizzle::One}},
        {"Red Texture"_str,
-        TextureId::Red,
+        TextureIndex::Red,
         {.r = gpu::ComponentSwizzle::One,
          .g = gpu::ComponentSwizzle::Zero,
          .b = gpu::ComponentSwizzle::Zero,
          .a = gpu::ComponentSwizzle::One}},
        {"Green Texture"_str,
-        TextureId::Green,
+        TextureIndex::Green,
         {.r = gpu::ComponentSwizzle::Zero,
          .g = gpu::ComponentSwizzle::One,
          .b = gpu::ComponentSwizzle::Zero,
          .a = gpu::ComponentSwizzle::One}},
        {"Blue Texture"_str,
-        TextureId::Blue,
+        TextureIndex::Blue,
         {.r = gpu::ComponentSwizzle::Zero,
          .g = gpu::ComponentSwizzle::Zero,
          .b = gpu::ComponentSwizzle::One,
          .a = gpu::ComponentSwizzle::One}},
        {"Yellow Texture"_str,
-        TextureId::Yellow,
+        TextureIndex::Yellow,
         {.r = gpu::ComponentSwizzle::One,
          .g = gpu::ComponentSwizzle::One,
          .b = gpu::ComponentSwizzle::Zero,
          .a = gpu::ComponentSwizzle::One}},
        {"Magenta Texture"_str,
-        TextureId::Magenta,
+        TextureIndex::Magenta,
         {.r = gpu::ComponentSwizzle::One,
          .g = gpu::ComponentSwizzle::Zero,
          .b = gpu::ComponentSwizzle::One,
          .a = gpu::ComponentSwizzle::One}},
        {"Cyan Texture"_str,
-        TextureId::Cyan,
+        TextureIndex::Cyan,
         {.r = gpu::ComponentSwizzle::Zero,
          .g = gpu::ComponentSwizzle::One,
          .b = gpu::ComponentSwizzle::One,
          .a = gpu::ComponentSwizzle::One}},
        {"White Texture"_str,
-        TextureId::White,
+        TextureIndex::White,
         {.r = gpu::ComponentSwizzle::One,
          .g = gpu::ComponentSwizzle::One,
          .b = gpu::ComponentSwizzle::One,
@@ -1557,7 +1448,7 @@ void create_default_textures(GpuSys sys)
     })
              .unwrap();
 
-    CHECK(mapping.v1 == sys->alloc_texture_id(view), "");
+    CHECK(mapping.v1 == sys->alloc_texture_index(view), "");
   }
 
   sys->default_image_       = default_image;
@@ -1569,8 +1460,8 @@ void IGpuSys::init(Allocator allocator, gpu::Device device,
                    GpuSysPreferences const & preferences, Scheduler scheduler,
                    ThreadId thread_id)
 {
-  char              scratch_buffer_[1_KB];
-  FallbackAllocator scratch{Arena::from(scratch_buffer_), allocator_};
+  u8                scratch_buffer_[1_KB];
+  FallbackAllocator scratch{scratch_buffer_, allocator_};
 
   // [ ] use timeline semaphore
 
@@ -1669,7 +1560,7 @@ void IGpuSys::init(Allocator allocator, gpu::Device device,
   create_default_samplers(this, scratch);
 }
 
-SamplerId IGpuSys::create_cached_sampler(gpu::SamplerInfo const & info_)
+SamplerIndex IGpuSys::create_cached_sampler(gpu::SamplerInfo const & info_)
 {
   CHECK(initialized_, "");
   LockGuard guard{resources_lock_};
@@ -1684,18 +1575,20 @@ SamplerId IGpuSys::create_cached_sampler(gpu::SamplerInfo const & info_)
     return found.v().v0;
   }
 
-  CHECK(descriptors_.samplers_map.size() < descriptors_.samplers_capacity,
+  auto index = descriptors_.samplers_slots.view().find_clear_bit();
+
+  CHECK(index < descriptors_.samplers_slots.size(),
         "Ran out of sampler descriptor slots");
+
+  auto sampler_index = static_cast<SamplerIndex>(index);
 
   auto sampler = dev_->create_sampler(info_).unwrap();
 
-  auto id = static_cast<SamplerId>(descriptors_.samplers_map.push().unwrap());
-
-  sampler_cache_.push(info, Tuple{id, sampler}).unwrap();
+  sampler_cache_.push(info, Tuple{sampler_index, sampler}).unwrap();
 
   plan()->add_preframe_task([device   = this->dev_,
                              samplers = descriptors_.samplers,
-                             index    = static_cast<u32>(id), sampler] {
+                             index    = static_cast<u32>(index), sampler] {
     device->update_descriptor_set(gpu::DescriptorSetUpdate{
       .set           = samplers,
       .binding       = 0,
@@ -1705,25 +1598,23 @@ SamplerId IGpuSys::create_cached_sampler(gpu::SamplerInfo const & info_)
       .buffers       = {}});
   });
 
-  return id;
+  return sampler_index;
 }
 
-TextureId IGpuSys::alloc_texture_id(gpu::ImageView view)
+TextureIndex IGpuSys::alloc_texture_index(gpu::ImageView view)
 {
   CHECK(initialized_, "");
 
   LockGuard guard{resources_lock_};
 
-  CHECK(descriptors_.sampled_textures_map.size() <
-          descriptors_.sampled_textures_capacity,
-        "Ran out of sampled texture descriptor slots");
+  auto index = descriptors_.sampled_textures_slots.view().find_clear_bit();
 
-  auto id =
-    static_cast<TextureId>(descriptors_.sampled_textures_map.push().unwrap());
+  CHECK(index < descriptors_.sampled_textures_slots.size(),
+        "Ran out of sampled texture descriptor slots");
 
   plan()->add_preframe_task([device   = this->dev_,
                              textures = descriptors_.sampled_textures,
-                             index    = static_cast<u32>(id), view] {
+                             index    = static_cast<u32>(index), view] {
     device->update_descriptor_set(gpu::DescriptorSetUpdate{
       .set           = textures,
       .binding       = 0,
@@ -1733,20 +1624,20 @@ TextureId IGpuSys::alloc_texture_id(gpu::ImageView view)
       .buffers       = {}});
   });
 
-  return id;
+  return static_cast<TextureIndex>(index);
 }
 
-void IGpuSys::release_texture_id(TextureId id)
+void IGpuSys::release_texture_index(TextureIndex index)
 {
   CHECK(initialized_, "");
 
   LockGuard guard{resources_lock_};
 
-  descriptors_.sampled_textures_map.erase(id);
+  descriptors_.sampled_textures_slots.clear_bit((usize) index);
 
   plan()->add_preframe_task([device   = this->dev_,
                              textures = descriptors_.sampled_textures,
-                             index    = static_cast<u32>(id)] {
+                             index    = static_cast<u32>(index)] {
     device->update_descriptor_set(
       gpu::DescriptorSetUpdate{.set           = textures,
                                .binding       = 0,
@@ -1792,6 +1683,21 @@ gpu::SampleCount IGpuSys::sample_count() const
 gpu::PipelineCache IGpuSys::pipeline_cache() const
 {
   return pipeline_cache_;
+}
+
+GpuDescriptorsLayout const & IGpuSys::descriptors_layout() const
+{
+  return descriptors_layout_;
+}
+
+gpu::DescriptorSet IGpuSys::samplers() const
+{
+  return descriptors_.samplers;
+}
+
+gpu::DescriptorSet IGpuSys::sampled_textures() const
+{
+  return descriptors_.sampled_textures;
 }
 
 void IGpuSys::submit_frame()

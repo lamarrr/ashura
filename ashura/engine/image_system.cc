@@ -21,10 +21,10 @@ ImageInfo IImageSys::create_image_(Vec<char> label, gpu::ImageInfo const & info,
     view_info.image = gpu_image;
     gpu::ImageView view =
       sys.gpu->device()->create_image_view(view_info).unwrap();
-    TextureId tex_id = sys.gpu->alloc_texture_id(view);
+    TextureIndex tex_index = sys.gpu->alloc_texture_index(view);
     image.view_infos.push(view_info).unwrap();
     image.views.push(view).unwrap();
-    image.textures.push(tex_id).unwrap();
+    image.textures.push(tex_index).unwrap();
   }
 
   ImageId id = ImageId{images_.push(std::move(image)).unwrap()};
@@ -260,9 +260,9 @@ ImageInfo IImageSys::get(ImageId id)
 void IImageSys::unload(ImageId id)
 {
   ImageInfo image = get(id);
-  for (TextureId id : image.textures)
+  for (TextureIndex idx : image.textures)
   {
-    sys.gpu->release_texture_id(id);
+    sys.gpu->release_texture_index(idx);
   }
   for (gpu::ImageView view : image.views)
   {

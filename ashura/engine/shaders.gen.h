@@ -53,8 +53,8 @@ struct Blur
   alignas(8) f32x2 uv0;
   alignas(8) f32x2 uv1;
   alignas(8) f32x2 radius;
-  alignas(4) SamplerId sampler;
-  alignas(4) TextureId tex;
+  alignas(4) SamplerIndex sampler;
+  alignas(4) TextureIndex tex;
 };
 
 }    // namespace blur
@@ -85,8 +85,8 @@ struct FlatMaterial
   alignas(8) f32x2 uv0;
   alignas(8) f32x2 uv1;
   alignas(4) f32 gradient_center;
-  alignas(4) SamplerId sampler;
-  alignas(4) TextureId texture;
+  alignas(4) SamplerIndex sampler;
+  alignas(4) TextureIndex texture;
 };
 
 struct NoiseMaterial
@@ -116,26 +116,26 @@ struct World
 /// https://github.com/KhronosGroup/glTF-Sample-Renderer/blob/63b7c128266cfd86bbd3f25caf8b3db3fe854015/source/Renderer/shaders/textures.glsl#L1
 struct BaseMaterial
 {
-  alignas(16) f32x4 albedo                     = {1, 1, 1, 1};
-  alignas(16) f32x4 emission                   = {0, 0, 0, 0};
-  alignas(4) f32 metallic                      = 0;
-  alignas(4) f32 roughness                     = 0;
-  alignas(4) f32 normal                        = 0;
-  alignas(4) f32 occlusion                     = 0;
-  alignas(4) f32 ior                           = 1.5F;
-  alignas(4) f32 clearcoat                     = 0;
-  alignas(4) f32 clearcoat_roughness           = 0;
-  alignas(4) f32 clearcoat_normal              = 0;
-  alignas(4) SamplerId sampler                 = SamplerId::LinearBlack;
-  alignas(4) TextureId albedo_map              = TextureId::White;
-  alignas(4) TextureId metallic_map            = TextureId::White;
-  alignas(4) TextureId roughness_map           = TextureId::White;
-  alignas(4) TextureId normal_map              = TextureId::White;
-  alignas(4) TextureId occlusion_map           = TextureId::White;
-  alignas(4) TextureId emission_map            = TextureId::White;
-  alignas(4) TextureId clearcoat_map           = TextureId::White;
-  alignas(4) TextureId clearcoat_roughness_map = TextureId::White;
-  alignas(4) TextureId clearcoat_normal_map    = TextureId::White;
+  alignas(16) f32x4 albedo           = {1, 1, 1, 1};
+  alignas(16) f32x4 emission         = {0, 0, 0, 0};
+  alignas(4) f32 metallic            = 0;
+  alignas(4) f32 roughness           = 0;
+  alignas(4) f32 normal              = 0;
+  alignas(4) f32 occlusion           = 0;
+  alignas(4) f32 ior                 = 1.5F;
+  alignas(4) f32 clearcoat           = 0;
+  alignas(4) f32 clearcoat_roughness = 0;
+  alignas(4) f32 clearcoat_normal    = 0;
+  alignas(4) SamplerIndex sampler    = SamplerIndex::LinearEdgeClampBlackFloat;
+  alignas(4) TextureIndex albedo_map = TextureIndex::White;
+  alignas(4) TextureIndex metallic_map            = TextureIndex::White;
+  alignas(4) TextureIndex roughness_map           = TextureIndex::White;
+  alignas(4) TextureIndex normal_map              = TextureIndex::White;
+  alignas(4) TextureIndex occlusion_map           = TextureIndex::White;
+  alignas(4) TextureIndex emission_map            = TextureIndex::White;
+  alignas(4) TextureIndex clearcoat_map           = TextureIndex::White;
+  alignas(4) TextureIndex clearcoat_roughness_map = TextureIndex::White;
+  alignas(4) TextureIndex clearcoat_normal_map    = TextureIndex::White;
 };
 
 struct Vertex
@@ -157,15 +157,15 @@ namespace sdf
 struct FlatMaterial
 {
   quad::FlatMaterial tint;
-  alignas(4) SamplerId sampler_id;
-  alignas(4) TextureId map_id;
+  alignas(4) SamplerIndex sampler;
+  alignas(4) TextureIndex map;
 };
 
 struct NoiseMaterial
 {
   quad::NoiseMaterial noise;
-  alignas(4) SamplerId sampler_id;
-  alignas(4) TextureId map_id;
+  alignas(4) SamplerIndex sampler;
+  alignas(4) TextureIndex map;
 };
 
 enum class ShadeType : u32

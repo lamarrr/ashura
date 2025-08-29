@@ -20,11 +20,11 @@ Str SdfPipeline::label()
 gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
                                       gpu::Shader shader)
 {
-  char scratch_buffer_[1'024];
+  u8 scratch_buffer_[1'024];
 
   auto & gpu = *plan->sys();
 
-  FallbackAllocator scratch_{Arena::from(scratch_buffer_), gpu.allocator()};
+  FallbackAllocator scratch{scratch_buffer_, gpu.allocator()};
 
   auto raster_state =
     gpu::RasterizationState{.depth_clamp_enable = false,
@@ -63,17 +63,19 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
     .attachments = attachment_states, .blend_constant = {1, 1, 1, 1}
   };
 
+  auto const & layout = gpu.descriptors_layout();
+
   gpu::DescriptorSetLayout set_layouts[] = {
-    gpu.descriptors_layout_.samplers,               // 0: samplers
-    gpu.descriptors_layout_.sampled_textures,       // 1: textures
-    gpu.descriptors_layout_.read_storage_buffer,    // 2: world_to_ndc
-    gpu.descriptors_layout_.read_storage_buffer,    // 3: shapes
-    gpu.descriptors_layout_.read_storage_buffer,    // 4: transforms
-    gpu.descriptors_layout_.read_storage_buffer     // 5: materials
+    layout.samplers,               // 0: samplers
+    layout.sampled_textures,       // 1: textures
+    layout.read_storage_buffer,    // 2: world_to_ndc
+    layout.read_storage_buffer,    // 3: shapes
+    layout.read_storage_buffer,    // 4: transforms
+    layout.read_storage_buffer     // 5: materials
   };
 
   auto tagged_label =
-    sformat(scratch_, "SDF Graphics Pipeline: {}"_str, label).unwrap();
+    sformat(scratch, "SDF Graphics Pipeline: {}"_str, label).unwrap();
 
   auto pipeline_info = gpu::GraphicsPipelineInfo{
     .label         = tagged_label,
@@ -108,18 +110,18 @@ void SdfPipeline::acquire(GpuFramePlan plan)
 {
   auto id = add_variant(plan, "Base"_str,
                         sys.shader->get("SDF.Base"_str).unwrap().shader);
-  CHECK(id == ShaderVariantId::Base, "");
+  CHECK(id == PipelineVariantId::Base, "");
 }
 
-ShaderVariantId SdfPipeline::add_variant(GpuFramePlan plan, Str label,
-                                         gpu::Shader shader)
+PipelineVariantId SdfPipeline::add_variant(GpuFramePlan plan, Str label,
+                                           gpu::Shader shader)
 {
   auto pipeline = create_pipeline(plan, label, shader);
   auto id       = variants_.push(Tuple{label, pipeline}).unwrap();
-  return (ShaderVariantId) id;
+  return (PipelineVariantId) id;
 }
 
-void SdfPipeline::remove_variant(GpuFramePlan plan, ShaderVariantId id)
+void SdfPipeline::remove_variant(GpuFramePlan plan, PipelineVariantId id)
 {
   auto pipeline = variants_[(usize) id].v0;
   variants_.erase((usize) id);
@@ -129,12 +131,12 @@ void SdfPipeline::remove_variant(GpuFramePlan plan, ShaderVariantId id)
 
 void SdfPipeline::encode(gpu::CommandEncoder       e,
                          SdfPipelineParams const & params,
-                         ShaderVariantId           variant)
+                         PipelineVariantId         variant)
 {
   InplaceVec<gpu::RenderingAttachment, 1> color;
 
   params.framebuffer.color_msaa.match(
-    [&](ColorMsaaTexture const & tex) {
+    [&](ColorMsaaImage const & tex) {
       color
         .push(
           gpu::RenderingAttachment{.view    = tex.view,

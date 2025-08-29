@@ -17,9 +17,9 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
                                       gpu::Shader      shader,
                                       gpu::PolygonMode polygon_mode)
 {
-  char              scratch_buffer_[1'024];
+  u8                scratch_buffer_[1'024];
   auto &            gpu = *plan->sys();
-  FallbackAllocator scratch{Arena::from(scratch_buffer_), gpu.allocator()};
+  FallbackAllocator scratch{scratch_buffer_, gpu.allocator()};
 
   auto tagged_label =
     sformat(scratch, "PBR Graphics Pipeline: {}"_str, label).unwrap();
@@ -61,14 +61,16 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
     .attachments = attachment_states, .blend_constant = {1, 1, 1, 1}
   };
 
+  auto const & layout = gpu.descriptors_layout();
+
   gpu::DescriptorSetLayout const set_layouts[] = {
-    gpu.descriptors_layout_.samplers,               // 0: samplers
-    gpu.descriptors_layout_.sampled_textures,       // 1: textures
-    gpu.descriptors_layout_.read_storage_buffer,    // 2: vertices
-    gpu.descriptors_layout_.read_storage_buffer,    // 3: indices
-    gpu.descriptors_layout_.read_storage_buffer,    // 4: world constantts
-    gpu.descriptors_layout_.read_storage_buffer,    // 5: materials
-    gpu.descriptors_layout_.read_storage_buffer     // 6: lights
+    layout.samplers,               // 0: samplers
+    layout.sampled_textures,       // 1: textures
+    layout.read_storage_buffer,    // 2: vertices
+    layout.read_storage_buffer,    // 3: indices
+    layout.read_storage_buffer,    // 4: world constantts
+    layout.read_storage_buffer,    // 5: materials
+    layout.read_storage_buffer     // 6: lights
   };
 
   auto pipeline_info = gpu::GraphicsPipelineInfo{
@@ -118,19 +120,19 @@ void PBRPipeline::acquire(GpuFramePlan plan)
 {
   auto id = add_variant(plan, "Base"_str,
                         sys.shader->get("PBR.Base"_str).unwrap().shader);
-  CHECK(id == ShaderVariantId::Base, "");
+  CHECK(id == PipelineVariantId::Base, "");
 }
 
-ShaderVariantId PBRPipeline::add_variant(GpuFramePlan plan, Str label,
-                                         gpu::Shader shader)
+PipelineVariantId PBRPipeline::add_variant(GpuFramePlan plan, Str label,
+                                           gpu::Shader shader)
 {
   auto pipeline = create_pipeline(plan, label, shader);
-  auto id = (ShaderVariantId) variants_.push(Tuple{label, pipeline}).unwrap();
-  CHECK(id == ShaderVariantId::Base, "");
+  auto id = (PipelineVariantId) variants_.push(Tuple{label, pipeline}).unwrap();
+  CHECK(id == PipelineVariantId::Base, "");
   return id;
 }
 
-void PBRPipeline::remove_variant(GpuFramePlan plan, ShaderVariantId id)
+void PBRPipeline::remove_variant(GpuFramePlan plan, PipelineVariantId id)
 {
   auto pipeline = variants_[(usize) id].v0.v1;
 
@@ -145,12 +147,12 @@ void PBRPipeline::remove_variant(GpuFramePlan plan, ShaderVariantId id)
 
 void PBRPipeline::encode(gpu::CommandEncoder       e,
                          PBRPipelineParams const & params,
-                         ShaderVariantId           variant)
+                         PipelineVariantId         variant)
 {
   InplaceVec<gpu::RenderingAttachment, 1> color;
 
   params.framebuffer.color_msaa.match(
-    [&](ColorMsaaTexture const & tex) {
+    [&](ColorMsaaImage const & tex) {
       color
         .push(
           gpu::RenderingAttachment{.view    = tex.view,

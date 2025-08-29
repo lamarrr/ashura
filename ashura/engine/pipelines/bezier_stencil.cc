@@ -20,9 +20,9 @@ Str BezierStencilPipeline::label()
 
 void BezierStencilPipeline::acquire(GpuFramePlan plan)
 {
-  char              scratch_buffer_[1'024];
+  u8                scratch_buffer_[1'024];
   auto &            gpu = *plan->sys();
-  FallbackAllocator scratch{Arena::from(scratch_buffer_), gpu.allocator()};
+  FallbackAllocator scratch{scratch_buffer_, gpu.allocator()};
 
   auto shader = sys.shader->get("BezierStencil"_str).unwrap().shader;
 
@@ -48,12 +48,14 @@ void BezierStencilPipeline::acquire(GpuFramePlan plan)
                            .min_depth_bounds         = 0,
                            .max_depth_bounds         = 0};
 
+  auto const & layout = gpu.descriptors_layout();
+
   gpu::DescriptorSetLayout set_layouts[] = {
-    gpu.descriptors_layout_.read_storage_buffer,    // 0: world_to_ndc
-    gpu.descriptors_layout_.read_storage_buffer,    // 1: transforms
-    gpu.descriptors_layout_.read_storage_buffer,    // 2: vertices
-    gpu.descriptors_layout_.read_storage_buffer,    // 3: indices
-    gpu.descriptors_layout_.read_storage_buffer     // 4: regions
+    layout.read_storage_buffer,    // 0: world_to_ndc
+    layout.read_storage_buffer,    // 1: transforms
+    layout.read_storage_buffer,    // 2: vertices
+    layout.read_storage_buffer,    // 3: indices
+    layout.read_storage_buffer     // 4: regions
   };
 
   auto pipeline_info = gpu::GraphicsPipelineInfo{

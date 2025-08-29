@@ -44,14 +44,15 @@ struct NgonPipeline final : IPipeline
 
   virtual void release(GpuFramePlan plan) override;
 
-  ShaderVariantId add_variant(GpuFramePlan plan, Str label, gpu::Shader shader);
+  PipelineVariantId add_variant(GpuFramePlan plan, Str label,
+                                gpu::Shader shader);
 
-  void remove_variant(GpuFramePlan plan, ShaderVariantId id);
+  void remove_variant(GpuFramePlan plan, PipelineVariantId id);
 
-  ShaderVariantId get_variant_id(Str label);
+  PipelineVariantId get_variant_id(Str label);
 
   void encode(gpu::CommandEncoder encoder, NgonPipelineParams const & params,
-              ShaderVariantId variant);
+              PipelineVariantId variant);
 };
 
 }    // namespace ash

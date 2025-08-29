@@ -141,11 +141,11 @@ struct CpuFontAtlas
 
 struct GpuFontAtlas
 {
-  Vec<TextureId>  textures    = {};
-  ImageId         image       = ImageId::None;
-  i32             font_height = 0;
-  u32x2           extent      = {};
-  Vec<AtlasGlyph> glyphs      = {};
+  Vec<TextureIndex> textures    = {};
+  ImageId           image       = ImageId::None;
+  i32               font_height = 0;
+  u32x2             extent      = {};
+  Vec<AtlasGlyph>   glyphs      = {};
 
   constexpr u32 num_layers() const
   {
