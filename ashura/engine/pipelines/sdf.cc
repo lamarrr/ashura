@@ -108,9 +108,12 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
 
 void SdfPipeline::acquire(GpuFramePlan plan)
 {
-  auto id = add_variant(plan, "Base"_str,
-                        sys.shader->get("SDF.Base"_str).unwrap().shader);
-  CHECK(id == PipelineVariantId::Base, "");
+  auto flat_id = add_variant(plan, "Flat"_str,
+                             sys.shader->get("SDF.Flat"_str).unwrap().shader);
+  CHECK(flat_id == FLAT, "");
+  auto noise_id = add_variant(plan, "Noise"_str,
+                              sys.shader->get("SDF.Noise"_str).unwrap().shader);
+  CHECK(noise_id == NOISE, "");
 }
 
 PipelineVariantId SdfPipeline::add_variant(GpuFramePlan plan, Str label,

@@ -1,5 +1,5 @@
 /// SPDX-License-Identifier: MIT
-#include "ashura/engine/pipelines/ngon.h"
+#include "ashura/engine/pipelines/triangle_fill.h"
 #include "ashura/engine/shader_system.h"
 #include "ashura/engine/systems.h"
 #include "ashura/std/math.h"
@@ -9,9 +9,9 @@
 namespace ash
 {
 
-Str NgonPipeline::label()
+Str TriangleFillPipeline::label()
 {
-  return "Ngon"_str;
+  return "TriangleFill"_str;
 }
 
 gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
@@ -22,7 +22,7 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
   FallbackAllocator scratch{scratch_buffer_, gpu.allocator()};
 
   auto tagged_label =
-    sformat(scratch, "Ngon Graphics Pipeline: {}"_str, label).unwrap();
+    sformat(scratch, "TriangleFill Graphics Pipeline: {}"_str, label).unwrap();
 
   auto raster_state =
     gpu::RasterizationState{.depth_clamp_enable = false,
@@ -102,26 +102,29 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
   return gpu.device()->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
-NgonPipeline::NgonPipeline(Allocator allocator) : pipelines_{allocator}
+TriangleFillPipeline::TriangleFillPipeline(Allocator allocator) :
+  pipelines_{allocator}
 {
 }
 
-void NgonPipeline::acquire(GpuFramePlan plan)
+void TriangleFillPipeline::acquire(GpuFramePlan plan)
 {
-  auto id = add_variant(plan, "Base"_str,
-                        sys.shader->get("Ngon.Base"_str).unwrap().shader);
+  auto id = add_variant(
+    plan, "Base"_str, sys.shader->get("TriangleFill.Base"_str).unwrap().shader);
   CHECK(id == PipelineVariantId::Base, "");
 }
 
-PipelineVariantId NgonPipeline::add_variant(GpuFramePlan plan, Str label,
-                                            gpu::Shader shader)
+PipelineVariantId TriangleFillPipeline::add_variant(GpuFramePlan plan,
+                                                    Str          label,
+                                                    gpu::Shader  shader)
 {
   auto pipeline = create_pipeline(plan, label, shader);
   auto id       = pipelines_.push(Tuple{label, pipeline}).unwrap();
   return (PipelineVariantId) id;
 }
 
-void NgonPipeline::remove_variant(GpuFramePlan plan, PipelineVariantId id)
+void TriangleFillPipeline::remove_variant(GpuFramePlan      plan,
+                                          PipelineVariantId id)
 {
   auto pipeline = pipelines_[(usize) id];
   pipelines_.erase((usize) id);
@@ -129,9 +132,9 @@ void NgonPipeline::remove_variant(GpuFramePlan plan, PipelineVariantId id)
     [p = pipeline.v0, d = plan->device()] { d->uninit(p.v1); });
 }
 
-void NgonPipeline::encode(gpu::CommandEncoder        e,
-                          NgonPipelineParams const & params,
-                          PipelineVariantId          variant)
+void TriangleFillPipeline::encode(gpu::CommandEncoder                e,
+                                  TriangleFillPipelineParams const & params,
+                                  PipelineVariantId                  variant)
 {
   InplaceVec<gpu::RenderingAttachment, 1> color;
 
@@ -216,7 +219,7 @@ void NgonPipeline::encode(gpu::CommandEncoder        e,
   e->end_rendering();
 }
 
-void NgonPipeline::release(GpuFramePlan plan)
+void TriangleFillPipeline::release(GpuFramePlan plan)
 {
   for (auto [v] : pipelines_)
   {

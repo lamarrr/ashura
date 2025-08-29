@@ -75,58 +75,57 @@ constexpr f32 conic_subdivisions(f32 scale_factor, f32x2 p0, f32x2 p1, f32x2 p2,
 
 void rect(Vec<f32x2> & vtx, f32x2 extent, f32x2 center);
 
+void line(Span<f32x2> vtx, f32x2 cp0, f32x2 cp1);
+
 /// @brief generate vertices for an arc
 /// @param segments upper bound on the number of segments to divide the arc
 /// into
 /// @param start start angle
 /// @param turn turn angle
-void arc(Vec<f32x2> & vtx, f32x2 radii, f32x2 center, f32 start, f32 turn,
-         usize segments);
+void arc(Span<f32x2> vtx, f32x2 radii, f32x2 center, f32 start, f32 turn);
+
+/// @brief generate vertices for a quadratic bezier curve
+/// @param segments upper bound on the number of segments to divide the bezier
+/// curve into
+/// @param cp[0-2] control points
+void bezier(Span<f32x2> vtx, f32x2 cp0, f32x2 cp1, f32x2 cp2);
+
+/// @brief generate vertices for a quadratic bezier curve
+/// @param segments upper bound on the number of segments to divide the bezier
+/// curve into
+/// @param cp[0-3] control points
+void cubic_bezier(Span<f32x2> vtx, f32x2 cp0, f32x2 cp1, f32x2 cp2, f32x2 cp3);
+
+/// @brief generate a catmull rom spline
+/// @param segments upper bound on the number of segments to divide the bezier
+/// curve into
+/// @param cp[0-3] control points
+void catmull_rom(Span<f32x2> vtx, f32x2 cp0, f32x2 cp1, f32x2 cp2, f32x2 cp3);
 
 /// @brief generate vertices for a circle
 /// @param segments upper bound on the number of segments to divide the circle
 /// into
-void circle(Vec<f32x2> & vtx, f32x2 extent, f32x2 center, usize segments);
+void circle(Vec<f32x2> & vtx, f32x2 extent, f32x2 center, u32 segments);
 
 /// @brief generate vertices for a circle
 /// @param segments upper bound on the number of segments to divide the circle
 /// into
 /// @param degree number of degrees of the super-ellipse
 void squircle(Vec<f32x2> & vtx, f32x2 extent, f32x2 center, f32 degree,
-              usize segments);
+              u32 segments);
 
 /// @brief generate vertices for a circle
 /// @param segments upper bound on the number of segments to divide the circle
 /// into
 /// @param corner_radii border radius of each corner
 void rrect(Vec<f32x2> & vtx, f32x2 extent, f32x2 center, f32x4 corner_radii,
-           usize segments);
+           u32 segments);
 
 /// @brief generate vertices of a bevel rect
 /// @param vtx
 /// @param slants each component represents the relative distance from the
 /// corners of each bevel
 void brect(Vec<f32x2> & vtx, f32x2 extent, f32x2 center, f32x4 slants);
-
-/// @brief generate vertices for a quadratic bezier curve
-/// @param segments upper bound on the number of segments to divide the bezier
-/// curve into
-/// @param cp[0-2] control points
-void bezier(Vec<f32x2> & vtx, f32x2 cp0, f32x2 cp1, f32x2 cp2, usize segments);
-
-/// @brief generate vertices for a quadratic bezier curve
-/// @param segments upper bound on the number of segments to divide the bezier
-/// curve into
-/// @param cp[0-3] control points
-void cubic_bezier(Vec<f32x2> & vtx, f32x2 cp0, f32x2 cp1, f32x2 cp2, f32x2 cp3,
-                  usize segments);
-
-/// @brief generate a catmull rom spline
-/// @param segments upper bound on the number of segments to divide the bezier
-/// curve into
-/// @param cp[0-3] control points
-void catmull_rom(Vec<f32x2> & vtx, f32x2 cp0, f32x2 cp1, f32x2 cp2, f32x2 cp3,
-                 usize segments);
 
 /// @brief triangulate a stroke path, given the vertices for its points
 void triangulate_stroke(Span<f32x2 const> points, Vec<f32x2> & vtx,
@@ -181,10 +180,10 @@ struct ShapeInfo
   ColorGradient tint = {};
 
   /// @brief sampler to use in rendering the shape
-  SamplerId sampler = SamplerId::LinearEdgeClampBlackFloat;
+  SamplerIndex sampler = SamplerIndex::LinearEdgeClampBlackFloat;
 
   /// @brief texture to use in rendering the shape
-  TextureId texture = TextureId::White;
+  TextureIndex texture = TextureIndex::White;
 
   /// @brief uv coordinates of the upper-left and lower-right part of the
   /// texture to sample from
@@ -194,6 +193,11 @@ struct ShapeInfo
   };
 
   CRect clip = MAX_CLIP;
+
+  constexpr CRect bbox() const
+  {
+    return CRect{area.center, bbox_extent};
+  }
 };
 
 struct Quad
@@ -234,22 +238,42 @@ struct NineSlice
 
 enum class ContourEdgeType : u8
 {
-  Line        = 0,
-  Arc         = 1,
-  Bezier      = 2,
-  CubicBezier = 3
+  Line            = 0,
+  Arc             = 1,
+  QuadraticBezier = 2,
+  CubicBezier     = 3
 };
 
 typedef struct ICanvas * Canvas;
 
+enum class CanvasState : u8
+{
+  Reset     = 0,
+  Recording = 1,
+  Recorded  = 2,
+  Executed  = 3
+};
+
+// [ ] rename
+enum class ContourRaster : u8
+{
+  StencilThenCover = 0,
+  BezierStencil    = 1
+};
+
 struct ICanvas
 {
-  using Encoder = Enum<None, SdfEncoder, QuadEncoder, NgonEncoder,
-                       FillStencilEncoder, BezierStencilEncoder, GpuPass>;
+  static constexpr u32 DEFAULT_NUM_IMAGE_SLOTS = 4;
 
-  u32 target_;
+  CanvasState state_;
 
-  Option<Tuple<u32, PipelineStencil>> stencil_;
+  BitVec<u64> image_slots_;
+
+  u32 color_;
+
+  Option<u32> depth_stencil_;
+
+  Option<PipelineStencil> stencil_op_;
 
   /// @brief the viewport of the framebuffer this canvas will be targetting
   /// this is in the Framebuffer coordinates (Physical px coordinates)
@@ -281,23 +305,26 @@ struct ICanvas
 
   affinef32x4 world_to_fb_;
 
-  Encoder encoder_;
+  Vec<Dyn<CanvasEncoder>> encoders_;
 
-  GpuFramePlan plan_;
-
+  // [ ]  on render requested, allocate textures and record render commands; The offscreen ones will need an off-screen command and encoder
+  //                             // . will still need texture allocation scope for passes like blur pass
+  //                             // custom passes. use the GpuFramePlan
+  //
   // we need to be able to know which layers to use for rendering and to select or switch between them
   //
   // texture allocation for each layer or canvas. Should canvas be per-layer?
-  //
-  // BitVec<u64> available_layers_;
 
-  // declared last so it would release allocated memory after all operations
-  // are done executing
-  ArenaPool frame_arena_;
+  ArenaPool encoder_arena_;
+
+  ArenaPool tmp_arena_;
 
   explicit ICanvas(Allocator allocator) :
-    target_{0},
-    stencil_{none},
+    state_{CanvasState::Reset},
+    image_slots_{allocator},
+    color_{0},
+    depth_stencil_{none},
+    stencil_op_{none},
     viewport_{},
     extent_{},
     framebuffer_extent_{},
@@ -308,8 +335,9 @@ struct ICanvas
     ndc_to_viewport_{affinef32x4::identity()},
     viewport_to_fb_{affinef32x4::identity()},
     world_to_fb_{affinef32x4::identity()},
-    encoder_{none},
-    frame_arena_{allocator}
+    encoders_{allocator},
+    encoder_arena_{allocator, ArenaPoolCfg{.min_arena_size = 1_MB}},
+    tmp_arena_{allocator, ArenaPoolCfg{.min_arena_size = 1_MB}}
   {
   }
 
@@ -319,35 +347,15 @@ struct ICanvas
   ICanvas & operator=(ICanvas &&)      = delete;
   ~ICanvas()                           = default;
 
-  ICanvas & begin(GpuFramePlan plan, gpu::Viewport const & viewport,
-                  f32x2 extent, u32x2 framebuffer_extent);
+  u32 num_image_slots() const;
 
-  ICanvas & end();
-
-  // [ ] begin_offscreen
-  // [ ] end_offscreen
-
-  ICanvas & reset();
-
-  RectU clip_to_scissor(CRect const & clip) const;
-
-  u32 num_targets() const;
-
-  ICanvas & clear_target(gpu::Color color);
-
-  ICanvas & set_target(u32 target);
-
-  u32 target() const;
-
-  u32 num_stencils() const;
+  u32 color() const;
 
   u32 num_stencil_bits() const;
 
-  ICanvas & clear_stencil(u32 stencil_value);
+  Option<u32> depth_stencil() const;
 
-  ICanvas & set_stencil(Option<Tuple<u32, PipelineStencil>> stencil);
-
-  Option<Tuple<u32, PipelineStencil>> stencil() const;
+  Option<PipelineStencil> stencil_op() const;
 
   gpu::Viewport viewport() const;
 
@@ -369,92 +377,69 @@ struct ICanvas
 
   affinef32x4 world_to_fb() const;
 
-  void reset_encoder_();
+  RectU clip_to_scissor(CRect const & clip) const;
 
-  template <typename Shape, typename Material>
-  ICanvas & push_sdf_(SdfEncoder::Item<Shape, Material> const & item)
-  {
-    // [ ] refactor; this is a mess, should be a function that can be called on the types or an alternative function if the active item is not matched
+  TextRenderer default_text_renderer();
 
-    bool is_same = encoder_.match(
-      [](auto &) { return false; }, [](SdfEncoder &) { return true; },
-      [](auto &) { return false; }, [](auto &) { return false; },
-      [](auto &) { return false; }, [](auto &) { return false; },
-      [](auto &) { return false; });
+  void begin(gpu::Viewport const & viewport, f32x2 extent,
+             u32x2 framebuffer_extent);
 
-    return *this;
-  }
+  void end();
 
-  template <typename Material>
-  ICanvas & push_ngon_(NgonEncoder::Item<Material> const & item)
-  {
-    return *this;
-  }
+  void reset();
 
-  template <typename Material>
-  ICanvas & push_quad_(QuadEncoder::Item<Material> const & item)
-  {
-    return *this;
-  }
+  void execute(GpuFramePlan plan);
 
-  ICanvas & sdf_shape_(ShapeInfo const & info, shader::sdf::ShapeType shape);
+  void reserve_images(u32 num_images);
 
-  ICanvas & ngon_shape_(ShapeInfo const & info, Span<f32x2 const> vertices,
-                        Span<u32 const> indices);
+  u32 allocate_image();
+
+  void deallocate_image(u32 image);
+
+  void clear_color(u32 image, gpu::Color value);
+
+  void set_color(u32 image);
+
+  void clear_depth_stencil(u32 image, gpu::DepthStencil value);
+
+  void set_depth_stencil(Option<u32> image);
+
+  void set_stencil_op(Option<PipelineStencil> op);
+
+  void encode_(SdfEncoder::Item const & item);
+
+  void encode_(TriangleFillEncoder::Item const & item);
+
+  void encode_(QuadEncoder::Item const & item);
+
+  void encode_(FillStencilEncoder::Item const & item);
+
+  void encode_(BezierStencilEncoder::Item const & item);
+
+  void encode_(PbrEncoder::Item const & item);
 
   /// @brief register a custom canvas pass to be executed in the render thread
-  template <Callable<GpuFrame> Lambda>
-  ICanvas & pass(Lambda && task)
+  template <Callable<GpuFramePlan> Lambda>
+  void encode_pass_(Lambda && task)
   {
-    flush_encoder_();
-    plan_->add_pass(static_cast<Lambda &&>(task));
-    return *this;
+    auto enc = dyn<CustomCanvasEncoder<Lambda>>(inplace, encoder_arena_,
+                                                static_cast<Lambda &&>(task))
+                 .unwrap();
+
+    encoders_.push(cast<CanvasEncoder>(std::move(enc))).unwrap();
   }
 
-  /// @brief render a circle
-  ICanvas & circle(ShapeInfo const & info);
+  void sdf_(ShapeInfo const & info, shader::sdf::ShapeType shape,
+            TextureSet texture_set);
 
-  /// @brief render a rectangle
-  ICanvas & rect(ShapeInfo const & info);
+  // [ ] implement
+  // [ ] switching to noise shader
+  void sdf_noise_(ShapeInfo const & info, shader::sdf::ShapeType shape,
+                  TextureSet texture_set);
 
-  /// @brief render a rounded rectangle
-  ICanvas & rrect(ShapeInfo const & info);
-
-  /// @brief render a squircle (triangulation based)
-  /// @param num_segments an upper bound on the number of segments to
-  /// @param elasticity elasticity of the squircle [0, 1]
-  ICanvas & squircle(ShapeInfo const & info);
-
-  /// @brief draw a nine-sliced image
-  ICanvas & nine_slice(ShapeInfo const & info, NineSlice const & slice);
-
-  /// @brief Render Non-Indexed Triangles
-  ICanvas & triangles(ShapeInfo const & info, Span<f32x2 const> vertices);
-
-  /// @brief Render Indexed Triangles
-  ICanvas & triangles(ShapeInfo const & info, Span<f32x2 const> vertices,
-                      Span<u32 const> indices);
-
-  /// @brief triangulate and render line
-  // [ ] joints & caps
-  // [ ] path-command-style arguments
-  // [ ] +tesselation arguments
-  ICanvas & line(ShapeInfo const & info, Span<f32x2 const> vertices);
-
-  /// @brief perform a ICanvas-space blur
-  /// @param area region in the canvas to apply the blur to
-  ICanvas & blur(ShapeInfo const & info);
-
-  template <typename Material>
-  ICanvas & quad(ShaderVariantId shader, Quad const & quad,
-                 Material const & material);
-
-  ICanvas & quad(Quad const &                       quad,
-                 shader::quad::FlatMaterial const & material);
-
-  // [ ] blending for noise material
-  ICanvas & quad(Quad const &                        quad,
-                 shader::quad::NoiseMaterial const & material);
+  void triangle_fill_(ShapeInfo const & info, Span<f32x2 const> vertices,
+                      Span<u32 const> indices, Span<f32x4 const> colors,
+                      TextureSet texture_set);
 
   // [ ] Rendering Lines
   // [ ] Handling Self-Intersection; Fill Rules; STC
@@ -468,28 +453,62 @@ struct ICanvas
   // [ ] draw linec
   // [ ] linear encoding variant
   // [ ] how will depth/stencil in framegraph work with canvas?
-  ICanvas & contour_stencil_(u32 stencil, u32 write_mask, bool tesselate,
-                             Span<f32x2 const>           control_points,
-                             Span<ContourEdgeType const> edge_types,
-                             Span<u16 const> subdivision_counts, bool invert,
-                             FillRule fill_rule, f32x4x4 const & transform,
-                             CRect const & clip);
+  void contour_stencil_(u32 stencil, u32 write_mask, ContourRaster raster,
+                        Span<f32x2 const>           control_points,
+                        Span<ContourEdgeType const> edge_types,
+                        Span<u16 const> segments, bool invert,
+                        FillRule fill_rule, f32x4x4 const & transform,
+                        CRect const & clip);
 
-  ICanvas & contour_line_(Span<f32x2 const>           control_points,
-                          Span<ContourEdgeType const> edge_types,
-                          Span<u16 const>             subdivision_counts);
+  void contour_line_(Span<f32x2 const>           control_points,
+                     Span<ContourEdgeType const> edge_types,
+                     Span<u16 const>             segments);
 
-  ICanvas & text(Span<TextLayer const> layers, Span<ShapeInfo const> shapes,
-                 Span<TextRenderInfo const> infos, Span<usize const> sorted);
+  void blur_(u32 color, Option<u32> depth_stencil, ShapeInfo const & info);
 
-  TextRenderer text_renderer()
-  {
-    return TextRenderer{
-      this,
-      [](Canvas p, Span<TextLayer const> layers, Span<ShapeInfo const> shapes,
-         Span<TextRenderInfo const> infos,
-         Span<usize const> sorted) { p->text(layers, shapes, infos, sorted); }};
-  }
+  /// @brief render a circle
+  void circle(ShapeInfo const & info);
+
+  /// @brief render a rectangle
+  void rect(ShapeInfo const & info);
+
+  /// @brief render a rounded rectangle
+  void rrect(ShapeInfo const & info);
+
+  /// @brief render a squircle (triangulation based)
+  /// @param num_segments an upper bound on the number of segments to
+  /// @param elasticity elasticity of the squircle [0, 1]
+  void squircle(ShapeInfo const & info);
+
+  /// @brief draw a nine-sliced image
+  void nine_slice(ShapeInfo const & info, NineSlice const & slice);
+
+  /// @brief Render Non-Indexed Triangles
+  void triangles(ShapeInfo const & info, Span<f32x2 const> vertices,
+                 Span<f32x4 const> colors);
+
+  /// @brief Render Indexed Triangles
+  void triangles(ShapeInfo const & info, Span<f32x2 const> vertices,
+                 Span<u32 const> indices, Span<f32x4 const> colors);
+
+  /// @brief triangulate and render line
+  // [ ] joints & caps
+  // [ ] path-command-style arguments
+  // [ ] +tesselation arguments
+  void line(ShapeInfo const & info, Span<f32x2 const> vertices,
+            Span<f32x4 const> colors);
+
+  /// @brief perform a canvas-space blur
+  /// @param area region in the canvas to apply the blur to
+  void blur(ShapeInfo const & info);
+
+  void quad(Quad const & quad, shader::quad::FlatMaterial const & material);
+
+  // [ ] blending for noise material
+  void quad(Quad const & quad, shader::quad::NoiseMaterial const & material);
+
+  void text(Span<TextLayer const> layers, Span<ShapeInfo const> shapes,
+            Span<TextRenderInfo const> infos, Span<usize const> sorted);
 };
 
 }    // namespace ash

@@ -2,7 +2,7 @@
 #pragma once
 
 #include "ashura/engine/gpu_system.h"
-#include "ashura/engine/ids.h"
+#include "ashura/engine/image_system.h"
 #include "ashura/std/image.h"
 #include "ashura/std/types.h"
 
@@ -29,16 +29,6 @@ constexpr f32x2 au_to_px(i32x2 au, f32 base)
 {
   return f32x2{au_to_px(au.x(), base), au_to_px(au.y(), base)};
 }
-
-enum class FontLoadErr : u8
-{
-  OutOfMemory       = 0,
-  InvalidPath       = 1,
-  IoErr             = 2,
-  DecodeFailed      = 3,
-  FaceNotFound      = 4,
-  UnsupportedFormat = 5
-};
 
 constexpr Str to_str(FontLoadErr err)
 {
@@ -153,6 +143,11 @@ struct GpuFontAtlas
   }
 };
 
+enum class FontId : u64
+{
+  None = U64_MAX
+};
+
 /// @param postscript_name ASCII. i.e. RobotoBold
 /// @param family_name ASCII. i.e. Roboto
 /// @param style_name ASCII. i.e. Bold
@@ -164,7 +159,6 @@ struct GpuFontAtlas
 /// @param gpu_atlas gpu font atlas if loaded
 struct FontInfo
 {
-  FontId                       id                = FontId::None;
   Str                          label             = {};
   bool                         has_color         = false;
   Str                          postscript_name   = {};
@@ -179,11 +173,12 @@ struct FontInfo
   Option<GpuFontAtlas const &> gpu_atlas         = none;
 };
 
-struct Font
-{
-  virtual FontInfo info() = 0;
+typedef struct IFont * Font;
 
-  virtual ~Font() = default;
+struct IFont
+{
+  virtual ~IFont()        = default;
+  virtual FontInfo info() = 0;
 };
 
 }    // namespace ash

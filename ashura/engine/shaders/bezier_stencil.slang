@@ -7,8 +7,8 @@
 
 struct VertexOutput
 {
-  [[vk::location(0)]] f32x4                         pos : SV_Position;
-  [[vk::location(1)]] f32x2                         uv : UV_COORD;
+  [[vk::location(0)]] f32x4                         pos    : SV_Position;
+  [[vk::location(1)]] f32x2                         uv     : UV_COORD;
   [[vk::location(2)]] nointerpolation BezierRegions region : FILL_REGIONS;
 };
 

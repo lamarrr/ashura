@@ -727,6 +727,8 @@ struct IGpuFrame
 
   Span<ImageUnion const> get_scratch_images() const;
 
+  ImageUnion get_scratch_image(u32 index) const;
+
   Span<GpuBuffer const> get_scratch_buffers() const;
 
   GpuBufferSpan get(GpuBufferId id);

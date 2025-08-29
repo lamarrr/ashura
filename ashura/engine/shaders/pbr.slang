@@ -78,10 +78,10 @@ typedef LIGHT_TYPE LightType;
 
 struct VertexOutput
 {
-  [[vk::location(0)]] f32x4 rel_pos : REL_POS;
+  [[vk::location(0)]] f32x4 rel_pos    : REL_POS;
   [[vk::location(1)]] f32x4 screen_pos : SV_Position;
-  [[vk::location(2)]] f32x4 world_pos : WORLD_POS;
-  [[vk::location(3)]] f32x2 uv : UV_COORD;
+  [[vk::location(2)]] f32x4 world_pos  : WORLD_POS;
+  [[vk::location(3)]] f32x2 uv         : UV_COORD;
 };
 
 struct FragmentOutput

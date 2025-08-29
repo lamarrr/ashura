@@ -6,10 +6,10 @@
 #include "modules/sdf.slang"
 #include "modules/types.slang"
 
-namespace ngon
+namespace triangle_fill
 {
 
 typedef quad::FragmentInfo FragmentInfo;
 typedef quad::Material     Material;
 
-}    // namespace ngon
+}    // namespace triangle_fill

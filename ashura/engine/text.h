@@ -2,7 +2,6 @@
 #pragma once
 
 #include "ashura/engine/font.h"
-#include "ashura/engine/ids.h"
 #include "ashura/std/color.h"
 #include "ashura/std/types.h"
 #include "ashura/std/vec.h"
@@ -648,7 +647,6 @@ struct CaretPlacement
 };
 
 struct ShapeInfo;
-struct Canvas;
 
 enum class TextLayer : u8
 {
@@ -782,8 +780,7 @@ struct TextLayout
   void render(TextRenderer renderer, ShapeInfo const & info,
               TextBlock const & block, TextBlockStyle const & style,
               Span<Slice const> highlights, Span<usize const> carets,
-              CRect const & clip,
-              Allocator  allocator = default_allocator) const;
+              CRect const & clip, Allocator allocator) const;
 };
 
 }    // namespace ash

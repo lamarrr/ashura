@@ -2,16 +2,16 @@
 
 #pragma once
 #include "materials/custom.inl.slang"
-#include "materials/ngon.slang"
+#include "materials/triangle_fill.slang"
 #include "modules/core.slang"
 #include "modules/types.slang"
 
 struct VertexOutput
 {
   [[vk::location(0)]] f32x4               screen_pos : SV_Position;
-  [[vk::location(1)]] f32x4               world_pos : WORLD_POSITION;
-  [[vk::location(2)]] f32x4               rel_pos : REL_POS;
-  [[vk::location(3)]] nointerpolation u32 instance : INSTANCE;
+  [[vk::location(1)]] f32x4               world_pos  : WORLD_POSITION;
+  [[vk::location(2)]] f32x4               rel_pos    : REL_POS;
+  [[vk::location(3)]] nointerpolation u32 instance   : INSTANCE;
 };
 
 [[vk::binding(0, 0)]]
@@ -63,6 +63,7 @@ f32x4 frag(VertexOutput in) :
   COLOR
 {
   var material = materials[in.instance];
-  var frag     = ngon::FragmentInfo(in.rel_pos, in.world_pos, in.screen_pos);
+  var frag =
+    triangle_fill::FragmentInfo(in.rel_pos, in.world_pos, in.screen_pos);
   return material.shade(frag, samplers, textures);
 }

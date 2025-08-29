@@ -11,7 +11,7 @@ typedef struct IPipelineSys * PipelineSys;
 
 struct SdfPipeline;
 struct QuadPipeline;
-struct NgonPipeline;
+struct TriangleFillPipeline;
 struct FillStencilPipeline;
 struct BezierStencilPipeline;
 struct BlurPipeline;
@@ -21,7 +21,7 @@ struct IPipelineSys
 {
   SdfPipeline *           sdf_;
   QuadPipeline *          quad_;
-  NgonPipeline *          ngon_;
+  TriangleFillPipeline *  triangle_fill_;
   FillStencilPipeline *   fill_stencil_;
   BezierStencilPipeline * bezier_stencil_;
   BlurPipeline *          blur_;
@@ -31,7 +31,7 @@ struct IPipelineSys
   IPipelineSys() :
     sdf_{nullptr},
     quad_{nullptr},
-    ngon_{nullptr},
+    triangle_fill_{nullptr},
     fill_stencil_{nullptr},
     bezier_stencil_{nullptr},
     blur_{nullptr},
@@ -54,7 +54,7 @@ struct IPipelineSys
 
   QuadPipeline & quad() const;
 
-  NgonPipeline & ngon() const;
+  TriangleFillPipeline & triangle_fill() const;
 
   FillStencilPipeline & fill_stencil() const;
 

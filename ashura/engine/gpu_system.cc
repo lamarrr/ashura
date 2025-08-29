@@ -442,7 +442,7 @@ CpuBufferId IGpuFramePlan::push_cpu(Span<u8 const> data)
   CHECK(state_ == GpuFramePlanState::Recording, "");
   auto offset = cpu_buffer_data_.size();
   cpu_buffer_data_.extend(data).unwrap();
-  auto size = data.size();
+  auto size = max(data.size(), (usize) SIMD_ALIGNMENT);
   auto idx  = cpu_buffer_entries_.size();
   CHECK(cpu_buffer_data_.size() <= U32_MAX, "");
   cpu_buffer_entries_.push(offset, size).unwrap();
@@ -457,7 +457,7 @@ GpuBufferId IGpuFramePlan::push_gpu(Span<u8 const> data)
   CHECK(state_ == GpuFramePlanState::Recording, "");
   auto offset = gpu_buffer_data_.size();
   gpu_buffer_data_.extend(data).unwrap();
-  auto size = data.size();
+  auto size = max(data.size(), (usize) gpu::BUFFER_OFFSET_ALIGNMENT);
   auto idx  = gpu_buffer_entries_.size();
   CHECK(gpu_buffer_data_.size() <= U32_MAX, "");
   gpu_buffer_entries_.push(offset, size).unwrap();
@@ -917,6 +917,13 @@ Span<ImageUnion const> IGpuFrame::get_scratch_images() const
 {
   CHECK(state_ == GpuFrameState::Recording, "");
   return resources_.scratch_images.images;
+}
+
+ImageUnion IGpuFrame::get_scratch_image(u32 index) const
+{
+  CHECK(state_ == GpuFrameState::Recording, "");
+  CHECK(index < resources_.scratch_images.images.size(), "");
+  return resources_.scratch_images.images[index];
 }
 
 Span<GpuBuffer const> IGpuFrame::get_scratch_buffers() const

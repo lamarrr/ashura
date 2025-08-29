@@ -713,11 +713,14 @@ inline constexpr LayerStack LAYERS;
 struct View
 {
   /// @brief id of the view if mounted, otherwise `ViewId::None`
-  ViewId id_ = ViewId::None;
+  ViewId id_;
 
-  bool hot_ = false;
+  bool hot_;
 
-  constexpr View()                         = default;
+  constexpr View() : id_{ViewId::None}, hot_{false}
+  {
+  }
+
   constexpr View(View const &)             = default;
   constexpr View(View &&)                  = default;
   constexpr View & operator=(View const &) = default;
@@ -795,7 +798,7 @@ struct View
   /// every frame.
   /// @param canvas canvas to render view into
   /// @param info information needed to render the view into its alloted canvas space
-  constexpr virtual void render(Canvas & canvas, RenderInfo const & info)
+  constexpr virtual void render(Canvas canvas, RenderInfo const & info)
   {
     (void) canvas;
     (void) info;

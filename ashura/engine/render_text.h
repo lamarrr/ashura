@@ -130,8 +130,8 @@ struct RenderText
   /// @param clip the canvas-space clip rectangle
   /// @param zoom the zoom to apply to the text
   void render(TextRenderer renderer, f32x2 center, f32 align_width,
-              f32x4x4 const & transform, CRect const & clip = MAX_CLIP,
-              Allocator allocator = default_allocator);
+              f32x4x4 const & transform, CRect const & clip,
+              Allocator allocator);
 
   /// @brief Perform hit test on the laid-out text
   /// @param center canvas-space region the text was placed on

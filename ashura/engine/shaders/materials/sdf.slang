@@ -53,8 +53,8 @@ interface Material
 struct FlatMaterial : Material
 {
   quad::FlatMaterial tint;
-  u32                map_id;
-  u32                sampler_id;
+  TextureIndex                map;
+  SamplerIndex                sampler;
 
   f32x4 flood(FragmentInfo info, f32 edge_signed_distance, f32 edge_mask,
               SamplerState samplers[], Texture2D textures[])
@@ -98,8 +98,8 @@ struct FlatMaterial : Material
   f32 sdf(FragmentInfo info, SamplerState samplers[], Texture2D textures[])
   {
     f32x2 uv = info.rel_pos.xy + 0.5;
-    return textures[NonUniformResourceIndex(map_id)]
-      .Sample(samplers[NonUniformResourceIndex(sampler_id)], uv)
+    return textures[NonUniformResourceIndex(map)]
+      .Sample(samplers[NonUniformResourceIndex(sampler)], uv)
       .x;
   }
 };
@@ -107,8 +107,8 @@ struct FlatMaterial : Material
 struct NoiseMaterial : Material
 {
   quad::NoiseMaterial noise;
-  SamplerId           sampler_id;
-  TextureId           map_id;
+  SamplerIndex        sampler;
+  TextureIndex        map;
 
   f32x4 flood(FragmentInfo info, f32 edge_signed_distance, f32 edge_mask,
               SamplerState samplers[], Texture2D textures[])
@@ -151,8 +151,8 @@ struct NoiseMaterial : Material
   f32 sdf(FragmentInfo info, SamplerState samplers[], Texture2D textures[])
   {
     f32x2 uv = info.rel_pos.xy + 0.5;
-    return textures[NonUniformResourceIndex(map_id)]
-      .Sample(samplers[NonUniformResourceIndex(sampler_id)], uv)
+    return textures[NonUniformResourceIndex(map)]
+      .Sample(samplers[NonUniformResourceIndex(sampler)], uv)
       .x;
   }
 };

@@ -20,7 +20,7 @@ struct Inputs
 struct VertexOutput
 {
   f32x4                     pos : SV_Position;
-  [[vk::location(0)]] f32x2 uv : REL_POS;
+  [[vk::location(0)]] f32x2 uv  : REL_POS;
 };
 
 [[vk::binding(0, 0)]]

@@ -27,8 +27,8 @@ typedef float32_t4x4 f32x4x4;
 typedef float32_t3x3 f32x3x3;
 typedef float32_t2x2 f32x2x2;
 
-typedef u32 SamplerId;
-typedef u32 TextureId;
+typedef u32 SamplerIndex;
+typedef u32 TextureIndex;
 
 static const f32 PI = 3.1415926535897932384626433832795;
 

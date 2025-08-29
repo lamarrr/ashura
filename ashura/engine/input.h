@@ -907,28 +907,20 @@ inline constexpr Str MIME_FONT_TTF   = "font/ttf"_str;
 inline constexpr Str MIME_FONT_WOFF  = "font/woff"_str;
 inline constexpr Str MIME_FONT_WOFF2 = "font/woff2"_str;
 
-struct ClipBoard
+typedef struct IClipBoard * ClipBoard;
+
+struct IClipBoard
 {
-  ClipBoard()                              = default;
-  ClipBoard(ClipBoard const &)             = default;
-  ClipBoard(ClipBoard &&)                  = default;
-  ClipBoard & operator=(ClipBoard const &) = default;
-  ClipBoard & operator=(ClipBoard &&)      = default;
-  virtual ~ClipBoard()                     = default;
+  IClipBoard()                               = default;
+  IClipBoard(IClipBoard const &)             = delete;
+  IClipBoard(IClipBoard &&)                  = delete;
+  IClipBoard & operator=(IClipBoard const &) = delete;
+  IClipBoard & operator=(IClipBoard &&)      = delete;
+  virtual ~IClipBoard()                      = default;
 
-  virtual Result<> get(Str mime, Vec<u8> & out)
-  {
-    (void) mime;
-    (void) out;
-    return Err{};
-  }
+  virtual Result<> get(Str mime, Vec<u8> & out) = 0;
 
-  virtual Result<> set(Str mime, Span<u8 const> data)
-  {
-    (void) mime;
-    (void) data;
-    return Err{};
-  }
+  virtual Result<> set(Str mime, Span<u8 const> data) = 0;
 };
 
 enum class DropType : u8

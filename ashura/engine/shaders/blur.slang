@@ -10,17 +10,17 @@
 /// @param radius relative to texture dimensions
 struct Blur
 {
-  f32x2     uv0;
-  f32x2     uv1;
-  f32x2     radius;
-  SamplerId sampler;
-  TextureId tex;
+  f32x2        uv0;
+  f32x2        uv1;
+  f32x2        radius;
+  SamplerIndex sampler;
+  TextureIndex tex;
 };
 
 struct VertexOutput
 {
   f32x4                                   position : SV_Position;
-  [[vk::location(0)]] f32x2               uv : UV_COORD;
+  [[vk::location(0)]] f32x2               uv       : UV_COORD;
   [[vk::location(1)]] nointerpolation u32 instance : INSTANCE;
 };
 

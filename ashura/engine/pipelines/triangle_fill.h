@@ -8,7 +8,7 @@
 namespace ash
 {
 
-struct NgonPipelineParams
+struct TriangleFillPipelineParams
 {
   Framebuffer             framebuffer    = {};
   Option<PipelineStencil> stencil        = none;
@@ -25,18 +25,18 @@ struct NgonPipelineParams
   Span<u32 const>         index_counts   = {};
 };
 
-struct NgonPipeline final : IPipeline
+struct TriangleFillPipeline final : IPipeline
 {
   SparseVec<Tuple<Str, gpu::GraphicsPipeline>> pipelines_;
 
-  NgonPipeline(Allocator);
+  TriangleFillPipeline(Allocator);
 
-  NgonPipeline(NgonPipeline const &)             = delete;
-  NgonPipeline(NgonPipeline &&)                  = delete;
-  NgonPipeline & operator=(NgonPipeline const &) = delete;
-  NgonPipeline & operator=(NgonPipeline &&)      = delete;
+  TriangleFillPipeline(TriangleFillPipeline const &)             = delete;
+  TriangleFillPipeline(TriangleFillPipeline &&)                  = delete;
+  TriangleFillPipeline & operator=(TriangleFillPipeline const &) = delete;
+  TriangleFillPipeline & operator=(TriangleFillPipeline &&)      = delete;
 
-  virtual ~NgonPipeline() override = default;
+  virtual ~TriangleFillPipeline() override = default;
 
   virtual Str label() override;
 
@@ -51,8 +51,9 @@ struct NgonPipeline final : IPipeline
 
   PipelineVariantId get_variant_id(Str label);
 
-  void encode(gpu::CommandEncoder encoder, NgonPipelineParams const & params,
-              PipelineVariantId variant);
+  void encode(gpu::CommandEncoder                encoder,
+              TriangleFillPipelineParams const & params,
+              PipelineVariantId                  variant);
 };
 
 }    // namespace ash

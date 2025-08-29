@@ -17,7 +17,7 @@ enum class CanvasEncoderType : u32
 {
   Sdf           = 0,
   Quad          = 1,
-  Ngon          = 2,
+  TriangleFill  = 2,
   FillStencil   = 3,
   BezierStencil = 4,
   Pbr           = 5,
@@ -261,7 +261,7 @@ struct QuadEncoder final : ICanvasEncoder
   virtual void operator()(GpuFramePlan plan) override;
 };
 
-struct NgonEncoder final : ICanvasEncoder
+struct TriangleFillEncoder final : ICanvasEncoder
 {
   struct Item
   {
@@ -305,8 +305,8 @@ struct NgonEncoder final : ICanvasEncoder
 
   PipelineVariantId variant_;
 
-  explicit NgonEncoder(Allocator allocator, Item const & item) :
-    ICanvasEncoder{CanvasEncoderType::Ngon},
+  explicit TriangleFillEncoder(Allocator allocator, Item const & item) :
+    ICanvasEncoder{CanvasEncoderType::TriangleFill},
     depth_stencil_{item.depth_stencil},
     stencil_op_{item.stencil_op},
     scissor_{item.scissor},
@@ -323,11 +323,11 @@ struct NgonEncoder final : ICanvasEncoder
     push_(item.transform, item.vertices, item.indices, item.material);
   }
 
-  NgonEncoder(NgonEncoder const &)             = delete;
-  NgonEncoder(NgonEncoder &&)                  = default;
-  NgonEncoder & operator=(NgonEncoder const &) = delete;
-  NgonEncoder & operator=(NgonEncoder &&)      = default;
-  virtual ~NgonEncoder() override              = default;
+  TriangleFillEncoder(TriangleFillEncoder const &)             = delete;
+  TriangleFillEncoder(TriangleFillEncoder &&)                  = default;
+  TriangleFillEncoder & operator=(TriangleFillEncoder const &) = delete;
+  TriangleFillEncoder & operator=(TriangleFillEncoder &&)      = default;
+  virtual ~TriangleFillEncoder() override                      = default;
 
   void push_(f32x4x4 const & transform, Span<f32x2 const> vertices,
              Span<u32 const> indices, Span<u8 const> material)

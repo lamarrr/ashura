@@ -30,8 +30,8 @@ struct Shape
 struct VertexOutput
 {
   [[vk::location(0)]] f32x4               screen_pos : SV_Position;
-  [[vk::location(1)]] f32x2               rel_pos : REL_POS;
-  [[vk::location(2)]] nointerpolation u32 instance : INSTANCE;
+  [[vk::location(1)]] f32x2               rel_pos    : REL_POS;
+  [[vk::location(2)]] nointerpolation u32 instance   : INSTANCE;
 };
 
 [[vk::binding(0, 0)]]

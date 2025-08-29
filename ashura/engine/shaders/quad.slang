@@ -8,9 +8,9 @@
 struct VertexOutput
 {
   [[vk::location(0)]] f32x4               screen_pos : SV_Position;
-  [[vk::location(1)]] f32x4               world_pos : WORLD_POSITION;
-  [[vk::location(2)]] f32x4               rel_pos : REL_POS;
-  [[vk::location(3)]] nointerpolation u32 instance : INSTANCE;
+  [[vk::location(1)]] f32x4               world_pos  : WORLD_POSITION;
+  [[vk::location(2)]] f32x4               rel_pos    : REL_POS;
+  [[vk::location(3)]] nointerpolation u32 instance   : INSTANCE;
 };
 
 [[vk::binding(0, 0)]]

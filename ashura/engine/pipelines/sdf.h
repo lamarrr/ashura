@@ -25,6 +25,9 @@ struct SdfPipelineParams
 
 struct SdfPipeline final : IPipeline
 {
+  static constexpr PipelineVariantId FLAT  = PipelineVariantId::Base;
+  static constexpr PipelineVariantId NOISE = PipelineVariantId{1};
+
   SparseVec<Tuple<Str, gpu::GraphicsPipeline>> variants_;
 
   SdfPipeline(Allocator);

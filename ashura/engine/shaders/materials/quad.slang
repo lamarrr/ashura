@@ -24,14 +24,14 @@ interface Material
 
 struct FlatMaterial : Material
 {
-  f32x4     top;
-  f32x4     bottom;
-  f32x2     gradient_rotor;    // (cos(theta), sin(theta))
-  f32x2     uv0;
-  f32x2     uv1;
-  f32       gradient_center;
-  SamplerId sampler;
-  TextureId texture;
+  f32x4        top;
+  f32x4        bottom;
+  f32x2        gradient_rotor;    // (cos(theta), sin(theta))
+  f32x2        uv0;
+  f32x2        uv1;
+  f32          gradient_center;
+  SamplerIndex sampler;
+  TextureIndex texture;
 
   f32x4 shade(FragmentInfo info, SamplerState samplers[], Texture2D textures[])
   {

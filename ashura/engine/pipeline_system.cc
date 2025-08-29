@@ -4,10 +4,10 @@
 #include "ashura/engine/pipelines/bezier_stencil.h"
 #include "ashura/engine/pipelines/blur.h"
 #include "ashura/engine/pipelines/fill_stencil.h"
-#include "ashura/engine/pipelines/ngon.h"
 #include "ashura/engine/pipelines/pbr.h"
 #include "ashura/engine/pipelines/quad.h"
 #include "ashura/engine/pipelines/sdf.h"
+#include "ashura/engine/pipelines/triangle_fill.h"
 #include "ashura/engine/systems.h"
 
 namespace ash
@@ -17,7 +17,8 @@ void IPipelineSys::init(Allocator allocator)
 {
   Dyn sdf  = dyn<SdfPipeline>(inplace, allocator, allocator).unwrap();
   Dyn quad = dyn<QuadPipeline>(inplace, allocator, allocator).unwrap();
-  Dyn ngon = dyn<NgonPipeline>(inplace, allocator, allocator).unwrap();
+  Dyn triangle_fill =
+    dyn<TriangleFillPipeline>(inplace, allocator, allocator).unwrap();
   Dyn fill_stencil =
     dyn<FillStencilPipeline>(inplace, allocator, allocator).unwrap();
   Dyn bezier_stencil =
@@ -27,7 +28,7 @@ void IPipelineSys::init(Allocator allocator)
 
   auto p_sdf            = sdf.get();
   auto p_quad           = quad.get();
-  auto p_ngon           = ngon.get();
+  auto p_triangle_fill  = triangle_fill.get();
   auto p_fill_stencil   = fill_stencil.get();
   auto p_bezier_stencil = bezier_stencil.get();
   auto p_blur           = blur.get();
@@ -37,7 +38,7 @@ void IPipelineSys::init(Allocator allocator)
 
   all.push(cast<Pipeline>(std::move(sdf))).unwrap();
   all.push(cast<Pipeline>(std::move(quad))).unwrap();
-  all.push(cast<Pipeline>(std::move(ngon))).unwrap();
+  all.push(cast<Pipeline>(std::move(triangle_fill))).unwrap();
   all.push(cast<Pipeline>(std::move(fill_stencil))).unwrap();
   all.push(cast<Pipeline>(std::move(bezier_stencil))).unwrap();
   all.push(cast<Pipeline>(std::move(blur))).unwrap();
@@ -45,7 +46,7 @@ void IPipelineSys::init(Allocator allocator)
 
   sdf_            = p_sdf;
   quad_           = p_quad;
-  ngon_           = p_ngon;
+  triangle_fill_  = p_triangle_fill;
   fill_stencil_   = p_fill_stencil;
   bezier_stencil_ = p_bezier_stencil;
   blur_           = p_blur;
@@ -76,9 +77,9 @@ QuadPipeline & IPipelineSys::quad() const
   return *quad_;
 }
 
-NgonPipeline & IPipelineSys::ngon() const
+TriangleFillPipeline & IPipelineSys::triangle_fill() const
 {
-  return *ngon_;
+  return *triangle_fill_;
 }
 
 FillStencilPipeline & IPipelineSys::fill_stencil() const

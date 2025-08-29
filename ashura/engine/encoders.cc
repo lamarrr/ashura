@@ -6,10 +6,10 @@
 #include "ashura/engine/pipelines/bloom.h"
 #include "ashura/engine/pipelines/blur.h"
 #include "ashura/engine/pipelines/fill_stencil.h"
-#include "ashura/engine/pipelines/ngon.h"
 #include "ashura/engine/pipelines/pbr.h"
 #include "ashura/engine/pipelines/quad.h"
 #include "ashura/engine/pipelines/sdf.h"
+#include "ashura/engine/pipelines/triangle_fill.h"
 #include "ashura/engine/systems.h"
 
 namespace ash
@@ -115,7 +115,7 @@ void QuadEncoder::operator()(GpuFramePlan plan)
   });
 }
 
-void NgonEncoder::operator()(GpuFramePlan plan)
+void TriangleFillEncoder::operator()(GpuFramePlan plan)
 {
   auto index_counts = index_counts_.view();
   auto transforms   = transforms_.view();
@@ -152,21 +152,22 @@ void NgonEncoder::operator()(GpuFramePlan plan)
         depth_stencil.map([&](auto s) { return dst[s].depth_stencil; })
           .unwrap_or()};
 
-    auto params = NgonPipelineParams{.framebuffer    = framebuffer,
-                                     .stencil        = stencil_op,
-                                     .scissor        = scissor,
-                                     .viewport       = viewport,
-                                     .samplers       = sys.gpu->samplers(),
-                                     .textures       = frame->get(texture_set),
-                                     .world_to_ndc   = world_to_ndc,
-                                     .transforms     = transforms,
-                                     .vertices       = vertices,
-                                     .indices        = indices,
-                                     .materials      = materials,
-                                     .first_instance = 0,
-                                     .index_counts   = index_counts};
+    auto params =
+      TriangleFillPipelineParams{.framebuffer    = framebuffer,
+                                 .stencil        = stencil_op,
+                                 .scissor        = scissor,
+                                 .viewport       = viewport,
+                                 .samplers       = sys.gpu->samplers(),
+                                 .textures       = frame->get(texture_set),
+                                 .world_to_ndc   = world_to_ndc,
+                                 .transforms     = transforms,
+                                 .vertices       = vertices,
+                                 .indices        = indices,
+                                 .materials      = materials,
+                                 .first_instance = 0,
+                                 .index_counts   = index_counts};
 
-    sys.pipeline->ngon().encode(enc, params, variant);
+    sys.pipeline->triangle_fill().encode(enc, params, variant);
   });
 }
 

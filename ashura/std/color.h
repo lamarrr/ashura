@@ -409,7 +409,7 @@ struct ColorGradient
   constexpr ColorGradient(f32x4 top, f32x4 bottom, f32 angle, f32 center) :
     top_{top},
     bottom_{bottom},
-    rotor_{rotor(angle)},
+    rotor_{ash::rotor(angle)},
     center_{center}
   {
   }
@@ -434,6 +434,26 @@ struct ColorGradient
   constexpr bool is_transparent() const
   {
     return top_.a() == 0 && bottom_.a() == 0;
+  }
+
+  constexpr f32x4 top() const
+  {
+    return top_;
+  }
+
+  constexpr f32x4 bottom() const
+  {
+    return bottom_;
+  }
+
+  constexpr f32x2 rotor() const
+  {
+    return rotor_;
+  }
+
+  constexpr f32 center() const
+  {
+    return center_;
   }
 };
 

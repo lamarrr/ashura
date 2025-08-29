@@ -63,27 +63,27 @@ interface Material
 // [ ] enable backface culling
 struct BaseMaterial : Material
 {
-  f32x4     albedo;      // only xyz
-  f32x4     emission;    // only xyz
-  f32       metallic;
-  f32       roughness;
-  f32       normal;
-  f32       occlusion;
-  f32       ior;
-  f32       clearcoat;
-  f32       clearcoat_roughness;
-  f32       clearcoat_normal;
-  f32       lit;
-  SamplerId sampler;
-  TextureId albedo_map;
-  TextureId metallic_map;
-  TextureId roughness_map;
-  TextureId normal_map;
-  TextureId occlusion_map;
-  TextureId emission_map;
-  TextureId clearcoat_map;
-  TextureId clearcoat_roughness_map;
-  TextureId clearcoat_normal_map;
+  f32x4        albedo;      // only xyz
+  f32x4        emission;    // only xyz
+  f32          metallic;
+  f32          roughness;
+  f32          normal;
+  f32          occlusion;
+  f32          ior;
+  f32          clearcoat;
+  f32          clearcoat_roughness;
+  f32          clearcoat_normal;
+  f32          lit;
+  SamplerIndex sampler;
+  TextureIndex albedo_map;
+  TextureIndex metallic_map;
+  TextureIndex roughness_map;
+  TextureIndex normal_map;
+  TextureIndex occlusion_map;
+  TextureIndex emission_map;
+  TextureIndex clearcoat_map;
+  TextureIndex clearcoat_roughness_map;
+  TextureIndex clearcoat_normal_map;
 
   Shading shade(FragmentInfo info, SamplerState samplers[],
                 Texture2D textures[])
@@ -157,5 +157,6 @@ struct PunctualLight : Lighting
 
 // [ ] image-based light
 // [ ] rectangular lights
+// [ ] https://developer.nvidia.com/gpugems/gpugems/part-iii-materials/chapter-19-image-based-lighting
 
 }    // namespace pbr
