@@ -166,6 +166,9 @@ struct ShapeInfo
   /// @brief center of the shape in world-space
   CRect area = {};
 
+  /// @brief extent of the shape's bounding-box in world-space
+  f32x2 bbox_extent = {};
+
   /// @brief object-world-space transform matrix
   f32x4x4 transform = f32x4x4::identity();
 

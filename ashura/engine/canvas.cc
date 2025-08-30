@@ -237,78 +237,71 @@ void path::squircle(Vec<f32x2> & vtx, f32x2 extent, f32x2 center,
 }
 
 void path::rrect(Vec<f32x2> & vtx, f32x2 extent, f32x2 center, f32x4 radii,
-                 usize segments)
+                 u32 segments)
 {
-  if (segments < 8)
+  auto const n = (segments << 2) + 8;
+
+  extent = extent.max(0);
+
+  auto max_radius = extent.min();
+  radii           = radii.clamp(0.0F, max_radius);
+  auto y_max      = max_radius - radii.x();
+  radii.y()       = min(radii.y(), y_max);
+  auto z_max      = min(y_max, max_radius - radii.y());
+  radii.z()       = min(radii.z(), z_max);
+  auto w_max      = min(z_max, max_radius - radii.z());
+  radii.w()       = min(radii.w(), w_max);
+
+  f32 const  step  = (segments == 0) ? 0.0F : ((PI * 0.5F) / segments);
+  auto const first = size32(vtx);
+
+  vtx.extend_uninit(n).unwrap();
+
+  u32 i = 0;
+
+  vtx[first + i++] = center + extent * 0.5F - f32x2{0, radii.z()};
+
+  for (u32 s = 0; s < segments; s++)
   {
-    return;
+    vtx[first + i++] = center + extent * 0.5F - f32x2{0, radii.z()} +
+                       radii.z() * rotor(s * step);
   }
 
-  radii = radii.max(f32x4::zero());
+  vtx[first + i++] = center + extent * 0.5F - f32x2{radii.z(), 0};
 
-  // [ ] fix
-  /// clipping
-  /*
-  radii.y()          = min(radii.y(), 1.0F - radii.x());
-  f32 max_radius_z = min(1.0F - radii.x(), 0.5F - radii.y());
-  radii.z()          = min(radii.z(), max_radius_z);
-  f32 max_radius_w = min(max_radius_z, 0.5F - radii.z());
-  radii.w()          = min(radii.w(), max_radius_w);
-  */
+  vtx[first + i++] = center + extent * f32x2{-0.5F, 0.5F} + f32x2{radii.w(), 0};
 
-  auto const curve_segments = (segments - 8) >> 2;
-  f32 const  step =
-    (curve_segments == 0) ? 0.0F : ((PI * 0.5F) / curve_segments);
-  auto const first = vtx.size();
-
-  vtx.extend_uninit(segments).unwrap();
-
-  usize i = 0;
-
-  vtx[first + i++] = f32x2{0.5F, 0.5F - radii.z()};
-
-  for (usize s = 0; s < curve_segments; s++)
+  for (u32 s = 0; s < segments; s++)
   {
-    vtx[first + i++] =
-      ((0.5F - radii.z()) + radii.z() * rotor(s * step)) * extent + center;
+    vtx[first + i++] = center + extent * f32x2{-0.5F, 0.5F} +
+                       f32x2{radii.w(), 0} +
+                       radii.w() * rotor(PI * 0.5F + s * step);
   }
 
-  vtx[first + i++] = f32x2{0.5F - radii.z(), 0.5F} * extent + center;
+  vtx[first + i++] = center + extent * f32x2{-0.5F, 0.5F} - f32x2{0, radii.w()};
 
-  vtx[first + i++] = f32x2{-0.5F + radii.w(), 0.5F} * extent + center;
+  vtx[first + i++] =
+    center + extent * f32x2{-0.5F, -0.5F} + f32x2{0, radii.x()};
 
-  for (usize s = 0; s < curve_segments; s++)
+  for (u32 s = 0; s < segments; s++)
   {
-    vtx[first + i++] = (f32x2{-0.5F + radii.w(), 0.5F - radii.w()} +
-                        radii.w() * rotor(PI * 0.5F + s * step)) *
-                         extent +
-                       center;
+    vtx[first + i++] = center + extent * f32x2{-0.5F, -0.5F} +
+                       f32x2{0, radii.x()} + radii.x() * rotor(PI + s * step);
   }
 
-  vtx[first + i++] = f32x2{-0.5F, 0.5F - radii.w()} * extent + center;
+  vtx[first + i++] =
+    center + extent * f32x2{-0.5F, -0.5F} + f32x2{radii.x(), 0};
 
-  vtx[first + i++] = f32x2{-0.5F, -0.5F + radii.x()} * extent + center;
+  vtx[first + i++] = center + extent * f32x2{0.5F, -0.5F} - f32x2{radii.y(), 0};
 
-  for (usize s = 0; s < curve_segments; s++)
+  for (u32 s = 0; s < segments; s++)
   {
-    vtx[first + i++] =
-      ((-0.5F + radii.x()) + radii.x() * rotor(PI + s * step)) * extent +
-      center;
+    vtx[first + i++] = center + extent * f32x2{0.5F, -0.5F} -
+                       f32x2{radii.y(), 0} +
+                       radii.y() * rotor(PI * 1.5F + s * step);
   }
 
-  vtx[first + i++] = f32x2{-0.5F + radii.x(), -0.5F} * extent + center;
-
-  vtx[first + i++] = f32x2{0.5F - radii.y(), -0.5F} * extent + center;
-
-  for (usize s = 0; s < curve_segments; s++)
-  {
-    vtx[first + i++] = (f32x2{0.5F - radii.y(), (-0.5F + radii.y())} +
-                        radii.y() * rotor(PI * 1.5F + s * step)) *
-                         extent +
-                       center;
-  }
-
-  vtx[first + i++] = f32x2{0.5F, -0.5F + radii.y()};
+  vtx[first + i++] = center + extent * f32x2{0.5F, -0.5F} + f32x2{0, radii.y()};
 }
 
 template <typename I>
