@@ -1,8 +1,5 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
-#define VMA_STATIC_VULKAN_FUNCTIONS  0
-#define VMA_DYNAMIC_VULKAN_FUNCTIONS 0
-#define VMA_VULKAN_VERSION           1'000'000
 
 #include "ashura/gpu/gpu.h"
 #include "ashura/std/allocator.h"
@@ -10,9 +7,18 @@
 #include "ashura/std/async.h"
 #include "ashura/std/range.h"
 #include "ashura/std/vec.h"
-#include "vk_mem_alloc.h"
-#include "vulkan/vk_enum_string_helper.h"
+
+// clang-format off
+#define VMA_STATIC_VULKAN_FUNCTIONS  0
+#define VMA_DYNAMIC_VULKAN_FUNCTIONS 1
+#define VMA_VULKAN_VERSION           1'000'000
+
 #include "vulkan/vulkan.h"
+#include "vulkan/vulkan_beta.h"
+#include "vulkan/vk_enum_string_helper.h"
+#include "vk_mem_alloc.h"
+
+// clang-format on
 
 namespace ash
 {
@@ -26,23 +32,33 @@ inline constexpr char const ENGINE_NAME[] = "Ash";
 inline constexpr u32 ENGINE_VERSION = VK_MAKE_API_VERSION(
   ASH_VERSION.variant, ASH_VERSION.major, ASH_VERSION.minor, ASH_VERSION.patch);
 
+inline constexpr u32 ENGINE_VULKAN_VERSION = VK_API_VERSION_1_1;
+
 inline constexpr char const CLIENT_NAME[] = "Ash Client";
 
 inline constexpr u32 CLIENT_VERSION = ENGINE_VERSION;
 
-inline constexpr u32 MAX_MEMORY_HEAP_PROPERTIES = 32;
-inline constexpr u32 MAX_MEMORY_HEAPS           = 16;
-
-typedef VkSampler             Sampler;
-typedef VkShaderModule        Shader;
-typedef VkPipelineCache       PipelineCache;
-typedef VkSurfaceKHR          Surface;
-typedef VkQueryPool           TimestampQuery;
-typedef VkQueryPool           StatisticsQuery;
-typedef struct Instance       Instance;
-typedef struct Device         Device;
-typedef struct CommandBuffer  CommandBuffer;
-typedef struct CommandEncoder CommandEncoder;
+typedef struct IBuffer *              Buffer;
+typedef struct IBufferView *          BufferView;
+typedef struct IImage *               Image;
+typedef struct IImageView *           ImageView;
+typedef struct IAlias *               Alias;
+typedef VkSampler                     Sampler;
+typedef VkShaderModule                Shader;
+typedef struct IDescriptorSetLayout * DescriptorSetLayout;
+typedef struct IDescriptorSet *       DescriptorSet;
+typedef VkPipelineCache               PipelineCache;
+typedef struct IComputePipeline *     ComputePipeline;
+typedef struct IGraphicsPipeline *    GraphicsPipeline;
+typedef VkQueryPool                   TimestampQuery;
+typedef VkQueryPool                   StatisticsQuery;
+typedef VkSurfaceKHR                  Surface;
+typedef struct ISwapchain *           Swapchain;
+typedef struct IQueueScope *          QueueScope;
+typedef struct ICommandEncoder *      CommandEncoder;
+typedef struct ICommandBuffer *       CommandBuffer;
+typedef struct IDevice *              Device;
+typedef struct IInstance *            Instance;
 
 #define ASH_DEF_VKPFN(name) PFN_vk##name name = nullptr
 
@@ -58,13 +74,15 @@ struct InstanceTable
   ASH_DEF_VKPFN(CreateDevice);
   ASH_DEF_VKPFN(EnumerateDeviceExtensionProperties);
   ASH_DEF_VKPFN(EnumerateDeviceLayerProperties);
-  ASH_DEF_VKPFN(GetPhysicalDeviceFeatures);
-  ASH_DEF_VKPFN(GetPhysicalDeviceFormatProperties);
-  ASH_DEF_VKPFN(GetPhysicalDeviceImageFormatProperties);
+  ASH_DEF_VKPFN(GetPhysicalDeviceFeatures2KHR);
+  ASH_DEF_VKPFN(GetPhysicalDeviceFormatProperties2KHR);
+  ASH_DEF_VKPFN(GetPhysicalDeviceImageFormatProperties2KHR);
   ASH_DEF_VKPFN(GetPhysicalDeviceMemoryProperties);
+  ASH_DEF_VKPFN(GetPhysicalDeviceMemoryProperties2KHR);
   ASH_DEF_VKPFN(GetPhysicalDeviceProperties);
-  ASH_DEF_VKPFN(GetPhysicalDeviceQueueFamilyProperties);
-  ASH_DEF_VKPFN(GetPhysicalDeviceSparseImageFormatProperties);
+  ASH_DEF_VKPFN(GetPhysicalDeviceProperties2KHR);
+  ASH_DEF_VKPFN(GetPhysicalDeviceQueueFamilyProperties2KHR);
+  ASH_DEF_VKPFN(GetPhysicalDeviceSparseImageFormatProperties2KHR);
 
   ASH_DEF_VKPFN(GetPhysicalDeviceSurfaceSupportKHR);
   ASH_DEF_VKPFN(GetPhysicalDeviceSurfaceCapabilitiesKHR);
@@ -231,13 +249,13 @@ enum class DescriptorSetId : u32
   Undefined = U32_MAX
 };
 
-struct DescriptorSet;
+struct IDescriptorSet;
 
 struct BindLocation
 {
-  DescriptorSet * set     = nullptr;
-  u32             binding = 0;
-  u32             element = 0;
+  DescriptorSet set     = nullptr;
+  u32           binding = 0;
+  u32           element = 0;
 
   constexpr bool operator==(BindLocation const & rhs) const
   {
@@ -252,23 +270,19 @@ struct BindLocation
 
 /// @brief An allocated block of memory that can be aliased by multiple resources.
 
-// [ ] how to get partition offsets from buffers; this will be tricky to size for
-
-struct MemoryGroup
+struct IAlias
 {
-  VmaAllocation        vma_allocation = nullptr;
-  Layout64             layout         = {.alignment = 1, .size = 0};
-  void *               map            = nullptr;
-  SmallVec<u64, 8>     alias_offsets  = {};
-  SmallVec<AliasId, 8> alias_ids      = {};
+  AliasId       id             = AliasId::Undefined;
+  VmaAllocation vma_allocation = nullptr;
+  Layout64      layout         = {.alignment = 1, .size = 0};
+  void *        map            = nullptr;
 };
 
 struct MemoryInfo
 {
-  MemoryGroup *   memory_group = nullptr;
-  u32             alias        = 0;
-  u32             element      = 0;
-  gpu::MemoryType type         = gpu::MemoryType::Unique;
+  Alias           alias   = nullptr;
+  u32             element = 0;
+  gpu::MemoryType type    = gpu::MemoryType::Unique;
 };
 
 struct BufferBarrier
@@ -294,7 +308,7 @@ struct MemoryBarrier
 
 using BindLocations = SmallVec<BindLocation, 8, 0>;
 
-struct Buffer
+struct IBuffer
 {
   VkBuffer         vk             = nullptr;
   gpu::BufferUsage usage          = gpu::BufferUsage::None;
@@ -304,15 +318,15 @@ struct Buffer
   BindLocations    bind_locations = {};
 };
 
-struct BufferView
+struct IBufferView
 {
   VkBufferView  vk             = nullptr;
-  Buffer *      buffer         = nullptr;
+  Buffer        buffer         = nullptr;
   Slice64       slice          = {};
   BindLocations bind_locations = {};
 };
 
-struct Image
+struct IImage
 {
   VkImage           vk                 = nullptr;
   gpu::ImageType    type               = gpu::ImageType::Type1D;
@@ -326,22 +340,21 @@ struct Image
   MemoryInfo        memory             = {};
 };
 
-struct ImageView
+struct IImageView
 {
   VkImageView   vk             = nullptr;
-  Image *       image          = nullptr;
+  Image         image          = nullptr;
   gpu::Format   format         = gpu::Format::Undefined;
   Slice32       mip_levels     = {};
   Slice32       array_layers   = {};
   BindLocations bind_locations = {};
 };
 
-struct DescriptorSetLayout
+struct IDescriptorSetLayout
 {
   VkDescriptorSetLayout vk = nullptr;
 
-  InplaceVec<gpu::DescriptorBindingInfo, gpu::MAX_DESCRIPTOR_SET_BINDINGS>
-    bindings = {};
+  SmallVec<gpu::DescriptorBindingInfo, 1, 0> bindings = {};
 
   u32 num_variable_length = 0;
 
@@ -349,8 +362,8 @@ struct DescriptorSetLayout
 };
 
 using SyncResources =
-  Enum<None, SmallVec<Buffer *, 4, 0>, SmallVec<BufferView *, 4, 0>,
-       SmallVec<ImageView *, 4, 0>>;
+  Enum<None, SmallVec<Buffer, 4, 0>, SmallVec<BufferView, 4, 0>,
+       SmallVec<ImageView, 4, 0>>;
 
 struct DescriptorBinding
 {
@@ -363,7 +376,7 @@ struct DescriptorBinding
   u32 sync_size() const;
 };
 
-struct DescriptorSet
+struct IDescriptorSet
 {
   VkDescriptorSet vk = nullptr;
 
@@ -373,7 +386,7 @@ struct DescriptorSet
 
   bool is_mutating = false;
 
-  InplaceVec<DescriptorBinding, gpu::MAX_DESCRIPTOR_SET_BINDINGS> bindings = {};
+  SmallVec<DescriptorBinding, 1, 0> bindings = {};
 
   static void remove_bind_loc(BindLocations &      locations,
                               BindLocation const & loc);
@@ -388,7 +401,7 @@ struct DescriptorSet
                    Span<gpu::ImageBinding const> images);
 };
 
-struct ComputePipeline
+struct IComputePipeline
 {
   VkPipeline vk = nullptr;
 
@@ -397,11 +410,9 @@ struct ComputePipeline
   u32 push_constants_size = 0;
 
   u32 num_sets = 0;
-
-  bool is_mutating = false;
 };
 
-struct GraphicsPipeline
+struct IGraphicsPipeline
 {
   VkPipeline vk = nullptr;
 
@@ -411,9 +422,7 @@ struct GraphicsPipeline
 
   u32 num_sets = 0;
 
-  bool is_mutating = false;
-
-  InplaceVec<gpu::Format, gpu::MAX_PIPELINE_COLOR_ATTACHMENTS> color_fmts = {};
+  SmallVec<gpu::Format, 8, 0> color_fmts = {};
 
   Option<gpu::Format> depth_fmt = none;
 
@@ -424,35 +433,35 @@ struct GraphicsPipeline
   u32 num_vertex_attributes = 0;
 };
 
-struct Instance final : gpu::IInstance
+struct IInstance final : gpu::IInstance
 {
   Allocator allocator_;
 
-  InstanceTable vk_table_;
+  InstanceTable table_;
 
-  VkInstance vk_instance_;
+  VkInstance vk_;
 
   VkDebugUtilsMessengerEXT vk_debug_messenger_;
 
   bool validation_enabled_;
 
-  explicit Instance(Allocator allocator, InstanceTable table,
-                    VkInstance               instance,
-                    VkDebugUtilsMessengerEXT debug_messenger,
-                    bool                     validation_enabled) :
+  explicit IInstance(Allocator allocator, InstanceTable table,
+                     VkInstance               instance,
+                     VkDebugUtilsMessengerEXT debug_messenger,
+                     bool                     validation_enabled) :
     allocator_{allocator},
-    vk_table_{table},
-    vk_instance_{instance},
+    table_{table},
+    vk_{instance},
     vk_debug_messenger_{debug_messenger},
     validation_enabled_{validation_enabled}
   {
   }
 
-  Instance(Instance const &)             = delete;
-  Instance & operator=(Instance const &) = delete;
-  Instance(Instance &&)                  = delete;
-  Instance & operator=(Instance &&)      = delete;
-  virtual ~Instance() override;
+  IInstance(IInstance const &)             = delete;
+  IInstance & operator=(IInstance const &) = delete;
+  IInstance(IInstance &&)                  = delete;
+  IInstance & operator=(IInstance &&)      = delete;
+  virtual ~IInstance() override;
 
   virtual Result<gpu::Device, Status>
     create_device(Allocator                   allocator,
@@ -465,15 +474,17 @@ struct Instance final : gpu::IInstance
   virtual void uninit(gpu::Surface surface) override;
 };
 
-struct PhysicalDevice
+struct IPhysicalDevice
 {
-  VkPhysicalDevice vk_phy_dev = nullptr;
+  VkPhysicalDevice vk = nullptr;
 
   VkPhysicalDeviceFeatures vk_features = {};
 
   VkPhysicalDeviceProperties vk_properties = {};
 
   VkPhysicalDeviceMemoryProperties vk_memory_properties = {};
+
+  VkPhysicalDeviceDescriptorIndexingPropertiesEXT vk_descriptor_properties = {};
 };
 
 struct SwapchainPreference
@@ -492,17 +503,15 @@ struct SwapchainPreference
 /// @param is_optimal recommended but not necessary to resize
 /// @param is_zero_sized swapchain is not receiving presentation requests,
 /// because the surface requested a zero sized image extent
-struct Swapchain
+struct ISwapchain
 {
   VkSwapchainKHR vk = nullptr;
 
   VkSurfaceKHR vk_surface = nullptr;
 
-  InplaceVec<Image *, gpu::MAX_SWAPCHAIN_IMAGES> images = {};
+  SmallVec<Image, 8, 0> images = {};
 
-  InplaceVec<VkSemaphore, gpu::MAX_SWAPCHAIN_IMAGES> acquire_semaphores = {};
-
-  MemoryGroup * memory_group = nullptr;
+  SmallVec<VkSemaphore, 8, 0> acquire_semaphores = {};
 
   u32 ring_index = 0;
 
@@ -529,15 +538,15 @@ struct Swapchain
   SwapchainPreference preference = {};
 };
 
-#define ASH_VK_CAST(Handle)                    \
-  ASH_FORCE_INLINE Handle * ptr(gpu::Handle p) \
-  {                                            \
-    return reinterpret_cast<Handle *>(p);      \
-  }                                            \
-                                               \
-  ASH_FORCE_INLINE Handle & ref(gpu::Handle p) \
-  {                                            \
-    return *ptr(p);                            \
+#define ASH_VK_CAST(Handle)                            \
+  ASH_FORCE_INLINE Handle ptr(ash::gpu::Handle p)      \
+  {                                                    \
+    return reinterpret_cast<ash::vk::Handle>(p);       \
+  }                                                    \
+                                                       \
+  ASH_FORCE_INLINE I##Handle & ref(ash::gpu::Handle p) \
+  {                                                    \
+    return *ptr(p);                                    \
   }
 
 ASH_VK_CAST(Buffer)
@@ -587,16 +596,16 @@ enum class Type : usize
   DrawIndexedIndirect    = 29
 };
 
-struct alignas(8) Command
+struct alignas(8) Cmd
 {
   Type const type;
-  Command *  next = nullptr;
+  Cmd *      next = nullptr;
 };
 
 struct alignas(8) ResetTimestampQuery
 {
   Type const  type  = Type::ResetTimestampQuery;
-  Command *   next  = nullptr;
+  Cmd *       next  = nullptr;
   VkQueryPool query = nullptr;
   Slice32     range = {};
 };
@@ -604,7 +613,7 @@ struct alignas(8) ResetTimestampQuery
 struct alignas(8) ResetStatisticsQuery
 {
   Type const  type  = Type::ResetStatisticsQuery;
-  Command *   next  = nullptr;
+  Cmd *       next  = nullptr;
   VkQueryPool query = nullptr;
   Slice32     range = {};
 };
@@ -612,7 +621,7 @@ struct alignas(8) ResetStatisticsQuery
 struct alignas(8) WriteTimestamp
 {
   Type const              type   = Type::WriteTimestamp;
-  Command *               next   = nullptr;
+  Cmd *                   next   = nullptr;
   VkQueryPool             query  = nullptr;
   VkPipelineStageFlagBits stages = VK_PIPELINE_STAGE_NONE;
   u32                     index  = 0;
@@ -621,7 +630,7 @@ struct alignas(8) WriteTimestamp
 struct alignas(8) BeginStatistics
 {
   Type const  type  = Type::BeginStatistics;
-  Command *   next  = nullptr;
+  Cmd *       next  = nullptr;
   VkQueryPool query = nullptr;
   u32         index = 0;
 };
@@ -629,7 +638,7 @@ struct alignas(8) BeginStatistics
 struct alignas(8) EndStatistics
 {
   Type const  type  = Type::EndStatistics;
-  Command *   next  = nullptr;
+  Cmd *       next  = nullptr;
   VkQueryPool query = nullptr;
   u32         index = 0;
 };
@@ -637,20 +646,20 @@ struct alignas(8) EndStatistics
 struct alignas(8) BeginDebugMarker
 {
   Type const                 type = Type::BeginDebugMarker;
-  Command *                  next = nullptr;
+  Cmd *                      next = nullptr;
   VkDebugMarkerMarkerInfoEXT info = {};
 };
 
 struct alignas(8) EndDebugMarker
 {
   Type const type = Type::EndDebugMarker;
-  Command *  next = nullptr;
+  Cmd *      next = nullptr;
 };
 
 struct alignas(8) FillBuffer
 {
   Type const type  = Type::FillBuffer;
-  Command *  next  = nullptr;
+  Cmd *      next  = nullptr;
   VkBuffer   dst   = nullptr;
   Slice64    range = {};
   u32        data  = 0;
@@ -659,7 +668,7 @@ struct alignas(8) FillBuffer
 struct alignas(8) CopyBuffer
 {
   Type const               type   = Type::CopyBuffer;
-  Command *                next   = nullptr;
+  Cmd *                    next   = nullptr;
   VkBuffer                 src    = nullptr;
   VkBuffer                 dst    = nullptr;
   Span<VkBufferCopy const> copies = {};
@@ -668,7 +677,7 @@ struct alignas(8) CopyBuffer
 struct alignas(8) UpdateBuffer
 {
   Type const     type       = Type::UpdateBuffer;
-  Command *      next       = nullptr;
+  Cmd *          next       = nullptr;
   Span<u8 const> src        = {};
   u64            dst_offset = 0;
   VkBuffer       dst        = nullptr;
@@ -677,7 +686,7 @@ struct alignas(8) UpdateBuffer
 struct alignas(8) ClearColorImage
 {
   Type const                          type       = Type::ClearColorImage;
-  Command *                           next       = nullptr;
+  Cmd *                               next       = nullptr;
   VkImage                             dst        = nullptr;
   VkImageLayout                       dst_layout = VK_IMAGE_LAYOUT_UNDEFINED;
   VkClearColorValue                   value      = {};
@@ -687,7 +696,7 @@ struct alignas(8) ClearColorImage
 struct alignas(8) ClearDepthStencilImage
 {
   Type const                          type       = Type::ClearDepthStencilImage;
-  Command *                           next       = nullptr;
+  Cmd *                               next       = nullptr;
   VkImage                             dst        = nullptr;
   VkImageLayout                       dst_layout = VK_IMAGE_LAYOUT_UNDEFINED;
   VkClearDepthStencilValue            value      = {};
@@ -697,7 +706,7 @@ struct alignas(8) ClearDepthStencilImage
 struct alignas(8) CopyImage
 {
   Type const              type       = Type::CopyImage;
-  Command *               next       = nullptr;
+  Cmd *                   next       = nullptr;
   VkImage                 src        = nullptr;
   VkImageLayout           src_layout = VK_IMAGE_LAYOUT_UNDEFINED;
   VkImage                 dst        = nullptr;
@@ -708,7 +717,7 @@ struct alignas(8) CopyImage
 struct alignas(8) CopyBufferToImage
 {
   Type const                    type       = Type::CopyBufferToImage;
-  Command *                     next       = nullptr;
+  Cmd *                         next       = nullptr;
   VkBuffer                      src        = nullptr;
   VkImage                       dst        = nullptr;
   VkImageLayout                 dst_layout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -718,7 +727,7 @@ struct alignas(8) CopyBufferToImage
 struct alignas(8) BlitImage
 {
   Type const              type       = Type::BlitImage;
-  Command *               next       = nullptr;
+  Cmd *                   next       = nullptr;
   VkImage                 src        = nullptr;
   VkImageLayout           src_layout = VK_IMAGE_LAYOUT_UNDEFINED;
   VkImage                 dst        = nullptr;
@@ -730,7 +739,7 @@ struct alignas(8) BlitImage
 struct alignas(8) ResolveImage
 {
   Type const                 type       = Type::ResolveImage;
-  Command *                  next       = nullptr;
+  Cmd *                      next       = nullptr;
   VkImage                    src        = nullptr;
   VkImageLayout              src_layout = VK_IMAGE_LAYOUT_UNDEFINED;
   VkImage                    dst        = nullptr;
@@ -741,20 +750,20 @@ struct alignas(8) ResolveImage
 struct alignas(8) BeginRendering
 {
   Type const      type = Type::BeginRendering;
-  Command *       next = nullptr;
+  Cmd *           next = nullptr;
   VkRenderingInfo info = {};
 };
 
 struct alignas(8) EndRendering
 {
   Type const type = Type::EndRendering;
-  Command *  next = nullptr;
+  Cmd *      next = nullptr;
 };
 
 struct alignas(8) BindPipeline
 {
   Type const          type       = Type::BindPipeline;
-  Command *           next       = nullptr;
+  Cmd *               next       = nullptr;
   VkPipelineBindPoint bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS;
   VkPipeline          pipeline   = nullptr;
 };
@@ -762,7 +771,7 @@ struct alignas(8) BindPipeline
 struct alignas(8) BindDescriptorSets
 {
   Type const                  type            = Type::BindDescriptorSets;
-  Command *                   next            = nullptr;
+  Cmd *                       next            = nullptr;
   VkPipelineBindPoint         bind_point      = VK_PIPELINE_BIND_POINT_MAX_ENUM;
   VkPipelineLayout            layout          = nullptr;
   Span<VkDescriptorSet const> sets            = {};
@@ -772,7 +781,7 @@ struct alignas(8) BindDescriptorSets
 struct alignas(8) PushConstants
 {
   Type const       type      = Type::PushConstants;
-  Command *        next      = nullptr;
+  Cmd *            next      = nullptr;
   VkPipelineLayout layout    = nullptr;
   Span<u8 const>   constants = {};
 };
@@ -780,14 +789,14 @@ struct alignas(8) PushConstants
 struct alignas(8) Dispatch
 {
   Type const type        = Type::Dispatch;
-  Command *  next        = nullptr;
+  Cmd *      next        = nullptr;
   u32x3      group_count = {};
 };
 
 struct alignas(8) DispatchIndirect
 {
   Type const type   = Type::DispatchIndirect;
-  Command *  next   = nullptr;
+  Cmd *      next   = nullptr;
   VkBuffer   buffer = nullptr;
   u64        offset = 0;
 };
@@ -795,14 +804,14 @@ struct alignas(8) DispatchIndirect
 struct alignas(8) SetGraphicsState
 {
   Type const         type  = Type::SetGraphicsState;
-  Command *          next  = nullptr;
+  Cmd *              next  = nullptr;
   gpu::GraphicsState state = {};
 };
 
 struct alignas(8) BindVertexBuffers
 {
   Type const           type    = Type::BindVertexBuffers;
-  Command *            next    = nullptr;
+  Cmd *                next    = nullptr;
   Span<VkBuffer const> buffers = {};
   Span<u64 const>      offsets = {};
 };
@@ -810,7 +819,7 @@ struct alignas(8) BindVertexBuffers
 struct alignas(8) BindIndexBuffer
 {
   Type const  type       = Type::BindIndexBuffer;
-  Command *   next       = nullptr;
+  Cmd *       next       = nullptr;
   VkBuffer    buffer     = nullptr;
   u64         offset     = 0;
   VkIndexType index_type = VK_INDEX_TYPE_UINT32;
@@ -819,7 +828,7 @@ struct alignas(8) BindIndexBuffer
 struct alignas(8) Draw
 {
   Type const type      = Type::Draw;
-  Command *  next      = nullptr;
+  Cmd *      next      = nullptr;
   Slice32    vertices  = {};
   Slice32    instances = {};
 };
@@ -827,7 +836,7 @@ struct alignas(8) Draw
 struct alignas(8) DrawIndexed
 {
   Type const type          = Type::DrawIndexed;
-  Command *  next          = nullptr;
+  Cmd *      next          = nullptr;
   Slice32    indices       = {};
   Slice32    instances     = {};
   i32        vertex_offset = 0;
@@ -836,7 +845,7 @@ struct alignas(8) DrawIndexed
 struct alignas(8) DrawIndirect
 {
   Type const type       = Type::DrawIndirect;
-  Command *  next       = nullptr;
+  Cmd *      next       = nullptr;
   VkBuffer   buffer     = nullptr;
   u64        offset     = 0;
   u32        draw_count = 0;
@@ -846,7 +855,7 @@ struct alignas(8) DrawIndirect
 struct alignas(8) DrawIndexedIndirect
 {
   Type const type       = Type::DrawIndexedIndirect;
-  Command *  next       = nullptr;
+  Cmd *      next       = nullptr;
   VkBuffer   buffer     = nullptr;
   u64        offset     = 0;
   u32        draw_count = 0;
@@ -869,11 +878,9 @@ enum class HazardType : u8
 
 struct MemAccess
 {
-  VkPipelineStageFlags stages = VK_PIPELINE_STAGE_NONE;
+  VkPipelineStageFlags stages = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
   VkAccessFlags        access = VK_ACCESS_NONE;
 };
-
-// [ ] allocate for each segment; when set_temporal is called, update the offsets and make it discard previous content but wait on all previous stages
 
 struct BufferMemState
 {
@@ -908,33 +915,61 @@ struct HazardBarriers
     VkPipelineStageFlags dst = VK_PIPELINE_STAGE_NONE;
   };
 
-  Vec<VkBufferMemoryBarrier> buffers_;
-  Vec<Stage>                 buffer_stages_;
-  Vec<VkImageMemoryBarrier>  images_;
-  Vec<Stage>                 image_stages_;
-  Vec<VkMemoryBarrier>       mem_;
-  Vec<Stage>                 mem_stages_;
+  Vec<Tuple<VkPipelineStageFlags, VkPipelineStageFlags, VkBufferMemoryBarrier>>
+    buffers_;
+
+  Vec<Tuple<VkPipelineStageFlags, VkPipelineStageFlags, VkMemoryBarrier,
+            VkBufferMemoryBarrier>>
+    mem_buffers_;
+
+  Vec<Tuple<VkPipelineStageFlags, VkPipelineStageFlags, VkImageMemoryBarrier>>
+    images_;
+
+  Vec<Tuple<VkPipelineStageFlags, VkPipelineStageFlags, VkMemoryBarrier,
+            VkImageMemoryBarrier>>
+    mem_images_;
 
   HazardBarriers(Allocator allocator) :
     buffers_{allocator},
-    buffer_stages_{allocator},
+    mem_buffers_{allocator},
     images_{allocator},
-    image_stages_{allocator},
-    mem_{allocator},
-    mem_stages_{allocator}
+    mem_images_{allocator}
   {
   }
+
+  HazardBarriers(HazardBarriers const &)             = delete;
+  HazardBarriers(HazardBarriers &&)                  = delete;
+  HazardBarriers & operator=(HazardBarriers const &) = delete;
+  HazardBarriers & operator=(HazardBarriers &&)      = delete;
+  ~HazardBarriers()                                  = default;
 
   void clear();
 
   void buffer(VkPipelineStageFlags src, VkPipelineStageFlags dst,
-              VkBufferMemoryBarrier buffer);
+              VkBufferMemoryBarrier const & buffer);
+
+  void buffer(VkPipelineStageFlags src, VkPipelineStageFlags dst,
+              VkMemoryBarrier const &       mem,
+              VkBufferMemoryBarrier const & buffer);
 
   void image(VkPipelineStageFlags src, VkPipelineStageFlags dst,
-             VkImageMemoryBarrier image);
+             VkImageMemoryBarrier const & image);
 
-  void mem(VkPipelineStageFlags src, VkPipelineStageFlags dst,
-           VkMemoryBarrier memory);
+  void image(VkPipelineStageFlags src, VkPipelineStageFlags dst,
+             VkMemoryBarrier const & mem, VkImageMemoryBarrier const & image);
+
+  void barrier(IImage const & image, MemAccess old_access,
+               VkImageLayout old_layout, MemAccess new_access,
+               VkImageLayout new_layout);
+
+  void discard_barrier(IImage const & image, MemAccess old_access,
+                       MemAccess new_access, VkImageLayout new_layout);
+
+  void barrier(IBuffer const & buffer, MemAccess old_access,
+               MemAccess new_access);
+
+  void discard_barrier(IBuffer const & buffer, MemAccess old_access,
+                       MemAccess new_access);
 };
 
 /// @brief Global synchronization state
@@ -943,18 +978,26 @@ struct DeviceResourceStates
   CoreSparseMap<Vec<u32>,      // id-to-index map
                 Vec<Hazard>    // memory state
                 >
-    memory_;
+    alias_;
+
   CoreSparseMap<Vec<u32>    // id-to-index map
                 >
-                descriptor_sets_;
+    descriptor_sets_;
+
   ReadWriteLock lock_;
 
   DeviceResourceStates(Allocator allocator) :
-    memory_{allocator},
+    alias_{allocator},
     descriptor_sets_{allocator},
     lock_{}
   {
   }
+
+  DeviceResourceStates(DeviceResourceStates const &)             = delete;
+  DeviceResourceStates(DeviceResourceStates &&)                  = delete;
+  DeviceResourceStates & operator=(DeviceResourceStates const &) = delete;
+  DeviceResourceStates & operator=(DeviceResourceStates &&)      = delete;
+  ~DeviceResourceStates()                                        = default;
 };
 
 /// @brief Encoder-local synchronization state
@@ -972,7 +1015,7 @@ struct EncoderResourceStates
     BitVec<u64>,    // was the resource accessed?
     Vec<u32>        // the last pass the memory was accessed: initially U32_MAX
     >
-    memory_;
+    alias_;
 
   CoreSparseMap<
     Vec<u32>,    // id-to-index map
@@ -982,43 +1025,39 @@ struct EncoderResourceStates
     descriptor_sets_;
 
   EncoderResourceStates(Allocator allocator) :
-    memory_{allocator},
+    alias_{allocator},
     descriptor_sets_{allocator}
   {
   }
 
-  static void barrier(Image const & image, MemAccess const & old_access,
-                      VkImageLayout old_layout, MemAccess const & new_access,
-                      VkImageLayout new_layout, HazardBarriers & barriers);
-
-  static void barrier(Buffer const & buffer, MemAccess const & old_access,
-                      MemAccess const & new_access, HazardBarriers & barriers);
-
-  static void barrier(MemAccess const & old_state, MemAccess const & new_state,
-                      HazardBarriers & barriers);
+  EncoderResourceStates(DeviceResourceStates const &)              = delete;
+  EncoderResourceStates(EncoderResourceStates &&)                  = delete;
+  EncoderResourceStates & operator=(EncoderResourceStates const &) = delete;
+  EncoderResourceStates & operator=(EncoderResourceStates &&)      = delete;
+  ~EncoderResourceStates()                                         = default;
 
   /// @param image image to sync
   /// @param access merged image state for the pass
   /// @param pass the pass temporal id
   /// @param barriers destination to issue barriers
-  void access(Image const & image, MemAccess const & access,
+  void access(IImage const & image, MemAccess const & access,
               VkImageLayout layout, u32 pass, HazardBarriers & barriers);
 
-  void access(ImageView const & image, MemAccess const & access,
+  void access(IImageView const & image, MemAccess const & access,
               VkImageLayout layout, u32 pass, HazardBarriers & barriers);
 
   /// @param buffer buffer to sync
   /// @param access merged image state for the pass
   /// @param pass the pass temporal id
   /// @param barriers destination to issue barriers
-  void access(Buffer const & buffer, MemAccess const & access, u32 pass,
+  void access(IBuffer const & buffer, MemAccess const & access, u32 pass,
               HazardBarriers & barriers);
 
   /// @param set descriptor set to sync
   /// @param access merged image state for the pass
   /// @param pass the pass temporal id
   /// @param barriers destination to issue barriers
-  void access(DescriptorSet const & set, u32 pass,
+  void access(IDescriptorSet const & set, u32 pass,
               VkPipelineStageFlags shader_stages, HazardBarriers & barriers);
 
   void rebuild(DeviceResourceStates const & upstream);
@@ -1036,14 +1075,13 @@ struct CommandTracker
     u32 descriptor_sets = 0;
   };
 
-  Vec<Tuple<Buffer *, VkPipelineStageFlags, VkAccessFlags>> buffers_;
-  Vec<Tuple<Image *, VkPipelineStageFlags, VkAccessFlags, VkImageLayout>>
-    images_;
+  Vec<Tuple<Buffer, VkPipelineStageFlags, VkAccessFlags>> buffers_;
+  Vec<Tuple<Image, VkPipelineStageFlags, VkAccessFlags, VkImageLayout>> images_;
 
-  Vec<Tuple<DescriptorSet *, VkShaderStageFlags>> descriptor_sets_;
-  Vec<Entry>                                      passes_;
-  cmd::Command *                                  first_cmd_;
-  cmd::Command *                                  last_cmd_;
+  Vec<Tuple<DescriptorSet, VkShaderStageFlags>> descriptor_sets_;
+  Vec<Entry>                                    passes_;
+  cmd::Cmd *                                    first_cmd_;
+  cmd::Cmd *                                    last_cmd_;
 
   CommandTracker(Allocator allocator) :
     buffers_{allocator},
@@ -1055,22 +1093,27 @@ struct CommandTracker
   {
   }
 
+  CommandTracker(CommandTracker const &)             = delete;
+  CommandTracker(CommandTracker &&)                  = delete;
+  CommandTracker & operator=(CommandTracker const &) = delete;
+  CommandTracker & operator=(CommandTracker &&)      = delete;
+  ~CommandTracker()                                  = default;
+
   u32 begin_pass();
 
-  void command(cmd::Command * cmd);
+  void command(cmd::Cmd * cmd);
 
   void end_pass();
 
-  void track(Buffer * buffer, VkPipelineStageFlags stages,
-             VkAccessFlags access);
+  void track(Buffer buffer, VkPipelineStageFlags stages, VkAccessFlags access);
 
-  void track(Image * image, VkPipelineStageFlags stages, VkAccessFlags access,
+  void track(Image image, VkPipelineStageFlags stages, VkAccessFlags access,
              VkImageLayout layout);
 
-  void track(ImageView * image, VkPipelineStageFlags stages,
-             VkAccessFlags access, VkImageLayout layout);
+  void track(ImageView image, VkPipelineStageFlags stages, VkAccessFlags access,
+             VkImageLayout layout);
 
-  void track(DescriptorSet * set, VkShaderStageFlags stages);
+  void track(DescriptorSet set, VkShaderStageFlags stages);
 
   void reset();
 };
@@ -1085,23 +1128,21 @@ enum class CommandBufferState : u8
 
 struct PassContext
 {
-  GraphicsPipeline * graphics_pipeline = nullptr;
+  Option<IGraphicsPipeline &> graphics_pipeline = none;
 
-  ComputePipeline * compute_pipeline = nullptr;
+  Option<IComputePipeline &> compute_pipeline = none;
 
-  InplaceVec<gpu::RenderingAttachment, gpu::MAX_PIPELINE_COLOR_ATTACHMENTS>
-    color_attachments = {};
+  SmallVec<gpu::RenderingAttachment, 8, 0> color_attachments = {};
 
   Option<gpu::RenderingAttachment> depth_attachment = none;
 
   Option<gpu::RenderingAttachment> stencil_attachment = none;
 
-  InplaceVec<DescriptorSet *, gpu::MAX_PIPELINE_DESCRIPTOR_SETS>
-    descriptor_sets = {};
+  SmallVec<DescriptorSet, 8, 0> descriptor_sets = {};
 
-  InplaceVec<Buffer *, gpu::MAX_VERTEX_ATTRIBUTES> vertex_buffers = {};
+  SmallVec<Buffer, 8, 0> vertex_buffers = {};
 
-  Buffer * index_buffer = nullptr;
+  Option<IBuffer &> index_buffer = none;
 
   gpu::IndexType index_type = gpu::IndexType::U16;
 
@@ -1109,7 +1150,13 @@ struct PassContext
 
   bool has_graphics_state = false;
 
-  PassContext()                                = default;
+  PassContext(Allocator allocator) :
+    color_attachments{allocator},
+    descriptor_sets{allocator},
+    vertex_buffers{allocator}
+  {
+  }
+
   PassContext(PassContext const &)             = delete;
   PassContext(PassContext &&)                  = delete;
   PassContext & operator=(PassContext const &) = delete;
@@ -1119,7 +1166,7 @@ struct PassContext
   void clear();
 };
 
-struct CommandEncoder final : gpu::ICommandEncoder
+struct ICommandEncoder final : gpu::ICommandEncoder
 {
   enum class Pass : u8
   {
@@ -1128,32 +1175,38 @@ struct CommandEncoder final : gpu::ICommandEncoder
     Render  = 2
   };
 
-  Device *           dev_;
-  ArenaPool          pool_;
-  Status             status_;
-  CommandBufferState state_;
-  Pass               pass_;
-  CommandTracker     tracker_;
-  PassContext        ctx_;
-  Swapchain *        swapchain_;
+  Device               dev_;
+  ArenaPool            arena_;
+  Status               status_;
+  CommandBufferState   state_;
+  Pass                 pass_;
+  CommandTracker       tracker_;
+  PassContext          ctx_;
+  Option<ISwapchain &> swapchain_;
 
-  CommandEncoder(Device * dev, Allocator allocator) :
-    dev_{dev},
-    pool_{allocator},
+  ICommandEncoder(IDevice & dev, Allocator allocator) :
+    dev_{&dev},
+    arena_{allocator},
     status_{Status::Success},
     state_{CommandBufferState::Reset},
     pass_{Pass::None},
     tracker_{allocator},
-    ctx_{},
-    swapchain_{nullptr}
+    ctx_{allocator},
+    swapchain_{none}
   {
   }
+
+  ICommandEncoder(ICommandEncoder const &)             = delete;
+  ICommandEncoder(ICommandEncoder &&)                  = delete;
+  ICommandEncoder & operator=(ICommandEncoder const &) = delete;
+  ICommandEncoder & operator=(ICommandEncoder &&)      = delete;
+  ~ICommandEncoder()                                   = default;
 
   template <typename Cmd>
   Cmd * push(Cmd const & cmd)
   {
     Cmd * p_cmd;
-    if (!pool_.nalloc(1, p_cmd))
+    if (!arena_.nalloc(1, p_cmd))
     {
       return nullptr;
     }
@@ -1260,29 +1313,35 @@ struct CommandEncoder final : gpu::ICommandEncoder
   virtual void present(gpu::Swapchain swapchain) override;
 };
 
-struct CommandBuffer final : gpu::ICommandBuffer
+struct ICommandBuffer final : gpu::ICommandBuffer
 {
-  Device *              dev_;
+  Device                dev_;
   VkCommandPool         vk_pool_;
   VkCommandBuffer       vk_;
-  Swapchain *           swapchain_;
+  Option<ISwapchain &>  swapchain_;
   Status                status_;
   CommandBufferState    state_;
   EncoderResourceStates resource_states_;
-  ArenaPool             pool_;
+  ArenaPool             arena_;
 
-  CommandBuffer(Device * dev, VkCommandPool vk_pool, VkCommandBuffer vk_buffer,
-                Allocator allocator) :
-    dev_{dev},
+  ICommandBuffer(IDevice & dev, VkCommandPool vk_pool,
+                 VkCommandBuffer vk_buffer, Allocator allocator) :
+    dev_{&dev},
     vk_pool_{vk_pool},
     vk_{vk_buffer},
-    swapchain_{nullptr},
+    swapchain_{none},
     status_{Status::Success},
     state_{CommandBufferState::Reset},
     resource_states_{allocator},
-    pool_{allocator}
+    arena_{allocator}
   {
   }
+
+  ICommandBuffer(ICommandBuffer const &)             = delete;
+  ICommandBuffer(ICommandBuffer &&)                  = delete;
+  ICommandBuffer & operator=(ICommandBuffer const &) = delete;
+  ICommandBuffer & operator=(ICommandBuffer &&)      = delete;
+  ~ICommandBuffer()                                  = default;
 
   virtual void begin() override;
 
@@ -1295,60 +1354,69 @@ struct CommandBuffer final : gpu::ICommandBuffer
   void commit_resource_states();
 };
 
-struct QueueScope
+struct IQueueScope
 {
   u64                         buffering_;
-  u64                         tail_frame_;
-  u64                         current_frame_;
+  u64                         frame_;
   u64                         ring_index_;
   SmallVec<VkSemaphore, 4, 0> submit_semaphores_;
   SmallVec<VkFence, 4, 0>     submit_fences_;
 
-  QueueScope(u64 buffering, SmallVec<VkSemaphore, 4, 0> submit_semaphores,
-             SmallVec<VkFence, 4, 0> submit_fences) :
+  IQueueScope(u64 buffering, SmallVec<VkSemaphore, 4, 0> submit_semaphores,
+              SmallVec<VkFence, 4, 0> submit_fences) :
     buffering_{buffering},
-    tail_frame_{0},
-    current_frame_{0},
+    frame_{0},
     ring_index_{0},
     submit_semaphores_{std::move(submit_semaphores)},
     submit_fences_{std::move(submit_fences)}
   {
   }
+
+  IQueueScope(IQueueScope const &)             = delete;
+  IQueueScope(IQueueScope &&)                  = delete;
+  IQueueScope & operator=(IQueueScope const &) = delete;
+  IQueueScope & operator=(IQueueScope &&)      = delete;
+  ~IQueueScope()                               = default;
 };
 
-struct Device final : gpu::IDevice
+struct IDevice final : gpu::IDevice
 {
   Allocator            allocator_;
-  Instance *           instance_;
-  PhysicalDevice       phy_dev_;
-  DeviceTable          vk_table_;
+  Instance             instance_;
+  IPhysicalDevice      phy_;
+  DeviceTable          table_;
   VmaVulkanFunctions   vma_table_;
   VkDevice             vk_dev_;
   u32                  queue_family_;
   VkQueue              vk_queue_;
   VmaAllocator         vma_allocator_;
-  Vec<u8>              scratch_;
   DeviceResourceStates resource_states_;
 
-  Device(Allocator allocator, Instance * instance, PhysicalDevice phy_dev,
-         DeviceTable vk_table, VmaVulkanFunctions vma_table, VkDevice vk_dev,
-         u32 queue_family, VkQueue vk_queue, VmaAllocator vma_allocator) :
+  IDevice(Allocator allocator, IInstance & instance, IPhysicalDevice phy_dev,
+          DeviceTable vk_table, VmaVulkanFunctions vma_table, VkDevice vk_dev,
+          u32 queue_family, VkQueue vk_queue, VmaAllocator vma_allocator) :
     allocator_{allocator},
-    instance_{instance},
-    phy_dev_{phy_dev},
-    vk_table_{vk_table},
+    instance_{&instance},
+    phy_{phy_dev},
+    table_{vk_table},
     vma_table_{vma_table},
     vk_dev_{vk_dev},
     queue_family_{queue_family},
     vk_queue_{vk_queue},
     vma_allocator_{vma_allocator},
-    scratch_{allocator},
     resource_states_{allocator}
   {
   }
 
+  IDevice(IDevice const &)             = delete;
+  IDevice(IDevice &&)                  = delete;
+  IDevice & operator=(IDevice const &) = delete;
+  IDevice & operator=(IDevice &&)      = delete;
+  ~IDevice()                           = default;
+
   void set_resource_name(Str label, void const * resource, VkObjectType type,
-                         VkDebugReportObjectTypeEXT debug_type);
+                         VkDebugReportObjectTypeEXT debug_type,
+                         Allocator                  scratch);
 
   AliasId allocate_alias_id();
 
@@ -1372,11 +1440,10 @@ struct Device final : gpu::IDevice
   virtual Result<gpu::ImageView, Status>
     create_image_view(gpu::ImageViewInfo const & info) override;
 
-  virtual Result<gpu::MemoryGroup, Status>
-    create_memory_group(gpu::MemoryGroupInfo const & info) override;
+  virtual Result<gpu::Alias, Status>
+    create_alias(gpu::AliasInfo const & info) override;
 
-  Result<gpu::MemoryGroup, Status>
-    create_shim_memory_group(gpu::MemoryGroupInfo const & info);
+  Result<gpu::Alias, Status> create_shim_alias(gpu::AliasInfo const & info);
 
   virtual Result<gpu::Sampler, Status>
     create_sampler(gpu::SamplerInfo const & info) override;
@@ -1402,7 +1469,7 @@ struct Device final : gpu::IDevice
   virtual Result<gpu::Swapchain, Status>
     create_swapchain(gpu::SwapchainInfo const & info) override;
 
-  Result<Void, Status> recreate_swapchain(Swapchain * swapchain);
+  Result<Void, Status> recreate_swapchain(Swapchain swapchain);
 
   virtual Result<gpu::TimestampQuery, Status>
     create_timestamp_query(gpu::TimestampQueryInfo const & info) override;
@@ -1427,7 +1494,7 @@ struct Device final : gpu::IDevice
 
   virtual void uninit(gpu::ImageView image_view) override;
 
-  virtual void uninit(gpu::MemoryGroup memory_group) override;
+  virtual void uninit(gpu::Alias alias) override;
 
   virtual void uninit(gpu::Sampler sampler) override;
 
@@ -1443,7 +1510,7 @@ struct Device final : gpu::IDevice
 
   virtual void uninit(gpu::GraphicsPipeline pipeline) override;
 
-  void release(Swapchain & swapchain);
+  void release(ISwapchain & swapchain);
 
   virtual void uninit(gpu::Swapchain swapchain) override;
 
@@ -1486,9 +1553,9 @@ struct Device final : gpu::IDevice
   virtual gpu::QueueScopeState
     get_queue_scope_state(gpu::QueueScope scope) override;
 
-  virtual Result<Void, Status> wait_idle() override;
+  virtual Result<Void, Status> await_idle() override;
 
-  virtual Result<Void, Status> wait_queue_idle() override;
+  virtual Result<Void, Status> await_queue_idle() override;
 
   virtual Result<Void, Status>
     get_surface_formats(gpu::Surface              surface,
@@ -1514,8 +1581,15 @@ struct Device final : gpu::IDevice
 
   virtual Result<Void, Status> acquire_next(gpu::Swapchain swapchain) override;
 
-  virtual Result<Void, Status> submit(gpu::CommandBuffer buffer,
-                                      gpu::QueueScope    scope) override;
+  virtual Result<u64, Status> submit(gpu::CommandBuffer buffer,
+                                     gpu::QueueScope    scope) override;
+
+  virtual Result<Void, Status>
+    await_queue_scope_idle(gpu::QueueScope scope, nanoseconds timeout) override;
+
+  virtual Result<Void, Status>
+    await_queue_scope_frame(gpu::QueueScope scope, u64 frame,
+                            nanoseconds timeout) override;
 };
 
 }    // namespace vk

@@ -19,27 +19,27 @@ inline constexpr u32 REMAINING_MIP_LEVELS   = U32_MAX;
 inline constexpr u32 REMAINING_ARRAY_LAYERS = U32_MAX;
 inline constexpr u64 WHOLE_SIZE             = U64_MAX;
 
-typedef struct Buffer_T *              Buffer;
-typedef struct BufferView_T *          BufferView;
-typedef struct Image_T *               Image;
-typedef struct ImageView_T *           ImageView;
-typedef struct Alias_T *               Alias;
-typedef struct Sampler_T *             Sampler;
-typedef struct Shader_T *              Shader;
-typedef struct DescriptorSetLayout_T * DescriptorSetLayout;
-typedef struct DescriptorSet_T *       DescriptorSet;
-typedef struct PipelineCache_T *       PipelineCache;
-typedef struct ComputePipeline_T *     ComputePipeline;
-typedef struct GraphicsPipeline_T *    GraphicsPipeline;
-typedef struct TimestampQuery_T *      TimestampQuery;
-typedef struct StatisticsQuery_T *     StatisticsQuery;
-typedef struct Surface_T *             Surface;
-typedef struct Swapchain_T *           Swapchain;
-typedef struct QueueScope_T *          QueueScope;
-typedef struct ICommandEncoder *       CommandEncoder;
-typedef struct ICommandBuffer *        CommandBuffer;
-typedef struct IDevice *               Device;
-typedef struct IInstance *             Instance;
+typedef struct IBuffer *              Buffer;
+typedef struct IBufferView *          BufferView;
+typedef struct IImage *               Image;
+typedef struct IImageView *           ImageView;
+typedef struct IAlias *               Alias;
+typedef struct ISampler *             Sampler;
+typedef struct IShader *              Shader;
+typedef struct IDescriptorSetLayout * DescriptorSetLayout;
+typedef struct IDescriptorSet *       DescriptorSet;
+typedef struct IPipelineCache *       PipelineCache;
+typedef struct IComputePipeline *     ComputePipeline;
+typedef struct IGraphicsPipeline *    GraphicsPipeline;
+typedef struct ITimestampQuery *      TimestampQuery;
+typedef struct IStatisticsQuery *     StatisticsQuery;
+typedef struct ISurface *             Surface;
+typedef struct ISwapchain *           Swapchain;
+typedef struct IQueueScope *          QueueScope;
+typedef struct ICommandEncoder *      CommandEncoder;
+typedef struct ICommandBuffer *       CommandBuffer;
+typedef struct IDevice *              Device;
+typedef struct IInstance *            Instance;
 
 enum class Backend : u8
 {
@@ -1559,9 +1559,9 @@ struct IDevice
 
   virtual QueueScopeState get_queue_scope_state(QueueScope scope) = 0;
 
-  virtual Result<Void, Status> await_idle( ) = 0;
+  virtual Result<Void, Status> await_idle() = 0;
 
-  virtual Result<Void, Status> await_queue_idle( ) = 0;
+  virtual Result<Void, Status> await_queue_idle() = 0;
 
   virtual Result<Void, Status>
     get_surface_formats(Surface surface, Vec<SurfaceFormat> & formats) = 0;
