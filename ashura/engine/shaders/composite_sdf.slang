@@ -1,15 +1,12 @@
 /// SPDX-License-Identifier: MIT
 
 #pragma once
-#include "materials/custom.inl.slang"
+#include "custom.inl.slang"
+#include "items.slang"
 #include "materials/sdf.slang"
 #include "modules/core.slang"
 #include "modules/sdf.slang"
 #include "modules/types.slang"
-
-typealias BlendOp   = sdf::BlendOp;
-typealias ShapeType = sdf::ShapeType;
-typealias ShadeType = sdf::ShadeType;
 
 static const f32x2 VERTEX_BUFFER[] = {
   {-0.5, -0.5},
@@ -18,29 +15,17 @@ static const f32x2 VERTEX_BUFFER[] = {
   {-0.5, 0.5 }
 };
 
-struct Shape
-{
-  f32x4        radii;
-  f32x2        half_extent;
-  f32x2        bbox_center;
-  ShapeType    shape_type;
-  f32          sdf_blend_factor;
-  sdf::BlendOp sdf_blend_op;
-};
-
-struct Composite
-{
-  f32x2     half_bbox_extent;
-  ShadeType shade_type;
-  f32       feather;
-  Shape     shapes[NUM_COMPOSITE_SDFS];
-};
+#ifndef ITEM_TYPE
+#  define ITEM_TYPE SdfCompoundFlatItem
+#endif
 
 struct VertexOutput
 {
-  [[vk::location(0)]] f32x4               screen_pos : SV_Position;
-  [[vk::location(1)]] f32x2               rel_pos    : REL_POS;
-  [[vk::location(2)]] nointerpolation u32 instance   : INSTANCE;
+  [[vk::location(0)]] f32x4               screen_pos   : SV_Position;
+  [[vk::location(0)]] f32x4               world_pos    : WORLD;
+  [[vk::location(1)]] f32x2               bbox_rel_pos : REL_POS;
+  [[vk::location(2)]] f32x2               uv           : UV;
+  [[vk::location(3)]] nointerpolation u32 instance     : INSTANCE;
 };
 
 [[vk::binding(0, 0)]]
@@ -53,70 +38,55 @@ Texture2D textures[];
 ConstantBuffer<f32x4x4> world_to_ndc;
 
 [[vk::binding(0, 3)]]
-StructuredBuffer<Composite> composites;
+StructuredBuffer<ITEM_TYPE> composites;
 
 [[vk::binding(0, 4)]]
-StructuredBuffer<f32x4x4> transforms;
-
-#ifndef MATERIAL_TYPE
-
-typedef sdf::BlendedMaterial<sdf::FlatMaterial> MaterialType;
-
-#else
-
-typedef MATERIAL_TYPE MaterialType;
-
-#endif
-
-[[vk::binding(0, 5)]]
-StructuredBuffer<MaterialType> materials;
+StructuredBuffer<SdfSubItem> subitems;
 
 [[shader("vertex")]] VertexOutput vert(u32 instance : SV_InstanceID,
                                        u32 vertex : SV_VertexID)
 {
-  f32x2   rel_pos   = VERTEX_BUFFER[vertex];
-  f32x4x4 transform = transforms[instance];
-  f32x4   screen_pos =
-    mul(world_to_ndc, mul(transform, f32x4(rel_pos, 0.0, 1.0)));
-  return VertexOutput(screen_pos, rel_pos, instance);
+  f32x2 bbox_rel_pos = VERTEX_BUFFER[vertex];
+  var   composite    = composites[instance];
+  f32x4 world_pos =
+    mul(composite.world_transform, f32x4(bbox_rel_pos, 0.0, 1.0));
+  f32x4 screen_pos = mul(world_to_ndc, world_pos);
+  f32x2 uv = mul(composite.uv_transform, f32x4(bbox_rel_pos, 0.0, 1.0)).xy;
+  return VertexOutput(screen_pos, world_pos, bbox_rel_pos, uv, instance);
 }
 
 [[shader("fragment")]] f32x4 frag(VertexOutput in) : COLOR
 {
   var   c        = composites[in.instance];
-  f32x2 bbox_pos = in.rel_pos * 2 * c.half_bbox_extent;
-  var   material = materials[in.instance];
+  f32x2 bbox_pos = in.bbox_rel_pos * 2 * c.half_bbox_extent;
   var   frag =
-    sdf::FragmentInfo(in.screen_pos, in.screen_pos, f32x4(in.rel_pos, 0, 1),
-                      c.half_bbox_extent, c.half_bbox_extent, bbox_pos);
-
+    sdf::FragmentInfo(in.world_pos, in.screen_pos, in.uv, in.bbox_rel_pos);
   f32 edge_signed_dist = 0;
+  var material         = c.material;
+  f32 tex_sdf          = material.sdf(frag, samplers, textures);
 
-  for (u32 i = 0; i < NUM_COMPOSITE_SDFS; i++)
+  for (u32 i = c.first; i < (c.first + c.count); i++)
   {
-    Shape shape     = c.shapes[i];
-    f32x2 shape_pos = bbox_pos - shape.bbox_center;
-    var   frag =
-      sdf::FragmentInfo(in.screen_pos, in.screen_pos, f32x4(in.rel_pos, 0, 1),
-                        c.half_bbox_extent, shape.half_extent, shape_pos);
-    f32 curr = 0;
+    var   subitem   = subitems[i];
+    f32x2 shape_pos = bbox_pos - subitem.bbox_center;
+    f32   curr      = 0;
 
-    switch (shape.shape_type)
+    switch (subitem.shape_type)
     {
-      case ShapeType::RRect:
+      case sdf::ShapeType::RRect:
       {
-        curr = sdf::rrect(shape_pos, shape.half_extent, shape.radii);
+        curr = sdf::rrect(shape_pos, subitem.half_extent, subitem.radii);
       }
       break;
-      case ShapeType::Squircle:
+      case sdf::ShapeType::Squircle:
       {
-        curr = sdf::squircle(shape_pos, shape.half_extent, shape.radii.x,
-                             shape.radii.y);
+        curr = sdf::squircle(shape_pos, subitem.half_extent, subitem.radii.x,
+                             subitem.radii.y);
       }
       break;
-      case ShapeType::SDFMap:
+      case sdf::ShapeType::SDFMap:
       {
-        curr = material.sdf(frag, i, samplers, textures);
+        curr = tex_sdf;
       }
       break;
       default:
@@ -126,115 +96,115 @@ StructuredBuffer<MaterialType> materials;
       break;
     }
 
-    switch (shape.sdf_blend_op)
+    switch (subitem.sdf_blend_op)
     {
-      case BlendOp::Sub:
+      case sdf::BlendOp::Sub:
       {
         edge_signed_dist = sdf::sub(edge_signed_dist, curr);
       }
       break;
-      case BlendOp::Xor:
+      case sdf::BlendOp::Xor:
       {
         edge_signed_dist = sdf::xor_op(edge_signed_dist, curr);
       }
       break;
-      case BlendOp::Round:
+      case sdf::BlendOp::Round:
       {
         edge_signed_dist = sdf::round(edge_signed_dist, curr);
       }
       break;
-      case BlendOp::Union:
+      case sdf::BlendOp::Union:
       {
         edge_signed_dist = sdf::union(edge_signed_dist, curr);
       }
       break;
-      case BlendOp::Intersection:
+      case sdf::BlendOp::Intersection:
       {
         edge_signed_dist = sdf::intersection(edge_signed_dist, curr);
       }
       break;
-      case BlendOp::SmoothUnion:
+      case sdf::BlendOp::SmoothUnion:
       {
         edge_signed_dist =
-          sdf::smooth_union(edge_signed_dist, curr, shape.sdf_blend_factor);
+          sdf::smooth_union(edge_signed_dist, curr, subitem.sdf_blend_factor);
       }
       break;
-      case BlendOp::SmoothSub:
+      case sdf::BlendOp::SmoothSub:
       {
         edge_signed_dist =
-          sdf::smooth_sub(edge_signed_dist, curr, shape.sdf_blend_factor);
+          sdf::smooth_sub(edge_signed_dist, curr, subitem.sdf_blend_factor);
       }
       break;
-      case BlendOp::SmoothIntersection:
+      case sdf::BlendOp::SmoothIntersection:
       {
         edge_signed_dist = sdf::smooth_intersection(edge_signed_dist, curr,
-                                                    shape.sdf_blend_factor);
+                                                    subitem.sdf_blend_factor);
       }
       break;
-      case BlendOp::ExpSmoothUnion:
+      case sdf::BlendOp::ExpSmoothUnion:
       {
         edge_signed_dist =
-          sdf::exp_smoothmin(edge_signed_dist, curr, shape.sdf_blend_factor);
+          sdf::exp_smoothmin(edge_signed_dist, curr, subitem.sdf_blend_factor);
       }
       break;
-      case BlendOp::RootSmoothUnion:
+      case sdf::BlendOp::RootSmoothUnion:
       {
         edge_signed_dist =
-          sdf::root_smoothmin(edge_signed_dist, curr, shape.sdf_blend_factor);
+          sdf::root_smoothmin(edge_signed_dist, curr, subitem.sdf_blend_factor);
       }
       break;
-      case BlendOp::SigSmoothUnion:
+      case sdf::BlendOp::SigSmoothUnion:
       {
         edge_signed_dist = sdf::sigmoid_smoothmin(edge_signed_dist, curr,
-                                                  shape.sdf_blend_factor);
+                                                  subitem.sdf_blend_factor);
       }
       break;
-      case BlendOp::QuadSmoothUnion:
+      case sdf::BlendOp::QuadSmoothUnion:
       {
         edge_signed_dist =
-          sdf::quad_smoothmin(edge_signed_dist, curr, shape.sdf_blend_factor);
+          sdf::quad_smoothmin(edge_signed_dist, curr, subitem.sdf_blend_factor);
       }
       break;
-      case BlendOp::CubicSmoothUnion:
+      case sdf::BlendOp::CubicSmoothUnion:
+      {
+        edge_signed_dist = sdf::cubic_smoothmin(edge_signed_dist, curr,
+                                                subitem.sdf_blend_factor);
+      }
+      break;
+      case sdf::BlendOp::QuartSmoothUnion:
+      {
+        edge_signed_dist = sdf::quart_smoothmin(edge_signed_dist, curr,
+                                                subitem.sdf_blend_factor);
+      }
+      break;
+      case sdf::BlendOp::CircSmoothUnion:
       {
         edge_signed_dist =
-          sdf::cubic_smoothmin(edge_signed_dist, curr, shape.sdf_blend_factor);
+          sdf::circ_smoothmin(edge_signed_dist, curr, subitem.sdf_blend_factor);
       }
       break;
-      case BlendOp::QuartSmoothUnion:
-      {
-        edge_signed_dist =
-          sdf::quart_smoothmin(edge_signed_dist, curr, shape.sdf_blend_factor);
-      }
-      break;
-      case BlendOp::CircSmoothUnion:
-      {
-        edge_signed_dist =
-          sdf::circ_smoothmin(edge_signed_dist, curr, shape.sdf_blend_factor);
-      }
-      break;
-      case BlendOp::CircGeomSmoothUnion:
+      case sdf::BlendOp::CircGeomSmoothUnion:
       {
         edge_signed_dist = sdf::circ_geom_smoothmin(edge_signed_dist, curr,
-                                                    shape.sdf_blend_factor);
+                                                    subitem.sdf_blend_factor);
       }
       break;
       default:
-      case BlendOp::None:
+      case sdf::BlendOp::None:
         break;
     }
   }
 
   switch (c.shade_type)
   {
-    case ShadeType::Flood:
+    case sdf::ShadeType::Flood:
     {
       f32 edge_mask = sdf::antialiased_mask(edge_signed_dist);
       return material.flood(frag, edge_signed_dist, edge_mask, samplers,
                             textures);
     }
     break;
-    case ShadeType::Softened:
+    case sdf::ShadeType::Softened:
     {
       f32 edge_mask = sdf::antialiased_mask(edge_signed_dist);
       f32 soften_signed_dist =
@@ -245,7 +215,7 @@ StructuredBuffer<MaterialType> materials;
                              textures);
     }
     break;
-    case ShadeType::Feathered:
+    case sdf::ShadeType::Feathered:
     {
       f32 edge_mask           = sdf::antialiased_mask(edge_signed_dist);
       f32 feather_signed_dist = 1 - smoothstep(0, c.feather, edge_signed_dist);
@@ -255,7 +225,7 @@ StructuredBuffer<MaterialType> materials;
                               textures);
     }
     break;
-    case ShadeType::Stroked:
+    case sdf::ShadeType::Stroked:
     {
       f32 edge_mask = sdf::antialiased_mask(edge_signed_dist);
       f32 ring_signed_dist =

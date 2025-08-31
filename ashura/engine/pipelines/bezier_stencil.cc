@@ -107,15 +107,6 @@ void BezierStencilPipeline::encode(gpu::CommandEncoder                 e,
   e->begin_rendering(info);
   e->bind_graphics_pipeline(pipeline_);
 
-  auto [front_stencil, back_stencil] =
-    fill_stencil_state(params.fill_rule, params.invert, params.write_mask);
-
-  e->set_graphics_state(gpu::GraphicsState{.scissor  = params.scissor,
-                                           .viewport = params.viewport,
-                                           .stencil_test_enable = false,
-                                           .front_face_stencil  = front_stencil,
-                                           .back_face_stencil = back_stencil});
-
   e->bind_descriptor_sets(
     span({
       params.world_to_ndc.buffer.read_storage_buffer,    // 0: world_to_ndc
@@ -133,9 +124,22 @@ void BezierStencilPipeline::encode(gpu::CommandEncoder                 e,
     }));
 
   u32 first_index = 0;
-  for (auto [i, index_count] : enumerate<u32>(params.region_index_counts))
+  for (auto [i, index_count, write_mask] :
+       zip(range(size32(params.region_index_counts)),
+           params.region_index_counts, params.write_masks))
   {
+    auto [front_stencil, back_stencil] =
+      fill_stencil_state(params.fill_rule, params.invert, write_mask);
+
+    e->set_graphics_state(
+      gpu::GraphicsState{.scissor             = params.scissor,
+                         .viewport            = params.viewport,
+                         .stencil_test_enable = false,
+                         .front_face_stencil  = front_stencil,
+                         .back_face_stencil   = back_stencil});
+
     e->draw({first_index, index_count}, {i, 1});
+
     first_index += index_count;
   }
   e->end_rendering();

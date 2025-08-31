@@ -14,13 +14,14 @@ struct TriangleFillPipelineParams
   Option<PipelineStencil> stencil        = none;
   RectU                   scissor        = {};
   gpu::Viewport           viewport       = {};
+  gpu::CullMode           cull_mode      = gpu::CullMode::None;
   gpu::DescriptorSet      samplers       = nullptr;
   gpu::DescriptorSet      textures       = nullptr;
   GpuBufferSpan           world_to_ndc   = {};
-  GpuBufferSpan           transforms     = {};
+  GpuBufferSpan           sets           = {};
+  GpuBufferSpan           colors         = {};
   GpuBufferSpan           vertices       = {};
   GpuBufferSpan           indices        = {};
-  GpuBufferSpan           materials      = {};
   u32                     first_instance = 0;
   Span<u32 const>         index_counts   = {};
 };

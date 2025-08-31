@@ -1,5 +1,6 @@
 /// SPDX-License-Identifier: MIT
 
+#include "items.slang"
 #include "modules/core.slang"
 #include "modules/types.slang"
 
@@ -7,15 +8,9 @@
 #  define DOWNSAMPLE 1
 #endif
 
-/// @param radius relative to texture dimensions
-struct Blur
-{
-  f32x2        uv0;
-  f32x2        uv1;
-  f32x2        radius;
-  SamplerIndex sampler;
-  TextureIndex tex;
-};
+#ifndef ITEM_TYPE
+#  define ITEM_TYPE BlurItem
+#endif
 
 struct VertexOutput
 {
@@ -31,7 +26,7 @@ SamplerState samplers[];
 Texture2D textures[];
 
 [[vk::binding(0, 2)]]
-StructuredBuffer<Blur> blurs;
+StructuredBuffer<ITEM_TYPE> blurs;
 
 static constexpr f32x2 VERTEX_BUFFER[] = {f32x2(-0.5, -0.5), f32x2(0.5, -0.5),
                                           f32x2(0.5, 0.5), f32x2(-0.5, 0.5)};
@@ -39,11 +34,12 @@ static constexpr f32x2 VERTEX_BUFFER[] = {f32x2(-0.5, -0.5), f32x2(0.5, -0.5),
 [[shader("vertex")]]
 VertexOutput vert(u32 instance : SV_InstanceID, u32 vertex_idx : SV_VertexID)
 {
-  f32x2 rel_pos   = VERTEX_BUFFER[vertex_idx];
-  f32x2 local_uv  = rel_pos + 0.5;
-  var   blur      = blurs[instance];
-  f32x2 region_uv = lerp(blur.uv0, blur.uv1, local_uv);
-  return VertexOutput(f32x4(rel_pos * 2, 0, 1), region_uv, instance);
+  f32x2 pos        = VERTEX_BUFFER[vertex_idx];
+  f32x2 screen_pos = pos * 2;
+  f32x2 norm_uv    = pos + 0.5;
+  var   blur       = blurs[instance];
+  f32x2 region_uv  = lerp(blur.uv0, blur.uv1, norm_uv);
+  return VertexOutput(f32x4(screen_pos, 0, 1), region_uv, instance);
 }
 
 #if DOWNSAMPLE

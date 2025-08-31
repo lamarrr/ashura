@@ -190,7 +190,7 @@ struct TaskAllocator
 
     auto [arena, memory] = flex.unpack(stack);
 
-    out = new (arena.data()) TaskArena{.arena = Arena::from(memory)};
+    out = new (arena.data()) TaskArena{.arena{memory}};
 
     return true;
   }

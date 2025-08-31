@@ -12,7 +12,6 @@ namespace ash
 struct FillStencilPipelineParams
 {
   DepthStencilImage stencil        = {};
-  u32               write_mask     = 0;
   RectU             scissor        = {};
   gpu::Viewport     viewport       = {};
   FillRule          fill_rule      = FillRule::EvenOdd;
@@ -23,6 +22,7 @@ struct FillStencilPipelineParams
   GpuBufferSpan     indices        = {};
   u32               first_instance = 0;
   Span<u32 const>   index_counts   = {};
+  Span<u32 const>   write_masks    = {};
 };
 
 struct FillStencilPipeline final : IPipeline

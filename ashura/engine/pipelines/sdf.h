@@ -18,8 +18,6 @@ struct SdfPipelineParams
   gpu::DescriptorSet      textures     = nullptr;
   GpuBufferSpan           world_to_ndc = {};
   GpuBufferSpan           shapes       = {};
-  GpuBufferSpan           transforms   = {};
-  GpuBufferSpan           materials    = {};
   Slice32                 instances    = {};
 };
 

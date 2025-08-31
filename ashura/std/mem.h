@@ -178,7 +178,7 @@ ASH_FORCE_INLINE void prefetch(T const * src, Access rw, Locality locality)
 
 /// @brief Memory layout of a type
 template <typename T = usize>
-struct CoreLayout
+struct [[nodiscard]] CoreLayout
 {
   using Type = T;
 

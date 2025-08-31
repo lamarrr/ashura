@@ -68,9 +68,8 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
     layout.sampled_textures,       // 1: textures
     layout.read_storage_buffer,    // 2: vertices
     layout.read_storage_buffer,    // 3: indices
-    layout.read_storage_buffer,    // 4: world constantts
-    layout.read_storage_buffer,    // 5: materials
-    layout.read_storage_buffer     // 6: lights
+    layout.read_storage_buffer,    // 4: materials
+    layout.read_storage_buffer     // 5: lights
   };
 
   auto pipeline_info = gpu::GraphicsPipelineInfo{
@@ -231,9 +230,12 @@ void PBRPipeline::encode(gpu::CommandEncoder       e,
     .back_face_stencil =
       params.stencil.map([](auto s) { return s.back; }
            ).unwrap_or(),
-    .depth_test_enable  = true,
-    .depth_compare_op   = gpu::CompareOp::Less,
-    .depth_write_enable = true
+    .cull_mode                = params.cull_mode,
+    .front_face               = gpu::FrontFace::CounterClockWise,
+    .depth_test_enable        = true,
+    .depth_compare_op         = gpu::CompareOp::Less,
+    .depth_write_enable       = true,
+    .depth_bounds_test_enable = false
   });
   e->bind_descriptor_sets(
     span({
@@ -241,16 +243,14 @@ void PBRPipeline::encode(gpu::CommandEncoder       e,
       params.textures,                               // 1: textures
       params.vertices.buffer.read_storage_buffer,    // 2: vertices
       params.indices.buffer.read_storage_buffer,     // 3: indices
-      params.world.buffer.read_storage_buffer,       // 4: world constantts
-      params.material.buffer.read_storage_buffer,    // 5: materials
-      params.lights.buffer.read_storage_buffer,      // 6: lights
+      params.material.buffer.read_storage_buffer,    // 4: materials
+      params.lights.buffer.read_storage_buffer,      // 5: lights
     }),
     span({
       params.vertices.slice.as_u32().offset,    // 2: vertices
       params.indices.slice.as_u32().offset,     // 3: indices
-      params.world.slice.as_u32().offset,       // 4: world constantts
-      params.material.slice.as_u32().offset,    // 5: materials
-      params.lights.slice.as_u32().offset       // 6: lights
+      params.material.slice.as_u32().offset,    // 4: materials
+      params.lights.slice.as_u32().offset       // 5: lights
     }));
   e->draw({0, params.num_indices}, {0, 1});
   e->end_rendering();

@@ -310,14 +310,6 @@ struct ICanvas
 
   Vec<Dyn<CanvasEncoder>> encoders_;
 
-  // [ ]  on render requested, allocate textures and record render commands; The offscreen ones will need an off-screen command and encoder
-  //                             // . will still need texture allocation scope for passes like blur pass
-  //                             // custom passes. use the GpuFramePlan
-  //
-  // we need to be able to know which layers to use for rendering and to select or switch between them
-  //
-  // texture allocation for each layer or canvas. Should canvas be per-layer?
-
   ArenaPool encoder_arena_;
 
   ArenaPool tmp_arena_;

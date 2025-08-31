@@ -19,10 +19,10 @@ struct PBRPipelineParams
   gpu::DescriptorSet      textures     = nullptr;
   GpuBufferSpan           vertices     = {};
   GpuBufferSpan           indices      = {};
-  GpuBufferSpan           world        = {};
   GpuBufferSpan           material     = {};
   GpuBufferSpan           lights       = {};
   u32                     num_indices  = 0;
+  gpu::CullMode           cull_mode    = gpu::CullMode::None;
 };
 
 struct PBRPipeline final : IPipeline

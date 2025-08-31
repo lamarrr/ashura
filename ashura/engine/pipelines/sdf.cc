@@ -70,8 +70,6 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
     layout.sampled_textures,       // 1: textures
     layout.read_storage_buffer,    // 2: world_to_ndc
     layout.read_storage_buffer,    // 3: shapes
-    layout.read_storage_buffer,    // 4: transforms
-    layout.read_storage_buffer     // 5: materials
   };
 
   auto tagged_label =
@@ -195,15 +193,11 @@ void SdfPipeline::encode(gpu::CommandEncoder       e,
       params.samplers,                                   // 0: samplers
       params.textures,                                   // 1: textures
       params.world_to_ndc.buffer.read_storage_buffer,    // 2: world_to_ndc
-      params.shapes.buffer.read_storage_buffer,          // 3: shapes
-      params.transforms.buffer.read_storage_buffer,      // 4: transforms
-      params.materials.buffer.read_storage_buffer        // 5: materials
+      params.shapes.buffer.read_storage_buffer           // 3: shapes
     }),
     span({
       params.world_to_ndc.slice.as_u32().offset,    // 2: world_to_ndc
-      params.shapes.slice.as_u32().offset,          // 3: shapes
-      params.transforms.slice.as_u32().offset,      // 4: transforms
-      params.materials.slice.as_u32().offset        // 5: materials
+      params.shapes.slice.as_u32().offset           // 3: shapes
     }));
   e->draw({0, 4}, params.instances);
   e->end_rendering();

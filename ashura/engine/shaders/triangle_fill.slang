@@ -1,18 +1,13 @@
 /// SPDX-License-Identifier: MIT
 
 #pragma once
-#include "materials/custom.inl.slang"
+#include "custom.inl.slang"
+#include "items.slang"
 #include "materials/triangle_fill.slang"
-#include "modules/core.slang"
-#include "modules/types.slang"
 
-struct VertexOutput
-{
-  [[vk::location(0)]] f32x4               screen_pos : SV_Position;
-  [[vk::location(1)]] f32x4               world_pos  : WORLD_POSITION;
-  [[vk::location(2)]] f32x4               rel_pos    : REL_POS;
-  [[vk::location(3)]] nointerpolation u32 instance   : INSTANCE;
-};
+#ifndef ITEM_TYPE
+#  define ITEM_TYPE FlatTriangleSetItem
+#endif
 
 [[vk::binding(0, 0)]]
 SamplerState samplers[];
@@ -24,46 +19,61 @@ Texture2D textures[];
 ConstantBuffer<f32x4x4> world_to_ndc;
 
 [[vk::binding(0, 3)]]
-StructuredBuffer<f32x4x4> transforms;
+StructuredBuffer<ITEM_TYPE> sets;
 
 [[vk::binding(0, 4)]]
-StructuredBuffer<f32x2> vertices;
+StructuredBuffer<f32x4> colors;
 
 [[vk::binding(0, 5)]]
-StructuredBuffer<u32> indices;
-
-#ifndef MATERIAL_TYPE
-
-typedef quad::FlatMaterial MaterialType;
-
-#else
-
-typedef MATERIAL_TYPE MaterialType;
-
-#endif
-
-// [ ] line shader; material with tiling? for dashed lines
+StructuredBuffer<f32x2> vertices;
 
 [[vk::binding(0, 6)]]
-StructuredBuffer<MaterialType> materials;
+StructuredBuffer<u32> indices;
+
+struct VertexOutput
+{
+  [[vk::location(0)]] f32x4               screen_pos : SV_Position;
+  [[vk::location(1)]] f32x4               world_pos  : WORLD_POSITION;
+  [[vk::location(2)]] f32x4               color      : VTX_COLOR;
+  [[vk::location(3)]] f32x2               uv         : UV;
+  [[vk::location(4)]] nointerpolation u32 instance   : INSTANCE;
+};
 
 [[shader("vertex")]]
 VertexOutput vert(u32 instance : SV_InstanceID, u32 vertex : SV_VertexID)
 {
-  u32     idx             = indices[vertex];
-  f32x2   rel_pos         = vertices[idx];
-  f32x4x4 world_transform = transforms[instance];
-  f32x4   world_pos       = mul(world_transform, f32x4(rel_pos, 0.0, 1.0));
-  f32x4   screen_pos      = mul(world_to_ndc, world_pos);
-  return VertexOutput(screen_pos, world_pos, f32x4(rel_pos, 0, 1), instance);
+  u32   idx        = indices[vertex];
+  f32x2 pos        = vertices[idx];
+  var   set        = sets[instance];
+  f32x4 world_pos  = mul(set.world_transform, f32x4(pos, 0.0, 1.0));
+  f32x4 screen_pos = mul(world_to_ndc, world_pos);
+  f32x2 uv         = mul(set.uv_transform, f32x4(pos, 0, 1)).xy;
+
+  u32 shade_idx = instance;
+
+  switch (set.rate)
+  {
+    case TriangleShadeRate::Instance:
+      shade_idx = instance;
+      break;
+    case TriangleShadeRate::Primitive:
+      shade_idx = vertex % 3;
+      break;
+    case TriangleShadeRate::Vertex:
+      shade_idx = vertex;
+      break;
+  }
+
+  f32x4 color = colors[shade_idx];
+  return VertexOutput(screen_pos, world_pos, color, uv, instance);
 }
 
 [[shader("fragment")]]
 f32x4 frag(VertexOutput in) :
   COLOR
 {
-  var material = materials[in.instance];
-  var frag =
-    triangle_fill::FragmentInfo(in.rel_pos, in.world_pos, in.screen_pos);
+  var material = sets[in.instance].material;
+  var frag = triangle_fill::FragmentInfo(in.world_pos, in.screen_pos, in.color,
+                                         in.uv, in.instance);
   return material.shade(frag, samplers, textures);
 }

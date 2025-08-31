@@ -21,7 +21,8 @@ enum class CanvasEncoderType : u32
   FillStencil   = 3,
   BezierStencil = 4,
   Pbr           = 5,
-  Other         = 6
+  Custom        = 6,
+  Other         = 7
 };
 
 struct ICanvasEncoder
@@ -39,17 +40,28 @@ struct ICanvasEncoder
 
   constexpr virtual void operator()(GpuFramePlan plan) = 0;
 
-  constexpr virtual bool push(void const * item) = 0;
-
   constexpr virtual ~ICanvasEncoder() = default;
 };
 
+struct CustomCanvasEncoder : ICanvasEncoder
+{
+  CustomCanvasEncoder() : ICanvasEncoder{CanvasEncoderType::Custom}
+  {
+  }
+
+  virtual void operator()(GpuFramePlan) override
+  {
+  }
+
+  virtual ~CustomCanvasEncoder() override = default;
+};
+
 template <Callable<GpuFramePlan> Lambda>
-struct CustomCanvasEncoder final : ICanvasEncoder
+struct PassCanvasEncoder final : CustomCanvasEncoder
 {
   template <typename... Args>
-  CustomCanvasEncoder(Args &&... args) :
-    ICanvasEncoder{CanvasEncoderType::Other},
+  PassCanvasEncoder(Args &&... args) :
+    CustomCanvasEncoder{},
     lambda_{static_cast<Args &&>(args)...}
   {
   }
@@ -59,12 +71,7 @@ struct CustomCanvasEncoder final : ICanvasEncoder
     lambda_(plan);
   }
 
-  virtual bool push(void const *) override
-  {
-    return false;
-  }
-
-  virtual ~CustomCanvasEncoder() override = default;
+  virtual ~PassCanvasEncoder() override = default;
 
   Lambda lambda_;
 };
@@ -81,8 +88,6 @@ struct SdfEncoder final : ICanvasEncoder
     TextureSet              texture_set;
     f32x4x4                 world_to_ndc;
     Span<u8 const>          shape;
-    f32x4x4                 transform;
-    Span<u8 const>          material;
     PipelineVariantId       variant;
   };
 
@@ -102,10 +107,6 @@ struct SdfEncoder final : ICanvasEncoder
 
   Vec<u8> shapes_;
 
-  Vec<f32x4x4> transforms_;
-
-  Vec<u8> materials_;
-
   PipelineVariantId variant_;
 
   explicit SdfEncoder(Allocator allocator, Item const & item) :
@@ -117,11 +118,9 @@ struct SdfEncoder final : ICanvasEncoder
     texture_set_{item.texture_set},
     world_to_ndc_{item.world_to_ndc},
     shapes_{allocator},
-    transforms_{allocator},
-    materials_{allocator},
     variant_{item.variant}
   {
-    push_(item.shape, item.transform, item.material);
+    push_(item.shape);
   }
 
   SdfEncoder(SdfEncoder const &)             = delete;
@@ -130,12 +129,9 @@ struct SdfEncoder final : ICanvasEncoder
   SdfEncoder & operator=(SdfEncoder &&)      = default;
   virtual ~SdfEncoder() override             = default;
 
-  void push_(Span<u8 const> shape, f32x4x4 const & transform,
-             Span<u8 const> material)
+  void push_(Span<u8 const> shape)
   {
     shapes_.extend(shape).unwrap();
-    transforms_.push(transform).unwrap();
-    materials_.extend(material).unwrap();
   }
 
   bool push(Item const & item)
@@ -151,14 +147,9 @@ struct SdfEncoder final : ICanvasEncoder
       return false;
     }
 
-    push_(item.shape, item.transform, item.material);
+    push_(item.shape);
 
     return true;
-  }
-
-  virtual bool push(void const * object) override
-  {
-    return push(*static_cast<Item const *>(object));
   }
 
   virtual void operator()(GpuFramePlan plan) override;
@@ -175,9 +166,7 @@ struct QuadEncoder final : ICanvasEncoder
     gpu::Viewport           viewport;
     TextureSet              texture_set;
     f32x4x4                 world_to_ndc;
-    f32x4x4                 quad;
-    f32x4x4                 transform;
-    Span<u8 const>          material;
+    Span<u8 const>          quad;
     PipelineVariantId       variant;
   };
 
@@ -195,11 +184,7 @@ struct QuadEncoder final : ICanvasEncoder
 
   f32x4x4 world_to_ndc_;
 
-  Vec<f32x4x4> quads_;
-
-  Vec<f32x4x4> transforms_;
-
-  Vec<u8> materials_;
+  Vec<u8> quads_;
 
   PipelineVariantId variant_;
 
@@ -212,11 +197,9 @@ struct QuadEncoder final : ICanvasEncoder
     texture_set_{item.texture_set},
     world_to_ndc_{item.world_to_ndc},
     quads_{allocator},
-    transforms_{allocator},
-    materials_{allocator},
     variant_{item.variant}
   {
-    push_(item.quad, item.transform, item.material);
+    push_(item.quad);
   }
 
   QuadEncoder(QuadEncoder const &)             = delete;
@@ -225,12 +208,9 @@ struct QuadEncoder final : ICanvasEncoder
   QuadEncoder & operator=(QuadEncoder &&)      = default;
   virtual ~QuadEncoder() override              = default;
 
-  void push_(f32x4x4 const & quad, f32x4x4 const & transform,
-             Span<u8 const> material)
+  void push_(Span<u8 const> quad)
   {
-    quads_.push(quad).unwrap();
-    transforms_.push(transform).unwrap();
-    materials_.extend(material).unwrap();
+    quads_.extend(quad).unwrap();
   }
 
   bool push(Item const & item)
@@ -246,16 +226,9 @@ struct QuadEncoder final : ICanvasEncoder
       return false;
     }
 
-    quads_.push(item.quad).unwrap();
-    transforms_.push(item.transform).unwrap();
-    materials_.extend(Span{&item.material, 1}.as_u8()).unwrap();
+    push_(item.quad);
 
     return true;
-  }
-
-  virtual bool push(void const * object) override
-  {
-    return push(*static_cast<Item const *>(object));
   }
 
   virtual void operator()(GpuFramePlan plan) override;
@@ -270,12 +243,13 @@ struct TriangleFillEncoder final : ICanvasEncoder
     Option<PipelineStencil> stencil_op;
     RectU                   scissor;
     gpu::Viewport           viewport;
+    gpu::CullMode           cull_mode;
     TextureSet              texture_set;
     f32x4x4                 world_to_ndc;
-    f32x4x4                 transform;
-    Span<f32x2 const>       vertices;
-    Span<u32 const>         indices;
-    Span<u8 const>          material;
+    Span<u8 const>          set;
+    Span<u8 const>          colors;
+    Span<u8 const>          vertices;
+    Span<u8 const>          indices;
     PipelineVariantId       variant;
   };
 
@@ -289,19 +263,21 @@ struct TriangleFillEncoder final : ICanvasEncoder
 
   gpu::Viewport viewport_;
 
+  gpu::CullMode cull_mode_;
+
   TextureSet texture_set_;
 
   f32x4x4 world_to_ndc_;
 
   Vec<u32> index_counts_;
 
-  Vec<f32x4x4> transforms_;
+  Vec<u8> sets_;
 
-  Vec<f32x2> vertices_;
+  Vec<u8> colors_;
 
-  Vec<u32> indices_;
+  Vec<u8> vertices_;
 
-  Vec<u8> materials_;
+  Vec<u8> indices_;
 
   PipelineVariantId variant_;
 
@@ -311,16 +287,17 @@ struct TriangleFillEncoder final : ICanvasEncoder
     stencil_op_{item.stencil_op},
     scissor_{item.scissor},
     viewport_{item.viewport},
+    cull_mode_{item.cull_mode},
     texture_set_{item.texture_set},
     world_to_ndc_{item.world_to_ndc},
     index_counts_{allocator},
-    transforms_{allocator},
+    sets_{allocator},
+    colors_{allocator},
     vertices_{allocator},
     indices_{allocator},
-    materials_{allocator},
     variant_{item.variant}
   {
-    push_(item.transform, item.vertices, item.indices, item.material);
+    push_(item.set, item.colors, item.vertices, item.indices);
   }
 
   TriangleFillEncoder(TriangleFillEncoder const &)             = delete;
@@ -329,37 +306,33 @@ struct TriangleFillEncoder final : ICanvasEncoder
   TriangleFillEncoder & operator=(TriangleFillEncoder &&)      = default;
   virtual ~TriangleFillEncoder() override                      = default;
 
-  void push_(f32x4x4 const & transform, Span<f32x2 const> vertices,
-             Span<u32 const> indices, Span<u8 const> material)
+  void push_(Span<u8 const> set, Span<u8 const> colors, Span<u8 const> vertices,
+             Span<u8 const> indices)
   {
     index_counts_.push(size32(indices)).unwrap();
-    transforms_.push(transform).unwrap();
+    sets_.extend(set).unwrap();
+    colors_.extend(colors).unwrap();
     vertices_.extend(vertices).unwrap();
     indices_.extend(indices).unwrap();
-    materials_.extend(material).unwrap();
   }
 
   bool push(Item const & item)
   {
     auto mergeable = obj::byte_eq(
       Tuple{color_, depth_stencil_, stencil_op_, scissor_, viewport_,
-            texture_set_, world_to_ndc_, variant_},
+            cull_mode_, texture_set_, world_to_ndc_, variant_},
       Tuple{item.color, item.depth_stencil, item.stencil_op, item.scissor,
-            item.viewport, item.texture_set, item.world_to_ndc, item.variant});
+            item.viewport, cull_mode_, item.texture_set, item.world_to_ndc,
+            item.variant});
 
     if (!mergeable)
     {
       return false;
     }
 
-    push_(item.transform, item.vertices, item.indices, item.material);
+    push_(item.set, item.colors, item.vertices, item.indices);
 
     return true;
-  }
-
-  virtual bool push(void const * object) override
-  {
-    return push(*static_cast<Item const *>(object));
   }
 
   virtual void operator()(GpuFramePlan plan) override;
@@ -369,22 +342,19 @@ struct FillStencilEncoder final : ICanvasEncoder
 {
   struct Item
   {
-    u32               depth_stencil;
-    u32               write_mask;
-    RectU             scissor;
-    gpu::Viewport     viewport;
-    FillRule          fill_rule;
-    bool              invert;
-    f32x4x4           world_to_ndc;
-    f32x4x4           transform;
-    Span<f32x2 const> vertices;
-    Span<u32 const>   indices;
-    Span<u32 const>   index_counts;
+    u32            depth_stencil;
+    u32            write_mask;
+    RectU          scissor;
+    gpu::Viewport  viewport;
+    FillRule       fill_rule;
+    bool           invert;
+    f32x4x4        world_to_ndc;
+    f32x4x4        transform;
+    Span<u8 const> vertices;
+    Span<u8 const> indices;
   };
 
   u32 depth_stencil_;
-
-  u32 write_mask_;
 
   RectU scissor_;
 
@@ -396,18 +366,19 @@ struct FillStencilEncoder final : ICanvasEncoder
 
   f32x4x4 world_to_ndc_;
 
-  Vec<f32x4x4> transforms_;
+  Vec<u8> transforms_;
 
-  Vec<f32x2> vertices_;
+  Vec<u8> vertices_;
 
-  Vec<u32> indices_;
+  Vec<u8> indices_;
 
   Vec<u32> index_counts_;
+
+  Vec<u32> write_masks_;
 
   explicit FillStencilEncoder(Allocator allocator, Item const & item) :
     ICanvasEncoder{CanvasEncoderType::FillStencil},
     depth_stencil_{item.depth_stencil},
-    write_mask_{item.write_mask},
     scissor_{item.scissor},
     viewport_{item.viewport},
     fill_rule_{item.fill_rule},
@@ -416,9 +387,10 @@ struct FillStencilEncoder final : ICanvasEncoder
     transforms_{allocator},
     vertices_{allocator},
     indices_{allocator},
-    index_counts_{allocator}
+    index_counts_{allocator},
+    write_masks_{allocator}
   {
-    push_(item.transform, item.vertices, item.indices, item.index_counts);
+    push_(item.transform, item.vertices, item.indices, item.write_mask);
   }
 
   FillStencilEncoder(FillStencilEncoder const &)             = delete;
@@ -427,36 +399,32 @@ struct FillStencilEncoder final : ICanvasEncoder
   FillStencilEncoder & operator=(FillStencilEncoder &&)      = default;
   virtual ~FillStencilEncoder() override                     = default;
 
-  void push_(f32x4x4 const & transform, Span<f32x2 const> vertices,
-             Span<u32 const> indices, Span<u32 const> index_counts)
+  void push_(f32x4x4 const & transform, Span<u8 const> vertices,
+             Span<u8 const> indices, u32 write_mask)
   {
-    transforms_.push(transform).unwrap();
+    transforms_.extend(as_u8_span(transform)).unwrap();
     vertices_.extend(vertices).unwrap();
     indices_.extend(indices).unwrap();
-    index_counts_.extend(index_counts).unwrap();
+    index_counts_.push(size32(indices)).unwrap();
+    write_masks_.push(write_mask).unwrap();
   }
 
   bool push(Item const & item)
   {
-    auto mergeable = obj::byte_eq(
-      Tuple{depth_stencil_, write_mask_, scissor_, viewport_, fill_rule_,
-            invert_, world_to_ndc_},
-      Tuple{depth_stencil_, item.write_mask, item.scissor, item.viewport,
-            item.fill_rule, item.invert, item.world_to_ndc});
+    auto mergeable =
+      obj::byte_eq(Tuple{depth_stencil_, scissor_, viewport_, fill_rule_,
+                         invert_, world_to_ndc_},
+                   Tuple{depth_stencil_, item.scissor, item.viewport,
+                         item.fill_rule, item.invert, item.world_to_ndc});
 
     if (!mergeable)
     {
       return false;
     }
 
-    push_(item.transform, item.vertices, item.indices, item.index_counts);
+    push_(item.transform, item.vertices, item.indices, item.write_mask);
 
     return true;
-  }
-
-  virtual bool push(void const * object) override
-  {
-    return push(*static_cast<Item const *>(object));
   }
 
   virtual void operator()(GpuFramePlan plan) override;
@@ -466,23 +434,21 @@ struct BezierStencilEncoder final : ICanvasEncoder
 {
   struct Item
   {
-    u32                               depth_stencil;
-    u32                               write_mask;
-    RectU                             scissor;
-    gpu::Viewport                     viewport;
-    FillRule                          fill_rule;
-    bool                              invert;
-    f32x4x4                           world_to_ndc;
-    f32x4x4                           transform;
-    Span<f32x2 const>                 vertices;
-    Span<u32 const>                   indices;
-    Span<shader::BezierRegions const> regions;
-    Span<u32 const>                   region_index_counts;
+    u32             depth_stencil;
+    u32             write_mask;
+    RectU           scissor;
+    gpu::Viewport   viewport;
+    FillRule        fill_rule;
+    bool            invert;
+    f32x4x4         world_to_ndc;
+    f32x4x4         transform;
+    Span<u8 const>  vertices;
+    Span<u8 const>  indices;
+    Span<u8 const>  regions;
+    Span<u32 const> region_index_counts;
   };
 
   u32 depth_stencil_;
-
-  u32 write_mask_;
 
   RectU scissor_;
 
@@ -494,20 +460,21 @@ struct BezierStencilEncoder final : ICanvasEncoder
 
   f32x4x4 world_to_ndc_;
 
-  Vec<f32x4x4> transforms_;
+  Vec<u8> transforms_;
 
-  Vec<f32x2> vertices_;
+  Vec<u8> vertices_;
 
-  Vec<u32> indices_;
+  Vec<u8> indices_;
 
-  Vec<shader::BezierRegions> regions_;
+  Vec<u8> regions_;
 
   Vec<u32> region_index_counts_;
+
+  Vec<u32> write_masks_;
 
   explicit BezierStencilEncoder(Allocator allocator, Item const & item) :
     ICanvasEncoder{CanvasEncoderType::BezierStencil},
     depth_stencil_{item.depth_stencil},
-    write_mask_{item.write_mask},
     scissor_{item.scissor},
     viewport_{item.viewport},
     fill_rule_{item.fill_rule},
@@ -517,10 +484,11 @@ struct BezierStencilEncoder final : ICanvasEncoder
     vertices_{allocator},
     indices_{allocator},
     regions_{allocator},
-    region_index_counts_{allocator}
+    region_index_counts_{allocator},
+    write_masks_{allocator}
   {
     push_(item.transform, item.vertices, item.indices, item.regions,
-          item.region_index_counts);
+          item.region_index_counts, item.write_mask);
   }
 
   BezierStencilEncoder(BezierStencilEncoder const &)             = delete;
@@ -529,24 +497,25 @@ struct BezierStencilEncoder final : ICanvasEncoder
   BezierStencilEncoder & operator=(BezierStencilEncoder &&)      = default;
   virtual ~BezierStencilEncoder() override                       = default;
 
-  void push_(f32x4x4 const & transform, Span<f32x2 const> vertices,
-             Span<u32 const> indices, Span<shader::BezierRegions const> regions,
-             Span<u32 const> region_index_counts)
+  void push_(f32x4x4 const & transform, Span<u8 const> vertices,
+             Span<u8 const> indices, Span<u8 const> regions,
+             Span<u32 const> region_index_counts, u32 write_mask)
   {
-    transforms_.push(transform).unwrap();
+    transforms_.extend(as_u8_span(transform)).unwrap();
     vertices_.extend(vertices).unwrap();
     indices_.extend(indices).unwrap();
     regions_.extend(regions).unwrap();
     region_index_counts_.extend(region_index_counts).unwrap();
+    write_masks_.push(write_mask).unwrap();
   }
 
   bool push(Item const & item)
   {
-    auto mergeable = obj::byte_eq(
-      Tuple{depth_stencil_, write_mask_, scissor_, viewport_, fill_rule_,
-            invert_, world_to_ndc_},
-      Tuple{depth_stencil_, item.write_mask, item.scissor, item.viewport,
-            item.fill_rule, item.invert, item.world_to_ndc});
+    auto mergeable =
+      obj::byte_eq(Tuple{depth_stencil_, scissor_, viewport_, fill_rule_,
+                         invert_, world_to_ndc_},
+                   Tuple{depth_stencil_, item.scissor, item.viewport,
+                         item.fill_rule, item.invert, item.world_to_ndc});
 
     if (!mergeable)
     {
@@ -554,14 +523,9 @@ struct BezierStencilEncoder final : ICanvasEncoder
     }
 
     push_(item.transform, item.vertices, item.indices, item.regions,
-          item.region_index_counts);
+          item.region_index_counts, item.write_mask);
 
     return true;
-  }
-
-  virtual bool push(void const * object) override
-  {
-    return push(*static_cast<Item const *>(object));
   }
 
   virtual void operator()(GpuFramePlan plan) override;
@@ -581,9 +545,9 @@ struct PbrEncoder final : ICanvasEncoder
     GpuBufferSpan           vertices;
     GpuBufferSpan           indices;
     u32                     num_indices;
-    Span<u8 const>          world;
     Span<u8 const>          material;
     Span<u8 const>          lights;
+    gpu::CullMode           cull_mode;
     PipelineVariantId       variant;
   };
 
@@ -601,17 +565,17 @@ struct PbrEncoder final : ICanvasEncoder
 
   TextureSet texture_set_;
 
-  GpuBufferSpan vertices_;    // = shader::pbr::Vertex
+  GpuBufferSpan vertices_;
 
-  GpuBufferSpan indices_;    // = shader::pbr::Index
+  GpuBufferSpan indices_;
 
   u32 num_indices_;
 
-  Vec<u8> world_;    // = shader::pbr::World
+  Vec<u8> material_;
 
-  Vec<u8> material_;    // = shader::pbr::BaseMaterial,
+  Vec<u8> lights_;
 
-  Vec<u8> lights_;    // = shader::pbr::PunctualLight
+  gpu::CullMode cull_mode_;
 
   PipelineVariantId variant_;
 
@@ -627,14 +591,13 @@ struct PbrEncoder final : ICanvasEncoder
     vertices_{item.vertices},
     indices_{item.indices},
     num_indices_{item.num_indices},
-    world_{allocator},
     material_{allocator},
     lights_{allocator},
+    cull_mode_{item.cull_mode},
     variant_{item.variant}
   {
-    world_.extend(Span{&item.world, 1}.as_u8()).unwrap();
-    material_.extend(Span{&item.material, 1}.as_u8()).unwrap();
-    lights_.extend(item.lights.as_u8()).unwrap();
+    material_.extend(item.material).unwrap();
+    lights_.extend(item.lights).unwrap();
   }
 
   PbrEncoder(PbrEncoder const &)             = delete;
@@ -642,11 +605,6 @@ struct PbrEncoder final : ICanvasEncoder
   PbrEncoder & operator=(PbrEncoder const &) = delete;
   PbrEncoder & operator=(PbrEncoder &&)      = default;
   virtual ~PbrEncoder() override             = default;
-
-  virtual bool push(void const *) override
-  {
-    return false;
-  }
 
   virtual void operator()(GpuFramePlan plan) override;
 };

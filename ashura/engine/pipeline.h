@@ -1,6 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/engine/gpu_system.h"
+#include "ashura/engine/shaders.gen.h"
 #include "ashura/gpu/gpu.h"
 #include "ashura/std/types.h"
 
@@ -34,5 +35,16 @@ enum class PipelineVariantId : u32
 {
   Base = 0
 };
+
+enum class FillRule : u32
+{
+  EvenOdd = 0,
+  NonZero = 1
+};
+
+using BlendMode         = shader::BlendMode;
+using BezierRegions     = shader::BezierRegions;
+using TriangleShadeRate = shader::TriangleShadeRate;
+using ShadeType         = shader::sdf::ShadeType;
 
 }    // namespace ash

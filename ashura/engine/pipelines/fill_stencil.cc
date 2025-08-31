@@ -123,18 +123,19 @@ void FillStencilPipeline::encode(gpu::CommandEncoder               e,
       params.indices.slice.as_u32().offset,         // 3: indices
     }));
 
-  auto [front_stencil, back_stencil] =
-    fill_stencil_state(params.fill_rule, params.invert, params.write_mask);
-
-  e->set_graphics_state(gpu::GraphicsState{.scissor  = params.scissor,
-                                           .viewport = params.viewport,
-                                           .stencil_test_enable = false,
-                                           .front_face_stencil  = front_stencil,
-                                           .back_face_stencil = back_stencil});
-
   u32 first_index = 0;
-  for (auto [i, index_count] : enumerate<u32>(params.index_counts))
+  for (auto [i, index_count, write_mask] :
+       zip(range(size32(params.index_counts)), params.index_counts,
+           params.write_masks))
   {
+    auto [front_stencil, back_stencil] =
+      fill_stencil_state(params.fill_rule, params.invert, write_mask);
+    e->set_graphics_state(
+      gpu::GraphicsState{.scissor             = params.scissor,
+                         .viewport            = params.viewport,
+                         .stencil_test_enable = false,
+                         .front_face_stencil  = front_stencil,
+                         .back_face_stencil   = back_stencil});
     e->draw({first_index, index_count}, {params.first_instance + i, 1});
     first_index += index_count;
   }

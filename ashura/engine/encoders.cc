@@ -17,27 +17,19 @@ namespace ash
 
 void SdfEncoder::operator()(GpuFramePlan plan)
 {
-  auto shapes     = shapes_.view();
-  auto transforms = transforms_.view();
-  auto materials  = materials_.view();
-
+  auto shapes         = shapes_.view();
   auto i_world_to_ndc = plan->push_gpu(span({world_to_ndc_}));
   auto i_shapes       = plan->push_gpu(shapes);
-  auto i_transforms   = plan->push_gpu(transforms);
-  auto i_materials    = plan->push_gpu(materials);
 
   auto num_instances = size32(shapes);
 
   plan->add_pass([color = this->color_, depth_stencil = this->depth_stencil_,
                   stencil_op = this->stencil_op_, scissor = this->scissor_,
                   viewport = this->viewport_, texture_set = this->texture_set_,
-                  i_world_to_ndc, i_shapes, i_transforms, i_materials,
-                  variant = this->variant_,
+                  i_world_to_ndc, i_shapes, variant = this->variant_,
                   num_instances](GpuFrame frame, gpu::CommandEncoder enc) {
     auto world_to_ndc = frame->get(i_world_to_ndc);
     auto shapes       = frame->get(i_shapes);
-    auto transforms   = frame->get(i_transforms);
-    auto materials    = frame->get(i_materials);
 
     auto dst = frame->get_scratch_images();
 
@@ -57,8 +49,6 @@ void SdfEncoder::operator()(GpuFramePlan plan)
       .textures     = frame->get(texture_set),
       .world_to_ndc = world_to_ndc,
       .shapes       = shapes,
-      .transforms   = transforms,
-      .materials    = materials,
       .instances{0, num_instances}
     };
 
@@ -68,149 +58,146 @@ void SdfEncoder::operator()(GpuFramePlan plan)
 
 void QuadEncoder::operator()(GpuFramePlan plan)
 {
-  auto quads      = quads_.view();
-  auto transforms = transforms_.view();
-  auto materials  = materials_.view();
+  auto quads = quads_.view();
 
   auto i_world_to_ndc = plan->push_gpu(span({world_to_ndc_}));
   auto i_quads        = plan->push_gpu(quads);
-  auto i_transforms   = plan->push_gpu(transforms);
-  auto i_materials    = plan->push_gpu(materials);
 
-  plan->add_pass([color = this->color_, depth_stencil = this->depth_stencil_,
-                  stencil_op = this->stencil_op_, scissor = this->scissor_,
-                  viewport = this->viewport_, texture_set = this->texture_set_,
-                  i_world_to_ndc, i_quads, i_transforms, i_materials,
-                  num_instances = size32(quads), variant = this->variant_](
-                   GpuFrame frame, gpu::CommandEncoder enc) {
-    auto world_to_ndc = frame->get(i_world_to_ndc);
-    auto quads        = frame->get(i_quads);
-    auto transforms   = frame->get(i_transforms);
-    auto materials    = frame->get(i_materials);
+  plan->add_pass(
+    [color = this->color_, depth_stencil = this->depth_stencil_,
+     stencil_op = this->stencil_op_, scissor = this->scissor_,
+     viewport = this->viewport_, texture_set = this->texture_set_,
+     i_world_to_ndc, i_quads, num_instances = size32(quads),
+     variant = this->variant_](GpuFrame frame, gpu::CommandEncoder enc) {
+      auto world_to_ndc = frame->get(i_world_to_ndc);
+      auto quads        = frame->get(i_quads);
 
-    auto dst = frame->get_scratch_images();
+      auto dst = frame->get_scratch_images();
 
-    auto framebuffer = Framebuffer{
-      .color      = dst[color].color,
-      .color_msaa = none,
-      .depth_stencil =
-        depth_stencil.map([&](auto s) { return dst[s].depth_stencil; })
-          .unwrap_or()};
+      auto framebuffer = Framebuffer{
+        .color      = dst[color].color,
+        .color_msaa = none,
+        .depth_stencil =
+          depth_stencil.map([&](auto s) { return dst[s].depth_stencil; })
+            .unwrap_or()};
 
-    auto params = QuadPipelineParams{
-      .framebuffer  = framebuffer,
-      .stencil      = stencil_op,
-      .scissor      = scissor,
-      .viewport     = viewport,
-      .samplers     = sys.gpu->samplers(),
-      .textures     = frame->get(texture_set),
-      .world_to_ndc = world_to_ndc,
-      .quads        = quads,
-      .transforms   = transforms,
-      .materials    = materials,
-      .instances{0, num_instances}
-    };
+      auto params = QuadPipelineParams{
+        .framebuffer  = framebuffer,
+        .stencil      = stencil_op,
+        .scissor      = scissor,
+        .viewport     = viewport,
+        .samplers     = sys.gpu->samplers(),
+        .textures     = frame->get(texture_set),
+        .world_to_ndc = world_to_ndc,
+        .quads        = quads,
+        .instances{0, num_instances}
+      };
 
-    sys.pipeline->quad().encode(enc, params, variant);
-  });
+      sys.pipeline->quad().encode(enc, params, variant);
+    });
 }
 
 void TriangleFillEncoder::operator()(GpuFramePlan plan)
 {
   auto index_counts = index_counts_.view();
-  auto transforms   = transforms_.view();
+  auto sets         = sets_.view();
+  auto colors       = colors_.view();
   auto vertices     = vertices_.view();
   auto indices      = indices_.view();
-  auto materials    = materials_.view();
 
   auto i_world_to_ndc = plan->push_gpu(span({world_to_ndc_}));
-  auto i_transforms   = plan->push_gpu(transforms);
+  auto i_sets         = plan->push_gpu(sets);
+  auto i_colors       = plan->push_gpu(colors);
   auto i_vertices     = plan->push_gpu(vertices);
   auto i_indices      = plan->push_gpu(indices);
-  auto i_materials    = plan->push_gpu(materials);
   auto i_index_counts = plan->push_cpu(index_counts);
 
-  plan->add_pass([color = this->color_, depth_stencil = this->depth_stencil_,
-                  stencil_op = stencil_op_, scissor = this->scissor_,
-                  viewport = this->viewport_, texture_set = this->texture_set_,
-                  i_world_to_ndc, i_transforms, i_vertices, i_indices,
-                  i_materials, i_index_counts, variant = this->variant_](
-                   GpuFrame frame, gpu::CommandEncoder enc) {
-    auto world_to_ndc = frame->get(i_world_to_ndc);
-    auto transforms   = frame->get(i_transforms);
-    auto vertices     = frame->get(i_vertices);
-    auto indices      = frame->get(i_indices);
-    auto materials    = frame->get(i_materials);
-    auto index_counts = frame->get<u32>(i_index_counts);
+  plan->add_pass(
+    [color = this->color_, depth_stencil = this->depth_stencil_,
+     stencil_op = stencil_op_, scissor = this->scissor_,
+     viewport = this->viewport_, cull_mode = this->cull_mode_,
+     texture_set = this->texture_set_, i_world_to_ndc, i_sets, i_colors,
+     i_vertices, i_indices, i_index_counts,
+     variant = this->variant_](GpuFrame frame, gpu::CommandEncoder enc) {
+      auto world_to_ndc = frame->get(i_world_to_ndc);
+      auto sets         = frame->get(i_sets);
+      auto colors       = frame->get(i_colors);
+      auto vertices     = frame->get(i_vertices);
+      auto indices      = frame->get(i_indices);
+      auto index_counts = frame->get<u32>(i_index_counts);
 
-    auto dst = frame->get_scratch_images();
+      auto dst = frame->get_scratch_images();
 
-    auto framebuffer = Framebuffer{
-      .color      = dst[color].color,
-      .color_msaa = none,
-      .depth_stencil =
-        depth_stencil.map([&](auto s) { return dst[s].depth_stencil; })
-          .unwrap_or()};
+      auto framebuffer = Framebuffer{
+        .color      = dst[color].color,
+        .color_msaa = none,
+        .depth_stencil =
+          depth_stencil.map([&](auto s) { return dst[s].depth_stencil; })
+            .unwrap_or()};
 
-    auto params =
-      TriangleFillPipelineParams{.framebuffer    = framebuffer,
-                                 .stencil        = stencil_op,
-                                 .scissor        = scissor,
-                                 .viewport       = viewport,
-                                 .samplers       = sys.gpu->samplers(),
-                                 .textures       = frame->get(texture_set),
-                                 .world_to_ndc   = world_to_ndc,
-                                 .transforms     = transforms,
-                                 .vertices       = vertices,
-                                 .indices        = indices,
-                                 .materials      = materials,
-                                 .first_instance = 0,
-                                 .index_counts   = index_counts};
+      auto params =
+        TriangleFillPipelineParams{.framebuffer    = framebuffer,
+                                   .stencil        = stencil_op,
+                                   .scissor        = scissor,
+                                   .viewport       = viewport,
+                                   .cull_mode      = cull_mode,
+                                   .samplers       = sys.gpu->samplers(),
+                                   .textures       = frame->get(texture_set),
+                                   .world_to_ndc   = world_to_ndc,
+                                   .sets           = sets,
+                                   .colors         = colors,
+                                   .vertices       = vertices,
+                                   .indices        = indices,
+                                   .first_instance = 0,
+                                   .index_counts   = index_counts};
 
-    sys.pipeline->triangle_fill().encode(enc, params, variant);
-  });
+      sys.pipeline->triangle_fill().encode(enc, params, variant);
+    });
 }
 
 void FillStencilEncoder::operator()(GpuFramePlan plan)
 {
-  auto index_counts = index_counts_.view();
   auto transforms   = transforms_.view();
   auto vertices     = vertices_.view();
   auto indices      = indices_.view();
+  auto index_counts = index_counts_.view();
+  auto write_masks  = write_masks_.view();
 
   auto i_world_to_ndc = plan->push_gpu(span({world_to_ndc_}));
   auto i_transforms   = plan->push_gpu(transforms);
   auto i_vertices     = plan->push_gpu(vertices);
   auto i_indices      = plan->push_gpu(indices);
   auto i_index_counts = plan->push_cpu(index_counts);
+  auto i_write_masks  = plan->push_cpu(write_masks);
 
   plan->add_pass([depth_stencil = this->depth_stencil_,
-                  write_mask = this->write_mask_, scissor = this->scissor_,
-                  viewport = this->viewport_, fill_rule = this->fill_rule_,
-                  invert = this->invert_, i_world_to_ndc, i_transforms,
-                  i_vertices, i_indices,
-                  i_index_counts](GpuFrame frame, gpu::CommandEncoder enc) {
+                  scissor = this->scissor_, viewport = this->viewport_,
+                  fill_rule = this->fill_rule_, invert = this->invert_,
+                  i_world_to_ndc, i_transforms, i_vertices, i_indices,
+                  i_index_counts,
+                  i_write_masks](GpuFrame frame, gpu::CommandEncoder enc) {
     auto world_to_ndc = frame->get(i_world_to_ndc);
     auto transforms   = frame->get(i_transforms);
     auto vertices     = frame->get(i_vertices);
     auto indices      = frame->get(i_indices);
     auto index_counts = frame->get<u32>(i_index_counts);
+    auto write_masks  = frame->get<u32>(i_write_masks);
 
     auto dst = frame->get_scratch_images();
 
     auto params =
-      FillStencilPipelineParams{.stencil    = dst[depth_stencil].depth_stencil,
-                                .write_mask = write_mask,
-                                .scissor    = scissor,
-                                .viewport   = viewport,
-                                .fill_rule  = fill_rule,
-                                .invert     = invert,
+      FillStencilPipelineParams{.stencil   = dst[depth_stencil].depth_stencil,
+                                .scissor   = scissor,
+                                .viewport  = viewport,
+                                .fill_rule = fill_rule,
+                                .invert    = invert,
                                 .world_to_ndc   = world_to_ndc,
                                 .transforms     = transforms,
                                 .vertices       = vertices,
                                 .indices        = indices,
                                 .first_instance = 0,
-                                .index_counts   = index_counts};
+                                .index_counts   = index_counts,
+                                .write_masks    = write_masks};
 
     sys.pipeline->fill_stencil().encode(enc, params);
   });
@@ -218,55 +205,57 @@ void FillStencilEncoder::operator()(GpuFramePlan plan)
 
 void BezierStencilEncoder::operator()(GpuFramePlan plan)
 {
+  auto transforms          = transforms_.view();
   auto vertices            = vertices_.view();
   auto indices             = indices_.view();
-  auto transforms          = transforms_.view();
   auto regions             = regions_.view();
   auto region_index_counts = region_index_counts_.view();
+  auto write_masks         = write_masks_.view();
 
-  auto i_vertices            = plan->push_gpu(vertices);
-  auto i_indices             = plan->push_gpu(indices);
   auto i_world_to_ndc        = plan->push_gpu(span({world_to_ndc_}));
   auto i_transforms          = plan->push_gpu(transforms);
+  auto i_vertices            = plan->push_gpu(vertices);
+  auto i_indices             = plan->push_gpu(indices);
   auto i_regions             = plan->push_gpu(regions);
   auto i_region_index_counts = plan->push_cpu(region_index_counts);
+  auto i_write_masks         = plan->push_cpu(write_masks);
 
-  plan->add_pass(
-    [depth_stencil = this->depth_stencil_, write_mask = this->write_mask_,
-     scissor = this->scissor_, viewport = this->viewport_,
-     fill_rule = this->fill_rule_, invert = this->invert_, i_vertices,
-     i_indices, i_world_to_ndc, i_transforms, i_regions,
-     i_region_index_counts](GpuFrame frame, gpu::CommandEncoder enc) {
-      auto vertices            = frame->get(i_vertices);
-      auto indices             = frame->get(i_indices);
-      auto world_to_ndc        = frame->get(i_world_to_ndc);
-      auto transforms          = frame->get(i_transforms);
-      auto regions             = frame->get(i_regions);
-      auto region_index_counts = frame->get<u32>(i_region_index_counts);
+  plan->add_pass([depth_stencil = this->depth_stencil_,
+                  scissor = this->scissor_, viewport = this->viewport_,
+                  fill_rule = this->fill_rule_, invert = this->invert_,
+                  i_world_to_ndc, i_transforms, i_vertices, i_indices,
+                  i_regions, i_region_index_counts,
+                  i_write_masks](GpuFrame frame, gpu::CommandEncoder enc) {
+    auto world_to_ndc        = frame->get(i_world_to_ndc);
+    auto transforms          = frame->get(i_transforms);
+    auto vertices            = frame->get(i_vertices);
+    auto indices             = frame->get(i_indices);
+    auto regions             = frame->get(i_regions);
+    auto region_index_counts = frame->get<u32>(i_region_index_counts);
+    auto write_masks         = frame->get<u32>(i_write_masks);
 
-      auto dst = frame->get_scratch_images();
+    auto dst = frame->get_scratch_images();
 
-      auto params =
-        BezierStencilPipelineParams{.stencil = dst[depth_stencil].depth_stencil,
-                                    .write_mask          = write_mask,
-                                    .scissor             = scissor,
-                                    .viewport            = viewport,
-                                    .fill_rule           = fill_rule,
-                                    .invert              = invert,
-                                    .world_to_ndc        = world_to_ndc,
-                                    .transforms          = transforms,
-                                    .vertices            = vertices,
-                                    .indices             = indices,
-                                    .regions             = regions,
-                                    .region_index_counts = region_index_counts};
+    auto params =
+      BezierStencilPipelineParams{.stencil   = dst[depth_stencil].depth_stencil,
+                                  .scissor   = scissor,
+                                  .viewport  = viewport,
+                                  .fill_rule = fill_rule,
+                                  .invert    = invert,
+                                  .world_to_ndc        = world_to_ndc,
+                                  .transforms          = transforms,
+                                  .vertices            = vertices,
+                                  .indices             = indices,
+                                  .regions             = regions,
+                                  .region_index_counts = region_index_counts,
+                                  .write_masks         = write_masks};
 
-      sys.pipeline->bezier_stencil().encode(enc, params);
-    });
+    sys.pipeline->bezier_stencil().encode(enc, params);
+  });
 }
 
 void PbrEncoder::operator()(GpuFramePlan plan)
 {
-  auto i_world    = plan->push_gpu(world_.view());
   auto i_material = plan->push_gpu(material_.view());
   auto i_lights   = plan->push_gpu(lights_.view());
 
@@ -275,10 +264,9 @@ void PbrEncoder::operator()(GpuFramePlan plan)
      stencil_op = stencil_op_, scissor = this->scissor_,
      polygon_mode = this->polygon_mode_, viewport = this->viewport_,
      texture_set = this->texture_set_, vertices = this->vertices_,
-     indices = this->indices_, num_indices = this->num_indices_, i_world,
-     i_material, i_lights,
+     indices = this->indices_, num_indices = this->num_indices_, i_material,
+     i_lights, cull_mode                   = this->cull_mode_,
      variant = this->variant_](GpuFrame frame, gpu::CommandEncoder enc) {
-      auto world    = frame->get(i_world);
       auto material = frame->get(i_material);
       auto lights   = frame->get(i_lights);
 
@@ -300,10 +288,10 @@ void PbrEncoder::operator()(GpuFramePlan plan)
                                       .textures     = frame->get(texture_set),
                                       .vertices     = vertices,
                                       .indices      = indices,
-                                      .world        = world,
                                       .material     = material,
                                       .lights       = lights,
-                                      .num_indices  = num_indices};
+                                      .num_indices  = num_indices,
+                                      .cull_mode    = cull_mode};
 
       sys.pipeline->pbr().encode(enc, params, variant);
     });

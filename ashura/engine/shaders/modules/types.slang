@@ -36,6 +36,7 @@ static const f32 GAMMA = 2.2;
 
 static const f32 EPSILON = 0.00000011920929;
 
+// [ ] https://drafts.fxtf.org/compositing-1/
 enum class BlendMode : u32
 {
   Clear      = 0,
@@ -77,3 +78,59 @@ enum class BezierRegions : u32
   Edge    = 4,
   All     = 7
 };
+
+enum class TriangleShadeRate : u32
+{
+  Instance  = 0,
+  Primitive = 1,
+  Vertex    = 2
+};
+
+namespace sdf
+{
+
+enum class ShapeType : u32
+{
+  RRect    = 0,
+  Squircle = 1,
+  SDFMap   = 2
+};
+
+enum class ShadeType : u32
+{
+  Flood     = 0,
+  Softened  = 1,
+  Feathered = 2,
+  Stroked   = 3
+};
+
+enum class BlendOp : u32
+{
+  None                = 0,
+  Sub                 = 1,
+  Xor                 = 2,
+  Round               = 3,
+  Onion               = 4,
+  Union               = 5,
+  Intersection        = 6,
+  SmoothUnion         = 7,
+  SmoothSub           = 8,
+  SmoothIntersection  = 9,
+  ExpSmoothUnion      = 10,
+  RootSmoothUnion     = 11,
+  SigSmoothUnion      = 12,
+  QuadSmoothUnion     = 13,
+  CubicSmoothUnion    = 14,
+  QuartSmoothUnion    = 15,
+  CircSmoothUnion     = 16,
+  CircGeomSmoothUnion = 17
+};
+
+enum class MixOp : u32
+{
+  None           = 0,
+  QuadSmoothMin  = 1,
+  CubicSmoothMin = 2
+};
+
+}    // namespace sdf

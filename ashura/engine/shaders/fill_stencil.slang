@@ -1,7 +1,6 @@
 /// SPDX-License-Identifier: MIT
 
 #pragma once
-#include "materials/custom.inl.slang"
 #include "modules/core.slang"
 #include "modules/sdf.slang"
 

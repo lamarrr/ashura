@@ -18,8 +18,6 @@ struct QuadPipelineParams
   gpu::DescriptorSet      textures     = nullptr;
   GpuBufferSpan           world_to_ndc = {};
   GpuBufferSpan           quads        = {};
-  GpuBufferSpan           transforms   = {};
-  GpuBufferSpan           materials    = {};
   Slice32                 instances    = {};
 };
 

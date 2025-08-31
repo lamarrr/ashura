@@ -67,10 +67,10 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
     layout.samplers,               // 0: samplers
     layout.sampled_textures,       // 1: textures
     layout.read_storage_buffer,    // 2: world_to_ndc
-    layout.read_storage_buffer,    // 3: transforms
-    layout.read_storage_buffer,    // 4: vtx_buffer
-    layout.read_storage_buffer,    // 5: idx_buffer
-    layout.read_storage_buffer     // 6: materials
+    layout.read_storage_buffer,    // 3: sets
+    layout.read_storage_buffer,    // 4: colors
+    layout.read_storage_buffer,    // 5: vertices
+    layout.read_storage_buffer     // 6: indices
   };
 
   auto pipeline_info = gpu::GraphicsPipelineInfo{
@@ -188,17 +188,17 @@ void TriangleFillPipeline::encode(gpu::CommandEncoder                e,
       params.samplers,                                   //
       params.textures,                                   //
       params.world_to_ndc.buffer.read_storage_buffer,    //
-      params.transforms.buffer.read_storage_buffer,      //
+      params.sets.buffer.read_storage_buffer,            //
+      params.colors.buffer.read_storage_buffer,          //
       params.vertices.buffer.read_storage_buffer,        //
-      params.indices.buffer.read_storage_buffer,         //
-      params.materials.buffer.read_storage_buffer        //
+      params.indices.buffer.read_storage_buffer          //
     }),
     span({
       params.world_to_ndc.slice.as_u32().offset,    //
-      params.transforms.slice.as_u32().offset,      //
+      params.sets.slice.as_u32().offset,            //
+      params.colors.slice.as_u32().offset,          //
       params.vertices.slice.as_u32().offset,        //
-      params.indices.slice.as_u32().offset,         //
-      params.materials.slice.as_u32().offset        //
+      params.indices.slice.as_u32().offset          //
     }));
   e->set_graphics_state(gpu::GraphicsState{
     .scissor             = params.scissor,
@@ -207,7 +207,8 @@ void TriangleFillPipeline::encode(gpu::CommandEncoder                e,
     .front_face_stencil =
       params.stencil.map([](auto s) { return s.front; }).unwrap_or(),
     .back_face_stencil =
-      params.stencil.map([](auto s) { return s.back; }).unwrap_or()});
+      params.stencil.map([](auto s) { return s.back; }).unwrap_or(),
+    .cull_mode = params.cull_mode});
 
   u32 first_index = 0;
   for (auto [i, index_count] : enumerate<u32>(params.index_counts))

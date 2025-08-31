@@ -1,15 +1,28 @@
 /// SPDX-License-Identifier: MIT
 
 #pragma once
-#include "materials/custom.inl.slang"
+#include "custom.inl.slang"
+#include "items.slang"
 #include "materials/quad.slang"
 #include "modules/types.slang"
+
+static const f32x2 REL_POS[] = {
+  {-0.5, -0.5},
+  {0.5,  -0.5},
+  {0.5,  0.5 },
+  {-0.5, 0.5 }
+};
+
+#ifndef ITEM_TYPE
+#  define ITEM_TYPE FlatQuadItem
+#endif
 
 struct VertexOutput
 {
   [[vk::location(0)]] f32x4               screen_pos : SV_Position;
   [[vk::location(1)]] f32x4               world_pos  : WORLD_POSITION;
-  [[vk::location(2)]] f32x4               rel_pos    : REL_POS;
+  [[vk::location(1)]] f32x2               rel_pos    : REL_POSITION;
+  [[vk::location(2)]] f32x2               uv         : UV;
   [[vk::location(3)]] nointerpolation u32 instance   : INSTANCE;
 };
 
@@ -23,38 +36,24 @@ Texture2D textures[];
 ConstantBuffer<f32x4x4> world_to_ndc;
 
 [[vk::binding(0, 3)]]
-StructuredBuffer<f32x4x4> quads;
-
-[[vk::binding(0, 4)]]
-StructuredBuffer<f32x4x4> transforms;
-
-#ifndef MATERIAL_TYPE
-
-typedef quad::FlatMaterial MaterialType;
-
-#else
-
-typedef MATERIAL_TYPE MaterialType;
-
-#endif
-
-[[vk::binding(0, 5)]]
-StructuredBuffer<MaterialType> materials;
+StructuredBuffer<ITEM_TYPE> quads;
 
 [[shader("vertex")]] VertexOutput vert(u32 instance : SV_InstanceID,
                                        u32 vertex : SV_VertexID)
 {
-  f32x4   rel_pos         = quads[instance][vertex];
-  f32x4x4 world_transform = transforms[instance];
-  f32x4   world_pos       = mul(world_transform, rel_pos);
-  f32x4   screen_pos      = mul(world_to_ndc, world_pos);
-  return VertexOutput(screen_pos, world_pos, rel_pos, instance);
+  var   quad       = quads[instance];
+  var   pos        = quad.corners[vertex];
+  f32x4 world_pos  = mul(quad.world_transform, pos);
+  f32x4 screen_pos = mul(world_to_ndc, world_pos);
+  f32x2 uv         = mul(quad.uv_transform, pos).xy;
+  f32x2 rel_pos    = REL_POS[vertex];
+  return VertexOutput(screen_pos, world_pos, rel_pos, uv, instance);
 }
 
 [[shader("fragment")]] f32x4 frag(VertexOutput in) : COLOR
 {
-  var material = materials[in.instance];
-  var frag =
-    quad::FragmentInfo(in.world_pos, in.screen_pos, in.rel_pos, in.instance);
+  var material = quads[in.instance].material;
+  var frag = quad::FragmentInfo(in.world_pos, in.screen_pos, in.rel_pos, in.uv,
+                                in.instance);
   return material.shade(frag, samplers, textures);
 }

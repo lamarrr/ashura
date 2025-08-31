@@ -1,14 +1,16 @@
 /// SPDX-License-Identifier: MIT
 
 #pragma once
-#include "materials/custom.inl.slang"
+#include "custom.inl.slang"
+#include "items.slang"
 #include "materials/sdf.slang"
 #include "modules/core.slang"
 #include "modules/sdf.slang"
 #include "modules/types.slang"
 
-typealias ShapeType = sdf::ShapeType;
-typealias ShadeType = sdf::ShadeType;
+#ifndef ITEM_TYPE
+#  define ITEM_TYPE FlatSdfItem
+#endif
 
 static const f32x2 VERTEX_BUFFER[] = {
   {-0.5, -0.5},
@@ -17,21 +19,13 @@ static const f32x2 VERTEX_BUFFER[] = {
   {-0.5, 0.5 }
 };
 
-struct Shape
-{
-  f32x4     radii;
-  f32x2     half_bbox_extent;
-  f32x2     half_extent;
-  f32       feather;
-  ShadeType shade_type;
-  ShapeType type;
-};
-
 struct VertexOutput
 {
-  [[vk::location(0)]] f32x4               screen_pos : SV_Position;
-  [[vk::location(1)]] f32x2               rel_pos    : REL_POS;
-  [[vk::location(2)]] nointerpolation u32 instance   : INSTANCE;
+  [[vk::location(0)]] f32x4               screen_pos   : SV_Position;
+  [[vk::location(1)]] f32x4               world_pos    : WORLD;
+  [[vk::location(2)]] f32x2               bbox_rel_pos : REL_POS;
+  [[vk::location(3)]] f32x2               uv           : UV;
+  [[vk::location(4)]] nointerpolation u32 instance     : INSTANCE;
 };
 
 [[vk::binding(0, 0)]]
@@ -44,60 +38,43 @@ Texture2D textures[];
 ConstantBuffer<f32x4x4> world_to_ndc;
 
 [[vk::binding(0, 3)]]
-StructuredBuffer<Shape> shapes;
-
-[[vk::binding(0, 4)]]
-StructuredBuffer<f32x4x4> transforms;
-
-#ifndef MATERIAL_TYPE
-
-typedef sdf::FlatMaterial MaterialType;
-
-#else
-
-typedef MATERIAL_TYPE MaterialType;
-
-#endif
-
-[[vk::binding(0, 5)]]
-StructuredBuffer<MaterialType> materials;
+StructuredBuffer<ITEM_TYPE> shapes;
 
 [[shader("vertex")]] VertexOutput vert(u32 instance : SV_InstanceID,
                                        u32 vertex : SV_VertexID)
 {
-  f32x2   rel_pos   = VERTEX_BUFFER[vertex];
-  f32x4x4 transform = transforms[instance];
-  f32x4   screen_pos =
-    mul(world_to_ndc, mul(transform, f32x4(rel_pos, 0.0, 1.0)));
-  return VertexOutput(screen_pos, rel_pos, instance);
+  f32x2 bbox_rel_pos = VERTEX_BUFFER[vertex];
+  var   s            = shapes[instance];
+  f32x4 world_pos    = mul(s.world_transform, f32x4(bbox_rel_pos, 0.0, 1.0));
+  f32x4 screen_pos   = mul(world_to_ndc, world_pos);
+  f32x2 uv           = mul(s.uv_transform, f32x4(bbox_rel_pos, 0.0, 1.0)).xy;
+  return VertexOutput(screen_pos, world_pos, bbox_rel_pos, uv, instance);
 }
 
-// [ ] border effects
 [[shader("fragment")]] f32x4 frag(VertexOutput in) : COLOR
 {
   var   shape    = shapes[in.instance];
-  f32x2 bbox_pos = in.rel_pos * 2 * shape.half_bbox_extent;
-  var   material = materials[in.instance];
+  var   material = shape.material;
+  f32x2 bbox_pos = in.bbox_rel_pos * 2 * shape.half_bbox_extent;
   var   frag =
-    sdf::FragmentInfo(in.screen_pos, in.screen_pos, f32x4(in.rel_pos, 0, 1),
-                      shape.half_bbox_extent, shape.half_extent, bbox_pos);
+    sdf::FragmentInfo(in.world_pos, in.screen_pos, in.uv, in.bbox_rel_pos);
 
   f32 edge_signed_dist = 0;
 
   switch (shape.type)
   {
-    case ShapeType::RRect:
+    case sdf::ShapeType::RRect:
     {
       edge_signed_dist = sdf::rrect(bbox_pos, shape.half_extent, shape.radii);
     }
     break;
-    case ShapeType::Squircle:
+    case sdf::ShapeType::Squircle:
     {
       edge_signed_dist = sdf::squircle(bbox_pos, shape.half_extent,
                                        shape.radii.x, shape.radii.y);
     }
     break;
-    case ShapeType::SDFMap:
+    case sdf::ShapeType::SDFMap:
     {
       edge_signed_dist = material.sdf(frag, samplers, textures);
     }
@@ -111,14 +88,14 @@ StructuredBuffer<MaterialType> materials;
 
   switch (shape.shade_type)
   {
-    case ShadeType::Flood:
+    case sdf::ShadeType::Flood:
     {
       f32 edge_mask = sdf::antialiased_mask(edge_signed_dist);
       return material.flood(frag, edge_signed_dist, edge_mask, samplers,
                             textures);
     }
     break;
-    case ShadeType::Softened:
+    case sdf::ShadeType::Softened:
     {
       f32 edge_mask = sdf::antialiased_mask(edge_signed_dist);
       f32 soften_signed_dist =
@@ -129,7 +106,7 @@ StructuredBuffer<MaterialType> materials;
                              textures);
     }
     break;
-    case ShadeType::Feathered:
+    case sdf::ShadeType::Feathered:
     {
       f32 edge_mask = sdf::antialiased_mask(edge_signed_dist);
       f32 feather_signed_dist =
@@ -140,7 +117,7 @@ StructuredBuffer<MaterialType> materials;
                               textures);
     }
     break;
-    case ShadeType::Stroked:
+    case sdf::ShadeType::Stroked:
     {
       // bounding box must be at least (size + feather)
       f32 edge_mask = sdf::antialiased_mask(edge_signed_dist);
