@@ -228,7 +228,7 @@ struct [[nodiscard]] Vec
 
   constexpr Result<> reserve(usize target_capacity)
   {
-    if (capacity_ >= target_capacity)
+    if (capacity_ >= target_capacity) [[likely]]
     {
       return Ok{};
     }
@@ -317,7 +317,7 @@ struct [[nodiscard]] Vec
 
   constexpr Result<> grow(usize target_capacity)
   {
-    if (capacity_ >= target_capacity)
+    if (capacity_ >= target_capacity) [[likely]]
     {
       return Ok{};
     }
