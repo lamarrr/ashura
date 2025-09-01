@@ -25,22 +25,22 @@ enum class [[nodiscard]] TextureIndex : u32
   Base = 0,
 
   /// @brief Nominal Texture Ids for the GPU system's texture set
-  Transparent        = 0,     // [0, 0, 0, 0]
-  RedTransparent     = 1,     // [1, 0, 0, 0]
-  GreenTransparent   = 2,     // [0, 1, 0, 0]
-  BlueTransparent    = 3,     // [0, 0, 1, 0]
-  YellowTransparent  = 4,     // [1, 1, 0, 0]
-  MagentaTransparent = 5,     // [1, 0, 1, 0]
-  CyanTransparent    = 6,     // [0, 1, 1, 0]
-  WhiteTransparent   = 7,     // [1, 1, 1, 0]
-  Black              = 8,     // [0, 0, 0, 1]
-  Red                = 9,     // [1, 0, 0, 1]
-  Green              = 10,    // [0, 1, 0, 1]
-  Blue               = 11,    // [0, 0, 1, 1]
-  Yellow             = 12,    // [1, 1, 0, 1]
-  Magenta            = 13,    // [1, 0, 1, 1]
-  Cyan               = 14,    // [0, 1, 1, 1]
-  White              = 15     // [1, 1, 1, 1]
+  White              = 0,     // [1, 1, 1, 1]
+  Transparent        = 1,     // [0, 0, 0, 0]
+  RedTransparent     = 2,     // [1, 0, 0, 0]
+  GreenTransparent   = 3,     // [0, 1, 0, 0]
+  BlueTransparent    = 4,     // [0, 0, 1, 0]
+  YellowTransparent  = 5,     // [1, 1, 0, 0]
+  MagentaTransparent = 6,     // [1, 0, 1, 0]
+  CyanTransparent    = 7,     // [0, 1, 1, 0]
+  WhiteTransparent   = 8,     // [1, 1, 1, 0]
+  Black              = 9,     // [0, 0, 0, 1]
+  Red                = 10,    // [1, 0, 0, 1]
+  Green              = 11,    // [0, 1, 0, 1]
+  Blue               = 12,    // [0, 0, 1, 1]
+  Yellow             = 13,    // [1, 1, 0, 1]
+  Magenta            = 14,    // [1, 0, 1, 1]
+  Cyan               = 15     // [0, 1, 1, 1]
 };
 
 inline constexpr u32 NUM_DEFAULT_TEXTURES = 16;
@@ -607,6 +607,7 @@ struct GpuFrameResources
 
 // [ ] handle the case where swapchain might be deferred or not have images
 // [ ] we should sync and update texture configurations when swapchain config changes
+// [ ] to recreate swapchain, how do we wait correctly on the swapchain image presentation before re-creating?
 
 enum class ScratchTexureType : u8
 {

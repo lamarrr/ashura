@@ -18,6 +18,16 @@ struct BlurItem
   TextureIndex tex;
 };
 
+struct SdfSubItem
+{
+  f32x4          radii;
+  f32x2          half_extent;
+  f32x2          bbox_center;
+  sdf::ShapeType shape_type;
+  f32            sdf_blend_factor;
+  sdf::BlendOp   sdf_blend_op;
+};
+
 struct SdfCompoundItem<MaterialType : sdf::Material>
 {
   f32x4x4        world_transform;
@@ -28,19 +38,10 @@ struct SdfCompoundItem<MaterialType : sdf::Material>
   u32            first;
   u32            count;
   MaterialType   material;
+  SdfSubItem     subitems[4];
 };
 
 typedef SdfCompoundItem<sdf::FlatMaterial> SdfCompoundFlatItem;
-
-struct SdfSubItem
-{
-  f32x4          radii;
-  f32x2          half_extent;
-  f32x2          bbox_center;
-  sdf::ShapeType shape_type;
-  f32            sdf_blend_factor;
-  sdf::BlendOp   sdf_blend_op;
-};
 
 struct PbrVertex
 {
@@ -90,13 +91,32 @@ typedef SdfItem<sdf::MeshGradientMaterial> MeshGradientSdfItem;
 
 struct TriangleSetItem<MaterialType : triangle_fill::Material>
 {
-  f32x4x4           world_transform;
-  f32x4x4           uv_transform;
-  TriangleShadeRate rate;
-  MaterialType      material;
+  f32x4x4      world_transform;
+  f32x4x4      uv_transform;
+  MaterialType material;
 };
 
 typedef TriangleSetItem<triangle_fill::TextureMaterial> FlatTriangleSetItem;
+
+struct TriangleVertex
+{
+  f32 x;
+  f32 y;
+  f32 r;
+  f32 g;
+  f32 b;
+  f32 a;
+
+  f32x2 pos()
+  {
+    return f32x2(x, y);
+  }
+
+  f32x4 color()
+  {
+    return f32x4(r, g, b, a);
+  }
+};
 
 struct PbrItem<MaterialType : pbr::Material>
 {

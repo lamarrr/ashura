@@ -79,13 +79,6 @@ enum class BezierRegions : u32
   All     = 7
 };
 
-enum class TriangleShadeRate : u32
-{
-  Instance  = 0,
-  Primitive = 1,
-  Vertex    = 2
-};
-
 namespace sdf
 {
 

@@ -68,9 +68,8 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
     layout.sampled_textures,       // 1: textures
     layout.read_storage_buffer,    // 2: world_to_ndc
     layout.read_storage_buffer,    // 3: sets
-    layout.read_storage_buffer,    // 4: colors
-    layout.read_storage_buffer,    // 5: vertices
-    layout.read_storage_buffer     // 6: indices
+    layout.read_storage_buffer,    // 4: vertices
+    layout.read_storage_buffer     // 5: indices
   };
 
   auto pipeline_info = gpu::GraphicsPipelineInfo{
@@ -189,14 +188,12 @@ void TriangleFillPipeline::encode(gpu::CommandEncoder                e,
       params.textures,                                   //
       params.world_to_ndc.buffer.read_storage_buffer,    //
       params.sets.buffer.read_storage_buffer,            //
-      params.colors.buffer.read_storage_buffer,          //
       params.vertices.buffer.read_storage_buffer,        //
       params.indices.buffer.read_storage_buffer          //
     }),
     span({
       params.world_to_ndc.slice.as_u32().offset,    //
       params.sets.slice.as_u32().offset,            //
-      params.colors.slice.as_u32().offset,          //
       params.vertices.slice.as_u32().offset,        //
       params.indices.slice.as_u32().offset          //
     }));

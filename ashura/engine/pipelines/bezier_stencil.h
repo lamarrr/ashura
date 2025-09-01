@@ -17,7 +17,7 @@ struct BezierStencilPipelineParams
   FillRule          fill_rule           = FillRule::EvenOdd;
   bool              invert              = false;
   GpuBufferSpan     world_to_ndc        = {};
-  GpuBufferSpan     transforms          = {};
+  GpuBufferSpan     world_transforms    = {};
   GpuBufferSpan     vertices            = {};
   GpuBufferSpan     indices             = {};
   GpuBufferSpan     regions             = {};

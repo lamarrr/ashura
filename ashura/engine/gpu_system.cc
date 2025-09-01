@@ -1340,7 +1340,13 @@ void create_default_textures(GpuSys sys)
   static constexpr Array<Tuple<Str, TextureIndex, gpu::ComponentMapping>,
                          NUM_DEFAULT_TEXTURES>
     mappings{
-      {{"Transparent Texture"_str,
+      {{"White Texture"_str,
+        TextureIndex::White,
+        {.r = gpu::ComponentSwizzle::One,
+         .g = gpu::ComponentSwizzle::One,
+         .b = gpu::ComponentSwizzle::One,
+         .a = gpu::ComponentSwizzle::One}},
+       {"Transparent Texture"_str,
         TextureIndex::Transparent,
         {.r = gpu::ComponentSwizzle::Zero,
          .g = gpu::ComponentSwizzle::Zero,
@@ -1429,12 +1435,6 @@ void create_default_textures(GpuSys sys)
         {.r = gpu::ComponentSwizzle::Zero,
          .g = gpu::ComponentSwizzle::One,
          .b = gpu::ComponentSwizzle::One,
-         .a = gpu::ComponentSwizzle::One}},
-       {"White Texture"_str,
-        TextureIndex::White,
-        {.r = gpu::ComponentSwizzle::One,
-         .g = gpu::ComponentSwizzle::One,
-         .b = gpu::ComponentSwizzle::One,
          .a = gpu::ComponentSwizzle::One}}}
   };
 
@@ -1469,8 +1469,6 @@ void IGpuSys::init(Allocator allocator, gpu::Device device,
 {
   u8                scratch_buffer_[1_KB];
   FallbackAllocator scratch{scratch_buffer_, allocator_};
-
-  // [ ] use timeline semaphore
 
   CHECK(preferences.buffering > 0, "");
   CHECK(preferences.buffering <= MAX_BUFFERING, "");
@@ -1509,7 +1507,7 @@ void IGpuSys::init(Allocator allocator, gpu::Device device,
 
   queue_scope_ = dev_
                    ->create_queue_scope(gpu::QueueScopeInfo{
-                     .label = "/ QueueScope"_str, .buffering = buffering_})
+                     .label = "/ QueueScope"_str, .buffering = buffering_ * 4})
                    .unwrap();
 
   sampler_cache_ = SamplerCache{allocator_};

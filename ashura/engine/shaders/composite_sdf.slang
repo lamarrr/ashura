@@ -40,9 +40,6 @@ ConstantBuffer<f32x4x4> world_to_ndc;
 [[vk::binding(0, 3)]]
 StructuredBuffer<ITEM_TYPE> composites;
 
-[[vk::binding(0, 4)]]
-StructuredBuffer<SdfSubItem> subitems;
-
 [[shader("vertex")]] VertexOutput vert(u32 instance : SV_InstanceID,
                                        u32 vertex : SV_VertexID)
 {
@@ -65,9 +62,9 @@ StructuredBuffer<SdfSubItem> subitems;
   var material         = c.material;
   f32 tex_sdf          = material.sdf(frag, samplers, textures);
 
-  for (u32 i = c.first; i < (c.first + c.count); i++)
+  for (u32 i = 0; i < 4; i++)
   {
-    var   subitem   = subitems[i];
+    var   subitem   = c.subitems[i];
     f32x2 shape_pos = bbox_pos - subitem.bbox_center;
     f32   curr      = 0;
 

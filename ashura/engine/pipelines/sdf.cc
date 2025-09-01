@@ -112,6 +112,10 @@ void SdfPipeline::acquire(GpuFramePlan plan)
   auto noise_id = add_variant(plan, "Noise"_str,
                               sys.shader->get("SDF.Noise"_str).unwrap().shader);
   CHECK(noise_id == NOISE, "");
+  auto mesh_gradient_id =
+    add_variant(plan, "MeshGradient"_str,
+                sys.shader->get("SDF.MeshGradient"_str).unwrap().shader);
+  CHECK(mesh_gradient_id == MESH_GRADIENT, "");
 }
 
 PipelineVariantId SdfPipeline::add_variant(GpuFramePlan plan, Str label,

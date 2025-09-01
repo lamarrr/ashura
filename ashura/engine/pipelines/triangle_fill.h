@@ -19,7 +19,6 @@ struct TriangleFillPipelineParams
   gpu::DescriptorSet      textures       = nullptr;
   GpuBufferSpan           world_to_ndc   = {};
   GpuBufferSpan           sets           = {};
-  GpuBufferSpan           colors         = {};
   GpuBufferSpan           vertices       = {};
   GpuBufferSpan           indices        = {};
   u32                     first_instance = 0;

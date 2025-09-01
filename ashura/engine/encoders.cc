@@ -101,13 +101,11 @@ void TriangleFillEncoder::operator()(GpuFramePlan plan)
 {
   auto index_counts = index_counts_.view();
   auto sets         = sets_.view();
-  auto colors       = colors_.view();
   auto vertices     = vertices_.view();
   auto indices      = indices_.view();
 
   auto i_world_to_ndc = plan->push_gpu(span({world_to_ndc_}));
   auto i_sets         = plan->push_gpu(sets);
-  auto i_colors       = plan->push_gpu(colors);
   auto i_vertices     = plan->push_gpu(vertices);
   auto i_indices      = plan->push_gpu(indices);
   auto i_index_counts = plan->push_cpu(index_counts);
@@ -116,12 +114,11 @@ void TriangleFillEncoder::operator()(GpuFramePlan plan)
     [color = this->color_, depth_stencil = this->depth_stencil_,
      stencil_op = stencil_op_, scissor = this->scissor_,
      viewport = this->viewport_, cull_mode = this->cull_mode_,
-     texture_set = this->texture_set_, i_world_to_ndc, i_sets, i_colors,
-     i_vertices, i_indices, i_index_counts,
+     texture_set = this->texture_set_, i_world_to_ndc, i_sets, i_vertices,
+     i_indices, i_index_counts,
      variant = this->variant_](GpuFrame frame, gpu::CommandEncoder enc) {
       auto world_to_ndc = frame->get(i_world_to_ndc);
       auto sets         = frame->get(i_sets);
-      auto colors       = frame->get(i_colors);
       auto vertices     = frame->get(i_vertices);
       auto indices      = frame->get(i_indices);
       auto index_counts = frame->get<u32>(i_index_counts);
@@ -145,7 +142,6 @@ void TriangleFillEncoder::operator()(GpuFramePlan plan)
                                    .textures       = frame->get(texture_set),
                                    .world_to_ndc   = world_to_ndc,
                                    .sets           = sets,
-                                   .colors         = colors,
                                    .vertices       = vertices,
                                    .indices        = indices,
                                    .first_instance = 0,
@@ -157,31 +153,31 @@ void TriangleFillEncoder::operator()(GpuFramePlan plan)
 
 void FillStencilEncoder::operator()(GpuFramePlan plan)
 {
-  auto transforms   = transforms_.view();
-  auto vertices     = vertices_.view();
-  auto indices      = indices_.view();
-  auto index_counts = index_counts_.view();
-  auto write_masks  = write_masks_.view();
+  auto world_transforms = world_transforms_.view();
+  auto vertices         = vertices_.view();
+  auto indices          = indices_.view();
+  auto index_counts     = index_counts_.view();
+  auto write_masks      = write_masks_.view();
 
-  auto i_world_to_ndc = plan->push_gpu(span({world_to_ndc_}));
-  auto i_transforms   = plan->push_gpu(transforms);
-  auto i_vertices     = plan->push_gpu(vertices);
-  auto i_indices      = plan->push_gpu(indices);
-  auto i_index_counts = plan->push_cpu(index_counts);
-  auto i_write_masks  = plan->push_cpu(write_masks);
+  auto i_world_to_ndc     = plan->push_gpu(span({world_to_ndc_}));
+  auto i_world_transforms = plan->push_gpu(world_transforms);
+  auto i_vertices         = plan->push_gpu(vertices);
+  auto i_indices          = plan->push_gpu(indices);
+  auto i_index_counts     = plan->push_cpu(index_counts);
+  auto i_write_masks      = plan->push_cpu(write_masks);
 
   plan->add_pass([depth_stencil = this->depth_stencil_,
                   scissor = this->scissor_, viewport = this->viewport_,
                   fill_rule = this->fill_rule_, invert = this->invert_,
-                  i_world_to_ndc, i_transforms, i_vertices, i_indices,
+                  i_world_to_ndc, i_world_transforms, i_vertices, i_indices,
                   i_index_counts,
                   i_write_masks](GpuFrame frame, gpu::CommandEncoder enc) {
-    auto world_to_ndc = frame->get(i_world_to_ndc);
-    auto transforms   = frame->get(i_transforms);
-    auto vertices     = frame->get(i_vertices);
-    auto indices      = frame->get(i_indices);
-    auto index_counts = frame->get<u32>(i_index_counts);
-    auto write_masks  = frame->get<u32>(i_write_masks);
+    auto world_to_ndc     = frame->get(i_world_to_ndc);
+    auto world_transforms = frame->get(i_world_transforms);
+    auto vertices         = frame->get(i_vertices);
+    auto indices          = frame->get(i_indices);
+    auto index_counts     = frame->get<u32>(i_index_counts);
+    auto write_masks      = frame->get<u32>(i_write_masks);
 
     auto dst = frame->get_scratch_images();
 
@@ -191,13 +187,13 @@ void FillStencilEncoder::operator()(GpuFramePlan plan)
                                 .viewport  = viewport,
                                 .fill_rule = fill_rule,
                                 .invert    = invert,
-                                .world_to_ndc   = world_to_ndc,
-                                .transforms     = transforms,
-                                .vertices       = vertices,
-                                .indices        = indices,
-                                .first_instance = 0,
-                                .index_counts   = index_counts,
-                                .write_masks    = write_masks};
+                                .world_to_ndc     = world_to_ndc,
+                                .world_transforms = world_transforms,
+                                .vertices         = vertices,
+                                .indices          = indices,
+                                .first_instance   = 0,
+                                .index_counts     = index_counts,
+                                .write_masks      = write_masks};
 
     sys.pipeline->fill_stencil().encode(enc, params);
   });
@@ -205,7 +201,7 @@ void FillStencilEncoder::operator()(GpuFramePlan plan)
 
 void BezierStencilEncoder::operator()(GpuFramePlan plan)
 {
-  auto transforms          = transforms_.view();
+  auto world_transforms    = world_transforms_.view();
   auto vertices            = vertices_.view();
   auto indices             = indices_.view();
   auto regions             = regions_.view();
@@ -213,7 +209,7 @@ void BezierStencilEncoder::operator()(GpuFramePlan plan)
   auto write_masks         = write_masks_.view();
 
   auto i_world_to_ndc        = plan->push_gpu(span({world_to_ndc_}));
-  auto i_transforms          = plan->push_gpu(transforms);
+  auto i_world_transforms    = plan->push_gpu(world_transforms);
   auto i_vertices            = plan->push_gpu(vertices);
   auto i_indices             = plan->push_gpu(indices);
   auto i_regions             = plan->push_gpu(regions);
@@ -223,11 +219,11 @@ void BezierStencilEncoder::operator()(GpuFramePlan plan)
   plan->add_pass([depth_stencil = this->depth_stencil_,
                   scissor = this->scissor_, viewport = this->viewport_,
                   fill_rule = this->fill_rule_, invert = this->invert_,
-                  i_world_to_ndc, i_transforms, i_vertices, i_indices,
+                  i_world_to_ndc, i_world_transforms, i_vertices, i_indices,
                   i_regions, i_region_index_counts,
                   i_write_masks](GpuFrame frame, gpu::CommandEncoder enc) {
     auto world_to_ndc        = frame->get(i_world_to_ndc);
-    auto transforms          = frame->get(i_transforms);
+    auto world_transforms    = frame->get(i_world_transforms);
     auto vertices            = frame->get(i_vertices);
     auto indices             = frame->get(i_indices);
     auto regions             = frame->get(i_regions);
@@ -243,7 +239,7 @@ void BezierStencilEncoder::operator()(GpuFramePlan plan)
                                   .fill_rule = fill_rule,
                                   .invert    = invert,
                                   .world_to_ndc        = world_to_ndc,
-                                  .transforms          = transforms,
+                                  .world_transforms    = world_transforms,
                                   .vertices            = vertices,
                                   .indices             = indices,
                                   .regions             = regions,

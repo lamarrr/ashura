@@ -57,7 +57,7 @@ void FillStencilPipeline::acquire(GpuFramePlan plan)
 
   gpu::DescriptorSetLayout set_layouts[] = {
     layout.read_storage_buffer,    // 0: world_to_ndc
-    layout.read_storage_buffer,    // 1: transforms
+    layout.read_storage_buffer,    // 1: world_transforms
     layout.read_storage_buffer,    // 2: vertices
     layout.read_storage_buffer,    // 3: indices
   };
@@ -112,15 +112,16 @@ void FillStencilPipeline::encode(gpu::CommandEncoder               e,
   e->bind_descriptor_sets(
     span({
       params.world_to_ndc.buffer.read_storage_buffer,    // 0: world_to_ndc
-      params.transforms.buffer.read_storage_buffer,      // 1: transforms
-      params.vertices.buffer.read_storage_buffer,        // 2: vertices
-      params.indices.buffer.read_storage_buffer,         // 3: indices
+      params.world_transforms.buffer
+        .read_storage_buffer,                        // 1: world_transforms
+      params.vertices.buffer.read_storage_buffer,    // 2: vertices
+      params.indices.buffer.read_storage_buffer,     // 3: indices
     }),
     span({
-      params.world_to_ndc.slice.as_u32().offset,    // 0: world_to_ndc
-      params.transforms.slice.as_u32().offset,      // 1: transforms
-      params.vertices.slice.as_u32().offset,        // 2: vertices
-      params.indices.slice.as_u32().offset,         // 3: indices
+      params.world_to_ndc.slice.as_u32().offset,        // 0: world_to_ndc
+      params.world_transforms.slice.as_u32().offset,    // 1: world_transforms
+      params.vertices.slice.as_u32().offset,            // 2: vertices
+      params.indices.slice.as_u32().offset,             // 3: indices
     }));
 
   u32 first_index = 0;

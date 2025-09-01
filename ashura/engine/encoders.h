@@ -39,8 +39,6 @@ struct ICanvasEncoder
   }
 
   constexpr virtual void operator()(GpuFramePlan plan) = 0;
-
-  constexpr virtual ~ICanvasEncoder() = default;
 };
 
 struct CustomCanvasEncoder : ICanvasEncoder
@@ -53,7 +51,7 @@ struct CustomCanvasEncoder : ICanvasEncoder
   {
   }
 
-  virtual ~CustomCanvasEncoder() override = default;
+  ~CustomCanvasEncoder() = default;
 };
 
 template <Callable<GpuFramePlan> Lambda>
@@ -71,7 +69,7 @@ struct PassCanvasEncoder final : CustomCanvasEncoder
     lambda_(plan);
   }
 
-  virtual ~PassCanvasEncoder() override = default;
+  ~PassCanvasEncoder() = default;
 
   Lambda lambda_;
 };
@@ -127,7 +125,7 @@ struct SdfEncoder final : ICanvasEncoder
   SdfEncoder(SdfEncoder &&)                  = default;
   SdfEncoder & operator=(SdfEncoder const &) = delete;
   SdfEncoder & operator=(SdfEncoder &&)      = default;
-  virtual ~SdfEncoder() override             = default;
+  ~SdfEncoder()                              = default;
 
   void push_(Span<u8 const> shape)
   {
@@ -206,7 +204,7 @@ struct QuadEncoder final : ICanvasEncoder
   QuadEncoder(QuadEncoder &&)                  = default;
   QuadEncoder & operator=(QuadEncoder const &) = delete;
   QuadEncoder & operator=(QuadEncoder &&)      = default;
-  virtual ~QuadEncoder() override              = default;
+  ~QuadEncoder()                               = default;
 
   void push_(Span<u8 const> quad)
   {
@@ -247,7 +245,6 @@ struct TriangleFillEncoder final : ICanvasEncoder
     TextureSet              texture_set;
     f32x4x4                 world_to_ndc;
     Span<u8 const>          set;
-    Span<u8 const>          colors;
     Span<u8 const>          vertices;
     Span<u8 const>          indices;
     PipelineVariantId       variant;
@@ -273,8 +270,6 @@ struct TriangleFillEncoder final : ICanvasEncoder
 
   Vec<u8> sets_;
 
-  Vec<u8> colors_;
-
   Vec<u8> vertices_;
 
   Vec<u8> indices_;
@@ -292,26 +287,24 @@ struct TriangleFillEncoder final : ICanvasEncoder
     world_to_ndc_{item.world_to_ndc},
     index_counts_{allocator},
     sets_{allocator},
-    colors_{allocator},
     vertices_{allocator},
     indices_{allocator},
     variant_{item.variant}
   {
-    push_(item.set, item.colors, item.vertices, item.indices);
+    push_(item.set, item.vertices, item.indices);
   }
 
   TriangleFillEncoder(TriangleFillEncoder const &)             = delete;
   TriangleFillEncoder(TriangleFillEncoder &&)                  = default;
   TriangleFillEncoder & operator=(TriangleFillEncoder const &) = delete;
   TriangleFillEncoder & operator=(TriangleFillEncoder &&)      = default;
-  virtual ~TriangleFillEncoder() override                      = default;
+  ~TriangleFillEncoder()                                       = default;
 
-  void push_(Span<u8 const> set, Span<u8 const> colors, Span<u8 const> vertices,
+  void push_(Span<u8 const> set, Span<u8 const> vertices,
              Span<u8 const> indices)
   {
     index_counts_.push(size32(indices)).unwrap();
     sets_.extend(set).unwrap();
-    colors_.extend(colors).unwrap();
     vertices_.extend(vertices).unwrap();
     indices_.extend(indices).unwrap();
   }
@@ -330,7 +323,7 @@ struct TriangleFillEncoder final : ICanvasEncoder
       return false;
     }
 
-    push_(item.set, item.colors, item.vertices, item.indices);
+    push_(item.set, item.vertices, item.indices);
 
     return true;
   }
@@ -349,7 +342,7 @@ struct FillStencilEncoder final : ICanvasEncoder
     FillRule       fill_rule;
     bool           invert;
     f32x4x4        world_to_ndc;
-    f32x4x4        transform;
+    f32x4x4        world_transform;
     Span<u8 const> vertices;
     Span<u8 const> indices;
   };
@@ -366,7 +359,7 @@ struct FillStencilEncoder final : ICanvasEncoder
 
   f32x4x4 world_to_ndc_;
 
-  Vec<u8> transforms_;
+  Vec<u8> world_transforms_;
 
   Vec<u8> vertices_;
 
@@ -384,25 +377,25 @@ struct FillStencilEncoder final : ICanvasEncoder
     fill_rule_{item.fill_rule},
     invert_{item.invert},
     world_to_ndc_{item.world_to_ndc},
-    transforms_{allocator},
+    world_transforms_{allocator},
     vertices_{allocator},
     indices_{allocator},
     index_counts_{allocator},
     write_masks_{allocator}
   {
-    push_(item.transform, item.vertices, item.indices, item.write_mask);
+    push_(item.world_transform, item.vertices, item.indices, item.write_mask);
   }
 
   FillStencilEncoder(FillStencilEncoder const &)             = delete;
   FillStencilEncoder(FillStencilEncoder &&)                  = default;
   FillStencilEncoder & operator=(FillStencilEncoder const &) = delete;
   FillStencilEncoder & operator=(FillStencilEncoder &&)      = default;
-  virtual ~FillStencilEncoder() override                     = default;
+  ~FillStencilEncoder()                                      = default;
 
-  void push_(f32x4x4 const & transform, Span<u8 const> vertices,
+  void push_(f32x4x4 const & world_transform, Span<u8 const> vertices,
              Span<u8 const> indices, u32 write_mask)
   {
-    transforms_.extend(as_u8_span(transform)).unwrap();
+    world_transforms_.extend(as_u8_span(world_transform)).unwrap();
     vertices_.extend(vertices).unwrap();
     indices_.extend(indices).unwrap();
     index_counts_.push(size32(indices)).unwrap();
@@ -422,7 +415,7 @@ struct FillStencilEncoder final : ICanvasEncoder
       return false;
     }
 
-    push_(item.transform, item.vertices, item.indices, item.write_mask);
+    push_(item.world_transform, item.vertices, item.indices, item.write_mask);
 
     return true;
   }
@@ -441,7 +434,7 @@ struct BezierStencilEncoder final : ICanvasEncoder
     FillRule        fill_rule;
     bool            invert;
     f32x4x4         world_to_ndc;
-    f32x4x4         transform;
+    f32x4x4         world_transform;
     Span<u8 const>  vertices;
     Span<u8 const>  indices;
     Span<u8 const>  regions;
@@ -460,7 +453,7 @@ struct BezierStencilEncoder final : ICanvasEncoder
 
   f32x4x4 world_to_ndc_;
 
-  Vec<u8> transforms_;
+  Vec<u8> world_transforms_;
 
   Vec<u8> vertices_;
 
@@ -480,14 +473,14 @@ struct BezierStencilEncoder final : ICanvasEncoder
     fill_rule_{item.fill_rule},
     invert_{item.invert},
     world_to_ndc_{item.world_to_ndc},
-    transforms_{allocator},
+    world_transforms_{allocator},
     vertices_{allocator},
     indices_{allocator},
     regions_{allocator},
     region_index_counts_{allocator},
     write_masks_{allocator}
   {
-    push_(item.transform, item.vertices, item.indices, item.regions,
+    push_(item.world_transform, item.vertices, item.indices, item.regions,
           item.region_index_counts, item.write_mask);
   }
 
@@ -495,13 +488,13 @@ struct BezierStencilEncoder final : ICanvasEncoder
   BezierStencilEncoder(BezierStencilEncoder &&)                  = default;
   BezierStencilEncoder & operator=(BezierStencilEncoder const &) = delete;
   BezierStencilEncoder & operator=(BezierStencilEncoder &&)      = default;
-  virtual ~BezierStencilEncoder() override                       = default;
+  ~BezierStencilEncoder()                                        = default;
 
-  void push_(f32x4x4 const & transform, Span<u8 const> vertices,
+  void push_(f32x4x4 const & world_transform, Span<u8 const> vertices,
              Span<u8 const> indices, Span<u8 const> regions,
              Span<u32 const> region_index_counts, u32 write_mask)
   {
-    transforms_.extend(as_u8_span(transform)).unwrap();
+    world_transforms_.extend(as_u8_span(world_transform)).unwrap();
     vertices_.extend(vertices).unwrap();
     indices_.extend(indices).unwrap();
     regions_.extend(regions).unwrap();
@@ -522,7 +515,7 @@ struct BezierStencilEncoder final : ICanvasEncoder
       return false;
     }
 
-    push_(item.transform, item.vertices, item.indices, item.regions,
+    push_(item.world_transform, item.vertices, item.indices, item.regions,
           item.region_index_counts, item.write_mask);
 
     return true;
@@ -604,7 +597,7 @@ struct PbrEncoder final : ICanvasEncoder
   PbrEncoder(PbrEncoder &&)                  = default;
   PbrEncoder & operator=(PbrEncoder const &) = delete;
   PbrEncoder & operator=(PbrEncoder &&)      = default;
-  virtual ~PbrEncoder() override             = default;
+  ~PbrEncoder()                              = default;
 
   virtual void operator()(GpuFramePlan plan) override;
 };

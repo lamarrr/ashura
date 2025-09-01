@@ -721,10 +721,10 @@ struct View
   {
   }
 
-  constexpr View(View const &)             = default;
-  constexpr View(View &&)                  = default;
-  constexpr View & operator=(View const &) = default;
-  constexpr View & operator=(View &&)      = default;
+  constexpr View(View const &)             = delete;
+  constexpr View(View &&)                  = delete;
+  constexpr View & operator=(View const &) = delete;
+  constexpr View & operator=(View &&)      = delete;
   constexpr virtual ~View()                = default;
 
   /// @returns the ID currently allocated to the view or none

@@ -22,12 +22,9 @@ ConstantBuffer<f32x4x4> world_to_ndc;
 StructuredBuffer<ITEM_TYPE> sets;
 
 [[vk::binding(0, 4)]]
-StructuredBuffer<f32x4> colors;
+StructuredBuffer<TriangleVertex> vertices;
 
 [[vk::binding(0, 5)]]
-StructuredBuffer<f32x2> vertices;
-
-[[vk::binding(0, 6)]]
 StructuredBuffer<u32> indices;
 
 struct VertexOutput
@@ -43,29 +40,12 @@ struct VertexOutput
 VertexOutput vert(u32 instance : SV_InstanceID, u32 vertex : SV_VertexID)
 {
   u32   idx        = indices[vertex];
-  f32x2 pos        = vertices[idx];
+  var   vtx        = vertices[idx];
   var   set        = sets[instance];
-  f32x4 world_pos  = mul(set.world_transform, f32x4(pos, 0.0, 1.0));
+  f32x4 world_pos  = mul(set.world_transform, f32x4(vtx.pos(), 0.0, 1.0));
   f32x4 screen_pos = mul(world_to_ndc, world_pos);
-  f32x2 uv         = mul(set.uv_transform, f32x4(pos, 0, 1)).xy;
-
-  u32 shade_idx = instance;
-
-  switch (set.rate)
-  {
-    case TriangleShadeRate::Instance:
-      shade_idx = instance;
-      break;
-    case TriangleShadeRate::Primitive:
-      shade_idx = vertex % 3;
-      break;
-    case TriangleShadeRate::Vertex:
-      shade_idx = vertex;
-      break;
-  }
-
-  f32x4 color = colors[shade_idx];
-  return VertexOutput(screen_pos, world_pos, color, uv, instance);
+  f32x2 uv         = mul(set.uv_transform, f32x4(vtx.pos(), 0, 1)).xy;
+  return VertexOutput(screen_pos, world_pos, vtx.color(), uv, instance);
 }
 
 [[shader("fragment")]]

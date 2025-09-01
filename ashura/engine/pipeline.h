@@ -42,9 +42,10 @@ enum class FillRule : u32
   NonZero = 1
 };
 
-using BlendMode         = shader::BlendMode;
-using BezierRegions     = shader::BezierRegions;
-using TriangleShadeRate = shader::TriangleShadeRate;
-using ShadeType         = shader::sdf::ShadeType;
+using BlendMode     = shader::BlendMode;
+using BezierRegions = shader::BezierRegions;
+using SdfShapeType  = shader::sdf::ShapeType;
+using SdfBlendOp    = shader::sdf::BlendOp;
+using ShadeType     = shader::sdf::ShadeType;
 
 }    // namespace ash

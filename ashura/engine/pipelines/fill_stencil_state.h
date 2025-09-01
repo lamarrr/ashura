@@ -1,5 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
+#include "ashura/engine/pipeline.h"
 #include "ashura/engine/shaders.gen.h"
 #include "ashura/gpu/gpu.h"
 #include "ashura/std/types.h"

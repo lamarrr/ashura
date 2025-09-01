@@ -55,13 +55,6 @@ enum class BezierRegions : u32
   All     = 7
 };
 
-enum class TriangleShadeRate : u32
-{
-  Instance  = 0,
-  Primitive = 1,
-  Vertex    = 2
-};
-
 namespace sdf
 {
 
@@ -220,6 +213,16 @@ struct BlurItem
   alignas(4) TextureIndex tex;
 };
 
+struct SdfSubItem
+{
+  alignas(16) f32x4 radii;
+  alignas(8) f32x2 half_extent;
+  alignas(8) f32x2 bbox_center;
+  alignas(4) sdf::ShapeType shape_type;
+  alignas(4) f32 sdf_blend_factor;
+  alignas(4) sdf::BlendOp sdf_blend_op;
+};
+
 template <typename MaterialType>
 struct SdfCompoundItem
 {
@@ -231,19 +234,10 @@ struct SdfCompoundItem
   alignas(4) u32 first;
   alignas(4) u32 count;
   MaterialType material;
+  SdfSubItem   subitems[4];
 };
 
 typedef SdfCompoundItem<sdf::FlatMaterial> SdfCompoundFlatItem;
-
-struct SdfSubItem
-{
-  alignas(16) f32x4 radii;
-  alignas(8) f32x2 half_extent;
-  alignas(8) f32x2 bbox_center;
-  alignas(4) sdf::ShapeType shape_type;
-  alignas(4) f32 sdf_blend_factor;
-  alignas(4) sdf::BlendOp sdf_blend_op;
-};
 
 struct PbrVertex
 {
@@ -288,11 +282,20 @@ struct TriangleSetItem
 {
   alignas(16) f32x4x4 world_transform;
   alignas(16) f32x4x4 uv_transform;
-  alignas(4) TriangleShadeRate rate;
   MaterialType material;
 };
 
 typedef TriangleSetItem<triangle_fill::TextureMaterial> FlatTriangleSetItem;
+
+struct TriangleVertex
+{
+  alignas(4) f32 x;
+  alignas(4) f32 y;
+  alignas(4) f32 r;
+  alignas(4) f32 g;
+  alignas(4) f32 b;
+  alignas(4) f32 a;
+};
 
 template <typename MaterialType>
 struct PbrItem
