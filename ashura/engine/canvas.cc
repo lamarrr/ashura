@@ -39,6 +39,65 @@ static constexpr u32 num_quadratic_beziers(ContourEdgeType edge)
   }
 }
 
+// Don't allow linearized segments to be off by more than 1/4th of a pixel from
+// the true curve. This value should be scaled by the max basis of the
+// X and Y directions.
+f32 path::cubic_subdivisions(f32 scale_factor, f32x2 p0, f32x2 p1, f32x2 p2,
+                             f32x2 p3, f32 precision)
+{
+  auto k = scale_factor * .75F * precision;
+  auto a = (p0 - p1 * 2 + p2).abs();
+  auto b = (p1 - p2 * 2 + p3).abs();
+  return sqrt(k * a.max(b).length());
+}
+
+f32 path::quadratic_subdivisions(f32 scale_factor, f32x2 p0, f32x2 p1, f32x2 p2,
+                                 f32 precision)
+{
+  f32 k = scale_factor * .25F * precision;
+  return sqrt(k * (p0 - p1 * 2 + p2).length());
+}
+
+// Returns Wang's formula specialized for a conic curve.
+//
+// This is not actually due to Wang, but is an analogue from:
+//   (Theorem 3, corollary 1):
+//   J. Zheng, T. Sederberg. "Estimating Tessellation Parameter Intervals for
+//   Rational Curves and Surfaces." ACM Transactions on Graphics 19(1). 2000.
+f32 path::conic_subdivisions(f32 scale_factor, f32x2 p0, f32x2 p1, f32x2 p2,
+                             f32 w, f32 precision)
+{
+  // Compute center of bounding box in projected space
+  auto C = 0.5F * p0.min(p1).min(p2) + p0.max(p1).max(p2);
+
+  // Translate by -C. This improves translation-invariance of the formula,
+  // see Sec. 3.3 of cited paper
+  p0 -= C;
+  p1 -= C;
+  p2 -= C;
+
+  // Compute max length
+  auto max_len = sqrt(max(p0.dot(p0), max(p1.dot(p1), p2.dot(p2))));
+
+  // Compute forward differences
+  auto dp = -2 * w * p1 + p0 + p2;
+  auto dw = abs(-2 * w + 2);
+
+  // Compute numerator and denominator for parametric step size of
+  // linearization. Here, the epsilon referenced from the cited paper
+  // is 1/precision.
+  auto k          = scale_factor * precision;
+  auto rp_minus_1 = max(0.0F, max_len * k - 1);
+  auto numer      = sqrt(dp.dot(dp)) * k + rp_minus_1 * dw;
+  auto denom      = 4 * min(w, 1.0F);
+
+  // Number of segments = sqrt(numer / denom).
+  // This assumes parametric interval of curve being linearized is
+  //   [t0,t1] = [0, 1].
+  // If not, the number of segments is (tmax - tmin) / sqrt(denom / numer).
+  return sqrt(numer / denom);
+}
+
 void path::rect(Vec<f32x2> & vtx, f32x2 extent, f32x2 center)
 {
   extent               = extent.max(0);
@@ -534,10 +593,7 @@ RectU ICanvas::clip_to_scissor(CRect const & clip) const
 TextRenderer ICanvas::default_text_renderer()
 {
   return TextRenderer{
-    this,
-    [](Canvas p, Span<TextLayer const> layers, Span<ShapeInfo const> shapes,
-       Span<TextRenderInfo const> infos,
-       Span<usize const> sorted) { p->text(layers, shapes, infos, sorted); }};
+    this, [](Canvas c, TextBlockRenderInfo const & text) { c->text(text); }};
 }
 
 void ICanvas::begin(gpu::Viewport const & viewport, f32x2 extent,
@@ -707,396 +763,225 @@ void ICanvas::set_stencil_op(Option<PipelineStencil> stencil_op)
   stencil_op_ = stencil_op;
 }
 
+void ICanvas::set_clip(CRect const & area)
+{
+  clip_ = area;
+}
+
 constexpr f32x4x4 object_to_world(f32x4x4 const & transform, CRect const & area)
 {
   return transform * translate3d(area.center.append(0)) *
          scale3d(area.extent.append(1));
 }
 
+#define ENCODER_NEW(EncType)                                             \
+  auto enc =                                                             \
+    dyn<EncType##Encoder>(inplace, encoder_arena_, encoder_arena_, item) \
+      .unwrap();                                                         \
+  encoders_.push(cast<CanvasEncoder>(std::move(enc))).unwrap();
+
+#define ENCODER_PUSH(EncType)                                       \
+  if (encoders_.is_empty() ||                                       \
+      encoders_.last()->type() != CanvasEncoderType::EncType ||     \
+      !((EncType##Encoder *) (encoders_.last().get()))->push(item)) \
+  {                                                                 \
+    ENCODER_NEW(EncType)                                            \
+  }
+
 void ICanvas::encode_(SdfEncoder::Item const & item)
 {
-  if (encoders_.is_empty() ||
-      encoders_.last()->type() != CanvasEncoderType::Sdf ||
-      !encoders_.last()->push(&item))
-  {
-    auto enc =
-      dyn<SdfEncoder>(inplace, encoder_arena_, encoder_arena_, item).unwrap();
-    encoders_.push(cast<CanvasEncoder>(std::move(enc))).unwrap();
-  }
+  ENCODER_PUSH(Sdf);
 }
 
 void ICanvas::encode_(TriangleFillEncoder::Item const & item)
 {
-  if (encoders_.is_empty() ||
-      encoders_.last()->type() != CanvasEncoderType::TriangleFill ||
-      !encoders_.last()->push(&item))
-  {
-    auto enc =
-      dyn<TriangleFillEncoder>(inplace, encoder_arena_, encoder_arena_, item)
-        .unwrap();
-    encoders_.push(cast<CanvasEncoder>(std::move(enc))).unwrap();
-  }
+  ENCODER_PUSH(TriangleFill);
 }
 
 void ICanvas::encode_(QuadEncoder::Item const & item)
 {
-  if (encoders_.is_empty() ||
-      encoders_.last()->type() != CanvasEncoderType::Quad ||
-      !encoders_.last()->push(&item))
-  {
-    auto enc =
-      dyn<QuadEncoder>(inplace, encoder_arena_, encoder_arena_, item).unwrap();
-    encoders_.push(cast<CanvasEncoder>(std::move(enc))).unwrap();
-  }
+  ENCODER_PUSH(Quad);
 }
 
 void ICanvas::encode_(FillStencilEncoder::Item const & item)
 {
-  if (encoders_.is_empty() ||
-      encoders_.last()->type() != CanvasEncoderType::FillStencil ||
-      !encoders_.last()->push(&item))
-  {
-    auto enc =
-      dyn<FillStencilEncoder>(inplace, encoder_arena_, encoder_arena_, item)
-        .unwrap();
-    encoders_.push(cast<CanvasEncoder>(std::move(enc))).unwrap();
-  }
+  ENCODER_PUSH(FillStencil);
 }
 
 void ICanvas::encode_(BezierStencilEncoder::Item const & item)
 {
-  if (encoders_.is_empty() ||
-      encoders_.last()->type() != CanvasEncoderType::BezierStencil ||
-      !encoders_.last()->push(&item))
-  {
-    auto enc =
-      dyn<BezierStencilEncoder>(inplace, encoder_arena_, encoder_arena_, item)
-        .unwrap();
-    encoders_.push(cast<CanvasEncoder>(std::move(enc))).unwrap();
-  }
+  ENCODER_PUSH(BezierStencil);
 }
 
 void ICanvas::encode_(PbrEncoder::Item const & item)
 {
-  if (encoders_.is_empty() ||
-      encoders_.last()->type() != CanvasEncoderType::Pbr ||
-      !encoders_.last()->push(&item))
-  {
-    auto enc =
-      dyn<PbrEncoder>(inplace, encoder_arena_, encoder_arena_, item).unwrap();
-    encoders_.push(cast<CanvasEncoder>(std::move(enc))).unwrap();
-  }
+  ENCODER_NEW(Pbr);
 }
 
-void ICanvas::sdf_(ShapeInfo const & info, shader::sdf::ShapeType shape,
-                   TextureSet texture_set)
+void ICanvas::render_(TextureSet const & texture_set, Shape const & shape,
+                      SdfShapeType type)
 {
-  auto shader_shape =
-    shader::sdf::Shape{.radii            = info.radii,
-                       .half_bbox_extent = 0.5F * info.bbox_extent,
-                       .half_extent      = 0.5F * info.area.extent,
-                       .feather          = info.feather,
-                       .shade_type       = info.shade_type,
-                       .type             = shape};
-
-  auto shader_material = shader::sdf::FlatMaterial{
-    .tint    = shader::quad::FlatMaterial{.top             = info.tint.top(),
-                                          .bottom          = info.tint.bottom(),
-                                          .gradient_rotor  = info.tint.rotor(),
-                                          .uv0             = info.uv[0],
-                                          .uv1             = info.uv[1],
-                                          .gradient_center = info.tint.center(),
-                                          .sampler         = info.sampler,
-                                          .texture         = info.texture},
-    .sampler = SamplerIndex::LinearEdgeClampWhiteFloat,
-    .map     = TextureIndex::White
+  shader::FlatSdfItem item{
+    .world_transform  = object_to_world(shape.world_transform, shape.bbox()),
+    .uv_transform     = shape.uv_transform,
+    .radii            = shape.radii,
+    .half_bbox_extent = 0.5F * shape.bbox_extent,
+    .half_extent      = 0.5F * shape.area.extent,
+    .feather          = shape.feather,
+    .shade_type       = shape.shade,
+    .type             = type,
+    .material =
+      shader::sdf::FlatMaterial{.top             = shape.tint.top(),
+                                .bottom          = shape.tint.bottom(),
+                                .gradient_rotor  = shape.tint.rotor(),
+                                .gradient_center = shape.tint.center(),
+                                .sampler         = shape.sampler,
+                                .texture         = shape.map,
+                                .sdf_sampler     = shape.sdf_sampler,
+                                .sdf_map         = shape.sdf_map}
   };
 
-  return encode_(
-    SdfEncoder::Item{.color         = color_,
-                     .depth_stencil = depth_stencil_,
-                     .stencil_op    = stencil_op_,
-                     .scissor       = clip_to_scissor(info.clip),
-                     .viewport      = viewport_,
-                     .texture_set   = texture_set,
-                     .world_to_ndc  = world_to_ndc_.to_mat(),
-                     .shape         = as_u8_span(shader_shape),
-                     .transform = object_to_world(info.transform, info.bbox()),
-                     .material  = as_u8_span(shader_material),
-                     .variant   = SdfPipeline::FLAT});
+  return encode_(SdfEncoder::Item{.color         = color_,
+                                  .depth_stencil = depth_stencil_,
+                                  .stencil_op    = stencil_op_,
+                                  .scissor       = clip_to_scissor(clip_),
+                                  .viewport      = viewport_,
+                                  .texture_set   = texture_set,
+                                  .world_to_ndc  = world_to_ndc_.to_mat(),
+                                  .shape         = as_u8_span(item),
+                                  .variant       = SdfPipeline::FLAT});
 }
 
-void ICanvas::sdf_noise_(ShapeInfo const & info, shader::sdf::ShapeType shape,
-                         TextureSet texture_set)
+void ICanvas::render_noise_(TextureSet const & texture_set, Shape const & shape,
+                            SdfShapeType type)
 {
-  auto shader_shape =
-    shader::sdf::Shape{.radii            = info.radii,
-                       .half_bbox_extent = 0.5F * info.bbox_extent,
-                       .half_extent      = 0.5F * info.area.extent,
-                       .feather          = info.feather,
-                       .shade_type       = info.shade_type,
-                       .type             = shape};
+  shader::NoiseSdfItem item{
+    .world_transform  = object_to_world(shape.world_transform, shape.bbox()),
+    .uv_transform     = shape.uv_transform,
+    .radii            = shape.radii,
+    .half_bbox_extent = 0.5F * shape.bbox_extent,
+    .half_extent      = 0.5F * shape.area.extent,
+    .feather          = shape.feather,
+    .shade_type       = shape.shade,
+    .type             = type,
+    .material         = shader::sdf::NoiseMaterial{.intensity   = shape.tint.top_,
+                                                   .sdf_sampler = shape.sdf_sampler,
+                                                   .sdf_map     = shape.sdf_map}
+  };
 
-  auto shader_material = shader::sdf::NoiseMaterial{
-    .noise =
-      shader::quad::NoiseMaterial{
-        .intensity = 0.5F * (info.tint.top() + info.tint.bottom())},
-    .sampler = SamplerIndex::LinearEdgeClampWhiteFloat,
-    .map     = TextureIndex::White};
-
-  return encode_(
-    SdfEncoder::Item{.color         = color_,
-                     .depth_stencil = depth_stencil_,
-                     .stencil_op    = stencil_op_,
-                     .scissor       = clip_to_scissor(info.clip),
-                     .viewport      = viewport_,
-                     .texture_set   = texture_set,
-                     .world_to_ndc  = world_to_ndc_.to_mat(),
-                     .shape         = as_u8_span(shader_shape),
-                     .transform = object_to_world(info.transform, info.bbox()),
-                     .material  = as_u8_span(shader_material),
-                     .variant   = SdfPipeline::NOISE});
+  return encode_(SdfEncoder::Item{.color         = color_,
+                                  .depth_stencil = depth_stencil_,
+                                  .stencil_op    = stencil_op_,
+                                  .scissor       = clip_to_scissor(clip_),
+                                  .viewport      = viewport_,
+                                  .texture_set   = texture_set,
+                                  .world_to_ndc  = world_to_ndc_.to_mat(),
+                                  .shape         = as_u8_span(item),
+                                  .variant       = SdfPipeline::NOISE});
 }
 
-void ICanvas::triangle_fill_(ShapeInfo const & info, Span<f32x2 const> vertices,
-                             Span<u32 const> indices, TextureSet texture_set)
+void ICanvas::render_(TextureSet const &       texture_set,
+                      MeshGradientInfo const & shape)
 {
-  auto shader_material =
-    shader::triangle_fill::FlatMaterial{.top             = info.tint.top(),
-                                        .bottom          = info.tint.bottom(),
-                                        .gradient_rotor  = info.tint.rotor(),
-                                        .uv0             = info.uv[0],
-                                        .uv1             = info.uv[1],
-                                        .gradient_center = info.tint.center(),
-                                        .sampler         = info.sampler,
-                                        .texture         = info.texture};
+  shader::MeshGradientSdfItem item{
+    .world_transform  = object_to_world(shape.world_transform, shape.bbox()),
+    .uv_transform     = shape.uv_transform,
+    .radii            = shape.radii,
+    .half_bbox_extent = 0.5F * shape.bbox_extent,
+    .half_extent      = 0.5F * shape.area.extent,
+    .feather          = shape.feather,
+    .shade_type       = shape.shade,
+    .type             = shape.shape,
+    .material         = shader::sdf::MeshGradientMaterial{
+                                                          .colors       = {shape.colors.tl, shape.colors.tr, shape.colors.br,
+                               shape.colors.bl},
+                                                          .min          = shape.min,
+                                                          .max          = shape.max,
+                                                          .aspect_ratio = shape.bbox_extent.x() / shape.bbox_extent.y(),
+                                                          .frequency    = shape.frequency,
+                                                          .amplitude    = shape.amplitude,
+                                                          .time         = shape.time,
+                                                          .sdf_sampler  = shape.sdf_sampler,
+                                                          .sdf_map      = shape.sdf_map}
+  };
 
-  return encode_(TriangleFillEncoder::Item{
-    .color         = color_,
-    .depth_stencil = depth_stencil_,
-    .stencil_op    = stencil_op_,
-    .scissor       = clip_to_scissor(info.clip),
-    .viewport      = viewport_,
-    .texture_set   = texture_set,
-    .world_to_ndc  = world_to_ndc_.to_mat(),
-    .transform     = object_to_world(info.transform, info.bbox()),
-    .vertices      = vertices,
-    .indices       = indices,
-    .material      = as_u8_span(shader_material),
-    .variant       = PipelineVariantId::Base});
+  return encode_(SdfEncoder::Item{.color         = color_,
+                                  .depth_stencil = depth_stencil_,
+                                  .stencil_op    = stencil_op_,
+                                  .scissor       = clip_to_scissor(clip_),
+                                  .viewport      = viewport_,
+                                  .texture_set   = texture_set,
+                                  .world_to_ndc  = world_to_ndc_.to_mat(),
+                                  .shape         = as_u8_span(item),
+                                  .variant       = SdfPipeline::MESH_GRADIENT});
 }
 
-void ICanvas::contour_stencil_(u32 depth_stencil, u32 write_mask,
-                               ContourRaster               raster,
-                               Span<f32x2 const>           control_points,
-                               Span<ContourEdgeType const> contour_types,
-                               Span<u16 const> segments, bool invert,
-                               FillRule fill_rule, f32x4x4 const & transform,
-                               CRect const & clip)
+void ICanvas::render_(TextureSet const &      texture_set,
+                      TriangleSetInfo const & shape, bool indexed)
 {
-  if (contour_types.is_empty() || control_points.is_empty())
+  if (shape.vertices.is_empty() || (!indexed && shape.vertices.size() < 3) ||
+      (indexed && shape.indices.size() < 3))
   {
     return;
   }
 
-  if (raster == ContourRaster::StencilThenCover)
+  CHECK(!(indexed && shape.indices.is_empty()), "");
+
+  Span<u32 const> indices;
+
+  Vec<u32> indices_tmp{tmp_arena_};
+
+  if (indexed)
   {
-    // tesselate the bezier curves into line segments and fill the resulting polygon using stencil-then-cover
-
-    auto const num_vertices = reduce(segments, 0U, add);
-
-    Vec<f32x2> vertices{tmp_arena_};
-    vertices.extend_uninit(num_vertices).unwrap();
-
-    u32 first_cp = 0;
-
-    CHECK(segments.size() == contour_types.size(), "");
-
-    for (auto [type, num_subdivisions] : zip(contour_types, segments))
-    {
-      switch (type)
-      {
-        case ContourEdgeType::Arc:
-        {
-          auto cp0    = control_points[first_cp];
-          auto center = control_points[first_cp + 1];
-          auto cp2    = control_points[first_cp + 2];
-
-          auto v0    = cp0 - center;
-          auto v1    = cp2 - center;
-          auto radii = v0.length();
-
-          auto start = std::atan2(v0.y(), v0.x());
-          auto end   = std::atan2(v1.y(), v1.x());
-
-          auto turn = end - start;
-
-          // turn angle (CCW)
-          if (turn < 0)
-          {
-            turn += 2.0F * PI;    // normalize to [0, 2PI]
-          }
-
-          path::arc(vertices.view().slice(first_cp, num_subdivisions),
-                    f32x2::splat(radii), center, start, turn);
-
-          first_cp += 2;
-        }
-        break;
-        case ContourEdgeType::QuadraticBezier:
-        {
-          path::bezier(vertices.view().slice(first_cp, num_subdivisions),
-                       control_points[first_cp], control_points[first_cp + 1],
-                       control_points[first_cp + 2]);
-
-          first_cp += 3;
-        }
-        break;
-        case ContourEdgeType::CubicBezier:
-        {
-          path::cubic_bezier(
-            vertices.view().slice(first_cp, num_subdivisions),
-            control_points[first_cp], control_points[first_cp + 1],
-            control_points[first_cp + 2], control_points[first_cp + 3]);
-
-          first_cp += 4;
-        }
-        break;
-        case ContourEdgeType::Line:
-        {
-          path::line(vertices.view().slice(first_cp, num_subdivisions),
-                     control_points[first_cp], control_points[first_cp + 1]);
-
-          first_cp += 2;
-        }
-        break;
-        default:
-          ASH_UNREACHABLE;
-      }
-    }
-
-    Vec<u32> indices{tmp_arena_};
-    path::triangulate_convex(indices, 0, size32(vertices));
-
-    u32 const index_counts[] = {size32(indices)};
-
-    if (indices.is_empty())
-    {
-      return;
-    }
-
-    encode_(FillStencilEncoder::Item{.depth_stencil = depth_stencil,
-                                     .write_mask    = write_mask,
-                                     .scissor       = clip_to_scissor(clip),
-                                     .viewport      = viewport_,
-                                     .fill_rule     = fill_rule,
-                                     .invert        = invert,
-                                     .world_to_ndc  = world_to_ndc_.to_mat(),
-                                     .transform     = transform,
-                                     .vertices      = vertices,
-                                     .indices       = indices,
-                                     .index_counts  = index_counts});
+    path::triangles(0, size32(shape.vertices), indices_tmp);
+    indices = indices_tmp;
   }
-  else if (raster == ContourRaster::BezierStencil)
+  else
   {
-    Vec<u32> indices{tmp_arena_};
-
-    // this is simlar to stencil-then-cover above but it performs bezier tesselation using a screen-space fragment shader
-    //
-    // we first render the straight edges using a fan triangulation of the control points
-    //
-    // we then render the bezier edges using a separate triangle for each bezier edge
-    //
-    for (auto type : contour_types)
-    {
-      CHECK(type == ContourEdgeType::Line ||
-              type == ContourEdgeType::QuadraticBezier,
-            "Only line and quadratic bezier edges are supported using "
-            "BezierStencil contour rendering");
-    }
-
-    // edge fills
-    {
-      u32 current_cp = 0;
-
-      for (auto [i, type] : enumerate<u32>(contour_types))
-      {
-        auto num_cps = num_control_points(type);
-
-        if (i != 0)
-        {
-          indices.extend(span({0U, current_cp + 0, current_cp + (num_cps - 1)}))
-            .unwrap();
-        }
-
-        current_cp += num_cps;
-      }
-    }
-
-    auto n_fan_indices = size32(indices);
-
-    // bezier fills
-    {
-      u32 current_cp = 0;
-
-      for (auto type : contour_types)
-      {
-        switch (type)
-        {
-          case ContourEdgeType::Line:
-          {
-            current_cp += 1;
-          }
-          break;
-          case ContourEdgeType::QuadraticBezier:
-          {
-            indices
-              .extend(span({current_cp + 0, current_cp + 1, current_cp + 2}))
-              .unwrap();
-          }
-          break;
-          default:
-            ASH_UNREACHABLE;
-        }
-      }
-    }
-
-    auto n_quadratic_bezier_indices = size32(indices) - n_fan_indices;
-
-    if (indices.is_empty())
-    {
-      return;
-    }
-
-    shader::BezierRegions const regions[] = {shader::BezierRegions::All,
-                                             shader::BezierRegions::Inside};
-
-    u32 const region_index_counts[] = {n_fan_indices,
-                                       n_quadratic_bezier_indices};
-
-    encode_(
-      BezierStencilEncoder::Item{.depth_stencil       = depth_stencil,
-                                 .write_mask          = write_mask,
-                                 .scissor             = clip_to_scissor(clip),
-                                 .viewport            = viewport_,
-                                 .fill_rule           = fill_rule,
-                                 .invert              = invert,
-                                 .world_to_ndc        = world_to_ndc_.to_mat(),
-                                 .transform           = transform,
-                                 .vertices            = control_points,
-                                 .indices             = indices,
-                                 .regions             = regions,
-                                 .region_index_counts = region_index_counts});
+    indices = shape.indices;
   }
+
+  shader::FlatTriangleSetItem item{
+    .world_transform = shape.world_transform,
+    .uv_transform    = shape.uv_transform,
+    .material = shader::triangle_fill::TextureMaterial{.sampler = shape.sampler,
+                                                       .texture = shape.map}
+  };
+
+  return encode_(
+    TriangleFillEncoder::Item{.color         = color_,
+                              .depth_stencil = depth_stencil_,
+                              .stencil_op    = stencil_op_,
+                              .scissor       = clip_to_scissor(clip_),
+                              .viewport      = viewport_,
+                              .cull_mode     = shape.cull_mode,
+                              .texture_set   = texture_set,
+                              .world_to_ndc  = world_to_ndc_.to_mat(),
+                              .set           = as_u8_span(item),
+                              .vertices      = shape.vertices.as_u8(),
+                              .indices       = indices.as_u8(),
+                              .variant       = PipelineVariantId::Base});
 }
 
-void ICanvas::blur_(u32 color, Option<u32> depth_stencil,
-                    ShapeInfo const & info_)
+void ICanvas::render_(TextureSet const & texture_set, QuadInfo const & shape)
 {
-  auto info       = info_;
+  return encode_(QuadEncoder::Item{.color         = color_,
+                                   .depth_stencil = depth_stencil_,
+                                   .stencil_op    = stencil_op_,
+                                   .scissor       = clip_to_scissor(clip_),
+                                   .viewport      = viewport_,
+                                   .texture_set   = texture_set,
+                                   .world_to_ndc  = world_to_ndc_.to_mat(),
+                                   .quad          = shape.quad.as_u8(),
+                                   .variant       = shape.variant});
+}
+
+void ICanvas::render_blur_(Shape const & shape_)
+{
+  auto info       = shape_;
   auto max_radius = 0.5F * info.area.extent.min();
   info.radii      = info.radii.min(max_radius);
-  auto world_xfm  = object_to_world(info.transform, info.area);
+  auto world_xfm  = object_to_world(info.world_transform, info.area);
   auto fb_xfm     = world_to_fb_ * world_xfm;
   auto tl         = transform(fb_xfm, f32x3{-0.5, -0.5, 0.0}).xy();
   auto tr         = transform(fb_xfm, f32x3{0.5, -0.5, 0.0}).xy();
@@ -1138,24 +1023,24 @@ void ICanvas::blur_(u32 color, Option<u32> depth_stencil,
     return;
   }
 
-  auto scratch0 = allocate_image();
-  auto scratch1 = allocate_image();
+  auto scratch_0 = allocate_image();
+  auto scratch_1 = allocate_image();
 
-  encode_pass_([info, color, depth_stencil, scratch0, scratch1,
-                stencil_op = stencil_op_, padded_area, num_passes,
+  encode_pass_([info, color = color_, depth_stencil = depth_stencil_, scratch_0,
+                scratch_1, stencil_op = stencil_op_, padded_area, num_passes,
                 spread_radius, area, viewport = this->viewport_,
-                scissor            = clip_to_scissor(info.clip),
+                scissor            = clip_to_scissor(clip_),
                 world_to_ndc       = this->world_to_ndc_,
                 framebuffer_extent = this->framebuffer_extent_,
                 &tmp_arena         = this->tmp_arena_](GpuFramePlan plan) {
     plan->add_pass([&](GpuFrame frame, gpu::CommandEncoder enc) {
-      auto color_image    = frame->get_scratch_image(color).color;
-      auto scratch_image0 = frame->get_scratch_image(scratch0).color;
-      auto scratch_image1 = frame->get_scratch_image(scratch1).color;
+      auto color_image     = frame->get_scratch_image(color).color;
+      auto scratch_image_0 = frame->get_scratch_image(scratch_0).color;
+      auto scratch_image_1 = frame->get_scratch_image(scratch_1).color;
 
       // copy to scratch texture 0 & 1. This is to prevent texture-spilling when ping-ponging between the two textures
       enc->blit_image(
-        color_image.image, scratch_image0.image,
+        color_image.image, scratch_image_0.image,
         span({
           gpu::ImageBlit{.src_layers{.aspects      = gpu::ImageAspects::Color,
                                      .mip_level    = 0,
@@ -1171,7 +1056,7 @@ void ICanvas::blur_(u32 color, Option<u32> depth_stencil,
       // NOTE: we can avoid a second copy operation if the padded area is same as the blur area,
       // which will happen if we are blurring the entire texture.
       enc->blit_image(
-        color_image.image, scratch_image1.image,
+        color_image.image, scratch_image_1.image,
         span({
           gpu::ImageBlit{.src_layers{.aspects      = gpu::ImageAspects::Color,
                                      .mip_level    = 0,
@@ -1185,7 +1070,7 @@ void ICanvas::blur_(u32 color, Option<u32> depth_stencil,
         gpu::Filter::Linear);
     });
 
-    u32 images[2] = {scratch0, scratch1};
+    u32 images[2] = {scratch_0, scratch_1};
 
     usize src = 0;
     usize dst = 1;
@@ -1200,11 +1085,11 @@ void ICanvas::blur_(u32 color, Option<u32> depth_stencil,
       auto spread    = u32x2::splat(i).clamp(u32x2::splat(1U), spread_radius);
       auto base      = 1 / framebuffer_extent.to<f32>();
       auto blur =
-        shader::blur::Blur{.uv0     = area.begin().to<f32>() * base,
-                           .uv1     = area.end().to<f32>() * base,
-                           .radius  = spread.to<f32>() * base,
-                           .sampler = SamplerIndex::LinearEdgeClampBlackFloat,
-                           .tex     = ColorImage::sampled_texture_index};
+        shader::BlurItem{.uv0     = area.begin().to<f32>() * base,
+                         .uv1     = area.end().to<f32>() * base,
+                         .radius  = spread.to<f32>() * base,
+                         .sampler = SamplerIndex::LinearEdgeClampBlackFloat,
+                         .tex     = ColorImage::sampled_texture_index};
 
       auto blur_id = plan->push_gpu(span({blur}));
 
@@ -1241,11 +1126,11 @@ void ICanvas::blur_(u32 color, Option<u32> depth_stencil,
       auto spread    = u32x2::splat(i).clamp(u32x2::splat(1U), spread_radius);
       auto base      = 1 / framebuffer_extent.to<f32>();
       auto blur =
-        shader::blur::Blur{.uv0     = area.begin().to<f32>() * base,
-                           .uv1     = area.end().to<f32>() * base,
-                           .radius  = spread.to<f32>() * base,
-                           .sampler = SamplerIndex::LinearEdgeClampBlackFloat,
-                           .tex     = ColorImage::sampled_texture_index};
+        shader::BlurItem{.uv0     = area.begin().to<f32>() * base,
+                         .uv1     = area.end().to<f32>() * base,
+                         .radius  = spread.to<f32>() * base,
+                         .sampler = SamplerIndex::LinearEdgeClampBlackFloat,
+                         .tex     = ColorImage::sampled_texture_index};
 
       auto blur_id = plan->push_gpu(span({blur}));
 
@@ -1328,37 +1213,310 @@ void ICanvas::blur_(u32 color, Option<u32> depth_stencil,
   deallocate_image(scratch1);
 }
 
-void ICanvas::circle(ShapeInfo const & info_)
+void ICanvas::render_stencil_(u32 depth_stencil, u32 write_mask,
+                              ContourInfo const & shape, bool invert)
 {
-  auto info            = info_;
-  info.area.extent.x() = max(info.area.extent.x(), info.area.extent.y());
-  info.radii           = f32x4::splat(info.area.extent.x() * 0.5F);
-  return sdf_(info, shader::sdf::ShapeType::RRect, sampled_textures);
+  if (shape.contour_types.is_empty() || shape.control_points.is_empty() ||
+      shape.segments.is_empty())
+  {
+    return;
+  }
+
+  switch (shape.method)
+  {
+    case ContourMethod::StencilThenCover:
+    {
+      // tesselate the bezier curves into line segments and fill the resulting polygon using stencil-then-cover
+
+      auto const num_vertices = reduce(shape.segments, 0U, add);
+
+      Vec<f32x2> vertices{tmp_arena_};
+      vertices.extend_uninit(num_vertices).unwrap();
+
+      u32 first_cp = 0;
+
+      CHECK(shape.segments.size() == shape.contour_types.size(), "");
+
+      for (auto [type, num_subdivisions] :
+           zip(shape.contour_types, shape.segments))
+      {
+        switch (type)
+        {
+          case ContourEdgeType::Arc:
+          {
+            auto cp0    = shape.control_points[first_cp];
+            auto center = shape.control_points[first_cp + 1];
+            auto cp2    = shape.control_points[first_cp + 2];
+
+            auto v0    = cp0 - center;
+            auto v1    = cp2 - center;
+            auto radii = v0.length();
+
+            auto start = std::atan2(v0.y(), v0.x());
+            auto end   = std::atan2(v1.y(), v1.x());
+
+            auto turn = end - start;
+
+            // turn angle (CCW)
+            if (turn < 0)
+            {
+              turn += 2.0F * PI;    // normalize to [0, 2PI]
+            }
+
+            path::arc(vertices.view().slice(first_cp, num_subdivisions),
+                      f32x2::splat(radii), center, start, turn);
+
+            first_cp += 2;
+          }
+          break;
+          case ContourEdgeType::QuadraticBezier:
+          {
+            path::bezier(vertices.view().slice(first_cp, num_subdivisions),
+                         shape.control_points[first_cp],
+                         shape.control_points[first_cp + 1],
+                         shape.control_points[first_cp + 2]);
+
+            first_cp += 3;
+          }
+          break;
+          case ContourEdgeType::CubicBezier:
+          {
+            path::cubic_bezier(
+              vertices.view().slice(first_cp, num_subdivisions),
+              shape.control_points[first_cp],
+              shape.control_points[first_cp + 1],
+              shape.control_points[first_cp + 2],
+              shape.control_points[first_cp + 3]);
+
+            first_cp += 4;
+          }
+          break;
+          case ContourEdgeType::Line:
+          {
+            path::line(vertices.view().slice(first_cp, num_subdivisions),
+                       shape.control_points[first_cp],
+                       shape.control_points[first_cp + 1]);
+
+            first_cp += 2;
+          }
+          break;
+          default:
+            ASH_UNREACHABLE;
+        }
+      }
+
+      Vec<u32> indices{tmp_arena_};
+      path::triangulate_convex(indices, 0, size32(vertices));
+
+      encode_(FillStencilEncoder::Item{.depth_stencil = depth_stencil,
+                                       .write_mask    = write_mask,
+                                       .scissor       = clip_to_scissor(clip_),
+                                       .viewport      = viewport_,
+                                       .fill_rule     = shape.fill_rule,
+                                       .invert        = invert,
+                                       .world_to_ndc  = world_to_ndc_.to_mat(),
+                                       .world_transform = shape.world_transform,
+                                       .vertices = shape.control_points.as_u8(),
+                                       .indices  = indices.view().as_u8()});
+    }
+    break;
+    case ContourMethod::BezierStencil:
+    {
+      Vec<u32> indices{tmp_arena_};
+
+      // this is simlar to stencil-then-cover above but it performs bezier tesselation using a screen-space fragment shader
+      //
+      // we first render the straight edges using a fan triangulation of the control points
+      //
+      // we then render the bezier edges using a separate triangle for each bezier edge
+      //
+      for (auto type : shape.contour_types)
+      {
+        CHECK(type == ContourEdgeType::Line ||
+                type == ContourEdgeType::QuadraticBezier,
+              "Only line and quadratic bezier edges are supported using "
+              "BezierStencil contour rendering");
+      }
+
+      // edge fills
+      {
+        u32 current_cp = 0;
+
+        for (auto [i, type] : enumerate<u32>(shape.contour_types))
+        {
+          auto num_cps = num_control_points(type);
+
+          if (i != 0)
+          {
+            indices
+              .extend(span({0U, current_cp + 0, current_cp + (num_cps - 1)}))
+              .unwrap();
+          }
+
+          current_cp += num_cps;
+        }
+      }
+
+      auto n_fan_indices = size32(indices);
+
+      // bezier fills
+      {
+        u32 current_cp = 0;
+
+        for (auto type : shape.contour_types)
+        {
+          switch (type)
+          {
+            case ContourEdgeType::Line:
+            {
+              current_cp += 1;
+            }
+            break;
+            case ContourEdgeType::QuadraticBezier:
+            {
+              indices
+                .extend(span({current_cp + 0, current_cp + 1, current_cp + 2}))
+                .unwrap();
+            }
+            break;
+            default:
+              ASH_UNREACHABLE;
+          }
+        }
+      }
+
+      auto n_quadratic_bezier_indices = size32(indices) - n_fan_indices;
+
+      shader::BezierRegions const regions[] = {shader::BezierRegions::All,
+                                               shader::BezierRegions::Inside};
+
+      u32 const region_index_counts[] = {n_fan_indices,
+                                         n_quadratic_bezier_indices};
+
+      encode_(
+        BezierStencilEncoder::Item{.depth_stencil   = depth_stencil,
+                                   .write_mask      = write_mask,
+                                   .scissor         = clip_to_scissor(clip_),
+                                   .viewport        = viewport_,
+                                   .fill_rule       = shape.fill_rule,
+                                   .invert          = invert,
+                                   .world_to_ndc    = world_to_ndc_.to_mat(),
+                                   .world_transform = shape.world_transform,
+                                   .vertices = shape.control_points.as_u8(),
+                                   .indices  = indices.view().as_u8(),
+                                   .regions  = span(regions).as_u8(),
+                                   .region_index_counts = region_index_counts});
+    }
+    break;
+    default:
+      break;
+  }
 }
 
-void ICanvas::rect(ShapeInfo const & info_)
+ICanvas & ICanvas::push_clip()
 {
-  auto info  = info_;
-  info.radii = f32x4::splat(0);
-  return sdf_(info, shader::sdf::ShapeType::RRect, sampled_textures);
+  clip_saves_.push(clip_).unwrap();
+  return *this;
 }
 
-void ICanvas::rrect(ShapeInfo const & info_)
+ICanvas & ICanvas::pop_clip()
 {
-  auto       info = info_;
-  auto const max_radius =
-    0.5F * min(info.area.extent.x(), info.area.extent.y());
-  info.radii = info.radii.min(max_radius);
-  return sdf_(info, shader::sdf::ShapeType::RRect, sampled_textures);
+  if (!clip_saves_.is_empty())
+  {
+    clip_ = clip_saves_.last();
+    clip_saves_.pop(1);
+  }
+  return *this;
 }
 
-void ICanvas::squircle(ShapeInfo const & info_)
+ICanvas & ICanvas::push_color()
 {
-  auto       info = info_;
-  auto const max_radius =
-    0.5F * min(info.area.extent.x(), info.area.extent.y());
-  info.radii.x() = min(info.radii.x(), max_radius);
-  return sdf_(info, shader::sdf::ShapeType::Squircle, sampled_textures);
+  color_saves_.push(color_).unwrap();
+  return *this;
+}
+
+ICanvas & ICanvas::pop_color()
+{
+  if (!color_saves_.is_empty())
+  {
+    color_ = color_saves_.last();
+    color_saves_.pop(1);
+  }
+  return *this;
+}
+
+ICanvas & ICanvas::push_depth_stencil()
+{
+  depth_stencil_saves_.push(depth_stencil_).unwrap();
+  return *this;
+}
+
+ICanvas & ICanvas::pop_depth_stencil()
+{
+  if (!depth_stencil_saves_.is_empty())
+  {
+    depth_stencil_ = depth_stencil_saves_.last();
+    depth_stencil_saves_.pop(1);
+  }
+  return *this;
+}
+
+ICanvas & ICanvas::push_stencil_op()
+{
+  stencil_op_saves_.push(stencil_op_).unwrap();
+  return *this;
+}
+
+ICanvas & ICanvas::pop_stencil_op()
+{
+  if (!stencil_op_saves_.is_empty())
+  {
+    stencil_op_ = stencil_op_saves_.last();
+    stencil_op_saves_.pop(1);
+  }
+  return *this;
+}
+
+ICanvas & ICanvas::circle(Shape const & shape)
+{
+  render_(sampled_textures, shape, SdfShapeType::RRect);
+  return *this;
+}
+
+ICanvas & ICanvas::rect(Shape const & shape)
+{
+  render_(sampled_textures, shape, shader::sdf::ShapeType::RRect);
+  return *this;
+}
+
+ICanvas & ICanvas::rrect(Shape const & shape)
+{
+  render_(sampled_textures, shape, shader::sdf::ShapeType::RRect);
+  return *this;
+}
+
+ICanvas & ICanvas::squircle(Shape const & shape)
+{
+  render_(sampled_textures, shape, shader::sdf::ShapeType::Squircle);
+  return *this;
+}
+
+ICanvas & ICanvas::sdf_map(Shape const & shape)
+{
+  render_(sampled_textures, shape, shader::sdf::ShapeType::SDFMap);
+  return *this;
+}
+
+ICanvas & ICanvas::noise(Shape const & shape)
+{
+  render_noise_(sampled_textures, shape, shader::sdf::ShapeType::RRect);
+  return *this;
+}
+
+ICanvas & ICanvas::mesh_gradient(MeshGradientInfo const & info)
+{
+  render_(sampled_textures, info);
+  return *this;
 }
 
 void ICanvas::nine_slice(ShapeInfo const & info, NineSlice const & slice)
@@ -1366,35 +1524,19 @@ void ICanvas::nine_slice(ShapeInfo const & info, NineSlice const & slice)
   // [ ] implement
 }
 
-void ICanvas::triangles(ShapeInfo const & info, Span<f32x2 const> points,
-                        Span<f32x4 const> colors)
+ICanvas & ICanvas::indexed_triangles(TriangleSetInfo const & info)
 {
-  if (points.size() < 3)
-  {
-    return;
-  }
-
-  Vec<u32> indices{tmp_arena_};
-  path::triangles(0, points.size(), indices);
-
-  return triangles(info, points, indices, colors);
+  render_(sampled_textures, info, true);
+  return *this;
 }
 
-void ICanvas::triangles(ShapeInfo const & info, Span<f32x2 const> points,
-                        Span<u32 const> indices, Span<f32x4 const> colors)
+ICanvas & ICanvas::unindexed_triangles(TriangleSetInfo const & info)
 {
-  if (points.size() < 3)
-  {
-    return;
-  }
-
-  // [ ] color stride
-
-  return triangle_fill_(info, points, indices, sampled_textures);
+  render_(sampled_textures, info, false);
+  return *this;
 }
 
-void ICanvas::line(ShapeInfo const & info, Span<f32x2 const> points,
-                   Span<f32x4 const> colors)
+ICanvas & ICanvas::line(CurveLineInfo const & info)
 {
   if (points.size() < 2)
   {
@@ -1410,13 +1552,19 @@ void ICanvas::line(ShapeInfo const & info, Span<f32x2 const> points,
   return triangle_fill_(info, vertices, indices, sampled_textures);
 }
 
-void ICanvas::blur(ShapeInfo const & info_)
+ICanvas & ICanvas::blur(Shape const & shape)
 {
-  return blur_(color_, depth_stencil_, info_);
+  render_blur_(shape);
+  return *this;
 }
 
-void ICanvas::text(Span<TextLayer const> layers, Span<ShapeInfo const> shapes,
-                   Span<TextRenderInfo const>, Span<usize const>       sorted)
+ICanvas & ICanvas::quad(QuadInfo const & quad)
+{
+  render_(sampled_textures, quad);
+  return *this;
+}
+
+ICanvas & ICanvas::text(TextBlockRenderInfo const & text)
 {
   for (auto i : sorted)
   {
@@ -1434,6 +1582,8 @@ void ICanvas::text(Span<TextLayer const> layers, Span<ShapeInfo const> shapes,
         break;
     }
   }
+
+  return *this;
 }
 
 }    // namespace ash

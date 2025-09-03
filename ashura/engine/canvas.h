@@ -1,6 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/engine/encoders.h"
+#include "ashura/engine/pipeline.h"
 #include "ashura/engine/shaders.gen.h"
 #include "ashura/engine/text.h"
 #include "ashura/std/allocators.h"
@@ -14,64 +15,14 @@ namespace ash
 namespace path
 {
 
-// Don't allow linearized segments to be off by more than 1/4th of a pixel from
-// the true curve. This value should be scaled by the max basis of the
-// X and Y directions.
-constexpr f32 cubic_subdivisions(f32 scale_factor, f32x2 p0, f32x2 p1, f32x2 p2,
-                                 f32x2 p3, f32 precision = 4)
-{
-  auto k = scale_factor * .75F * precision;
-  auto a = (p0 - p1 * 2 + p2).abs();
-  auto b = (p1 - p2 * 2 + p3).abs();
-  return sqrt(k * a.max(b).length());
-}
+f32 cubic_subdivisions(f32 scale_factor, f32x2 p0, f32x2 p1, f32x2 p2, f32x2 p3,
+                       f32 precision = 4);
 
-constexpr f32 quadratic_subdivisions(f32 scale_factor, f32x2 p0, f32x2 p1,
-                                     f32x2 p2, f32 precision = 4)
-{
-  f32 k = scale_factor * .25F * precision;
-  return sqrt(k * (p0 - p1 * 2 + p2).length());
-}
+f32 quadratic_subdivisions(f32 scale_factor, f32x2 p0, f32x2 p1, f32x2 p2,
+                           f32 precision = 4);
 
-// Returns Wang's formula specialized for a conic curve.
-//
-// This is not actually due to Wang, but is an analogue from:
-//   (Theorem 3, corollary 1):
-//   J. Zheng, T. Sederberg. "Estimating Tessellation Parameter Intervals for
-//   Rational Curves and Surfaces." ACM Transactions on Graphics 19(1). 2000.
-constexpr f32 conic_subdivisions(f32 scale_factor, f32x2 p0, f32x2 p1, f32x2 p2,
-                                 f32 w, f32 precision = 4)
-{
-  // Compute center of bounding box in projected space
-  auto C = 0.5F * p0.min(p1).min(p2) + p0.max(p1).max(p2);
-
-  // Translate by -C. This improves translation-invariance of the formula,
-  // see Sec. 3.3 of cited paper
-  p0 -= C;
-  p1 -= C;
-  p2 -= C;
-
-  // Compute max length
-  auto max_len = sqrt(max(p0.dot(p0), max(p1.dot(p1), p2.dot(p2))));
-
-  // Compute forward differences
-  auto dp = -2 * w * p1 + p0 + p2;
-  auto dw = abs(-2 * w + 2);
-
-  // Compute numerator and denominator for parametric step size of
-  // linearization. Here, the epsilon referenced from the cited paper
-  // is 1/precision.
-  auto k          = scale_factor * precision;
-  auto rp_minus_1 = max(0.0F, max_len * k - 1);
-  auto numer      = sqrt(dp.dot(dp)) * k + rp_minus_1 * dw;
-  auto denom      = 4 * min(w, 1.0F);
-
-  // Number of segments = sqrt(numer / denom).
-  // This assumes parametric interval of curve being linearized is
-  //   [t0,t1] = [0, 1].
-  // If not, the number of segments is (tmax - tmin) / sqrt(denom / numer).
-  return sqrt(numer / denom);
-}
+f32 conic_subdivisions(f32 scale_factor, f32x2 p0, f32x2 p1, f32x2 p2, f32 w,
+                       f32 precision = 4);
 
 void rect(Vec<f32x2> & vtx, f32x2 extent, f32x2 center);
 
@@ -146,37 +97,28 @@ void triangulate_convex(Vec<u16> & idx, u16 first_vertex, u16 num_vertices);
 
 };    // namespace path
 
-enum class TileMode : u8
+/// @brief The base Canvas Shape Description
+
+struct Shape
 {
-  Stretch = 0,
-  Tile    = 1
-};
+  /// @brief object-world-space transform matrix
+  f32x4x4 world_transform = f32x4x4::identity();
 
-/// @brief a normative clip rect that will cover the entire Canvas.
-constexpr f32 MAX_CLIP_DISTANCE = 0xFF'FFFF;
+  f32x4x4 uv_transform = f32x4x4::identity();
 
-inline constexpr CRect MAX_CLIP{.center = f32x2::splat(0),
-                                .extent = f32x2::splat(MAX_CLIP_DISTANCE)};
-
-using shader::sdf::ShadeType;
-
-/// @brief Canvas Shape Description
-struct ShapeInfo
-{
   /// @brief center of the shape in world-space
   CRect area = {};
 
   /// @brief extent of the shape's bounding-box in world-space
   f32x2 bbox_extent = {};
 
-  /// @brief object-world-space transform matrix
-  f32x4x4 transform = f32x4x4::identity();
-
+  /// @brief radii of the shape
   f32x4 radii = {};
 
-  ShadeType shade_type = ShadeType::Flood;
+  /// @brief shading method to use for the shape
+  ShadeType shade = ShadeType::Flood;
 
-  /// @brief thickness of the stroke
+  /// @brief thickness of the feather to apply
   f32 feather = 0;
 
   /// @brief Linear Color gradient to use as tint
@@ -185,30 +127,130 @@ struct ShapeInfo
   /// @brief sampler to use in rendering the shape
   SamplerIndex sampler = SamplerIndex::LinearEdgeClampBlackFloat;
 
+  /// @brief the set / group the textures are sourced from
+  TextureSet texture_set = sampled_textures;
+
   /// @brief texture to use in rendering the shape
-  TextureIndex texture = TextureIndex::White;
+  TextureIndex map = TextureIndex::White;
 
-  /// @brief uv coordinates of the upper-left and lower-right part of the
-  /// texture to sample from
-  f32x2 uv[2] = {
-    {0, 0},
-    {1, 1}
-  };
+  /// @brief the sampler to use for sampling the signed distance map
+  SamplerIndex sdf_sampler = SamplerIndex::LinearBorderClampBlackFloat;
 
-  CRect clip = MAX_CLIP;
+  /// @brief index of the signed distance map in the texture set
+  TextureIndex sdf_map = TextureIndex::White;
 
   constexpr CRect bbox() const
   {
     return CRect{area.center, bbox_extent};
   }
+
+  constexpr f32x2 center() const
+  {
+    return area.center;
+  }
 };
 
-struct Quad
+struct CornerColors
 {
-  f32x4 top_left     = {};
-  f32x4 top_right    = {};
-  f32x4 bottom_right = {};
-  f32x4 bottom_left  = {};
+  /// @brief top-left
+  f32x4 tl = {};
+
+  /// @brief top-right
+  f32x4 tr = {};
+
+  /// @brief bottom-left
+  f32x4 bl = {};
+
+  /// @brief bottom-right
+  f32x4 br = {};
+};
+
+struct MeshGradientInfo
+{
+  f32x4x4 world_transform = f32x4x4::identity();
+
+  f32x4x4 uv_transform = f32x4x4::identity();
+
+  CRect area = {};
+
+  f32x2 bbox_extent = {};
+
+  f32x4 radii = {};
+
+  SdfShapeType shape = SdfShapeType::RRect;
+
+  ShadeType shade = ShadeType::Flood;
+
+  f32 feather = 0;
+
+  CornerColors colors = {};
+
+  f32x2 min = {};
+
+  f32x2 max = {};
+
+  f32 frequency = 5;
+
+  f32 amplitude = 30;
+
+  f32 time = 0.5F;
+
+  SamplerIndex sdf_sampler = SamplerIndex::LinearBorderClampBlackFloat;
+
+  TextureSet texture_set = sampled_textures;
+
+  TextureIndex sdf_map = TextureIndex::White;
+
+  constexpr CRect bbox() const
+  {
+    return CRect{area.center, bbox_extent};
+  }
+
+  constexpr f32x2 center() const
+  {
+    return area.center;
+  }
+};
+
+struct TriangleSetInfo
+{
+  f32x4x4 world_transform = f32x4x4::identity();
+
+  f32x4x4 uv_transform = f32x4x4::identity();
+
+  CRect area = {};
+
+  f32x2 bbox_extent = {};
+
+  ColorGradient tint = {};
+
+  SamplerIndex sampler = SamplerIndex::LinearBorderClampBlackFloat;
+
+  gpu::CullMode cull_mode = gpu::CullMode::None;
+
+  TextureSet texture_set = sampled_textures;
+
+  TextureIndex map = TextureIndex::White;
+
+  Span<shader::TriangleVertex const> vertices = {};
+
+  Span<u32 const> indices = {};
+
+  constexpr CRect bbox() const
+  {
+    return CRect{area.center, bbox_extent};
+  }
+
+  constexpr f32x2 center() const
+  {
+    return area.center;
+  }
+};
+
+enum class NineSliceScaling : u8
+{
+  Stretch = 0,
+  Tile    = 1
 };
 
 /// ┏━━━━━━━━━━━━━━━━━┑
@@ -225,18 +267,57 @@ struct Quad
 /// 1 7; Horizontal
 /// 3 5;	Vertical
 /// 4;	Horizontal + Vertical
-struct NineSlice
+struct NineSliceInfo
 {
-  TileMode mode             = TileMode::Stretch;
-  f32x2    top_left[2]      = {};
-  f32x2    top_center[2]    = {};
-  f32x2    top_right[2]     = {};
-  f32x2    mid_left[2]      = {};
-  f32x2    mid_center[2]    = {};
-  f32x2    mid_right[2]     = {};
-  f32x2    bottom_left[2]   = {};
-  f32x2    bottom_center[2] = {};
-  f32x2    bottom_right[2]  = {};
+  f32x4x4 world_transform = f32x4x4::identity();
+
+  f32x4x4 uv_transform = f32x4x4::identity();
+
+  CRect area = {};
+
+  f32x2 bbox_extent = {};
+
+  f32x4 radii = {};
+
+  ColorGradient tint = {};
+
+  NineSliceScaling scaling = NineSliceScaling::Stretch;
+
+  // [ ] is this correct? right name, right specification?
+
+  f32x2 top_left[2] = {};
+
+  f32x2 top_center[2] = {};
+
+  f32x2 top_right[2] = {};
+
+  f32x2 mid_left[2] = {};
+
+  f32x2 mid_center[2] = {};
+
+  f32x2 mid_right[2] = {};
+
+  f32x2 bottom_left[2] = {};
+
+  f32x2 bottom_center[2] = {};
+
+  f32x2 bottom_right[2] = {};
+
+  SamplerIndex sampler = SamplerIndex::LinearBorderClampBlackFloat;
+
+  TextureSet texture_set = sampled_textures;
+
+  TextureIndex map = TextureIndex::White;
+
+  constexpr CRect bbox() const
+  {
+    return CRect{area.center, bbox_extent};
+  }
+
+  constexpr f32x2 center() const
+  {
+    return area.center;
+  }
 };
 
 enum class ContourEdgeType : u8
@@ -245,6 +326,105 @@ enum class ContourEdgeType : u8
   Arc             = 1,
   QuadraticBezier = 2,
   CubicBezier     = 3
+};
+
+enum class ContourMethod : u8
+{
+  StencilThenCover = 0,
+  BezierStencil    = 1
+};
+
+struct ContourInfo
+{
+  f32x4x4 world_transform = f32x4x4::identity();
+
+  CRect area = {};
+
+  f32x2 bbox_extent = {};
+
+  ContourMethod method = ContourMethod::StencilThenCover;
+
+  Span<f32x2 const> control_points = {};
+
+  Span<ContourEdgeType const> contour_types = {};
+
+  Span<u16 const> segments = {};
+
+  FillRule fill_rule = FillRule::EvenOdd;
+
+  constexpr CRect bbox() const
+  {
+    return CRect{area.center, bbox_extent};
+  }
+
+  constexpr f32x2 center() const
+  {
+    return area.center;
+  }
+};
+
+struct CurveLineInfo
+{
+  f32x4x4 world_transform = f32x4x4::identity();
+
+  f32x4x4 uv_transform = f32x4x4::identity();
+
+  CRect area = {};
+
+  f32x2 bbox_extent = {};
+
+  f32 thickness = 1;
+
+  Span<shader::TriangleVertex const> vertices = {};
+
+  Span<ContourEdgeType const> segment_types = {};
+
+  Span<u16 const> segments = {};
+
+  SamplerIndex sampler = SamplerIndex::LinearBorderClampBlackFloat;
+
+  TextureSet texture_set = sampled_textures;
+
+  TextureIndex map = TextureIndex::White;
+
+  constexpr CRect bbox() const
+  {
+    return CRect{area.center, bbox_extent};
+  }
+
+  constexpr f32x2 center() const
+  {
+    return area.center;
+  }
+};
+
+struct QuadInfo
+{
+  f32x4x4 world_transform = f32x4x4::identity();
+
+  f32x4x4 uv_transform = f32x4x4::identity();
+
+  CRect area = {};
+
+  f32x2 bbox_extent = {};
+
+  Span<u8 const> quad = {};
+
+  PipelineVariantId variant = PipelineVariantId::Base;
+
+  TextureSet texture_set = sampled_textures;
+
+  TextureIndex map = TextureIndex::White;
+
+  constexpr CRect bbox() const
+  {
+    return CRect{area.center, bbox_extent};
+  }
+
+  constexpr f32x2 center() const
+  {
+    return area.center;
+  }
 };
 
 typedef struct ICanvas * Canvas;
@@ -257,12 +437,11 @@ enum class CanvasState : u8
   Executed  = 3
 };
 
-// [ ] rename
-enum class ContourRaster : u8
-{
-  StencilThenCover = 0,
-  BezierStencil    = 1
-};
+/// @brief a normative clip rect that will cover the entire Canvas.
+constexpr f32 MAX_CLIP_DISTANCE = 0xFF'FFFF;
+
+inline constexpr CRect MAX_CLIP{.center = f32x2::splat(0),
+                                .extent = f32x2::splat(MAX_CLIP_DISTANCE)};
 
 struct ICanvas
 {
@@ -308,6 +487,16 @@ struct ICanvas
 
   affinef32x4 world_to_fb_;
 
+  CRect clip_;
+
+  SmallVec<CRect, 4, 0> clip_saves_;
+
+  SmallVec<u32, 4, 0> color_saves_;
+
+  SmallVec<Option<u32>, 4, 0> depth_stencil_saves_;
+
+  SmallVec<Option<PipelineStencil>, 4, 0> stencil_op_saves_;
+
   Vec<Dyn<CanvasEncoder>> encoders_;
 
   ArenaPool encoder_arena_;
@@ -330,6 +519,11 @@ struct ICanvas
     ndc_to_viewport_{affinef32x4::identity()},
     viewport_to_fb_{affinef32x4::identity()},
     world_to_fb_{affinef32x4::identity()},
+    clip_{MAX_CLIP},
+    clip_saves_{allocator},
+    color_saves_{allocator},
+    depth_stencil_saves_{allocator},
+    stencil_op_saves_{allocator},
     encoders_{allocator},
     encoder_arena_{allocator, ArenaPoolCfg{.min_arena_size = 1_MB}},
     tmp_arena_{allocator, ArenaPoolCfg{.min_arena_size = 1_MB}}
@@ -401,6 +595,19 @@ struct ICanvas
 
   void set_stencil_op(Option<PipelineStencil> op);
 
+  void set_clip(CRect const & area);
+
+  /// @brief register a custom canvas pass to be executed in the render thread
+  template <Callable<GpuFramePlan> Lambda>
+  void encode_pass_(Lambda && task)
+  {
+    auto enc = dyn<PassCanvasEncoder<Lambda>>(inplace, encoder_arena_,
+                                              static_cast<Lambda &&>(task))
+                 .unwrap();
+
+    encoders_.push(cast<CanvasEncoder>(std::move(enc))).unwrap();
+  }
+
   void encode_(SdfEncoder::Item const & item);
 
   void encode_(TriangleFillEncoder::Item const & item);
@@ -413,97 +620,84 @@ struct ICanvas
 
   void encode_(PbrEncoder::Item const & item);
 
-  /// @brief register a custom canvas pass to be executed in the render thread
-  template <Callable<GpuFramePlan> Lambda>
-  void encode_pass_(Lambda && task)
-  {
-    auto enc = dyn<CustomCanvasEncoder<Lambda>>(inplace, encoder_arena_,
-                                                static_cast<Lambda &&>(task))
-                 .unwrap();
+  void render_(TextureSet const & texture_set, Shape const & shape,
+               SdfShapeType type);
 
-    encoders_.push(cast<CanvasEncoder>(std::move(enc))).unwrap();
-  }
+  void render_noise_(TextureSet const & texture_set, Shape const & shape,
+                     SdfShapeType type);
 
-  void sdf_(ShapeInfo const & info, shader::sdf::ShapeType shape,
-            TextureSet texture_set);
+  void render_(TextureSet const & texture_set, MeshGradientInfo const & shape);
 
-  // [ ] implement
-  // [ ] switching to noise shader
-  void sdf_noise_(ShapeInfo const & info, shader::sdf::ShapeType shape,
-                  TextureSet texture_set);
+  void render_(TextureSet const & texture_set, TriangleSetInfo const & shape,
+               bool indexed);
 
-  void triangle_fill_(ShapeInfo const & info, Span<f32x2 const> vertices,
-                      Span<u32 const> indices, Span<f32x4 const> colors,
-                      TextureSet texture_set);
+  void render_(TextureSet const & texture_set, QuadInfo const & shape);
+
+  void render_blur_(Shape const & info);
 
   // [ ] Rendering Lines
   // [ ] Handling Self-Intersection; Fill Rules; STC
-  // [ ] Masks
   // [ ] filling or lines; line caps; line joints;
-  // [ ] dashed-line single pass shader?: will need uv-transforms
-  // [ ] bezier line renderer + line renderer : cap + opacity + blending
   // [ ] batch multiple contour stencil passes so we can perform them in a single write, different write masks. rect-allocation?
-  // [ ] render to layer
-  // [ ] with_mask()?
-  // [ ] draw linec
-  // [ ] linear encoding variant
-  // [ ] how will depth/stencil in framegraph work with canvas?
-  void contour_stencil_(u32 stencil, u32 write_mask, ContourRaster raster,
-                        Span<f32x2 const>           control_points,
-                        Span<ContourEdgeType const> edge_types,
-                        Span<u16 const> segments, bool invert,
-                        FillRule fill_rule, f32x4x4 const & transform,
-                        CRect const & clip);
+  void render_stencil_(u32 depth_stencil, u32 write_mask,
+                       ContourInfo const & shape, bool invert);
 
-  void contour_line_(Span<f32x2 const>           control_points,
-                     Span<ContourEdgeType const> edge_types,
-                     Span<u16 const>             segments);
+  ICanvas & push_clip();
 
-  void blur_(u32 color, Option<u32> depth_stencil, ShapeInfo const & info);
+  ICanvas & pop_clip();
+
+  ICanvas & push_color();
+
+  ICanvas & pop_color();
+
+  ICanvas & push_depth_stencil();
+
+  ICanvas & pop_depth_stencil();
+
+  ICanvas & push_stencil_op();
+
+  ICanvas & pop_stencil_op();
 
   /// @brief render a circle
-  void circle(ShapeInfo const & info);
+  ICanvas & circle(Shape const & shape);
 
   /// @brief render a rectangle
-  void rect(ShapeInfo const & info);
+  ICanvas & rect(Shape const & shape);
 
   /// @brief render a rounded rectangle
-  void rrect(ShapeInfo const & info);
+  ICanvas & rrect(Shape const & shape);
 
   /// @brief render a squircle (triangulation based)
-  /// @param num_segments an upper bound on the number of segments to
-  /// @param elasticity elasticity of the squircle [0, 1]
-  void squircle(ShapeInfo const & info);
+  ICanvas & squircle(Shape const & shape);
+
+  /// @brief render an SDF texture
+  ICanvas & sdf_map(Shape const & shape);
+
+  /// @brief render a noise-grained shape
+  ICanvas & noise(Shape const & shape);
+
+  /// @brief render a mesh-gradient rrect
+  ICanvas & mesh_gradient(MeshGradientInfo const & info);
 
   /// @brief draw a nine-sliced image
-  void nine_slice(ShapeInfo const & info, NineSlice const & slice);
+  ICanvas & nine_slice(NineSliceInfo const & info);
 
-  /// @brief Render Non-Indexed Triangles
-  void triangles(ShapeInfo const & info, Span<f32x2 const> vertices,
-                 Span<f32x4 const> colors);
+  /// @brief render indexed triangles
+  ICanvas & indexed_triangles(TriangleSetInfo const & info);
 
-  /// @brief Render Indexed Triangles
-  void triangles(ShapeInfo const & info, Span<f32x2 const> vertices,
-                 Span<u32 const> indices, Span<f32x4 const> colors);
+  /// @brief render un-indexed triangles
+  ICanvas & unindexed_triangles(TriangleSetInfo const & info);
 
-  /// @brief triangulate and render line
-  // [ ] joints & caps
-  // [ ] path-command-style arguments
-  // [ ] +tesselation arguments
-  void line(ShapeInfo const & info, Span<f32x2 const> vertices,
-            Span<f32x4 const> colors);
+  /// @brief render a segmented line
+  ICanvas & line(CurveLineInfo const & info);
 
   /// @brief perform a canvas-space blur
-  /// @param area region in the canvas to apply the blur to
-  void blur(ShapeInfo const & info);
+  ICanvas & blur(Shape const & info);
 
-  void quad(Quad const & quad, shader::quad::FlatMaterial const & material);
+  /// @brief render a quad using a custom shader
+  ICanvas & quad(QuadInfo const & quad);
 
-  // [ ] blending for noise material
-  void quad(Quad const & quad, shader::quad::NoiseMaterial const & material);
-
-  void text(Span<TextLayer const> layers, Span<ShapeInfo const> shapes,
-            Span<TextRenderInfo const> infos, Span<usize const> sorted);
+  ICanvas & text(TextBlockRenderInfo const & info);
 };
 
 }    // namespace ash
