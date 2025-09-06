@@ -20,28 +20,28 @@ struct BlurItem
 
 struct SdfSubItem
 {
-  f32x4          radii;
-  f32x2          half_extent;
-  f32x2          bbox_center;
-  sdf::ShapeType shape_type;
-  f32            sdf_blend_factor;
-  sdf::BlendOp   sdf_blend_op;
+  f32x4        radii;
+  f32x2        half_extent;
+  f32x2        bbox_center;
+  SdfShapeType shape_type;
+  f32          sdf_blend_factor;
+  SdfBlendOp   sdf_blend_op;
 };
 
-struct SdfCompoundItem<MaterialType : sdf::Material>
+struct SdfCompoundItem<MaterialType : SdfMaterial>
 {
-  f32x4x4        world_transform;
-  f32x4x4        uv_transform;
-  f32x2          half_bbox_extent;
-  sdf::ShadeType shade_type;
-  f32            feather;
-  u32            first;
-  u32            count;
-  MaterialType   material;
-  SdfSubItem     subitems[4];
+  f32x4x4      world_transform;
+  f32x4x4      uv_transform;
+  f32x2        half_bbox_extent;
+  SdfShadeType shade_type;
+  f32          feather;
+  u32          first;
+  u32          count;
+  MaterialType material;
+  SdfSubItem   subitems[4];
 };
 
-typedef SdfCompoundItem<sdf::FlatMaterial> SdfCompoundFlatItem;
+typedef SdfCompoundItem<SdfGradientMaterial> SdfCompoundGradientItem;
 
 struct PbrVertex
 {
@@ -62,7 +62,7 @@ struct PbrVertex
   }
 };
 
-struct QuadItem<MaterialType : quad::Material>
+struct QuadItem<MaterialType : QuadMaterial>
 {
   f32x4x4      world_transform;
   f32x4x4      uv_transform;
@@ -70,33 +70,33 @@ struct QuadItem<MaterialType : quad::Material>
   MaterialType material;
 };
 
-typedef QuadItem<quad::FlatMaterial> FlatQuadItem;
+typedef QuadItem<QuadGradientMaterial> QuadGradientItem;
 
-struct SdfItem<MaterialType : sdf::Material>
+struct SdfItem<MaterialType : SdfMaterial>
 {
-  f32x4x4        world_transform;
-  f32x4x4        uv_transform;
-  f32x4          radii;
-  f32x2          half_bbox_extent;
-  f32x2          half_extent;
-  f32            feather;
-  sdf::ShadeType shade_type;
-  sdf::ShapeType type;
-  MaterialType   material;
+  f32x4x4      world_transform;
+  f32x4x4      uv_transform;
+  f32x4        radii;
+  f32x2        half_bbox_extent;
+  f32x2        half_extent;
+  f32          feather;
+  SdfShadeType shade_type;
+  SdfShapeType type;
+  MaterialType material;
 };
 
-typedef SdfItem<sdf::FlatMaterial>         FlatSdfItem;
-typedef SdfItem<sdf::NoiseMaterial>        NoiseSdfItem;
-typedef SdfItem<sdf::MeshGradientMaterial> MeshGradientSdfItem;
+typedef SdfItem<SdfGradientMaterial>     SdfGradientItem;
+typedef SdfItem<SdfNoiseMaterial>        SdfNoiseItem;
+typedef SdfItem<SdfMeshGradientMaterial> SdfMeshGradientItem;
 
-struct TriangleSetItem<MaterialType : triangle_fill::Material>
+struct TriangleSetItem<MaterialType : TriangleSetMaterial>
 {
   f32x4x4      world_transform;
   f32x4x4      uv_transform;
   MaterialType material;
 };
 
-typedef TriangleSetItem<triangle_fill::TextureMaterial> FlatTriangleSetItem;
+typedef TriangleSetItem<TriangleSetTextureMaterial> TriangleSetGradientItem;
 
 struct TriangleVertex
 {
@@ -118,7 +118,7 @@ struct TriangleVertex
   }
 };
 
-struct PbrItem<MaterialType : pbr::Material>
+struct PbrItem<MaterialType : PbrMaterial>
 {
   f32x4x4      world_transform;
   f32x4x4      world_to_ndc;
@@ -129,4 +129,31 @@ struct PbrItem<MaterialType : pbr::Material>
   MaterialType material;
 };
 
-typedef PbrItem<pbr::CoreMaterial> CorePbrItem;
+typedef PbrItem<PbrCoreMaterial> CorePbrItem;
+
+struct PathVertex
+{
+  f32x2 position;
+  f32   alpha_mask;
+  u32   paint_id;
+};
+
+struct PathCoverageItem
+{
+  f32x4x4 world_transform;
+};
+
+struct PathPaintItem
+{
+  f32x4x4              world_transform;
+  u32                  paint_id;
+  f32                  feather_min;
+  f32                  feather_max;
+  QuadGradientMaterial material;
+};
+
+struct BezierStencilItem
+{
+  f32x4x4 world_transform;
+  u32     first_bezier_vertex;
+};

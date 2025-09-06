@@ -14,16 +14,16 @@ static const f32x2 REL_POS[] = {
 };
 
 #ifndef ITEM_TYPE
-#  define ITEM_TYPE FlatQuadItem
+#  define ITEM_TYPE QuadGradientItem
 #endif
 
 struct VertexOutput
 {
   [[vk::location(0)]] f32x4               screen_pos : SV_Position;
   [[vk::location(1)]] f32x4               world_pos  : WORLD_POSITION;
-  [[vk::location(1)]] f32x2               rel_pos    : REL_POSITION;
-  [[vk::location(2)]] f32x2               uv         : UV;
-  [[vk::location(3)]] nointerpolation u32 instance   : INSTANCE;
+  [[vk::location(2)]] f32x2               rel_pos    : REL_POSITION;
+  [[vk::location(3)]] f32x2               uv         : UV;
+  [[vk::location(4)]] nointerpolation u32 instance   : INSTANCE;
 };
 
 [[vk::binding(0, 0)]]
@@ -53,7 +53,7 @@ StructuredBuffer<ITEM_TYPE> quads;
 [[shader("fragment")]] f32x4 frag(VertexOutput in) : COLOR
 {
   var material = quads[in.instance].material;
-  var frag = quad::FragmentInfo(in.world_pos, in.screen_pos, in.rel_pos, in.uv,
-                                in.instance);
+  var frag = QuadFragmentInfo(in.world_pos, in.screen_pos, in.rel_pos, in.uv,
+                              in.instance);
   return material.shade(frag, samplers, textures);
 }

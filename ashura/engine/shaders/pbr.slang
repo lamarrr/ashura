@@ -57,7 +57,7 @@ StructuredBuffer<u32> indices;
 ConstantBuffer<ITEM_TYPE> item;
 
 [[vk::binding(0, 5)]]
-StructuredBuffer<pbr::PunctualLight> lights;
+StructuredBuffer<PunctualLight> lights;
 
 [[shader("vertex")]]
 VertexOutput vert(u32 vertex : SV_VertexID, u32 instance : SV_InstanceID)
@@ -67,14 +67,14 @@ VertexOutput vert(u32 vertex : SV_VertexID, u32 instance : SV_InstanceID)
   f32x4 rel_pos    = vtx.pos();
   f32x4 world_pos  = mul(item.world_transform, rel_pos);
   f32x4 screen_pos = mul(item.world_to_ndc, world_pos);
-  f32x2 uv         = mul(item.uv_transform, f32x4(vtx.uv(), 0, 1)).xy;
+  f32x2 uv         = mul(item.uv_transform, f32x4(vtx.uv(), 0.0, 1.0)).xy;
   return VertexOutput(screen_pos, world_pos, uv, instance);
 }
 
 [[shader("fragment")]]
 FragmentOutput frag(VertexOutput in)
 {
-  var frag = pbr::FragmentInfo(in.world_pos, in.screen_pos, in.uv, in.instance);
+  var frag = PbrFragmentInfo(in.world_pos, in.screen_pos, in.uv, in.instance);
   var material = item.material;
   var m        = material.shade(frag, samplers, textures);
 

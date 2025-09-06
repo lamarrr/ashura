@@ -2,7 +2,6 @@
 #pragma once
 
 #include "ashura/engine/pipeline.h"
-#include "ashura/engine/shaders.gen.h"
 #include "ashura/std/allocator.h"
 #include "ashura/std/math.h"
 #include "ashura/std/obj.h"
@@ -85,9 +84,11 @@ struct SdfEncoder final : ICanvasEncoder
     gpu::Viewport           viewport;
     TextureSet              texture_set;
     f32x4x4                 world_to_ndc;
-    Span<u8 const>          shape;
+    Span<u8 const>          item;
     PipelineVariantId       variant;
   };
+
+  u32 num_instances_;
 
   u32 color_;
 
@@ -103,22 +104,23 @@ struct SdfEncoder final : ICanvasEncoder
 
   f32x4x4 world_to_ndc_;
 
-  Vec<u8> shapes_;
+  Vec<u8> items_;
 
   PipelineVariantId variant_;
 
   explicit SdfEncoder(Allocator allocator, Item const & item) :
     ICanvasEncoder{CanvasEncoderType::Sdf},
+    num_instances_{1},
     depth_stencil_{item.depth_stencil},
     stencil_op_{item.stencil_op},
     scissor_{item.scissor},
     viewport_{item.viewport},
     texture_set_{item.texture_set},
     world_to_ndc_{item.world_to_ndc},
-    shapes_{allocator},
+    items_{allocator},
     variant_{item.variant}
   {
-    push_(item.shape);
+    push_(item.item);
   }
 
   SdfEncoder(SdfEncoder const &)             = delete;
@@ -127,9 +129,10 @@ struct SdfEncoder final : ICanvasEncoder
   SdfEncoder & operator=(SdfEncoder &&)      = default;
   ~SdfEncoder()                              = default;
 
-  void push_(Span<u8 const> shape)
+  void push_(Span<u8 const> item)
   {
-    shapes_.extend(shape).unwrap();
+    items_.extend(item).unwrap();
+    num_instances_++;
   }
 
   bool push(Item const & item)
@@ -145,7 +148,7 @@ struct SdfEncoder final : ICanvasEncoder
       return false;
     }
 
-    push_(item.shape);
+    push_(item.item);
 
     return true;
   }
@@ -168,6 +171,8 @@ struct QuadEncoder final : ICanvasEncoder
     PipelineVariantId       variant;
   };
 
+  u32 num_instances_;
+
   u32 color_;
 
   Option<u32> depth_stencil_;
@@ -188,6 +193,7 @@ struct QuadEncoder final : ICanvasEncoder
 
   explicit QuadEncoder(Allocator allocator, Item const & item) :
     ICanvasEncoder{CanvasEncoderType::Quad},
+    num_instances_{1},
     depth_stencil_{item.depth_stencil},
     stencil_op_{item.stencil_op},
     scissor_{item.scissor},
@@ -209,6 +215,7 @@ struct QuadEncoder final : ICanvasEncoder
   void push_(Span<u8 const> quad)
   {
     quads_.extend(quad).unwrap();
+    num_instances_++;
   }
 
   bool push(Item const & item)
@@ -246,9 +253,11 @@ struct TriangleFillEncoder final : ICanvasEncoder
     f32x4x4                 world_to_ndc;
     Span<u8 const>          set;
     Span<u8 const>          vertices;
-    Span<u8 const>          indices;
+    Span<u32 const>         indices;
     PipelineVariantId       variant;
   };
+
+  u32 num_instances_;
 
   u32 color_;
 
@@ -278,6 +287,7 @@ struct TriangleFillEncoder final : ICanvasEncoder
 
   explicit TriangleFillEncoder(Allocator allocator, Item const & item) :
     ICanvasEncoder{CanvasEncoderType::TriangleFill},
+    num_instances_{1},
     depth_stencil_{item.depth_stencil},
     stencil_op_{item.stencil_op},
     scissor_{item.scissor},
@@ -301,12 +311,13 @@ struct TriangleFillEncoder final : ICanvasEncoder
   ~TriangleFillEncoder()                                       = default;
 
   void push_(Span<u8 const> set, Span<u8 const> vertices,
-             Span<u8 const> indices)
+             Span<u32 const> indices)
   {
     index_counts_.push(size32(indices)).unwrap();
     sets_.extend(set).unwrap();
     vertices_.extend(vertices).unwrap();
-    indices_.extend(indices).unwrap();
+    indices_.extend(indices.as_u8()).unwrap();
+    num_instances_++;
   }
 
   bool push(Item const & item)
@@ -335,17 +346,19 @@ struct FillStencilEncoder final : ICanvasEncoder
 {
   struct Item
   {
-    u32            depth_stencil;
-    u32            write_mask;
-    RectU          scissor;
-    gpu::Viewport  viewport;
-    FillRule       fill_rule;
-    bool           invert;
-    f32x4x4        world_to_ndc;
-    f32x4x4        world_transform;
-    Span<u8 const> vertices;
-    Span<u8 const> indices;
+    u32             depth_stencil;
+    u32             write_mask;
+    RectU           scissor;
+    gpu::Viewport   viewport;
+    FillRule        fill_rule;
+    bool            invert;
+    f32x4x4         world_to_ndc;
+    f32x4x4         world_transform;
+    Span<u8 const>  vertices;
+    Span<u32 const> indices;
   };
+
+  u32 num_instances_;
 
   u32 depth_stencil_;
 
@@ -371,6 +384,7 @@ struct FillStencilEncoder final : ICanvasEncoder
 
   explicit FillStencilEncoder(Allocator allocator, Item const & item) :
     ICanvasEncoder{CanvasEncoderType::FillStencil},
+    num_instances_{1},
     depth_stencil_{item.depth_stencil},
     scissor_{item.scissor},
     viewport_{item.viewport},
@@ -393,13 +407,14 @@ struct FillStencilEncoder final : ICanvasEncoder
   ~FillStencilEncoder()                                      = default;
 
   void push_(f32x4x4 const & world_transform, Span<u8 const> vertices,
-             Span<u8 const> indices, u32 write_mask)
+             Span<u32 const> indices, u32 write_mask)
   {
     world_transforms_.extend(as_u8_span(world_transform)).unwrap();
     vertices_.extend(vertices).unwrap();
-    indices_.extend(indices).unwrap();
+    indices_.extend(indices.as_u8()).unwrap();
     index_counts_.push(size32(indices)).unwrap();
     write_masks_.push(write_mask).unwrap();
+    num_instances_++;
   }
 
   bool push(Item const & item)
@@ -435,11 +450,12 @@ struct BezierStencilEncoder final : ICanvasEncoder
     bool            invert;
     f32x4x4         world_to_ndc;
     f32x4x4         world_transform;
+    u32             first_bezier_vertex;
     Span<u8 const>  vertices;
-    Span<u8 const>  indices;
-    Span<u8 const>  regions;
-    Span<u32 const> region_index_counts;
+    Span<u32 const> indices;
   };
+
+  u32 num_instances_;
 
   u32 depth_stencil_;
 
@@ -453,35 +469,33 @@ struct BezierStencilEncoder final : ICanvasEncoder
 
   f32x4x4 world_to_ndc_;
 
-  Vec<u8> world_transforms_;
+  Vec<u8> items_;
 
   Vec<u8> vertices_;
 
   Vec<u8> indices_;
 
-  Vec<u8> regions_;
-
-  Vec<u32> region_index_counts_;
+  Vec<u32> index_counts_;
 
   Vec<u32> write_masks_;
 
   explicit BezierStencilEncoder(Allocator allocator, Item const & item) :
     ICanvasEncoder{CanvasEncoderType::BezierStencil},
+    num_instances_{1},
     depth_stencil_{item.depth_stencil},
     scissor_{item.scissor},
     viewport_{item.viewport},
     fill_rule_{item.fill_rule},
     invert_{item.invert},
     world_to_ndc_{item.world_to_ndc},
-    world_transforms_{allocator},
+    items_{allocator},
     vertices_{allocator},
     indices_{allocator},
-    regions_{allocator},
-    region_index_counts_{allocator},
+    index_counts_{allocator},
     write_masks_{allocator}
   {
-    push_(item.world_transform, item.vertices, item.indices, item.regions,
-          item.region_index_counts, item.write_mask);
+    push_(item.world_transform, item.vertices, item.indices,
+          item.first_bezier_vertex, item.write_mask);
   }
 
   BezierStencilEncoder(BezierStencilEncoder const &)             = delete;
@@ -491,15 +505,18 @@ struct BezierStencilEncoder final : ICanvasEncoder
   ~BezierStencilEncoder()                                        = default;
 
   void push_(f32x4x4 const & world_transform, Span<u8 const> vertices,
-             Span<u8 const> indices, Span<u8 const> regions,
-             Span<u32 const> region_index_counts, u32 write_mask)
+             Span<u32 const> indices, u32 first_bezier_vertex, u32 write_mask)
   {
-    world_transforms_.extend(as_u8_span(world_transform)).unwrap();
+    auto item = shader::BezierStencilItem{
+      .world_transform = world_transform,
+      .first_bezier_vertex =
+        static_cast<u32>(size(indices_) / sizeof(u32)) + first_bezier_vertex};
+    items_.extend(as_u8_span(item)).unwrap();
     vertices_.extend(vertices).unwrap();
-    indices_.extend(indices).unwrap();
-    regions_.extend(regions).unwrap();
-    region_index_counts_.extend(region_index_counts).unwrap();
+    indices_.extend(indices.as_u8()).unwrap();
+    index_counts_.push(size32(indices)).unwrap();
     write_masks_.push(write_mask).unwrap();
+    num_instances_++;
   }
 
   bool push(Item const & item)
@@ -515,8 +532,8 @@ struct BezierStencilEncoder final : ICanvasEncoder
       return false;
     }
 
-    push_(item.world_transform, item.vertices, item.indices, item.regions,
-          item.region_index_counts, item.write_mask);
+    push_(item.world_transform, item.vertices, item.indices,
+          item.first_bezier_vertex, item.write_mask);
 
     return true;
   }
@@ -538,7 +555,7 @@ struct PbrEncoder final : ICanvasEncoder
     GpuBufferSpan           vertices;
     GpuBufferSpan           indices;
     u32                     num_indices;
-    Span<u8 const>          material;
+    Span<u8 const>          item;
     Span<u8 const>          lights;
     gpu::CullMode           cull_mode;
     PipelineVariantId       variant;
@@ -564,7 +581,7 @@ struct PbrEncoder final : ICanvasEncoder
 
   u32 num_indices_;
 
-  Vec<u8> material_;
+  Vec<u8> item_;
 
   Vec<u8> lights_;
 
@@ -584,12 +601,12 @@ struct PbrEncoder final : ICanvasEncoder
     vertices_{item.vertices},
     indices_{item.indices},
     num_indices_{item.num_indices},
-    material_{allocator},
+    item_{allocator},
     lights_{allocator},
     cull_mode_{item.cull_mode},
     variant_{item.variant}
   {
-    material_.extend(item.material).unwrap();
+    item_.extend(item.item).unwrap();
     lights_.extend(item.lights).unwrap();
   }
 

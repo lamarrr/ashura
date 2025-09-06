@@ -1,6 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/engine/pipelines/fill_stencil.h"
-#include "ashura/engine/pipelines/fill_stencil_state.h"
+#include "ashura/engine/pipelines/fill_rule_stencil.h"
 #include "ashura/engine/shader_system.h"
 #include "ashura/engine/systems.h"
 #include "ashura/std/math.h"
@@ -26,7 +26,7 @@ void FillStencilPipeline::acquire(GpuFramePlan plan)
   FallbackAllocator scratch{scratch_buffer_, gpu.allocator()};
 
   auto tagged_label =
-    sformat(scratch, "Fill Stencil Graphics Pipeline").unwrap();
+    sformat(scratch, "Fill Stencil Graphics Pipeline"_str).unwrap();
 
   auto raster_state =
     gpu::RasterizationState{.depth_clamp_enable = false,
@@ -130,14 +130,14 @@ void FillStencilPipeline::encode(gpu::CommandEncoder               e,
            params.write_masks))
   {
     auto [front_stencil, back_stencil] =
-      fill_stencil_state(params.fill_rule, params.invert, write_mask);
+      fill_rule_stencil(params.fill_rule, params.invert, write_mask);
     e->set_graphics_state(
       gpu::GraphicsState{.scissor             = params.scissor,
                          .viewport            = params.viewport,
                          .stencil_test_enable = false,
                          .front_face_stencil  = front_stencil,
                          .back_face_stencil   = back_stencil});
-    e->draw({first_index, index_count}, {params.first_instance + i, 1});
+    e->draw({first_index, index_count}, {  i, 1});
     first_index += index_count;
   }
 

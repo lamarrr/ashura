@@ -6,7 +6,7 @@
 #include "materials/triangle_fill.slang"
 
 #ifndef ITEM_TYPE
-#  define ITEM_TYPE FlatTriangleSetItem
+#  define ITEM_TYPE TriangleSetGradientItem
 #endif
 
 [[vk::binding(0, 0)]]
@@ -44,7 +44,7 @@ VertexOutput vert(u32 instance : SV_InstanceID, u32 vertex : SV_VertexID)
   var   set        = sets[instance];
   f32x4 world_pos  = mul(set.world_transform, f32x4(vtx.pos(), 0.0, 1.0));
   f32x4 screen_pos = mul(world_to_ndc, world_pos);
-  f32x2 uv         = mul(set.uv_transform, f32x4(vtx.pos(), 0, 1)).xy;
+  f32x2 uv         = mul(set.uv_transform, f32x4(vtx.pos(), 0.0, 1.0)).xy;
   return VertexOutput(screen_pos, world_pos, vtx.color(), uv, instance);
 }
 
@@ -53,7 +53,7 @@ f32x4 frag(VertexOutput in) :
   COLOR
 {
   var material = sets[in.instance].material;
-  var frag = triangle_fill::FragmentInfo(in.world_pos, in.screen_pos, in.color,
+  var frag     = TriangleSetFragmentInfo(in.world_pos, in.screen_pos, in.color,
                                          in.uv, in.instance);
   return material.shade(frag, samplers, textures);
 }

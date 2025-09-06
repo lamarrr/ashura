@@ -6,15 +6,7 @@
 #include "modules/sdf.slang"
 #include "modules/types.slang"
 
-namespace triangle_fill
-{
-
-interface Material
-{
-  f32x4 shade(FragmentInfo info, SamplerState samplers[], Texture2D textures[]);
-}
-
-struct FragmentInfo
+struct TriangleSetFragmentInfo
 {
   f32x4 world_pos;
   f32x4 screen_pos;
@@ -23,12 +15,19 @@ struct FragmentInfo
   u32   instance;
 };
 
-struct TextureMaterial : Material
+interface TriangleSetMaterial
+{
+  f32x4 shade(TriangleSetFragmentInfo info, SamplerState samplers[],
+              Texture2D textures[]);
+}
+
+struct TriangleSetTextureMaterial : TriangleSetMaterial
 {
   SamplerIndex sampler;
   TextureIndex texture;
 
-  f32x4 shade(FragmentInfo info, SamplerState samplers[], Texture2D textures[])
+  f32x4 shade(TriangleSetFragmentInfo info, SamplerState samplers[],
+              Texture2D textures[])
   {
     f32x2 norm_uv   = info.uv + 0.5F;
     var   smp       = samplers[NonUniformResourceIndex(this.sampler)];
@@ -37,5 +36,3 @@ struct TextureMaterial : Material
     return info.color * tex_color;
   }
 };
-
-}    // namespace triangle_fill

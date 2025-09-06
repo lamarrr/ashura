@@ -2,14 +2,35 @@
 
 #pragma once
 
-typedef uint8_t u8;
+typedef uint8_t  u8;
+typedef uint8_t2 u8x2;
+typedef uint8_t3 u8x3;
+typedef uint8_t4 u8x4;
+
 typedef int8_t  i8;
+typedef int8_t2 i8x2;
+typedef int8_t3 i8x3;
+typedef int8_t4 i8x4;
 
-typedef uint16_t u16;
+typedef uint16_t  u16;
+typedef uint16_t2 u16x2;
+typedef uint16_t3 u16x3;
+typedef uint16_t4 u16x4;
+
 typedef int16_t  i16;
+typedef int16_t2 i16x2;
+typedef int16_t3 i16x3;
+typedef int16_t4 i16x4;
 
-typedef uint32_t u32;
+typedef uint32_t  u32;
+typedef uint32_t2 u32x2;
+typedef uint32_t3 u32x3;
+typedef uint32_t4 u32x4;
+
 typedef int32_t  i32;
+typedef int32_t2 i32x2;
+typedef int32_t3 i32x3;
+typedef int32_t4 i32x4;
 
 typedef float16_t    f16;
 typedef float16_t4   f16x4;
@@ -29,6 +50,8 @@ typedef float32_t2x2 f32x2x2;
 
 typedef u32 SamplerIndex;
 typedef u32 TextureIndex;
+
+static const u32 U32_MAX = -1;
 
 static const f32 PI = 3.1415926535897932384626433832795;
 
@@ -79,17 +102,14 @@ enum class BezierRegions : u32
   All     = 7
 };
 
-namespace sdf
-{
-
-enum class ShapeType : u32
+enum class SdfShapeType : u32
 {
   RRect    = 0,
   Squircle = 1,
   SDFMap   = 2
 };
 
-enum class ShadeType : u32
+enum class SdfShadeType : u32
 {
   Flood     = 0,
   Softened  = 1,
@@ -97,7 +117,7 @@ enum class ShadeType : u32
   Stroked   = 3
 };
 
-enum class BlendOp : u32
+enum class SdfBlendOp : u32
 {
   None                = 0,
   Sub                 = 1,
@@ -119,11 +139,9 @@ enum class BlendOp : u32
   CircGeomSmoothUnion = 17
 };
 
-enum class MixOp : u32
+enum class SdfMixOp : u32
 {
   None           = 0,
   QuadSmoothMin  = 1,
   CubicSmoothMin = 2
 };
-
-}    // namespace sdf

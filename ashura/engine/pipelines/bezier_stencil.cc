@@ -1,6 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/engine/pipelines/bezier_stencil.h"
-#include "ashura/engine/pipelines/fill_stencil_state.h"
+#include "ashura/engine/pipelines/fill_rule_stencil.h"
 #include "ashura/engine/shader_system.h"
 #include "ashura/engine/systems.h"
 #include "ashura/std/math.h"
@@ -52,10 +52,9 @@ void BezierStencilPipeline::acquire(GpuFramePlan plan)
 
   gpu::DescriptorSetLayout set_layouts[] = {
     layout.read_storage_buffer,    // 0: world_to_ndc
-    layout.read_storage_buffer,    // 1: world_transforms
+    layout.read_storage_buffer,    // 1: items
     layout.read_storage_buffer,    // 2: vertices
-    layout.read_storage_buffer,    // 3: indices
-    layout.read_storage_buffer     // 4: regions
+    layout.read_storage_buffer     // 3: indices
   };
 
   auto pipeline_info = gpu::GraphicsPipelineInfo{
@@ -110,27 +109,24 @@ void BezierStencilPipeline::encode(gpu::CommandEncoder                 e,
   e->bind_descriptor_sets(
     span({
       params.world_to_ndc.buffer.read_storage_buffer,    // 0: world_to_ndc
-      params.world_transforms.buffer
-        .read_storage_buffer,                        // 1: world_transforms
-      params.vertices.buffer.read_storage_buffer,    // 2: vertices
-      params.indices.buffer.read_storage_buffer,     // 3: indices
-      params.regions.buffer.read_storage_buffer,     // 4: regions
+      params.items.buffer.read_storage_buffer,           // 1: items
+      params.vertices.buffer.read_storage_buffer,        // 2: vertices
+      params.indices.buffer.read_storage_buffer          // 3: indices
     }),
     span({
-      params.world_to_ndc.slice.as_u32().offset,        // 0: world_to_ndc
-      params.world_transforms.slice.as_u32().offset,    // 1: world_transforms
-      params.vertices.slice.as_u32().offset,            // 2: vertices
-      params.indices.slice.as_u32().offset,             // 3: indices
-      params.regions.slice.as_u32().offset,             // 4: regions
+      params.world_to_ndc.slice.as_u32().offset,    // 0: world_to_ndc
+      params.items.slice.as_u32().offset,           // 1: items
+      params.vertices.slice.as_u32().offset,        // 2: vertices
+      params.indices.slice.as_u32().offset          // 3: indices
     }));
 
   u32 first_index = 0;
   for (auto [i, index_count, write_mask] :
-       zip(range(size32(params.region_index_counts)),
-           params.region_index_counts, params.write_masks))
+       zip(range(size32(params.index_counts)), params.index_counts,
+           params.write_masks))
   {
     auto [front_stencil, back_stencil] =
-      fill_stencil_state(params.fill_rule, params.invert, write_mask);
+      fill_rule_stencil(params.fill_rule, params.invert, write_mask);
 
     e->set_graphics_state(
       gpu::GraphicsState{.scissor             = params.scissor,

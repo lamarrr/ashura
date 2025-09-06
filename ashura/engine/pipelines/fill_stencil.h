@@ -2,7 +2,6 @@
 #pragma once
 #include "ashura/engine/gpu_system.h"
 #include "ashura/engine/pipeline.h"
-#include "ashura/engine/shaders.gen.h"
 #include "ashura/gpu/gpu.h"
 #include "ashura/std/types.h"
 
@@ -20,7 +19,6 @@ struct FillStencilPipelineParams
   GpuBufferSpan     world_transforms = {};
   GpuBufferSpan     vertices         = {};
   GpuBufferSpan     indices          = {};
-  u32               first_instance   = 0;
   Span<u32 const>   index_counts     = {};
   Span<u32 const>   write_masks      = {};
 };

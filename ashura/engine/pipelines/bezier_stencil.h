@@ -2,7 +2,6 @@
 #pragma once
 #include "ashura/engine/gpu_system.h"
 #include "ashura/engine/pipeline.h"
-#include "ashura/engine/shaders.gen.h"
 #include "ashura/gpu/gpu.h"
 #include "ashura/std/types.h"
 
@@ -11,18 +10,17 @@ namespace ash
 
 struct BezierStencilPipelineParams
 {
-  DepthStencilImage stencil             = {};
-  RectU             scissor             = {};
-  gpu::Viewport     viewport            = {};
-  FillRule          fill_rule           = FillRule::EvenOdd;
-  bool              invert              = false;
-  GpuBufferSpan     world_to_ndc        = {};
-  GpuBufferSpan     world_transforms    = {};
-  GpuBufferSpan     vertices            = {};
-  GpuBufferSpan     indices             = {};
-  GpuBufferSpan     regions             = {};
-  Span<u32 const>   region_index_counts = {};
-  Span<u32 const>   write_masks         = {};
+  DepthStencilImage stencil      = {};
+  RectU             scissor      = {};
+  gpu::Viewport     viewport     = {};
+  FillRule          fill_rule    = FillRule::EvenOdd;
+  bool              invert       = false;
+  GpuBufferSpan     world_to_ndc = {};
+  GpuBufferSpan     items        = {};
+  GpuBufferSpan     vertices     = {};
+  GpuBufferSpan     indices      = {};
+  Span<u32 const>   index_counts = {};
+  Span<u32 const>   write_masks  = {};
 };
 
 struct BezierStencilPipeline final : IPipeline

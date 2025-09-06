@@ -69,7 +69,7 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
     layout.samplers,               // 0: samplers
     layout.sampled_textures,       // 1: textures
     layout.read_storage_buffer,    // 2: world_to_ndc
-    layout.read_storage_buffer,    // 3: shapes
+    layout.read_storage_buffer,    // 3: items
   };
 
   auto tagged_label =
@@ -106,9 +106,9 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
 
 void SdfPipeline::acquire(GpuFramePlan plan)
 {
-  auto flat_id = add_variant(plan, "Flat"_str,
-                             sys.shader->get("SDF.Flat"_str).unwrap().shader);
-  CHECK(flat_id == FLAT, "");
+  auto gradient_id = add_variant(
+    plan, "Gradient"_str, sys.shader->get("SDF.Gradient"_str).unwrap().shader);
+  CHECK(gradient_id == GRADIENT, "");
   auto noise_id = add_variant(plan, "Noise"_str,
                               sys.shader->get("SDF.Noise"_str).unwrap().shader);
   CHECK(noise_id == NOISE, "");
@@ -197,11 +197,11 @@ void SdfPipeline::encode(gpu::CommandEncoder       e,
       params.samplers,                                   // 0: samplers
       params.textures,                                   // 1: textures
       params.world_to_ndc.buffer.read_storage_buffer,    // 2: world_to_ndc
-      params.shapes.buffer.read_storage_buffer           // 3: shapes
+      params.items.buffer.read_storage_buffer           // 3: items
     }),
     span({
       params.world_to_ndc.slice.as_u32().offset,    // 2: world_to_ndc
-      params.shapes.slice.as_u32().offset           // 3: shapes
+      params.items.slice.as_u32().offset           // 3: items
     }));
   e->draw({0, 4}, params.instances);
   e->end_rendering();

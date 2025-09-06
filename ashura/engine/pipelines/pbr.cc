@@ -68,7 +68,7 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
     layout.sampled_textures,       // 1: textures
     layout.read_storage_buffer,    // 2: vertices
     layout.read_storage_buffer,    // 3: indices
-    layout.read_storage_buffer,    // 4: materials
+    layout.read_storage_buffer,    // 4: items
     layout.read_storage_buffer     // 5: lights
   };
 
@@ -243,13 +243,13 @@ void PBRPipeline::encode(gpu::CommandEncoder       e,
       params.textures,                               // 1: textures
       params.vertices.buffer.read_storage_buffer,    // 2: vertices
       params.indices.buffer.read_storage_buffer,     // 3: indices
-      params.material.buffer.read_storage_buffer,    // 4: materials
+      params.items.buffer.read_storage_buffer,    // 4: items
       params.lights.buffer.read_storage_buffer,      // 5: lights
     }),
     span({
       params.vertices.slice.as_u32().offset,    // 2: vertices
       params.indices.slice.as_u32().offset,     // 3: indices
-      params.material.slice.as_u32().offset,    // 4: materials
+      params.items.slice.as_u32().offset,    // 4: items
       params.lights.slice.as_u32().offset       // 5: lights
     }));
   e->draw({0, params.num_indices}, {0, 1});

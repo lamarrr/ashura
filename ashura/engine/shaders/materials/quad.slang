@@ -6,10 +6,7 @@
 #include "modules/sdf.slang"
 #include "modules/types.slang"
 
-namespace quad
-{
-
-struct FragmentInfo
+struct QuadFragmentInfo
 {
   f32x4 world_pos;
   f32x4 screen_pos;
@@ -18,12 +15,13 @@ struct FragmentInfo
   u32   instance;
 };
 
-interface Material
+interface QuadMaterial
 {
-  f32x4 shade(FragmentInfo info, SamplerState samplers[], Texture2D textures[]);
+  f32x4 shade(QuadFragmentInfo info, SamplerState samplers[],
+              Texture2D textures[]);
 }
 
-struct FlatMaterial : Material
+struct QuadGradientMaterial : QuadMaterial
 {
   f32x4        top;
   f32x4        bottom;
@@ -32,7 +30,8 @@ struct FlatMaterial : Material
   SamplerIndex sampler;
   TextureIndex texture;
 
-  f32x4 shade(FragmentInfo info, SamplerState samplers[], Texture2D textures[])
+  f32x4 shade(QuadFragmentInfo info, SamplerState samplers[],
+              Texture2D textures[])
   {
     f32x2 norm_uv   = info.uv + 0.5;
     var   smp       = samplers[NonUniformResourceIndex(this.sampler)];
@@ -43,16 +42,3 @@ struct FlatMaterial : Material
     return color * tex_color;
   }
 };
-
-struct NoiseMaterial : Material
-{
-  f32x4 intensity;
-
-  f32x4 shade(FragmentInfo info, SamplerState samplers[], Texture2D textures[])
-  {
-    f32x4 n = noise2D(info.screen_pos.xy) * this.intensity;
-    return n;
-  }
-};
-
-}    // namespace quad

@@ -1,15 +1,15 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/engine/pipeline.h"
-#include "ashura/engine/shaders.gen.h"
+#include "ashura/engine/shaders/items.gen.h"
 #include "ashura/gpu/gpu.h"
 #include "ashura/std/types.h"
 
 namespace ash
 {
 
-constexpr auto fill_stencil_state(FillRule fill_rule, bool invert,
-                                  u32 write_mask)
+constexpr auto fill_rule_stencil(FillRule fill_rule, bool invert,
+                                 u32 write_mask)
 {
   auto even_odd_pass_op = gpu::StencilOp::Invert;
   auto even_odd_fail_op = gpu::StencilOp::Keep;

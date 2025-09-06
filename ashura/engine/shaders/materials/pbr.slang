@@ -6,10 +6,7 @@
 #include "modules/sdf.slang"
 #include "modules/types.slang"
 
-namespace pbr
-{
-
-struct Shading
+struct PbrShading
 {
   f32x3 albedo              = f32x3(0);
   f32   metallic            = 0;
@@ -46,7 +43,7 @@ struct Shading
   }
 };
 
-struct FragmentInfo
+struct PbrFragmentInfo
 {
   f32x4 world_pos;
   f32x4 screen_pos;
@@ -54,13 +51,13 @@ struct FragmentInfo
   u32   instance;
 };
 
-interface Material
+interface PbrMaterial
 {
-  Shading shade(FragmentInfo info, SamplerState samplers[],
-                Texture2D textures[]);
+  PbrShading shade(PbrFragmentInfo info, SamplerState samplers[],
+                   Texture2D textures[]);
 }
 
-struct CoreMaterial : Material
+struct PbrCoreMaterial : PbrMaterial
 {
   f32x4        albedo;      // only xyz
   f32x4        emission;    // only xyz
@@ -84,13 +81,13 @@ struct CoreMaterial : Material
   TextureIndex clearcoat_roughness_map;
   TextureIndex clearcoat_normal_map;
 
-  Shading shade(FragmentInfo info, SamplerState samplers[],
-                Texture2D textures[])
+  PbrShading shade(PbrFragmentInfo info, SamplerState samplers[],
+                   Texture2D textures[])
   {
     var s       = samplers[sampler];
     var norm_uv = info.uv + 0.5;
 
-    Shading sh;
+    PbrShading sh;
     // clang-format off
     sh.albedo = textures[NonUniformResourceIndex(albedo_map)].Sample(s, norm_uv).rgb * albedo.xyz;
     sh.metallic = textures[NonUniformResourceIndex(metallic_map)].Sample(s, norm_uv).r * metallic;
@@ -119,13 +116,13 @@ struct CoreMaterial : Material
   }
 };
 
-interface Lighting
+interface PbrLighting
 {
   f32x4 position();
   f32x4 irradiance(f32x4 world_pos, f32x4 surface_normal);
 }
 
-struct PunctualLight : Lighting
+struct PunctualLight : PbrLighting
 {
   f32x4 direction;    // xyz
   f32x4 pos;          // xyz
@@ -157,5 +154,3 @@ struct PunctualLight : Lighting
 // [ ] image-based light
 // [ ] rectangular lights
 // [ ] https://developer.nvidia.com/gpugems/gpugems/part-iii-materials/chapter-19-image-based-lighting
-
-}    // namespace pbr

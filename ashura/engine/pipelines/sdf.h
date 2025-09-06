@@ -17,13 +17,13 @@ struct SdfPipelineParams
   gpu::DescriptorSet      samplers     = nullptr;
   gpu::DescriptorSet      textures     = nullptr;
   GpuBufferSpan           world_to_ndc = {};
-  GpuBufferSpan           shapes       = {};
+  GpuBufferSpan           items        = {};
   Slice32                 instances    = {};
 };
 
 struct SdfPipeline final : IPipeline
 {
-  static constexpr PipelineVariantId FLAT          = PipelineVariantId::Base;
+  static constexpr PipelineVariantId GRADIENT      = PipelineVariantId::Base;
   static constexpr PipelineVariantId NOISE         = PipelineVariantId{1};
   static constexpr PipelineVariantId MESH_GRADIENT = PipelineVariantId{2};
 

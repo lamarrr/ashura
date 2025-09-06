@@ -210,7 +210,7 @@ void TriangleFillPipeline::encode(gpu::CommandEncoder                e,
   u32 first_index = 0;
   for (auto [i, index_count] : enumerate<u32>(params.index_counts))
   {
-    e->draw({first_index, index_count}, {params.first_instance + i, 1});
+    e->draw({first_index, index_count}, {i, 1});
     first_index += index_count;
   }
 
