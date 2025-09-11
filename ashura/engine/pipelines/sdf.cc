@@ -197,11 +197,11 @@ void SdfPipeline::encode(gpu::CommandEncoder       e,
       params.samplers,                                   // 0: samplers
       params.textures,                                   // 1: textures
       params.world_to_ndc.buffer.read_storage_buffer,    // 2: world_to_ndc
-      params.items.buffer.read_storage_buffer           // 3: items
+      params.items.buffer.read_storage_buffer            // 3: items
     }),
     span({
       params.world_to_ndc.slice.as_u32().offset,    // 2: world_to_ndc
-      params.items.slice.as_u32().offset           // 3: items
+      params.items.slice.as_u32().offset            // 3: items
     }));
   e->draw({0, 4}, params.instances);
   e->end_rendering();

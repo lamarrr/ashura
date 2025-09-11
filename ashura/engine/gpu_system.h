@@ -1,5 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
+#include "ashura/engine/shaders/items.gen.h"
 #include "ashura/gpu/gpu.h"
 #include "ashura/std/allocators.h"
 #include "ashura/std/async.h"
@@ -19,96 +20,7 @@ typedef Fn<void()>                              GpuFrameTaskFn;
 typedef Dyn<GpuFrameTaskFn>                     GpuFrameTask;
 typedef struct IGpuSys *                        GpuSys;
 
-// do not change the underlying type. It maps directly to the GPU handle
-enum class [[nodiscard]] TextureIndex : u32
-{
-  Base = 0,
-
-  /// @brief Nominal Texture Ids for the GPU system's texture set
-  White              = 0,     // [1, 1, 1, 1]
-  Transparent        = 1,     // [0, 0, 0, 0]
-  RedTransparent     = 2,     // [1, 0, 0, 0]
-  GreenTransparent   = 3,     // [0, 1, 0, 0]
-  BlueTransparent    = 4,     // [0, 0, 1, 0]
-  YellowTransparent  = 5,     // [1, 1, 0, 0]
-  MagentaTransparent = 6,     // [1, 0, 1, 0]
-  CyanTransparent    = 7,     // [0, 1, 1, 0]
-  WhiteTransparent   = 8,     // [1, 1, 1, 0]
-  Black              = 9,     // [0, 0, 0, 1]
-  Red                = 10,    // [1, 0, 0, 1]
-  Green              = 11,    // [0, 1, 0, 1]
-  Blue               = 12,    // [0, 0, 1, 1]
-  Yellow             = 13,    // [1, 1, 0, 1]
-  Magenta            = 14,    // [1, 0, 1, 1]
-  Cyan               = 15     // [0, 1, 1, 1]
-};
-
 inline constexpr u32 NUM_DEFAULT_TEXTURES = 16;
-
-// do not change the underlying type. It maps directly to the GPU handle
-enum class [[nodiscard]] SamplerIndex : u32
-{
-  LinearRepeatTransparentFloat           = 0,
-  LinearRepeatTransparentInt             = 1,
-  LinearRepeatBlackFloat                 = 2,
-  LinearRepeatBlackInt                   = 3,
-  LinearRepeatWhiteFloat                 = 4,
-  LinearRepeatWhiteInt                   = 5,
-  LinearMirroredRepeatTransparentFloat   = 6,
-  LinearMirroredRepeatTransparentInt     = 7,
-  LinearMirroredRepeatBlackFloat         = 8,
-  LinearMirroredRepeatBlackInt           = 9,
-  LinearMirroredRepeatWhiteFloat         = 10,
-  LinearMirroredRepeatWhiteInt           = 11,
-  LinearEdgeClampTransparentFloat        = 12,
-  LinearEdgeClampTransparentInt          = 13,
-  LinearEdgeClampBlackFloat              = 14,
-  LinearEdgeClampBlackInt                = 15,
-  LinearEdgeClampWhiteFloat              = 16,
-  LinearEdgeClampWhiteInt                = 17,
-  LinearBorderClampTransparentFloat      = 18,
-  LinearBorderClampTransparentInt        = 19,
-  LinearBorderClampBlackFloat            = 20,
-  LinearBorderClampBlackInt              = 21,
-  LinearBorderClampWhiteFloat            = 22,
-  LinearBorderClampWhiteInt              = 23,
-  LinearMirrorEdgeClampTransparentFloat  = 24,
-  LinearMirrorEdgeClampTransparentInt    = 25,
-  LinearMirrorEdgeClampBlackFloat        = 26,
-  LinearMirrorEdgeClampBlackInt          = 27,
-  LinearMirrorEdgeClampWhiteFloat        = 28,
-  LinearMirrorEdgeClampWhiteInt          = 29,
-  NearestRepeatTransparentFloat          = 30,
-  NearestRepeatTransparentInt            = 31,
-  NearestRepeatBlackFloat                = 32,
-  NearestRepeatBlackInt                  = 33,
-  NearestRepeatWhiteFloat                = 34,
-  NearestRepeatWhiteInt                  = 35,
-  NearestMirroredRepeatTransparentFloat  = 36,
-  NearestMirroredRepeatTransparentInt    = 37,
-  NearestMirroredRepeatBlackFloat        = 38,
-  NearestMirroredRepeatBlackInt          = 39,
-  NearestMirroredRepeatWhiteFloat        = 40,
-  NearestMirroredRepeatWhiteInt          = 41,
-  NearestEdgeClampTransparentFloat       = 42,
-  NearestEdgeClampTransparentInt         = 43,
-  NearestEdgeClampBlackFloat             = 44,
-  NearestEdgeClampBlackInt               = 45,
-  NearestEdgeClampWhiteFloat             = 46,
-  NearestEdgeClampWhiteInt               = 47,
-  NearestBorderClampTransparentFloat     = 48,
-  NearestBorderClampTransparentInt       = 49,
-  NearestBorderClampBlackFloat           = 50,
-  NearestBorderClampBlackInt             = 51,
-  NearestBorderClampWhiteFloat           = 52,
-  NearestBorderClampWhiteInt             = 53,
-  NearestMirrorEdgeClampTransparentFloat = 54,
-  NearestMirrorEdgeClampTransparentInt   = 55,
-  NearestMirrorEdgeClampBlackFloat       = 56,
-  NearestMirrorEdgeClampBlackInt         = 57,
-  NearestMirrorEdgeClampWhiteFloat       = 58,
-  NearestMirrorEdgeClampWhiteInt         = 59
-};
 
 inline constexpr u32 NUM_DEFAULT_SAMPLERS = 60;
 
@@ -812,7 +724,7 @@ struct IGpuSys
 
   gpu::QueueScope queue_scope_;
 
-  SpinLock resources_lock_;
+  BackOffSpinLock resources_lock_;
 
   SamplerCache sampler_cache_;
 

@@ -133,7 +133,8 @@ void BezierStencilPipeline::encode(gpu::CommandEncoder                 e,
                          .viewport            = params.viewport,
                          .stencil_test_enable = false,
                          .front_face_stencil  = front_stencil,
-                         .back_face_stencil   = back_stencil});
+                         .back_face_stencil   = back_stencil,
+                         .front_face          = params.front_face});
 
     e->draw({first_index, index_count}, {i, 1});
 

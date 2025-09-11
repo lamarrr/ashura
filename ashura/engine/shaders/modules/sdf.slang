@@ -176,7 +176,7 @@ f32 squircle(f32x2 pos, f32x2 half_extent, f32 degree, f32 radius)
   return pow(q, 1.0 / degree) * radius - radius;
 }
 
-/// @brief triangle texture coords: [0, 0], [0.5, 0.25], [1, 1]
+/// @brief Triangle texture coords: [0, 0], [0.5, 0.25], [1, 1]
 ///
 /// @param texture_coord texture coordinates; sensitive to screen-space distortions
 ///

@@ -6,7 +6,7 @@
 namespace ash
 {
 
-/// @brief manually generated from engine/shaders/*,
+/// @brief Manually generated from engine/shaders/*,
 
 // do not change the underlying type. It maps directly to the GPU handle
 enum class [[nodiscard]] TextureIndex : u32

@@ -15,6 +15,7 @@ struct BezierStencilPipelineParams
   gpu::Viewport     viewport     = {};
   FillRule          fill_rule    = FillRule::EvenOdd;
   bool              invert       = false;
+  gpu::FrontFace    front_face   = gpu::FrontFace::CounterClockWise;
   GpuBufferSpan     world_to_ndc = {};
   GpuBufferSpan     items        = {};
   GpuBufferSpan     vertices     = {};
