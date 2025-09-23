@@ -79,7 +79,9 @@ inline void sleepy_backoff(u64 poll, nanoseconds sleep)
   return;
 }
 
-struct SpinLock
+typedef struct IFutex * Futex;
+
+struct IFutex
 {
   usize flag_ = false;
 
@@ -95,6 +97,41 @@ struct SpinLock
       expected = false;
       yielding_backoff(poll);
       poll++;
+    }
+  }
+
+  [[nodiscard]] bool try_lock()
+  {
+    usize           expected = false;
+    usize           target   = true;
+    std::atomic_ref flag{flag_};
+    flag.compare_exchange_weak(expected, target, std::memory_order_acquire,
+                               std::memory_order_relaxed);
+    return expected;
+  }
+
+  void unlock()
+  {
+    std::atomic_ref flag{flag_};
+    flag.store(false, std::memory_order_release);
+  }
+};
+
+typedef struct ISpinLock * SpinLock;
+
+struct ISpinLock
+{
+  usize flag_ = false;
+
+  void lock()
+  {
+    usize           expected = false;
+    usize           target   = true;
+    std::atomic_ref flag{flag_};
+    while (!flag.compare_exchange_weak(
+      expected, target, std::memory_order_acquire, std::memory_order_relaxed))
+    {
+      expected = false;
     }
   }
 

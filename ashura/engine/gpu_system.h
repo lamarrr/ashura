@@ -36,7 +36,7 @@ typedef Dict<gpu::SamplerInfo, Tuple<SamplerIndex, gpu::Sampler>, BitHash,
              BitEq, u32>
   SamplerCache;
 
-/// @brief created with sampled, storage, color attachment, and transfer flags
+/// @brief Created with sampled, storage, color attachment, and transfer flags
 struct [[nodiscard]] ColorImage
 {
   static constexpr gpu::FormatFeatures FEATURES =
@@ -80,7 +80,7 @@ struct [[nodiscard]] ColorImage
   void uninit(gpu::Device device);
 };
 
-/// @brief created with color attachment flag
+/// @brief Created with color attachment flag
 struct [[nodiscard]] ColorMsaaImage
 {
   gpu::ImageInfo info = {};
@@ -89,7 +89,7 @@ struct [[nodiscard]] ColorMsaaImage
 
   gpu::Image image = nullptr;
 
-  /// @brief to preserve bandwidth (especially for tiled architectures), preferably
+  /// @brief To preserve bandwidth (especially for tiled architectures), preferably
   /// use `StoreOp::DontCare` and `LoadOp::Clear/LoadOp::DontCare` in the render passes.
   gpu::ImageView view = nullptr;
 
@@ -149,12 +149,12 @@ struct [[nodiscard]] DepthStencilImage
 
 struct [[nodiscard]] Framebuffer
 {
-  /// @brief color image
+  /// @brief Color image
   ColorImage color = {};
 
   Option<ColorMsaaImage> color_msaa = none;
 
-  /// @brief combined depth and stencil aspect attachment
+  /// @brief Combined depth and stencil aspect attachment
   DepthStencilImage depth_stencil = {};
 
   u32x3 extent() const;
@@ -254,46 +254,46 @@ struct GpuSysPreferences
 
 struct GpuDescriptorsLayout
 {
-  /// @brief bindless samplers
+  /// @brief Bindless samplers
   gpu::DescriptorSetLayout samplers = nullptr;
 
   u32 samplers_capacity = 0;
 
-  /// @brief bindless textures
+  /// @brief Bindless textures
   gpu::DescriptorSetLayout sampled_textures = nullptr;
 
   u32 sampled_textures_capacity = 0;
 
-  /// @brief bindless storage textures
+  /// @brief Bindless storage textures
   gpu::DescriptorSetLayout storage_textures = nullptr;
 
   u32 storage_textures_capacity = 0;
 
-  /// @brief single dynamic-offset constant buffer
+  /// @brief Single dynamic-offset constant buffer
   gpu::DescriptorSetLayout uniform_buffer = nullptr;
 
-  /// @brief single dynamic-offset storage buffer
+  /// @brief Single dynamic-offset storage buffer
   gpu::DescriptorSetLayout read_storage_buffer = nullptr;
 
-  /// @brief single dynamic-offset storage buffer
+  /// @brief Single dynamic-offset storage buffer
   gpu::DescriptorSetLayout read_write_storage_buffer = nullptr;
 
-  /// @brief bindless static offset uniform buffers
+  /// @brief Bindless static offset uniform buffers
   gpu::DescriptorSetLayout uniform_buffers = nullptr;
 
   u32 uniform_buffer_capacity = 0;
 
-  /// @brief bindless static offset storage buffers
+  /// @brief Bindless static offset storage buffers
   gpu::DescriptorSetLayout read_storage_buffers = nullptr;
 
   u32 read_storage_buffers_capacity = 0;
 
-  /// @brief bindless static offset writable storage buffers
+  /// @brief Bindless static offset writable storage buffers
   gpu::DescriptorSetLayout read_write_storage_buffers = nullptr;
 
   u32 read_write_storage_buffers_capacity = 0;
 
-  /// @brief bindless input attachments
+  /// @brief Bindless input attachments
   gpu::DescriptorSetLayout input_attachments = nullptr;
 
   u32 input_attachments_capacity = 0;
@@ -463,7 +463,7 @@ struct IGpuFramePlan
 
   void reset();
 
-  /// @brief await completion of the frame
+  /// @brief Await completion of the frame
   /// @returns true if the frame completed before the timeout period
   bool await(nanoseconds timeout);
 };
@@ -592,7 +592,7 @@ struct IGpuFrame
 
   gpu::CommandBuffer command_buffer_;
 
-  /// @brief currently bounded frame plan
+  /// @brief Currently bounded frame plan
   GpuFramePlan current_plan_;
 
   IGpuFrame(Allocator allocator, gpu::Device device, GpuSys sys, u32 id,
@@ -623,7 +623,7 @@ struct IGpuFrame
 
   GpuSys sys() const;
 
-  /// @brief swapchain images must be manually acquired and blitted to
+  /// @brief Swapchain images must be manually acquired and blitted to
   gpu::Swapchain swapchain() const;
 
   gpu::DescriptorSet sampled_textures() const;
@@ -662,17 +662,17 @@ struct IGpuFrame
 
   void end();
 
-  /// @brief submit frame to the GPU
+  /// @brief Submit frame to the GPU
   void submit();
 
-  /// @brief the frame has finished executing on the GPU, run completion tasks or fetch data from GPU
+  /// @brief The frame has finished executing on the GPU, run completion tasks or fetch data from GPU
   /// @return true if the frame has been executed, otherwise, false.
   bool try_complete(nanoseconds timeout);
 
-  /// @brief reset the frame for recording
+  /// @brief Reset the frame for recording
   void reset();
 
-  /// @brief await completion of the frame
+  /// @brief Await completion of the frame
   /// @returns true if the frame completed before the timeout period
   bool await(nanoseconds timeout);
 };
@@ -711,7 +711,7 @@ struct IGpuSys
 
   u32 buffering_;
 
-  /// @brief hdr if hdr supported and required.
+  /// @brief Hdr if hdr supported and required.
   gpu::Format color_format_;
 
   gpu::Format depth_stencil_format_;
@@ -724,7 +724,7 @@ struct IGpuSys
 
   gpu::QueueScope queue_scope_;
 
-  BackOffSpinLock resources_lock_;
+  IFutex resources_lock_;
 
   SamplerCache sampler_cache_;
 
@@ -777,10 +777,10 @@ struct IGpuSys
   IGpuSys & operator=(IGpuSys &&)      = delete;
   ~IGpuSys()                           = default;
 
-  /// @brief uninitialize the gpu system and get the pipeline cache data
+  /// @brief Uninitialize the gpu system and get the pipeline cache data
   void uninit(Vec<u8> & cache);
 
-  /// @brief initialize the GPU system with the provided pipeline cache data and preference
+  /// @brief Initialize the GPU system with the provided pipeline cache data and preference
   ///
   void init(Allocator allocator, gpu::Device device,
             Span<u8 const> pipeline_cache_data, gpu::Surface surface,
@@ -789,11 +789,11 @@ struct IGpuSys
 
   SamplerIndex create_cached_sampler(gpu::SamplerInfo const & info);
 
-  /// @brief allocate a texture slot for the image and bind it to the textures descriptors
+  /// @brief Allocate a texture slot for the image and bind it to the textures descriptors
   /// at the start of the next frame
   TextureIndex alloc_texture_index(gpu::ImageView view);
 
-  /// @brief release a texture slot and unbind it from the textures descriptors at the start
+  /// @brief Release a texture slot and unbind it from the textures descriptors at the start
   /// of the next frame
   void release_texture_index(TextureIndex index);
 

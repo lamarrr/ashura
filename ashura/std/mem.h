@@ -182,10 +182,10 @@ struct [[nodiscard]] CoreLayout
 {
   using Type = T;
 
-  /// @brief non-zero power-of-2 alignment of the type
+  /// @brief Non-zero power-of-2 alignment of the type
   T alignment = 1;
 
-  /// @brief byte-size of the type
+  /// @brief Byte-size of the type
   T size = 0;
 
   /// @warning must call `aligned()` once done appending

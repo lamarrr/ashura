@@ -775,10 +775,10 @@ struct TextInputInfo
 
   bool multiline : 1 = false;
 
-  /// @brief can receive `Tab` key as input
+  /// @brief Can receive `Tab` key as input
   bool esc_input : 1 = false;
 
-  /// @brief can receive `Esc` key as input
+  /// @brief Can receive `Esc` key as input
   bool tab_input : 1 = false;
 
   TextCapitalization cap : 2 = TextCapitalization::None;
@@ -867,7 +867,7 @@ enum class Cursor : u8
 
 constexpr u32 NUM_CURSOR_TYPES = 20;
 
-/// @brief default charset is ASCII
+/// @brief Default charset is ASCII
 inline constexpr Str MIME_TEXT_PLAIN    = "text/plain"_str;
 inline constexpr Str MIME_TEXT_UTF8     = "text/plain;charset=UTF-8"_str;
 inline constexpr Str MIME_TEXT_CSS      = "text/css"_str;
@@ -932,46 +932,46 @@ enum class DropType : u8
 
 struct KeyState
 {
-  /// @brief current window keyboard focus state
+  /// @brief Current window keyboard focus state
   bool focused : 1 = false;
 
-  /// @brief did the window gain keyboard focus on this frame?
+  /// @brief Did the window gain keyboard focus on this frame?
   bool in : 1 = false;
 
-  /// @brief did the window lose keyboard focus on this frame?
+  /// @brief Did the window lose keyboard focus on this frame?
   bool out : 1 = false;
 
-  /// @brief is any of the keys pressed on this frame
+  /// @brief Is any of the keys pressed on this frame
   bool any_down : 1 = false;
 
-  /// @brief is any of the keys released on this frame
+  /// @brief Is any of the keys released on this frame
   bool any_up : 1 = false;
 
-  /// @brief if a text input came in
+  /// @brief If a text input came in
   bool input : 1 = false;
 
-  /// @brief current text input data from the IME or keyboard
+  /// @brief Current text input data from the IME or keyboard
   Vec<c8> text{};
 
-  /// @brief bit mask of all the keys that were pressed on this frame
+  /// @brief Bit mask of all the keys that were pressed on this frame
   Bits<u64, NUM_KEY_CODES> key_downs{};
 
-  /// @brief bit mask of all the keys that were released on this frame
+  /// @brief Bit mask of all the keys that were released on this frame
   Bits<u64, NUM_KEY_CODES> key_ups{};
 
-  /// @brief bit mask of all the key states
+  /// @brief Bit mask of all the key states
   Bits<u64, NUM_KEY_CODES> key_states{};
 
-  /// @brief bit mask of all the keys that were pressed on this frame, indexed using the scancode
+  /// @brief Bit mask of all the keys that were pressed on this frame, indexed using the scancode
   Bits<u64, NUM_SCAN_CODES> scan_downs{};
 
-  /// @brief bit mask of all the keys that were released on this frame, indexed using the scancode
+  /// @brief Bit mask of all the keys that were released on this frame, indexed using the scancode
   Bits<u64, NUM_SCAN_CODES> scan_ups{};
 
-  /// @brief bit mask of all the key states, indexed using the scancode
+  /// @brief Bit mask of all the key states, indexed using the scancode
   Bits<u64, NUM_SCAN_CODES> scan_states{};
 
-  /// @brief hold state of the key modifiers on this frame
+  /// @brief Hold state of the key modifiers on this frame
   KeyModifiers mod_downs = KeyModifiers::None;
 
   KeyModifiers mod_ups = KeyModifiers::None;
@@ -1040,46 +1040,46 @@ struct KeyState
 
 struct MouseState
 {
-  /// @brief current window mouse focus state
+  /// @brief Current window mouse focus state
   bool focused : 1 = false;
 
-  /// @brief did the mouse enter the window on this frame?
+  /// @brief Did the mouse enter the window on this frame?
   bool in : 1 = false;
 
-  /// @brief did the mouse leave the window on this frame?
+  /// @brief Did the mouse leave the window on this frame?
   bool out : 1 = false;
 
-  /// @brief did the mouse move on this frame?
+  /// @brief Did the mouse move on this frame?
   bool moved : 1 = false;
 
-  /// @brief did the mouse wheel get scrolled on this frame?
+  /// @brief Did the mouse wheel get scrolled on this frame?
   bool scrolled : 1 = false;
 
-  /// @brief is any of the keys pressed on this frame
+  /// @brief Is any of the keys pressed on this frame
   bool any_down : 1 = false;
 
-  /// @brief is any of the keys released on this frame
+  /// @brief Is any of the keys released on this frame
   bool any_up : 1 = false;
 
-  /// @brief which mouse buttons were pressed on this frame
+  /// @brief Which mouse buttons were pressed on this frame
   MouseButtons downs{};
 
-  /// @brief which mouse buttons were released on this frame
+  /// @brief Which mouse buttons were released on this frame
   MouseButtons ups{};
 
-  /// @brief the current state of each mouse button
+  /// @brief The current state of each mouse button
   MouseButtons states{};
 
-  /// @brief number of times the mouse was clicked so far
+  /// @brief Number of times the mouse was clicked so far
   Array<u32, NUM_MOUSE_BUTTONS> num_clicks{};
 
-  /// @brief the position of the mouse on this frame
+  /// @brief The position of the mouse on this frame
   Option<f32x2> position = none;
 
-  /// @brief translation of the mouse on this frame
+  /// @brief Translation of the mouse on this frame
   Option<f32x2> translation = none;
 
-  /// @brief translation of the mouse wheel on this frame
+  /// @brief Translation of the mouse wheel on this frame
   Option<i32x2> wheel_translation = none;
 
   constexpr bool down(MouseButton btn) const
@@ -1105,28 +1105,28 @@ struct MouseState
 
 struct ThemeState
 {
-  /// @brief the theme changed
+  /// @brief The theme changed
   bool changed = false;
 
-  /// @brief the current theme gotten from the window manager
+  /// @brief The current theme gotten from the window manager
   SystemTheme theme = SystemTheme::Unknown;
 };
 
 struct WindowState
 {
-  /// @brief extent of the viewport the windows' views are in
+  /// @brief Extent of the viewport the windows' views are in
   u32x2 extent = {};
 
-  /// @brief then windows' backing surface extent
+  /// @brief Then windows' backing surface extent
   u32x2 surface_extent = {};
 
-  /// @brief did a window resize happen
+  /// @brief Did a window resize happen
   bool resized = true;
 
-  /// @brief did a window surface resize happen
+  /// @brief Did a window surface resize happen
   bool surface_resized = true;
 
-  /// @brief is the application requested to close
+  /// @brief Is the application requested to close
   bool close_requested = false;
 };
 
@@ -1143,7 +1143,7 @@ struct DropState
 
   Event event = Event::None;
 
-  /// @brief drag data associated with the current drag operation (if any, otherwise empty)
+  /// @brief Drag data associated with the current drag operation (if any, otherwise empty)
   Vec<u8> data;
 
   explicit DropState(Allocator allocator) : data{allocator}
@@ -1163,20 +1163,20 @@ struct DropState
 
 struct InputState
 {
-  /// @brief timestamp of current frame
+  /// @brief Timestamp of current frame
   time_point timestamp;
 
-  /// @brief time elapsed between previous and current frame
+  /// @brief Time elapsed between previous and current frame
   nanoseconds timedelta;
 
   WindowState window;
 
-  /// @brief windows' current frame mouse state
+  /// @brief Windows' current frame mouse state
   MouseState mouse;
 
   ThemeState theme;
 
-  /// @brief windows' current frame keyboard state
+  /// @brief Windows' current frame keyboard state
   KeyState key;
 
   DropState drop;

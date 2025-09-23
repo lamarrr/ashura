@@ -2041,7 +2041,7 @@ struct CoreSparseMap
 
   Indices index_to_id_;
 
-  /// @brief map of id to index
+  /// @brief Map of id to index
   Indices id_to_index_;
 
   Dense dense;

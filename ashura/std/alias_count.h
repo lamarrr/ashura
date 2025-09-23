@@ -1,7 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 
-#include "ashura/std/error.h"
 #include "ashura/std/types.h"
 #include <atomic>
 
@@ -30,10 +29,10 @@ namespace ash
 ///
 struct AtomicAliasCount
 {
-  /// @brief number of other aliases. range: [0, MAX]
+  /// @brief Number of other aliases. range: [0, MAX]
   usize count_{0};
 
-  /// @brief called before sharing an object
+  /// @brief Called before sharing an object
   /// @returns returns the old alias count
   usize alias()
   {
@@ -48,8 +47,8 @@ struct AtomicAliasCount
     return expected;
   }
 
-  /// @brief called when done with an object.
-  /// @brief returns the old alias count. If 0 then the resource is ready to be released.
+  /// @brief Called when done with an object.
+  /// @brief Returns the old alias count. If 0 then the resource is ready to be released.
   ///
   /// WARNING: if accompanied by a destructive reclamation procedure and
   /// `unalias` is called again after it has already returned 0, it will lead
@@ -76,10 +75,10 @@ struct AtomicAliasCount
 
 struct AliasCount
 {
-  /// @brief number of other aliases.
+  /// @brief Number of other aliases.
   usize count_{0};
 
-  /// @brief called before sharing an object
+  /// @brief Called before sharing an object
   /// @returns returns the old alias count
   usize alias()
   {
@@ -87,8 +86,8 @@ struct AliasCount
     return previous;
   }
 
-  /// @brief called when done with an object.
-  /// @brief returns the old alias count. If 0 then the resource is ready to be released.
+  /// @brief Called when done with an object.
+  /// @brief Returns the old alias count. If 0 then the resource is ready to be released.
   ///
   /// WARNING: if accompanied by a destructive reclamation procedure and
   /// `unalias` is called again after it has already returned 0, it will lead

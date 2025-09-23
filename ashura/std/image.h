@@ -34,7 +34,7 @@ struct ImageSpan
     return extent.x() == 0 | extent.y() == 0;
   }
 
-  /// @brief number of pixel elements to skip to move from row i to row i+1
+  /// @brief Number of pixel elements to skip to move from row i to row i+1
   /// i+1
   constexpr u64 pitch() const
   {
@@ -72,7 +72,7 @@ struct ImageSpan
   }
 };
 
-/// @brief similar to ImageSpan but expresses the layers of a multi-layered
+/// @brief Similar to ImageSpan but expresses the layers of a multi-layered
 /// image
 /// @tparam R pixel element type, one of [f32, u32, u8]
 /// @tparam C number of channels in the image, range [1, 4]

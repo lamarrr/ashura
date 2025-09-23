@@ -72,14 +72,14 @@ struct [[nodiscard]] Dict
 
   static constexpr Distance PROBE_SENTINEL = -1;
 
-  /// @brief always pointing to a valid element or one past the end of the map
+  /// @brief Always pointing to a valid element or one past the end of the map
   struct Iter
   {
     Distance *       iter_  = nullptr;
     Distance const * end_   = nullptr;
     Entry *          probe_ = nullptr;
 
-    /// @brief seek the next non-empty probe, this iterator inclusive
+    /// @brief Seek the next non-empty probe, this iterator inclusive
     constexpr void seek()
     {
       while (iter_ != end_)

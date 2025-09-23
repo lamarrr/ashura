@@ -18,6 +18,7 @@ struct Arena final : IAllocator
   usize allocated;
 
   constexpr Arena() :
+    IAllocator{},
     begin{nullptr},
     end{nullptr},
     offset{nullptr},
@@ -26,6 +27,7 @@ struct Arena final : IAllocator
   }
 
   constexpr Arena(u8 * begin, u8 * end) :
+    IAllocator{},
     begin{begin},
     end{end},
     offset{begin},
@@ -34,18 +36,12 @@ struct Arena final : IAllocator
   }
 
   constexpr Arena(i8 * begin, i8 * end) :
-    begin{reinterpret_cast<u8 *>(begin)},
-    end{reinterpret_cast<u8 *>(end)},
-    offset{reinterpret_cast<u8 *>(begin)},
-    allocated{0}
+    Arena{reinterpret_cast<u8 *>(begin), reinterpret_cast<u8 *>(end)}
   {
   }
 
   constexpr Arena(void * begin, void * end) :
-    begin{static_cast<u8 *>(begin)},
-    end{static_cast<u8 *>(end)},
-    offset{static_cast<u8 *>(begin)},
-    allocated{0}
+    Arena{static_cast<u8 *>(begin), static_cast<u8 *>(end)}
   {
   }
 
@@ -67,10 +63,10 @@ struct Arena final : IAllocator
   {
   }
 
-  constexpr Arena(Arena const &)             = default;
-  constexpr Arena(Arena &&)                  = default;
-  constexpr Arena & operator=(Arena const &) = default;
-  constexpr Arena & operator=(Arena &&)      = default;
+  constexpr Arena(Arena const &)             = delete;
+  constexpr Arena(Arena &&)                  = delete;
+  constexpr Arena & operator=(Arena const &) = delete;
+  constexpr Arena & operator=(Arena &&)      = delete;
   constexpr ~Arena()                         = default;
 
   [[nodiscard]] constexpr usize capacity() const
@@ -217,9 +213,8 @@ struct ArenaPool final : IAllocator
   usize        current_arena = 0;
   ArenaPoolCfg cfg           = {};
 
-  ArenaPool() = default;
-
-  explicit ArenaPool(Allocator source, ArenaPoolCfg const & cfg = {}) :
+  explicit ArenaPool(Allocator source = {}, ArenaPoolCfg const & cfg = {}) :
+    IAllocator{},
     source{source},
     cfg{cfg}
   {
@@ -229,29 +224,9 @@ struct ArenaPool final : IAllocator
 
   ArenaPool & operator=(ArenaPool const &) = delete;
 
-  ArenaPool(ArenaPool && other) :
-    source{other.source},
-    arenas{other.arenas},
-    num_arenas{other.num_arenas},
-    current_arena{other.current_arena},
-    cfg{other.cfg}
-  {
-    other.source        = {};
-    other.arenas        = nullptr;
-    other.num_arenas    = 0;
-    other.current_arena = 0;
-  }
+  ArenaPool(ArenaPool && other) = delete;
 
-  ArenaPool & operator=(ArenaPool && other)
-  {
-    if (this == &other) [[unlikely]]
-    {
-      return *this;
-    }
-    uninit();
-    new (this) ArenaPool{static_cast<ArenaPool &&>(other)};
-    return *this;
-  }
+  ArenaPool & operator=(ArenaPool && other) = delete;
 
   ~ArenaPool()
   {
@@ -348,8 +323,8 @@ struct ArenaPool final : IAllocator
       return false;
     }
 
-    Layout const arena_layout{cfg.arena_alignment,
-                              max(layout.size, cfg.min_arena_size)};
+    Layout arena_layout{cfg.arena_alignment,
+                        max(layout.size, cfg.min_arena_size)};
 
     if ((capacity() + arena_layout.size) > cfg.max_total_size)
     {
@@ -472,6 +447,9 @@ struct ArenaPool final : IAllocator
     }
   }
 
+  // [ ] implement
+  void shrink();
+
   constexpr Allocator ref()
   {
     return Allocator{*this};
@@ -483,16 +461,17 @@ struct FallbackAllocator : IAllocator
   Arena     arena;
   Allocator fallback;
 
-  constexpr FallbackAllocator(Arena arena, Allocator fallback) :
+  constexpr FallbackAllocator(Span<u8> arena, Allocator fallback) :
+    IAllocator{},
     arena{arena},
     fallback{fallback}
   {
   }
 
-  constexpr FallbackAllocator(FallbackAllocator const &)             = default;
-  constexpr FallbackAllocator(FallbackAllocator &&)                  = default;
-  constexpr FallbackAllocator & operator=(FallbackAllocator const &) = default;
-  constexpr FallbackAllocator & operator=(FallbackAllocator &&)      = default;
+  constexpr FallbackAllocator(FallbackAllocator const &)             = delete;
+  constexpr FallbackAllocator(FallbackAllocator &&)                  = delete;
+  constexpr FallbackAllocator & operator=(FallbackAllocator const &) = delete;
+  constexpr FallbackAllocator & operator=(FallbackAllocator &&)      = delete;
   constexpr ~FallbackAllocator()                                     = default;
 
   virtual bool alloc(Layout layout, u8 *& mem) override

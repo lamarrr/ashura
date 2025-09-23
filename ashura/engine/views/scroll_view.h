@@ -12,19 +12,19 @@ namespace ui
 
 struct ScrollState
 {
-  /// @brief the center of the scroll. This is relative to the visible region's center
+  /// @brief The center of the scroll. This is relative to the visible region's center
   f32 center_ = 0;
 
-  /// @brief the delta to move by for each key press
+  /// @brief The delta to move by for each key press
   f32 delta_ = 0.1F;
 
-  /// @brief the visible extent the scroll bar represents
+  /// @brief The visible extent the scroll bar represents
   f32 visible_extent_ = 0;
 
-  /// @brief the total extent the scroll bar represents or INF
+  /// @brief The total extent the scroll bar represents or INF
   f32 content_extent_ = 0;
 
-  /// @brief the visual representation of the track extent
+  /// @brief The visual representation of the track extent
   f32 track_extent_ = 0;
 
   ScrollState & clamp()

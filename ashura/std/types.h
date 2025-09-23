@@ -24,10 +24,20 @@ typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
 
+struct alignas(16) u128
+{
+  u64 repr_[2];
+};
+
 typedef int8_t  i8;
 typedef int16_t i16;
 typedef int32_t i32;
 typedef int64_t i64;
+
+struct alignas(16) i128
+{
+  u64 repr_[2];
+};
 
 typedef size_t    usize;
 typedef ptrdiff_t isize;
@@ -549,6 +559,19 @@ constexpr i16 sat_mul(i16 a, i16 b)
 constexpr i32 sat_mul(i32 a, i32 b)
 {
   return (i32) clamp((i64) a * (i64) b, (i64) I32_MIN, (i64) I32_MAX);
+}
+
+template <Unsigned T>
+constexpr T ring_add(T index, T dist, T size)
+{
+  return (index + dist) % size;
+}
+
+template <Unsigned T>
+constexpr T ring_sub(T index, T dist, T size)
+{
+  dist = dist % size;
+  return (index >= dist) ? (index - dist) : (size - (dist - index));
 }
 
 using std::bit_cast;
@@ -1412,6 +1435,18 @@ constexpr auto view(R & range) -> decltype(range.view())
   return range.view();
 }
 
+template <typename T>
+constexpr Span<u8 const> as_u8_span(T const & obj)
+{
+  return Span<T const>{&obj, 1}.as_u8();
+}
+
+template <typename T>
+constexpr Span<u8> as_u8_span(T & obj)
+{
+  return Span<T>{&obj, 1}.as_u8();
+}
+
 typedef Span<char const> Str;
 typedef Span<char>       MutStr;
 
@@ -2235,7 +2270,7 @@ struct PFnTraits<R (*)(Args...)> : PFnTraits<R(Args...)>
 template <typename Sig>
 struct MethodTraits;
 
-/// @brief non-const method traits
+/// @brief Non-const method traits
 template <typename T, typename R, typename... Args>
 struct MethodTraits<R (T::*)(Args...)>
 {
@@ -2245,7 +2280,7 @@ struct MethodTraits<R (T::*)(Args...)>
   using Thunk  = FunctorThunk<T, R(Args...)>;
 };
 
-/// @brief const method traits
+/// @brief Const method traits
 template <typename T, typename R, typename... Args>
 struct MethodTraits<R (T::*)(Args...) const>
 {
@@ -2307,7 +2342,7 @@ struct Fn<R(Args...)>
   {
   }
 
-  /// @brief create a function view from an object reference and a function
+  /// @brief Create a function view from an object reference and a function
   /// thunk to execute using the object reference as its first argument.
   template <typename T>
   Fn(T * data, R (*thunk)(T *, Args...)) :
@@ -2322,7 +2357,7 @@ struct Fn<R(Args...)>
   {
   }
 
-  /// @brief make a function view from a functor reference. Functor should outlive
+  /// @brief Make a function view from a functor reference. Functor should outlive
   /// the Fn
   template <typename F>
   requires ((!Convertible<F, R (*)(Args...)>) && CallableOf<F, R, Args...>)
@@ -2474,7 +2509,7 @@ struct Inplace
 
 inline constexpr Inplace inplace{};
 
-/// @brief uninitialized storage
+/// @brief Uninitialized storage
 template <usize Alignment, usize Capacity>
 struct InplaceStorage
 {

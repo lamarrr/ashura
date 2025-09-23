@@ -140,10 +140,45 @@ struct IsTriviallyRelocatable<Rc<H>>
 };
 
 template <typename T>
-struct RcObject
+struct AtomicRcObject
 {
   AtomicAliasCount alias_count{};
   T                v0;
+
+  static constexpr usize rc_op(AtomicRcObject * obj, Allocator allocator,
+                               i32 op)
+  {
+    switch (op)
+    {
+      case 0:
+      {
+        return obj->alias_count.count();
+      }
+      case -1:
+      {
+        auto const old = obj->alias_count.unalias();
+        if (old == 0)
+        {
+          obj->~AtomicRcObject();
+          allocator->ndealloc(1, obj);
+        }
+        return old;
+      }
+      case 1:
+      {
+        return obj->alias_count.alias();
+      }
+      default:
+        ASH_UNREACHABLE;
+    }
+  }
+};
+
+template <typename T>
+struct RcObject
+{
+  AliasCount alias_count{};
+  T          v0;
 
   static constexpr usize rc_op(RcObject * obj, Allocator allocator, i32 op)
   {
@@ -155,7 +190,7 @@ struct RcObject
       }
       case -1:
       {
-        usize const old = obj->alias_count.unalias();
+        auto const old = obj->alias_count.unalias();
         if (old == 0)
         {
           obj->~RcObject();
@@ -177,17 +212,17 @@ template <typename T, typename... Args>
 constexpr Result<Rc<T *>, Void> rc(Inplace, Allocator allocator,
                                    Args &&... args)
 {
-  RcObject<T> * obj;
+  AtomicRcObject<T> * obj;
 
   if (!allocator->nalloc(1, obj))
   {
     return Err{Void{}};
   }
 
-  new (obj) RcObject<T>{.v0{static_cast<Args &&>(args)...}};
+  new (obj) AtomicRcObject<T>{.v0{static_cast<Args &&>(args)...}};
 
   return Ok{
-    Rc<T *>{&obj->v0, allocator, Fn(obj, RcObject<T>::rc_op)}
+    Rc<T *>{&obj->v0, allocator, Fn(obj, AtomicRcObject<T>::rc_op)}
   };
 }
 

@@ -208,7 +208,7 @@ constexpr auto mips(Unsigned auto a)
   return (a == 0) ? 0 : ulog2(a);
 }
 
-/// @brief linearly interpolate between points `low` and `high` given
+/// @brief Linearly interpolate between points `low` and `high` given
 /// interpolator `t`
 /// This is the exact form: (1 - t) * A + T * B, optimized for FMA
 template <typename T>
@@ -217,7 +217,7 @@ constexpr T lerp(T const & low, T const & high, T const & t)
   return low - t * low + t * high;
 }
 
-/// @brief logarithmically interpolate between points `low` and `high` given
+/// @brief Logarithmically interpolate between points `low` and `high` given
 /// interpolator `t`
 template <typename T>
 inline T log_interp(T const & low, T const & high, T const & t)
@@ -225,7 +225,7 @@ inline T log_interp(T const & low, T const & high, T const & t)
   return low * exp(t * log(high / low));
 }
 
-/// @brief frame-independent damped lerp
+/// @brief Frame-independent damped lerp
 ///
 /// https://x.com/FreyaHolmer/status/1757836988495847568,
 /// https://www.rorydriscoll.com/2016/03/07/frame-rate-independent-damping-using-lerp/
@@ -2808,7 +2808,7 @@ constexpr bool operator!=(CBox const & a, CBox const & b)
   return a.center != b.center || a.extent != b.extent;
 }
 
-/// @brief find the maximum extent that will fit in the provided extent while
+/// @brief Find the maximum extent that will fit in the provided extent while
 /// respecting the provided aspect ratio
 constexpr f32x2 with_aspect(f32x2 extent, f32 aspect_ratio)
 {

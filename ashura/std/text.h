@@ -11,7 +11,7 @@ namespace ash
 
 [[nodiscard]] constexpr bool is_valid_utf8(Str8 text);
 
-/// @brief count number of utf8 codepoints found in the text. does no
+/// @brief Count number of utf8 codepoints found in the text. does no
 /// utf8-validation
 [[nodiscard]] constexpr usize count_utf8_codepoints(Str8 text)
 {
@@ -32,31 +32,31 @@ namespace ash
 template <typename Iter>
 [[nodiscard]] constexpr Tuple<c32, usize> seek_utf8_codepoint(Iter & iter)
 {
-  c32 const c0 = *iter;
+  c32 const c0 = static_cast<c32>(*iter);
   iter++;
 
   if ((c0 & 0xF8) == 0xF0)
   {
-    c32 const c1 = *iter;
+    c32 const c1 = static_cast<c32>(*iter);
     iter++;
-    c32 const c2 = *iter;
+    c32 const c2 = static_cast<c32>(*iter);
     iter++;
-    c32 const c3 = *iter;
+    c32 const c3 = static_cast<c32>(*iter);
     iter++;
     return {((c0 & 0x07) << 18) | ((c1 & 0x3F) << 12) | ((c2 & 0x3F) << 6) | c3,
             4};
   }
   else if ((c0 & 0xF0) == 0xE0)
   {
-    c32 const c1 = *iter;
+    c32 const c1 = static_cast<c32>(*iter);
     iter++;
-    c32 const c2 = *iter;
+    c32 const c2 = static_cast<c32>(*iter);
     iter++;
     return {((c0 & 0x0F) << 12) | ((c1 & 0x3F) << 6) | (c2 & 0X3F), 3};
   }
   else if ((c0 & 0xE0) == 0xC0)
   {
-    c32 const c1 = *iter;
+    c32 const c1 = static_cast<c32>(*iter);
     iter++;
     return {((c0 & 0x1F) << 6) | (c1 & 0x3F), 2};
   }
@@ -116,28 +116,28 @@ constexpr u8 codepoint_width(c32 c)
 
     if (c <= 0x7F)
     {
-      out[0] = c;
+      out[0] = static_cast<c8>(c);
       out += 1;
     }
     else if (c <= 0x7FF)
     {
-      out[0] = 0xC0 | (c >> 6);
-      out[1] = 0x80 | (c & 0x3F);
+      out[0] = static_cast<c8>(0xC0 | (c >> 6));
+      out[1] = static_cast<c8>(0x80 | (c & 0x3F));
       out += 2;
     }
     else if (c <= 0xFFFF)
     {
-      out[0] = 0xE0 | (c >> 12);
-      out[1] = 0x80 | ((c >> 6) & 0x3F);
-      out[2] = 0x80 | (c & 0x3F);
+      out[0] = static_cast<c8>(0xE0 | (c >> 12));
+      out[1] = static_cast<c8>(0x80 | ((c >> 6) & 0x3F));
+      out[2] = static_cast<c8>(0x80 | (c & 0x3F));
       out += 3;
     }
     else if (c <= 0x10'FFFF)
     {
-      out[0] = 0xF0 | (c >> 18);
-      out[1] = 0x80 | ((c >> 12) & 0x3F);
-      out[2] = 0x80 | ((c >> 6) & 0x3F);
-      out[3] = 0x80 | (c & 0x3F);
+      out[0] = static_cast<c8>(0xF0 | (c >> 18));
+      out[1] = static_cast<c8>(0x80 | ((c >> 12) & 0x3F));
+      out[2] = static_cast<c8>(0x80 | ((c >> 6) & 0x3F));
+      out[3] = static_cast<c8>(0x80 | (c & 0x3F));
       out += 4;
     }
 
@@ -147,7 +147,7 @@ constexpr u8 codepoint_width(c32 c)
   return out - encoded.pbegin();
 }
 
-/// @brief converts UTF-8 text from @p encoded to UTF-32 and appends into @p
+/// @brief Converts UTF-8 text from @p encoded to UTF-32 and appends into @p
 /// `decoded`
 inline Result<> utf8_decode(Str8 text, Vec<c32> & decoded)
 {
@@ -162,7 +162,7 @@ inline Result<> utf8_decode(Str8 text, Vec<c32> & decoded)
   return Ok{};
 }
 
-/// @brief converts UTF-32 text from @p decoded to UTF-8 and appends into @p
+/// @brief Converts UTF-32 text from @p decoded to UTF-8 and appends into @p
 /// `encoded`
 [[nodiscard]] inline Result<> utf8_encode(Str32 text, Vec<c8> & encoded)
 {

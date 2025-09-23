@@ -80,7 +80,7 @@ struct ResolvedFontMetrics
   }
 };
 
-/// @brief normalized font metrics
+/// @brief Normalized font metrics
 /// @param ascent  maximum ascent of the font's glyphs (au)
 /// @param descent maximum descent of the font's glyphs (au)
 /// @param advance maximum advance of the font's glyphs (au)
