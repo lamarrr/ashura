@@ -447,7 +447,7 @@ struct ISemaphore
     return stage.load(std::memory_order_acquire);
   }
 
-  /// @brief returns true if the semaphore has been completed. i.e. reached its
+  /// @brief Returns true if the semaphore has been completed. i.e. reached its
   /// last declared stage.
   /// @param sem non-null
   /// @return
@@ -457,7 +457,7 @@ struct ISemaphore
     return stage.load(std::memory_order_acquire) == U64_MAX;
   }
 
-  /// @brief returns true if the polled stage is completed.
+  /// @brief Returns true if the polled stage is completed.
   [[nodiscard]] bool is_completed(u64 poll_stage)
   {
     std::atomic_ref stage{stage_};
@@ -542,7 +542,7 @@ inline Result<RcSemaphore> semaphore(Allocator allocator, u64 initial_stage)
 namespace impl
 {
 
-/// @brief await semaphores at the specified stages.
+/// @brief Await semaphores at the specified stages.
 /// @param sems semaphores to wait for
 /// @param stages stages of the semaphores to wait for completion of. must be <
 /// semaphore.num_stages or == U64_MAX. U64_MAX meaning waiting for all stages'
