@@ -68,13 +68,13 @@ struct RootView : ui::View
 
 enum class FocusAction : u8
 {
-  /// @brief stay on the current focus
+  /// @brief Stay on the current focus
   None = 0,
 
-  /// @brief navigate forward on the focus tree
+  /// @brief Navigate forward on the focus tree
   Forward = 1,
 
-  /// @brief navigate backwards on the focus tree
+  /// @brief Navigate backwards on the focus tree
   Backward = 2
 };
 
@@ -109,7 +109,7 @@ struct IViewSys
 
   struct FocusState
   {
-    /// @brief if focusing is active
+    /// @brief If focusing is active
     bool active = false;
 
     u16 tgt = 0;
@@ -135,13 +135,13 @@ struct IViewSys
 
   struct XFrameFocusState
   {
-    /// @brief if focusing is active
+    /// @brief If focusing is active
     bool active = false;
 
     ui::ViewId tgt = ui::ViewId::None;
   };
 
-  /// @brief flattened hierarchical tree node, all siblings are
+  /// @brief Flattened hierarchical tree node, all siblings are
   /// packed sequentially. This only represents the parent node. Since the tree is
   /// rebuilt from scratch every time, the order is preserved in that parents
   /// always come before children.
@@ -200,14 +200,14 @@ struct IViewSys
     Option<ui::ScrollInfo> scroll = none;
   };
 
-  /// @brief id to current frame's view tree index map of hot views
+  /// @brief Id to current frame's view tree index map of hot views
 
   RootView root_view;
 
-  /// @brief current frame id
+  /// @brief Current frame id
   u64 frame = 0;
 
-  /// @brief next view id
+  /// @brief Next view id
   u64 next_id = 0;
 
   /// @brief Build context for views
@@ -229,19 +229,19 @@ struct IViewSys
   Vec<f32x2> viewport_centers;
   Vec<f32x2> viewport_zooms;
 
-  /// @brief if the view is at a fixed location in the viewport
+  /// @brief If the view is at a fixed location in the viewport
   BitVec<u64> fixed;
 
-  /// @brief the viewport location of the views
+  /// @brief The viewport location of the views
   Vec<f32x2> fixed_centers;
 
   Vec<i32> z_idx;
   Vec<i32> layers;
 
-  /// @brief transforms from viewport-space to the canvas-space
+  /// @brief Transforms from viewport-space to the canvas-space
   Vec<affinef32x3> canvas_xfm;
 
-  /// @brief transforms from canvas-space to viewport-space
+  /// @brief Transforms from canvas-space to viewport-space
   Vec<affinef32x3> canvas_inv_xfm;
   Vec<f32x2>       canvas_centers;
   Vec<f32x2>       canvas_extents;

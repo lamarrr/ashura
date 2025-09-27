@@ -5,7 +5,6 @@
 #include "ashura/std/allocator.h"
 #include "ashura/std/allocators.h"
 #include "ashura/std/async.h"
-#include "ashura/std/range.h"
 #include "ashura/std/vec.h"
 
 // clang-format off
@@ -13,9 +12,7 @@
 #define VMA_DYNAMIC_VULKAN_FUNCTIONS 1
 #define VMA_VULKAN_VERSION           1'000'000
 
-#include "vulkan/vulkan.h"
-#include "vulkan/vulkan_beta.h"
-#include "vulkan/vk_enum_string_helper.h"
+#include "vulkan/vulkan_core.h"
 #include "vk_mem_alloc.h"
 
 // clang-format on
@@ -884,16 +881,16 @@ struct MemAccess
 
 struct BufferMemState
 {
-  /// @brief alias element
+  /// @brief Alias element
   u32 element = 0;
 };
 
 struct ImageMemState
 {
-  /// @brief alias element
+  /// @brief Alias element
   u32 element = 0;
 
-  /// @brief current image layout
+  /// @brief Current image layout
   VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
 };
 

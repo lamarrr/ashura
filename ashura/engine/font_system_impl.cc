@@ -692,7 +692,7 @@ static inline Tuple<Span<hb_glyph_info_t const>,
   };
 }
 
-/// @brief only needs to be called if it contains multiple paragraphs
+/// @brief Only needs to be called if it contains multiple paragraphs
 static inline void segment_paragraphs(Str32 text, Span<TextSegment> segments)
 {
   auto const text_size = text.size();
@@ -725,7 +725,7 @@ static inline void segment_paragraphs(Str32 text, Span<TextSegment> segments)
   }
 }
 
-/// @brief only needs to be called if it contains multiple scripts
+/// @brief Only needs to be called if it contains multiple scripts
 /// outputs iso15924 or OpenType tags
 static inline void segment_scripts(Str32 text, Span<TextSegment> segments)
 {
@@ -751,7 +751,7 @@ static inline void segment_scripts(Str32 text, Span<TextSegment> segments)
   SBScriptLocatorRelease(locator);
 }
 
-/// @brief only needs to be called if it is a bidirectional text
+/// @brief Only needs to be called if it is a bidirectional text
 static inline void segment_levels(Str32 text, SBAlgorithmRef algorithm,
                                   TextDirection     base,
                                   Span<TextSegment> segments)
@@ -798,7 +798,7 @@ static inline void segment_levels(Str32 text, SBAlgorithmRef algorithm,
   }
 }
 
-/// @brief only needs to be called if line breaking is required.
+/// @brief Only needs to be called if line breaking is required.
 static inline void segment_wrap_points(Str32 text, Span<TextSegment> segments)
 {
   for (auto [cp, segment] : zip(text, segments))

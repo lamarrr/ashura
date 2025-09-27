@@ -437,7 +437,7 @@ enum class CanvasState : u8
   Executed  = 3
 };
 
-/// @brief a normative clip rect that will cover the entire Canvas.
+/// @brief A normative clip rect that will cover the entire Canvas.
 constexpr f32 MAX_CLIP_DISTANCE = 0xFF'FFFF;
 
 inline constexpr CRect MAX_CLIP{.center = f32x2::splat(0),
@@ -457,28 +457,28 @@ struct ICanvas
 
   Option<PipelineStencil> stencil_op_;
 
-  /// @brief the viewport of the framebuffer this canvas will be targetting
+  /// @brief The viewport of the framebuffer this canvas will be targetting
   /// this is in the Framebuffer coordinates (Physical px coordinates)
   gpu::Viewport viewport_;
 
-  /// @brief the viewport's local extent. This will scale to the viewport's extent.
+  /// @brief The viewport's local extent. This will scale to the viewport's extent.
   /// This is typically the screen's virtual size (Logical px coordinates).
   /// This distinction helps support high-density displays.
   f32x2 extent_;
 
-  /// @brief the pixel size of the backing framebuffer (Physical px coordinates)
+  /// @brief The pixel size of the backing framebuffer (Physical px coordinates)
   u32x2 framebuffer_extent_;
 
   f32x2 framebuffer_uv_base_;
 
-  /// @brief aspect ratio of the viewport
+  /// @brief Aspect ratio of the viewport
   f32 aspect_ratio_;
 
-  /// @brief the ratio of the viewport's framebuffer coordinate extent
+  /// @brief The ratio of the viewport's framebuffer coordinate extent
   /// to the viewport's virtual extent
   f32 virtual_scale_;
 
-  /// @brief the world to viewport transformation matrix for the shader (-1.0, 1.0)
+  /// @brief The world to viewport transformation matrix for the shader (-1.0, 1.0)
   affinef32x4 world_to_ndc_;
 
   affinef32x4 ndc_to_viewport_;
@@ -597,7 +597,7 @@ struct ICanvas
 
   void set_clip(CRect const & area);
 
-  /// @brief register a custom canvas pass to be executed in the render thread
+  /// @brief Register a custom canvas pass to be executed in the render thread
   template <Callable<GpuFramePlan> Lambda>
   void encode_pass_(Lambda && task)
   {

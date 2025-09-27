@@ -24,7 +24,7 @@ struct Size
   f32 min_     = 0;
   f32 max_     = F32_INF;
 
-  /// @brief adding or subtracting from the source size, i.e. value should
+  /// @brief Adding or subtracting from the source size, i.e. value should
   /// be source size - 20px
   constexpr Size & abs(f32 s)
   {
@@ -32,7 +32,7 @@ struct Size
     return *this;
   }
 
-  /// @brief scales the source size, i.e. value should be 0.5 of source
+  /// @brief Scales the source size, i.e. value should be 0.5 of source
   /// size
   constexpr Size & rel(f32 s)
   {
@@ -56,14 +56,14 @@ struct Size
     return *this;
   }
 
-  /// @brief clamps the source size, i.e. value should be at least 20px
+  /// @brief Clamps the source size, i.e. value should be at least 20px
   constexpr Size & min(f32 s)
   {
     min_ = s;
     return *this;
   }
 
-  /// @brief clamps the source size, i.e. value should be at most 100px
+  /// @brief Clamps the source size, i.e. value should be at most 100px
   constexpr Size & max(f32 s)
   {
     max_ = s;
@@ -191,16 +191,16 @@ struct Frame
 
 struct CornerRadii
 {
-  /// @brief top-left
+  /// @brief Top-left
   f32 tl = 0;
 
-  /// @brief top-right
+  /// @brief Top-right
   f32 tr = 0;
 
-  /// @brief bottom-left
+  /// @brief Bottom-left
   f32 bl = 0;
 
-  /// @brief bottom-right
+  /// @brief Bottom-right
   f32 br = 0;
 
   static constexpr CornerRadii all(f32 r)
@@ -216,16 +216,16 @@ struct CornerRadii
 
 struct Padding
 {
-  /// @brief left
+  /// @brief Left
   f32 l = 0;
 
-  /// @brief top
+  /// @brief Top
   f32 t = 0;
 
-  /// @brief right
+  /// @brief Right
   f32 r = 0;
 
-  /// @brief bottom
+  /// @brief Bottom
   f32 b = 0;
 
   static constexpr Padding all(f32 r)
@@ -271,17 +271,17 @@ struct ScrollInfo
 
 struct HitInfo
 {
-  /// @brief viewport-space region of the view that was hit
+  /// @brief Viewport-space region of the view that was hit
   /// with (0, 0) as the center of the viewport
   f32x2 viewport_hit;
 
-  /// @brief canvas-space region that was hit
+  /// @brief Canvas-space region that was hit
   f32x2 canvas_hit;
 
-  /// @brief the viewport-space region of the view
+  /// @brief The viewport-space region of the view
   CRect viewport_region;
 
-  /// @brief the canvas-space region of the view
+  /// @brief The canvas-space region of the view
   CRect canvas_region;
 
   affinef32x3 canvas_transform = affinef32x3::identity();
@@ -296,45 +296,45 @@ struct Events
 {
   enum Type : u8
   {
-    /// @brief view has been mounted to the view tree and has now received an ID.
+    /// @brief View has been mounted to the view tree and has now received an ID.
     Mount       = 0,
-    /// @brief the pointer has entered the view's area
+    /// @brief The pointer has entered the view's area
     PointerIn   = 1,
-    /// @brief the pointer has left the view's area
+    /// @brief The pointer has left the view's area
     PointerOut  = 2,
-    /// @brief the pointer is hovering the view
+    /// @brief The pointer is hovering the view
     PointerOver = 3,
-    /// @brief the pointer has been pressed down on the view
+    /// @brief The pointer has been pressed down on the view
     PointerDown = 4,
-    /// @brief the pointer's press has been released from the view
+    /// @brief The pointer's press has been released from the view
     PointerUp   = 5,
-    /// @brief a scroll request has been sent to the view
+    /// @brief A scroll request has been sent to the view
     Scroll      = 6,
-    /// @brief drag event has begun on this view
+    /// @brief Drag event has begun on this view
     DragStart   = 7,
-    /// @brief an update on the drag state has been gotten
+    /// @brief An update on the drag state has been gotten
     DragUpdate  = 8,
-    /// @brief the dragging of this view has completed/canceled
+    /// @brief The dragging of this view has completed/canceled
     DragEnd     = 9,
-    /// @brief drag data has entered this view and might be dropped
+    /// @brief Drag data has entered this view and might be dropped
     DragIn      = 10,
-    /// @brief drag data has left the view without being dropped
+    /// @brief Drag data has left the view without being dropped
     DragOut     = 11,
-    /// @brief drag data is hovering this view as destination without being dropped
+    /// @brief Drag data is hovering this view as destination without being dropped
     DragOver    = 12,
-    /// @brief drag data is now available for the view to consume
+    /// @brief Drag data is now available for the view to consume
     Drop        = 13,
-    /// @brief the view has received focus
+    /// @brief The view has received focus
     FocusIn     = 14,
-    /// @brief the view has lost focus
+    /// @brief The view has lost focus
     FocusOut    = 15,
-    /// @brief the view currently has active focus
+    /// @brief The view currently has active focus
     FocusOver   = 16,
-    /// @brief a key went down whilst this view has focus
+    /// @brief A key went down whilst this view has focus
     KeyDown     = 17,
-    /// @brief a key went up whilst this view has focus
+    /// @brief A key went up whilst this view has focus
     KeyUp       = 18,
-    /// @brief the view has received composition text whilst it has focus
+    /// @brief The view has received composition text whilst it has focus
     TextInput   = 19
   };
 
@@ -373,10 +373,10 @@ struct Events
 
   Bits::Type bits = Bits::None;
 
-  /// @brief the view's hit data
+  /// @brief The view's hit data
   Option<HitInfo> hit_info = none;
 
-  /// @brief scroll request
+  /// @brief Scroll request
   Option<ScrollInfo> scroll_info = none;
 
   constexpr bool mount() const
@@ -498,10 +498,10 @@ struct DropCtx
 
   Phase phase = Phase::None;
 
-  /// @brief current drop data type
+  /// @brief Current drop data type
   DropType type = DropType::None;
 
-  /// @brief drag data associated with the current drag operation (if any, otherwise empty)
+  /// @brief Drag data associated with the current drag operation (if any, otherwise empty)
   Vec<u8> data;
 
   explicit DropCtx(Allocator allocator) : data{allocator}
@@ -523,26 +523,26 @@ struct DropCtx
 /// a specific window are in.
 struct Ctx
 {
-  /// @brief timestamp of current frame
+  /// @brief Timestamp of current frame
   time_point timestamp;
 
-  /// @brief time elapsed between previous and current frame
+  /// @brief Time elapsed between previous and current frame
   nanoseconds timedelta;
 
   WindowState window;
 
-  /// @brief windows' current frame mouse state
+  /// @brief Windows' current frame mouse state
   MouseState mouse;
 
-  /// @brief windows' current frame keyboard state
+  /// @brief Windows' current frame keyboard state
   KeyState key;
 
   DropCtx drop;
 
-  /// @brief is the application closing
+  /// @brief Is the application closing
   bool closing;
 
-  /// @brief canvas-space region the system is currently focused on
+  /// @brief Canvas-space region the system is currently focused on
   Option<FocusRect> focused;
 
   Option<Cursor> cursor;
@@ -572,7 +572,7 @@ struct Ctx
   void tick(InputState const & input);
 };
 
-/// @brief makes a zoom transform matrix relative to the center of a viewport.
+/// @brief Makes a zoom transform matrix relative to the center of a viewport.
 /// defines the translation and scaling components.
 /// @return zoom transform matrix
 
@@ -584,38 +584,38 @@ struct State
   /// focused before positive values.
   Option<i32> tab = none;
 
-  /// @brief if set, will be treated as a text input area
+  /// @brief If set, will be treated as a text input area
   Option<TextInputInfo> text = none;
 
-  /// @brief if the view should be hidden from view (will not receive
+  /// @brief If the view should be hidden from view (will not receive
   /// visual events, but still receive tick events)
   bool hidden : 1 = false;
 
-  /// @brief can receive mouse enter/move/leave events
+  /// @brief Can receive mouse enter/move/leave events
   bool pointable : 1 = false;
 
-  /// @brief can receive mouse press events
+  /// @brief Can receive mouse press events
   bool clickable : 1 = false;
 
-  /// @brief can receive mouse scroll events
+  /// @brief Can receive mouse scroll events
   bool scrollable : 1 = false;
 
-  /// @brief can the view produce drag data
+  /// @brief Can the view produce drag data
   bool draggable : 1 = false;
 
-  /// @brief can the view receive drag data
+  /// @brief Can the view receive drag data
   bool droppable : 1 = false;
 
-  /// @brief can receive keyboard focus (ordered by `tab`) and keyboard events
+  /// @brief Can receive keyboard focus (ordered by `tab`) and keyboard events
   bool focusable : 1 = false;
 
-  /// @brief grab focus of the user
+  /// @brief Grab focus of the user
   bool grab_focus : 1 = false;
 
-  /// @brief is view a viewport
+  /// @brief Is view a viewport
   bool viewport : 1 = false;
 
-  /// @brief request the view system to defer shutdown to next frame
+  /// @brief Request the view system to defer shutdown to next frame
   bool defer_close : 1 = false;
 };
 
@@ -653,18 +653,18 @@ extern Theme theme;
 
 struct Layout
 {
-  /// @brief extent of the view within the parent. if it is a viewport,
+  /// @brief Extent of the view within the parent. if it is a viewport,
   /// this is the visible extent of the viewport within the parent viewport.
   f32x2 extent = {};
 
-  /// @brief inner extent, if it is a viewport
+  /// @brief Inner extent, if it is a viewport
   f32x2 viewport_extent = {};
 
   f32x2 viewport_center = {};
 
   f32x2 viewport_zoom = {1, 1};
 
-  /// @brief viewport-space re-positioning of the view
+  /// @brief Viewport-space re-positioning of the view
   Option<f32x2> fixed_center = none;
 };
 
@@ -675,16 +675,16 @@ enum class ViewId : u64
 
 struct RenderInfo
 {
-  /// @brief viewport-space region of the view (before zoom transform)
+  /// @brief Viewport-space region of the view (before zoom transform)
   CRect viewport_region = {};
 
-  /// @brief canvas-space region of the view (after zoom transform)
+  /// @brief Canvas-space region of the view (after zoom transform)
   CRect canvas_region = {};
 
-  /// @brief canvas-space clip of the view (after zoom transform)
+  /// @brief Canvas-space clip of the view (after zoom transform)
   CRect clip = MAX_CLIP;
 
-  /// @brief displacement and scale transform from the viewports to canvas-space
+  /// @brief Displacement and scale transform from the viewports to canvas-space
   affinef32x3 canvas_transform = affinef32x3::identity();
 };
 
@@ -712,7 +712,7 @@ inline constexpr LayerStack LAYERS;
 /// and bottom-right is [+0.5w, +0.5h].
 struct View
 {
-  /// @brief id of the view if mounted, otherwise `ViewId::None`
+  /// @brief Id of the view if mounted, otherwise `ViewId::None`
   ViewId id_;
 
   bool hot_;
@@ -733,7 +733,7 @@ struct View
     return id_;
   }
 
-  /// @brief called on every frame. used for state changes, animations, task
+  /// @brief Called on every frame. used for state changes, animations, task
   /// dispatch and lightweight processing related to the GUI. heavy-weight and
   /// non-sub-millisecond tasks should be dispatched to a subsystem that would
   /// handle it. i.e. using the multi-tasking or asset-loading systems.
@@ -749,7 +749,7 @@ struct View
     return {};
   }
 
-  /// @brief distributes the size allocated to it to its child views.
+  /// @brief Distributes the size allocated to it to its child views.
   /// @param allocated the size allocated to this view
   /// @param[out] sizes sizes allocated to the children.
   constexpr virtual void size(f32x2 allocated, Span<f32x2> sizes)
@@ -757,7 +757,7 @@ struct View
     fill(sizes, allocated);
   }
 
-  /// @brief fits itself around its children and positions child views
+  /// @brief Fits itself around its children and positions child views
   /// relative to its center
   /// @param allocated the size allocated to this view
   /// @param sizes sizes of the child views
@@ -772,7 +772,7 @@ struct View
     return {};
   }
 
-  /// @brief returns the stacking layer index
+  /// @brief Returns the stacking layer index
   /// @param allocated stacking layer index allocated to this view
   /// by parent. This functions similar to the CSS stacking context. The layer
   /// index has a higher priority over the z-index and events do not bubble through it.
@@ -783,7 +783,7 @@ struct View
     return allocated;
   }
 
-  /// @brief returns the z-index of itself and assigns z-indices to its children
+  /// @brief Returns the z-index of itself and assigns z-indices to its children
   /// @param allocated z-index allocated to this view by parent
   /// @param[out] indices z-index assigned to children
   /// @return preferred z_index
@@ -793,7 +793,7 @@ struct View
     return allocated;
   }
 
-  /// @brief record draw commands needed to render this view. this method is
+  /// @brief Record draw commands needed to render this view. this method is
   /// only called if the view passes the visibility tests. this is called on
   /// every frame.
   /// @param canvas canvas to render view into

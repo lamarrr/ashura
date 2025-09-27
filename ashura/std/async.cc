@@ -16,7 +16,7 @@ namespace ash
 
 inline constexpr usize TASK_ARENA_SIZE = PAGE_SIZE;
 
-/// @brief memory is returned back to the scheduler once ac reaches 0.
+/// @brief Memory is returned back to the scheduler once ac reaches 0.
 ///
 /// arenas are individually allocated from heap and span a page boundary.
 ///
@@ -36,7 +36,7 @@ struct TaskArena : Pin<>
   }
 };
 
-/// @brief once the task is executed, the arena holding the memory associated
+/// @brief Once the task is executed, the arena holding the memory associated
 /// with the task is returned back to the source.
 ///
 /// the arena holds the memory for this Task struct, and the memory for its
@@ -70,7 +70,7 @@ struct Task
 
   Uninit uninit = noop;
 
-  /// @brief arena this task was allocated from. always non-null.
+  /// @brief Arena this task was allocated from. always non-null.
   TaskArena * arena = nullptr;
 
   static constexpr auto flex(Layout frame_layout)
@@ -129,7 +129,7 @@ struct TaskAllocator
 
   } free_list{};
 
-  /// @brief current arena being used for allocating new tasks. once this arena
+  /// @brief Current arena being used for allocating new tasks. once this arena
   /// is exhausted, we query from the freelist, and if that is empty, we
   /// allocate a new arena and make it the current arena.
   struct alignas(CACHELINE_ALIGNMENT)
@@ -323,7 +323,7 @@ struct TaskQueue
     return t;
   }
 
-  /// @brief push task on the queue
+  /// @brief Push task on the queue
   /// @param t non-null task node
   void push_task(Task * t)
   {

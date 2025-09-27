@@ -281,7 +281,7 @@ void IViewSys::layout(f32x2 viewport_extent)
   }
 }
 
-/// @brief compares the z-order of `a` and `b`
+/// @brief Compares the z-order of `a` and `b`
 static constexpr Order z_cmp(i32 a_layer, i32 a_z_index, u16 a_depth,
                              i32 b_layer, i32 b_z_index, u16 b_depth)
 {

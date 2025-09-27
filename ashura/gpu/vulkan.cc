@@ -6,6 +6,13 @@
 #include "ashura/std/range.h"
 #include "ashura/std/sformat.h"
 
+// clang-format off
+
+#include "vulkan/vulkan_beta.h"
+#include "vulkan/vk_enum_string_helper.h"
+
+// clang-format on
+
 namespace ash
 {
 namespace vk

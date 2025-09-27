@@ -1308,10 +1308,10 @@ struct SwapchainState
 
 struct QueueScopeState
 {
-  /// @brief the ring index when using (buffering) as the ring-buffer size
+  /// @brief The ring index when using (buffering) as the ring-buffer size
   u64 ring_index = 0;
 
-  /// @brief the number of allowed concurrent submissions on the queue scope
+  /// @brief The number of allowed concurrent submissions on the queue scope
   u64 buffering = 0;
 };
 
