@@ -13,11 +13,6 @@
 namespace ash
 {
 
-/// @brief Minimum alignment of the Vec types. This fits into 1 AVX-512 lane.
-/// Only InplaceVec doesn't use this alignment as it is usually in-place and
-/// compacted along with other struct members/stack variables.
-inline constexpr usize SIMD_ALIGNMENT = 64;
-
 template <typename T, usize MinAlignment = SIMD_ALIGNMENT>
 requires (NonConst<T>)
 struct [[nodiscard]] Vec
@@ -1244,6 +1239,8 @@ struct [[nodiscard]] SmallVec
   }
 };
 
+/// @brief InplaceVec doesn't use SIMD_ALIGNMENT as it is usually in-place and
+/// compacted along with other struct members/stack variables.
 template <typename T, usize Capacity, usize MinAlignment = alignof(T)>
 requires (NonConst<T>)
 struct [[nodiscard]] InplaceVec
