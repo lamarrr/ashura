@@ -1,6 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/std/format.h"
+#include "ashura/std/result.h"
 #include "ashura/std/vec.h"
 
 namespace ash
@@ -44,7 +45,7 @@ constexpr Result<Void, fmt::Result> sformat_to(Vec & out, Span<char const> fstr,
 
 }    // namespace impl
 
-/// @brief format to a dynamic string using custom allocator
+/// @brief Format to a dynamic string using custom allocator
 template <typename... Args>
 constexpr Result<Vec<char>, fmt::Result>
   sformat(Allocator allocator, Span<char const> fstr, Args const &... args)
@@ -56,15 +57,7 @@ constexpr Result<Vec<char>, fmt::Result>
   });
 }
 
-/// @brief format to a dynamic string using default allocator
-template <typename... Args>
-constexpr Result<Vec<char>, fmt::Result> sformat(Span<char const> fstr,
-                                                 Args const &... args)
-{
-  return sformat(default_allocator, fstr, args...);
-}
-
-/// @brief format to a static capacity string
+/// @brief Format to a static capacity string
 template <usize Capacity, typename... Args>
 constexpr Result<InplaceVec<char, Capacity>, fmt::Result>
   snformat(Span<char const> fstr, Args const &... args)
@@ -76,7 +69,7 @@ constexpr Result<InplaceVec<char, Capacity>, fmt::Result>
   });
 }
 
-/// @brief small-string format
+/// @brief Small-string format
 template <usize InlineCapacity, typename... Args>
 constexpr Result<SmallVec<char, InlineCapacity>, fmt::Result>
   ssformat(Allocator allocator, Span<char const> fstr, Args const &... args)

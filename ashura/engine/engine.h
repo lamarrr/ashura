@@ -2,7 +2,6 @@
 #pragma once
 #include "ashura/engine/systems.h"
 #include "ashura/engine/view_system.h"
-#include "ashura/engine/window.h"
 #include "ashura/std/cfg.h"
 
 namespace ash
@@ -48,45 +47,41 @@ struct EngineCfg
   static Result<EngineCfg> parse(Allocator allocator, Vec<u8> & json);
 };
 
-struct Engine
+typedef struct Window_T * Window;
+typedef struct IEngine *  Engine;
+
+struct IEngine
 {
   Allocator allocator;
 
-  Dyn<Logger *> logger;
+  struct Systems
+  {
+    Dyn<Logger>       logger;
+    Dyn<Scheduler>    sched;
+    Dyn<GpuSys>       gpu;
+    Dyn<FileSys>      file;
+    Dyn<ImageSys>     image;
+    Dyn<FontSys>      font;
+    Dyn<ShaderSys>    shader;
+    Dyn<WindowSys>    win;
+    Dyn<PipelineSys>  pipeline;
+    Dyn<AudioSys>     audio;
+    Dyn<VideoSys>     video;
+    Dyn<AnimationSys> animation;
+    Dyn<ViewSys>      view;
+  } sys;
 
-  Dyn<Scheduler *> scheduler;
+  Dyn<gpu::Instance> instance;
 
-  FileSystem file_sys;
-
-  Dyn<gpu::Instance *> instance;
-
-  ref<gpu::Device> device;
-
-  GpuSystem gpu_sys;
-
-  ImageSystem image_sys;
-
-  Dyn<FontSystem *> font_sys;
-
-  ShaderSystem shader_sys;
-
-  Dyn<WindowSystem *> window_sys;
+  Dyn<gpu::Device> device;
 
   Window window;
 
-  ref<ClipBoard> clipboard;
-
   gpu::Surface surface;
-
-  gpu::Swapchain swapchain = nullptr;
 
   gpu::PresentMode present_mode_preference;
 
-  Renderer renderer;
-
   Canvas canvas;
-
-  ui::System ui_sys;
 
   InputState input_state;
 
@@ -99,15 +94,7 @@ struct Engine
   static Dyn<Engine *> create(Allocator allocator, Str config_path,
                               Str working_dir);
 
-  Engine(Allocator allocator, Dyn<Logger *> logger,
-         Dyn<Scheduler *> scheduler, FileSystem file_sys,
-         Dyn<gpu::Instance *> instance, gpu::Device & device, GpuSystem gpu_sys,
-         ImageSystem image_sys, Dyn<FontSystem *> font_sys,
-         ShaderSystem shader_sys, Dyn<WindowSystem *> window_sys, Window window,
-         ClipBoard & clipboard, gpu::Surface surface,
-         gpu::PresentMode present_mode_preference, Renderer renderer,
-         Canvas canvas, ui::System ui_sys, Vec<char> working_dir,
-         Vec<char> pipeline_cache_path, nanoseconds min_frame_interval) :
+  IEngine() :
     allocator{allocator},
     logger{std::move(logger)},
     scheduler{std::move(scheduler)},
@@ -133,11 +120,11 @@ struct Engine
   {
   }
 
-  Engine(Engine const &)             = delete;
-  Engine & operator=(Engine const &) = delete;
-  Engine(Engine &&)                  = default;
-  Engine & operator=(Engine &&)      = default;
-  ~Engine()                          = default;
+  IEngine(IEngine const &)            = delete;
+  Engine & operator=(IEngine const &) = delete;
+  IEngine(IEngine &&)                 = default;
+  IEngine & operator=(IEngine &&)     = default;
+  ~IEngine()                          = default;
 
   Systems get_systems()
   {
@@ -149,11 +136,10 @@ struct Engine
                    .window = *window_sys};
   }
 
-  void engage_(EngineCfg const & cfg);
+  void init(Allocator allocator, EngineCfg const & cfg, Vec<char> working_dir,
+            Vec<char> pipeline_cache_path, nanoseconds min_frame_interval);
 
   void shutdown();
-
-  void recreate_swapchain_();
 
   time_point get_inputs_(time_point prev_frame_end);
 
@@ -162,8 +148,8 @@ struct Engine
 
 /// Global Engine Pointer. Can be hooked at runtime for dynamically loaded
 /// executables.
-extern Engine * engine;
+extern Engine engine;
 
-ASH_C_LINKAGE ASH_DLL_EXPORT void hook_engine(Engine *);
+ASH_C_LINKAGE ASH_DLL_EXPORT void hook_engine(Engine);
 
 }    // namespace ash

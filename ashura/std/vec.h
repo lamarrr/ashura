@@ -2,6 +2,7 @@
 #pragma once
 
 #include "ashura/std/allocator.h"
+#include "ashura/std/growth.h"
 #include "ashura/std/mem.h"
 #include "ashura/std/obj.h"
 #include "ashura/std/option.h"
@@ -11,29 +12,6 @@
 
 namespace ash
 {
-
-/// @brief Minimum alignment of the Vec types. This fits into 1 AVX-512 lane.
-/// Only InplaceVec doesn't use this alignment as it is usually in-place and
-/// compacted along with other struct members/stack variables.
-inline constexpr usize SIMD_ALIGNMENT = 64;
-
-struct DoubleGrowth
-{
-  static constexpr usize grow(usize capacity)
-  {
-    return capacity << 1;
-  }
-};
-
-struct HalfGrowth
-{
-  static constexpr usize grow(usize capacity)
-  {
-    return capacity + (capacity >> 1);
-  }
-};
-
-using Growth = DoubleGrowth;
 
 template <typename T, usize MinAlignment = SIMD_ALIGNMENT>
 requires (NonConst<T>)
@@ -149,7 +127,7 @@ struct [[nodiscard]] Vec
 
   constexpr Type * data() const
   {
-    return assume_aligned<ALIGNMENT>(storage_);
+    return assume_aligned_to<ALIGNMENT>(storage_);
   }
 
   static constexpr usize alignment()
@@ -245,7 +223,7 @@ struct [[nodiscard]] Vec
 
   constexpr Result<> reserve(usize target_capacity)
   {
-    if (capacity_ >= target_capacity)
+    if (capacity_ >= target_capacity) [[likely]]
     {
       return Ok{};
     }
@@ -334,7 +312,7 @@ struct [[nodiscard]] Vec
 
   constexpr Result<> grow(usize target_capacity)
   {
-    if (capacity_ >= target_capacity)
+    if (capacity_ >= target_capacity) [[likely]]
     {
       return Ok{};
     }
@@ -754,12 +732,12 @@ struct [[nodiscard]] SmallVec
 
   constexpr Type * data() const
   {
-    return assume_aligned<ALIGNMENT>(storage_);
+    return assume_aligned_to<ALIGNMENT>(storage_);
   }
 
   constexpr Type * inline_storage() const
   {
-    return assume_aligned<ALIGNMENT>(
+    return assume_aligned_to<ALIGNMENT>(
       reinterpret_cast<Type *>(inline_.storage_));
   }
 
@@ -1261,306 +1239,8 @@ struct [[nodiscard]] SmallVec
   }
 };
 
-/// @brief A vector with elements pinned to memory, The address of the vector is
-/// stable over its lifetime and guarantees that there's never reference
-/// invalidation. The elements are never relocated during their lifetime. It can
-/// only pop elements and add elements while within its capacity. It also never
-/// reallocates nor grow in capacity.
-template <typename T, usize MinAlignment = SIMD_ALIGNMENT>
-requires (NonConst<T>)
-struct [[nodiscard]] PinVec
-{
-  using Type = T;
-  using Repr = T;
-  using Iter = SpanIter<T>;
-  using View = Span<T>;
-
-  static constexpr usize ALIGNMENT = max(MinAlignment, alignof(Type));
-
-  Type *    storage_;
-  usize     size_;
-  usize     capacity_;
-  Allocator allocator_;
-
-  constexpr PinVec() :
-    storage_{nullptr},
-    size_{0},
-    capacity_{0},
-    allocator_{default_allocator}
-  {
-  }
-
-  constexpr PinVec(Allocator allocator, Type * storage, usize capacity,
-                   usize size) :
-    storage_{storage},
-    size_{size},
-    capacity_{capacity},
-    allocator_{allocator}
-  {
-  }
-
-  constexpr PinVec(PinVec const &) = delete;
-
-  constexpr PinVec & operator=(PinVec const &) = delete;
-
-  constexpr PinVec(PinVec && other) :
-    storage_{other.storage_},
-    size_{other.size_},
-    capacity_{other.capacity_},
-    allocator_{other.allocator_}
-  {
-    other.storage_   = nullptr;
-    other.size_      = 0;
-    other.capacity_  = 0;
-    other.allocator_ = default_allocator;
-  }
-
-  constexpr PinVec & operator=(PinVec && other)
-  {
-    if (this == &other) [[unlikely]]
-    {
-      return *this;
-    }
-
-    uninit();
-    new (this) PinVec{static_cast<PinVec &&>(other)};
-
-    return *this;
-  }
-
-  constexpr ~PinVec()
-  {
-    uninit();
-  }
-
-  static constexpr Result<PinVec> make(usize capacity, Allocator allocator = {})
-  {
-    Type * storage;
-    if (!allocator->pnalloc(ALIGNMENT, capacity, storage)) [[unlikely]]
-    {
-      return Err{};
-    }
-
-    return Ok{
-      PinVec{allocator, storage, capacity, 0}
-    };
-  }
-
-  constexpr void uninit()
-  {
-    obj::destruct(view());
-    allocator_->pndealloc(ALIGNMENT, capacity_, storage_);
-  }
-
-  constexpr void reset()
-  {
-    uninit();
-    storage_  = nullptr;
-    size_     = 0;
-    capacity_ = 0;
-  }
-
-  constexpr Result<PinVec> clone(Allocator allocator) const
-  {
-    Result<PinVec> out = PinVec::make(allocator, capacity_);
-
-    if (!out)
-    {
-      return out;
-    }
-
-    obj::copy_construct(view(), out.v().view());
-
-    return out;
-  }
-
-  Result<PinVec> clone() const
-  {
-    return clone(allocator_);
-  }
-
-  constexpr bool is_empty() const
-  {
-    return size() == 0;
-  }
-
-  constexpr Type * data() const
-  {
-    return assume_aligned<ALIGNMENT>(storage_);
-  }
-
-  static constexpr usize alignment()
-  {
-    return ALIGNMENT;
-  }
-
-  constexpr usize size() const
-  {
-    return size_;
-  }
-
-  constexpr usize size_bytes() const
-  {
-    return sizeof(Type) * size();
-  }
-
-  constexpr usize capacity() const
-  {
-    return capacity_;
-  }
-
-  constexpr usize capacity_bytes() const
-  {
-    return sizeof(Type) * capacity();
-  }
-
-  constexpr auto begin() const
-  {
-    return Iter{.iter_ = data(), .end_ = data() + size()};
-  }
-
-  constexpr auto end() const
-  {
-    return IterEnd{};
-  }
-
-  constexpr Type & first() const
-  {
-    return get(0);
-  }
-
-  constexpr Type & last() const
-  {
-    return get(size() - 1);
-  }
-
-  constexpr Type & operator[](usize index) const
-  {
-    return get(index);
-  }
-
-  constexpr Type & get(usize index) const
-  {
-    return data()[index];
-  }
-
-  constexpr void clear()
-  {
-    obj::destruct(view());
-    size_ = 0;
-  }
-
-  constexpr void pop(usize num = 1)
-  {
-    num = min(num, size_);
-    obj::destruct(Span{data() + size_ - num, num});
-    size_ -= num;
-  }
-
-  constexpr Result<> try_pop(usize num = 1)
-  {
-    if (size_ < num) [[unlikely]]
-    {
-      return Err{};
-    }
-
-    pop(num);
-
-    return Ok{};
-  }
-
-  template <typename... Args>
-  constexpr Result<> push(Args &&... args)
-  {
-    if ((size_ + 1) > capacity_) [[unlikely]]
-    {
-      return Err{};
-    }
-
-    new (data() + size_) Type{static_cast<Args &&>(args)...};
-
-    size_++;
-
-    return Ok{};
-  }
-
-  constexpr Result<> extend_uninit(usize extension)
-  {
-    if ((size_ + extension) > capacity_) [[unlikely]]
-    {
-      return Err{};
-    }
-
-    size_ += extension;
-
-    return Ok{};
-  }
-
-  constexpr Result<> extend(usize extension)
-  {
-    usize const pos = size_;
-
-    if (!extend_uninit(extension)) [[unlikely]]
-    {
-      return Err{};
-    }
-
-    obj::default_construct(Span{data() + pos, extension});
-
-    return Ok{};
-  }
-
-  constexpr Result<> extend(Span<Type const> span)
-  {
-    usize const pos = size_;
-
-    if (!extend_uninit(span.size())) [[unlikely]]
-    {
-      return Err{};
-    }
-
-    // free to use memcpy because the source range is not overlapping with this
-    // anyway
-    if constexpr (TriviallyCopyConstructible<Type>)
-    {
-      mem::copy(span, data() + pos);
-    }
-    else
-    {
-      obj::copy_construct(span, data() + pos);
-    }
-
-    return Ok{};
-  }
-
-  constexpr Result<> extend_move(Span<Type> span)
-  {
-    usize const pos = size_;
-
-    if (!extend_uninit(span.size())) [[unlikely]]
-    {
-      return Err{};
-    }
-
-    // non-overlapping, use memcpy
-    if constexpr (TriviallyMoveConstructible<Type>)
-    {
-      mem::copy(span, data() + pos);
-    }
-    else
-    {
-      obj::move_construct(span, data() + pos);
-    }
-
-    return Ok{};
-  }
-
-  constexpr View view() const
-  {
-    return View{data(), size()};
-  }
-};
-
+/// @brief InplaceVec doesn't use SIMD_ALIGNMENT as it is usually in-place and
+/// compacted along with other struct members/stack variables.
 template <typename T, usize Capacity, usize MinAlignment = alignof(T)>
 requires (NonConst<T>)
 struct [[nodiscard]] InplaceVec
@@ -1627,7 +1307,8 @@ struct [[nodiscard]] InplaceVec
 
   constexpr Type * data() const
   {
-    return assume_aligned<ALIGNMENT>(reinterpret_cast<Type *>(this->storage_));
+    return assume_aligned_to<ALIGNMENT>(
+      reinterpret_cast<Type *>(this->storage_));
   }
 
   static constexpr usize alignment()
@@ -2357,7 +2038,7 @@ struct CoreSparseMap
 
   Indices index_to_id_;
 
-  /// @brief map of id to index
+  /// @brief Map of id to index
   Indices id_to_index_;
 
   Dense dense;
@@ -2723,12 +2404,6 @@ struct IsTriviallyRelocatable<Vec<T>>
   static constexpr bool value = true;
 };
 
-template <typename T>
-struct IsTriviallyRelocatable<PinVec<T>>
-{
-  static constexpr bool value = true;
-};
-
 template <typename V>
 struct IsTriviallyRelocatable<CoreBitVec<V>>
 {
@@ -2742,11 +2417,6 @@ struct IsTriviallyRelocatable<InplaceVec<T, C>>
 };
 
 inline void format(fmt::Sink sink, fmt::Spec spec, Vec<char> const & str)
-{
-  format(sink, spec, str.view());
-}
-
-inline void format(fmt::Sink sink, fmt::Spec spec, PinVec<char> const & str)
 {
   format(sink, spec, str.view());
 }

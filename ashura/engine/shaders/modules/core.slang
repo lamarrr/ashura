@@ -39,7 +39,7 @@ f32 ndot(f32x2 a, f32x2 b)
   return a.x * b.x - a.y * b.y;
 }
 
-/// @brief convert from rotor vector (cos(theta), sin(theta)) to rotation matrix
+/// @brief Convert from rotor vector (cos(theta), sin(theta)) to rotation matrix
 f32x3x3 rotor_matrix(f32x2 rotor)
 {
   f32 cos_theta = rotor.x;
@@ -249,14 +249,14 @@ namespace bary
 
 /// @section barycentric-coordinate interpolation functions
 
-/// @brief non-perspective correct bezier curve
+/// @brief Non-perspective correct bezier curve
 BezierRegions bezier_region_blinn(f32x2 uv)
 {
   return (uv.x * uv.x - uv.y) < 0 ? BezierRegions::Outside :
                                     BezierRegions::Inside;
 }
 
-/// @brief an anti-aliased screen-space bezier curve
+/// @brief An anti-aliased screen-space bezier curve
 ///
 /// triangle texture coords: [0, 0], [0.5, 0], [1, 1]
 ///

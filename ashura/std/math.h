@@ -208,7 +208,7 @@ constexpr auto mips(Unsigned auto a)
   return (a == 0) ? 0 : ulog2(a);
 }
 
-/// @brief linearly interpolate between points `low` and `high` given
+/// @brief Linearly interpolate between points `low` and `high` given
 /// interpolator `t`
 /// This is the exact form: (1 - t) * A + T * B, optimized for FMA
 template <typename T>
@@ -217,7 +217,7 @@ constexpr T lerp(T const & low, T const & high, T const & t)
   return low - t * low + t * high;
 }
 
-/// @brief logarithmically interpolate between points `low` and `high` given
+/// @brief Logarithmically interpolate between points `low` and `high` given
 /// interpolator `t`
 template <typename T>
 inline T log_interp(T const & low, T const & high, T const & t)
@@ -225,7 +225,7 @@ inline T log_interp(T const & low, T const & high, T const & t)
   return low * exp(t * log(high / low));
 }
 
-/// @brief frame-independent damped lerp
+/// @brief Frame-independent damped lerp
 ///
 /// https://x.com/FreyaHolmer/status/1757836988495847568,
 /// https://www.rorydriscoll.com/2016/03/07/frame-rate-independent-damping-using-lerp/
@@ -1587,9 +1587,9 @@ struct mat
     return *this;
   }
 
-  constexpr Row operator*(mat const & b) const requires (R == C)
+  constexpr mat operator*(mat const & b) const requires (R == C)
   {
-    Row c;
+    mat c;
 #pragma unroll
     for (usize i = 0; i < NUM_ROWS; i++)
     {
@@ -1767,12 +1767,12 @@ struct affine
     return col(0);
   }
 
-  constexpr Col y() const requires (R > 1)
+  constexpr Col y() const
   {
     return col(1);
   }
 
-  constexpr Col z() const requires (R > 2)
+  constexpr Col z() const
   {
     return col(2);
   }
@@ -1784,17 +1784,52 @@ struct affine
 
   constexpr Col i() const
   {
-    return col(0);
+    return x();
   }
 
-  constexpr Col j() const requires (R > 1)
+  constexpr Col j() const
   {
-    return col(1);
+    return y();
   }
 
-  constexpr Col k() const requires (R > 2)
+  constexpr Col k() const
   {
-    return col(2);
+    return z();
+  }
+
+  constexpr Row x_ext() const
+  {
+    return col(0).append(0);
+  }
+
+  constexpr Row y_ext() const
+  {
+    return col(1).append(0);
+  }
+
+  constexpr Row z_ext() const
+  {
+    return col(2).append(R == 3 ? 1 : 0);
+  }
+
+  constexpr Row w_ext() const requires (R > 3)
+  {
+    return col(3).append(1);
+  }
+
+  constexpr Row i_ext() const
+  {
+    return x_ext();
+  }
+
+  constexpr Row j_ext() const
+  {
+    return y_ext();
+  }
+
+  constexpr Row k_ext() const
+  {
+    return z_ext();
   }
 
   constexpr bool operator==(affine const & b) const
@@ -2773,7 +2808,7 @@ constexpr bool operator!=(CBox const & a, CBox const & b)
   return a.center != b.center || a.extent != b.extent;
 }
 
-/// @brief find the maximum extent that will fit in the provided extent while
+/// @brief Find the maximum extent that will fit in the provided extent while
 /// respecting the provided aspect ratio
 constexpr f32x2 with_aspect(f32x2 extent, f32 aspect_ratio)
 {

@@ -2,7 +2,6 @@
 #pragma once
 
 #include "ashura/engine/font.h"
-#include "ashura/engine/ids.h"
 #include "ashura/std/color.h"
 #include "ashura/std/types.h"
 #include "ashura/std/vec.h"
@@ -521,7 +520,7 @@ struct TextRun
   /// @brief Codepoints in the source text the run belongs to
   Slice codepoints = {};
 
-  /// @brief style in the list of specified text styles
+  /// @brief Style in the list of specified text styles
   u32 style = 0;
 
   f32 font_height = 0;
@@ -536,7 +535,7 @@ struct TextRun
 
   u8 level = 0;
 
-  /// @brief if the run represents a break-opportunity as constrained by the max-width.
+  /// @brief If the run represents a break-opportunity as constrained by the max-width.
   bool wrappable = false;
 
   TextRunType type = TextRunType::Char;
@@ -591,7 +590,7 @@ struct LineMetrics
 /// @brief
 struct Line
 {
-  /// @brief codepoints in the line (excludes the preceding line-breaks if any).
+  /// @brief Codepoints in the line (excludes the preceding line-breaks if any).
   Slice codepoints = {};
 
   /// @brief Logical Carets on the current line. If the Line is an RTL line,
@@ -648,7 +647,6 @@ struct CaretPlacement
 };
 
 struct ShapeInfo;
-struct Canvas;
 
 enum class TextLayer : u8
 {
@@ -782,8 +780,7 @@ struct TextLayout
   void render(TextRenderer renderer, ShapeInfo const & info,
               TextBlock const & block, TextBlockStyle const & style,
               Span<Slice const> highlights, Span<usize const> carets,
-              CRect const & clip,
-              Allocator  allocator = default_allocator) const;
+              CRect const & clip, Allocator allocator) const;
 };
 
 }    // namespace ash

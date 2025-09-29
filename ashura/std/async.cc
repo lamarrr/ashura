@@ -16,16 +16,16 @@ namespace ash
 
 inline constexpr usize TASK_ARENA_SIZE = PAGE_SIZE;
 
-/// @brief memory is returned back to the scheduler once ac reaches 0.
+/// @brief Memory is returned back to the scheduler once ac reaches 0.
 ///
 /// arenas are individually allocated from heap and span a page boundary.
 ///
 struct TaskArena : Pin<>
 {
-  TaskArena * next = nullptr;
-  TaskArena * prev = nullptr;
-  AliasCount  ac{};
-  Arena       arena{};
+  TaskArena *      next = nullptr;
+  TaskArena *      prev = nullptr;
+  AtomicAliasCount ac{};
+  Arena            arena{};
 
   static constexpr auto flex()
   {
@@ -36,7 +36,7 @@ struct TaskArena : Pin<>
   }
 };
 
-/// @brief once the task is executed, the arena holding the memory associated
+/// @brief Once the task is executed, the arena holding the memory associated
 /// with the task is returned back to the source.
 ///
 /// the arena holds the memory for this Task struct, and the memory for its
@@ -70,7 +70,7 @@ struct Task
 
   Uninit uninit = noop;
 
-  /// @brief arena this task was allocated from. always non-null.
+  /// @brief Arena this task was allocated from. always non-null.
   TaskArena * arena = nullptr;
 
   static constexpr auto flex(Layout frame_layout)
@@ -108,7 +108,7 @@ static_assert(TASK_ARENA_SIZE >= MAX_TASK_FLEX_LAYOUT.size,
 struct TaskAllocator
 {
   /// @brief The source allocator the arenas are allocated from
-  AllocatorRef source;
+  Allocator source;
 
   /// @brief Arena free list. all arenas on the free list a fully reclaimed and
   /// can be immediately used.
@@ -129,7 +129,7 @@ struct TaskAllocator
 
   } free_list{};
 
-  /// @brief current arena being used for allocating new tasks. once this arena
+  /// @brief Current arena being used for allocating new tasks. once this arena
   /// is exhausted, we query from the freelist, and if that is empty, we
   /// allocate a new arena and make it the current arena.
   struct alignas(CACHELINE_ALIGNMENT)
@@ -139,17 +139,17 @@ struct TaskAllocator
 
   } current_arena{};
 
-  explicit TaskAllocator(AllocatorRef src) : source{src}
+  explicit TaskAllocator(Allocator src) : source{src}
   {
   }
 
   TaskAllocator(TaskAllocator const &) = delete;
 
-  TaskAllocator(TaskAllocator &&) = default;
+  TaskAllocator(TaskAllocator &&) = delete;
 
   TaskAllocator & operator=(TaskAllocator const &) = delete;
 
-  TaskAllocator & operator=(TaskAllocator &&) = default;
+  TaskAllocator & operator=(TaskAllocator &&) = delete;
 
   ~TaskAllocator()
   {
@@ -190,7 +190,7 @@ struct TaskAllocator
 
     auto [arena, memory] = flex.unpack(stack);
 
-    out = new (arena.data()) TaskArena{.arena = Arena::from(memory)};
+    out = new (arena.data()) TaskArena{.arena{memory}};
 
     return true;
   }
@@ -296,17 +296,17 @@ struct TaskQueue
   List<Task>    tasks{};
   TaskAllocator allocator;
 
-  explicit TaskQueue(AllocatorRef src) : allocator{src}
+  explicit TaskQueue(Allocator src) : allocator{src}
   {
   }
 
   TaskQueue(TaskQueue const &) = delete;
 
-  TaskQueue(TaskQueue &&) = default;
+  TaskQueue(TaskQueue &&) = delete;
 
   TaskQueue & operator=(TaskQueue const &) = delete;
 
-  TaskQueue & operator=(TaskQueue &&) = default;
+  TaskQueue & operator=(TaskQueue &&) = delete;
 
   ~TaskQueue() = default;
 
@@ -323,7 +323,7 @@ struct TaskQueue
     return t;
   }
 
-  /// @brief push task on the queue
+  /// @brief Push task on the queue
   /// @param t non-null task node
   void push_task(Task * t)
   {
@@ -339,115 +339,136 @@ struct TaskQueue
   }
 };
 
+enum class ThreadType : u32
+{
+  Worker    = 0,
+  Dedicated = 1
+};
+
 /// @param queue dedicated queue only used when the thread is a dedicated
 /// thread.
 struct alignas(CACHELINE_ALIGNMENT) TaskThread
 {
-  TaskQueue      queue;
-  StopTokenState stop_token;
-  nanoseconds    max_sleep;
-  std::thread    thread;
+  ThreadType  type;
+  TaskQueue   queue;
+  ISemaphore  drain_semaphore;
+  nanoseconds max_sleep;
+  std::thread thread;
 
-  TaskThread(AllocatorRef allocator, nanoseconds max_sleep) :
+  TaskThread(Allocator allocator, ThreadType type, nanoseconds max_sleep) :
+    type{type},
     queue{allocator},
-    stop_token{},
-    max_sleep{max_sleep},
-    thread{}
+    drain_semaphore{},
+    max_sleep{max_sleep}
   {
   }
+
+  TaskThread(TaskThread const &)             = delete;
+  TaskThread & operator=(TaskThread const &) = delete;
+  TaskThread(TaskThread &&)                  = delete;
+  TaskThread & operator=(TaskThread &&)      = delete;
+  ~TaskThread()                              = default;
 };
 
 /// @param allocator must be thread-safe.
 /// @param free_list arena free list. arenas not in use by any tasks are
 /// inserted here
 /// @param current_arena current arena being allocated from
-struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
+struct ASH_DLL_EXPORT SchedulerImpl final : IScheduler
 {
-  PinVec<TaskThread> dedicated_threads;
+  Vec<Dyn<TaskThread *>> dedicated_threads_;
 
-  PinVec<TaskThread> worker_threads;
+  Vec<Dyn<TaskThread *>> worker_threads_;
 
-  alignas(CACHELINE_ALIGNMENT) TaskQueue main_queue;
+  alignas(CACHELINE_ALIGNMENT) TaskQueue main_queue_;
 
-  alignas(CACHELINE_ALIGNMENT) TaskQueue worker_queue;
+  alignas(CACHELINE_ALIGNMENT) TaskQueue worker_queue_;
 
-  std::thread::id main_thread_id;
+  bool joined_;
 
-  bool joined;
+  std::thread::id main_thread_id_;
 
-  explicit SchedulerImpl(AllocatorRef    allocator,
-                         std::thread::id main_thread_id) :
-    dedicated_threads{},
-    worker_threads{},
-    main_queue{allocator},
-    worker_queue{allocator},
-    main_thread_id{main_thread_id},
-    joined{false}
+  explicit SchedulerImpl(Allocator allocator, std::thread::id main_thread_id) :
+    dedicated_threads_{allocator},
+    worker_threads_{allocator},
+    main_queue_{allocator},
+    worker_queue_{allocator},
+    joined_{false},
+    main_thread_id_{main_thread_id}
   {
   }
 
+  SchedulerImpl(SchedulerImpl const &) = delete;
+
+  SchedulerImpl(SchedulerImpl &&) = delete;
+
+  SchedulerImpl & operator=(SchedulerImpl const &) = delete;
+
+  SchedulerImpl & operator=(SchedulerImpl &&) = delete;
+
   virtual ~SchedulerImpl() override
   {
-    CHECK(joined, "Scheduler not joined yet");
+    CHECK(joined_, "Scheduler not joined yet");
   }
 
   virtual void shutdown() override
   {
-    CHECK(main_thread_id == std::this_thread::get_id(),
+    CHECK(main_thread_id_ == std::this_thread::get_id(),
           "Scheduler can only be joined on the main thread");
 
-    for (TaskThread & t : dedicated_threads)
+    for (auto & t : worker_threads_)
     {
-      t.stop_token.request_stop();
+      (void) t->drain_semaphore.complete(0);
     }
 
-    for (TaskThread & t : worker_threads)
+    for (auto & t : dedicated_threads_)
     {
-      t.stop_token.request_stop();
+      (void) t->drain_semaphore.complete(0);
     }
 
-    for (TaskThread & t : dedicated_threads)
+    for (auto & t : worker_threads_)
     {
-      t.thread.join();
+      t->thread.join();
     }
 
-    for (TaskThread & t : worker_threads)
+    for (auto & t : dedicated_threads_)
     {
-      t.thread.join();
+      t->thread.join();
     }
 
     while (true)
     {
-      Task * task = main_queue.pop_task();
+      Task * task = main_queue_.pop_task();
 
       if (task == nullptr)
       {
         break;
       }
 
-      main_queue.allocator.release_task(task);
+      main_queue_.allocator.release_task(task);
     }
 
-    joined = true;
+    joined_ = true;
   }
 
-  static void thread_loop(TaskAllocator & a, TaskQueue & q, StopTokenState & s,
+  static void thread_loop(TaskAllocator & a, TaskQueue & q, Semaphore s,
                           nanoseconds max_sleep)
   {
     u64 poll = 0;
 
     while (true)
     {
-      // stop execution even if there are pending tasks
-      if (s.is_stop_requested()) [[unlikely]]
-      {
-        break;
-      }
-
       Task * task = q.pop_task();
 
       if (task == nullptr) [[unlikely]]
       {
+        // stop execution once all tasks are done and drain semaphore is signaled
+        if (s->is_completed(0)) [[unlikely]]
+        {
+          (void) s->complete();
+          break;
+        }
+
         sleepy_backoff(poll, max_sleep);
         poll++;
         continue;
@@ -553,84 +574,95 @@ struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
 
   virtual u32 num_dedicated() override
   {
-    return size32(dedicated_threads);
+    return size32(dedicated_threads_);
   }
 
   virtual u32 num_workers() override
   {
-    return size32(worker_threads);
+    return size32(worker_threads_);
   }
 
-  virtual void schedule_dedicated(TaskInfo const & info, u32 thread) override
+  virtual void schedule(TaskInfo const & info, ThreadId thread) override
   {
-    CHECK(thread < size32(dedicated_threads), "Invalid dedicated thread ID");
-    TaskThread & t = dedicated_threads[thread];
-    t.queue.push_task(info);
-  }
+    switch (thread)
+    {
+      case ThreadId::Main:
+      case ThreadId::AnyWorker:
+        break;
 
-  virtual void schedule_worker(TaskInfo const & info) override
-  {
-    worker_queue.push_task(info);
-  }
+      case ThreadId::Undefined:
+        CHECK(false, "Cannot schedule to undefined thread id");
+        break;
 
-  virtual void schedule_main(TaskInfo const & info) override
-  {
-    main_queue.push_task(info);
+      default:
+        CHECK((u32) thread < num_dedicated(), "Invalid thread id");
+        break;
+    }
+
+    switch (thread)
+    {
+      case ThreadId::Main:
+        main_queue_.push_task(info);
+        break;
+
+      case ThreadId::AnyWorker:
+        worker_queue_.push_task(info);
+        break;
+
+      case ThreadId::Undefined:
+        break;
+
+      default:
+        dedicated_threads_[(u32) thread]->queue.push_task(info);
+        break;
+    }
   }
 
   virtual void run_main_loop(nanoseconds duration,
                              nanoseconds poll_max) override
   {
-    main_thread_loop(main_queue.allocator, main_queue, duration, poll_max);
+    main_thread_loop(main_queue_.allocator, main_queue_, duration, poll_max);
   }
+
+  virtual Semaphore get_drain_semaphore(ThreadId thread) override;
 };
 
-Dyn<Scheduler *>
-  Scheduler::create(AllocatorRef allocator, std::thread::id main_thread_id,
-                    Span<nanoseconds const> dedicated_thread_sleep,
-                    Span<nanoseconds const> worker_thread_sleep)
+Dyn<Scheduler> IScheduler::create(SchedulerInfo const & info)
 {
-  CHECK(dedicated_thread_sleep.size() <= U32_MAX, "");
-  CHECK(worker_thread_sleep.size() <= U32_MAX, "");
+  auto impl = dyn<SchedulerImpl>(inplace, info.allocator, info.allocator,
+                                 info.main_thread_id)
+                .unwrap();
 
-  Dyn<SchedulerImpl *> impl =
-    dyn<SchedulerImpl>(inplace, allocator, allocator, main_thread_id).unwrap();
-
-  u32 const num_dedicated_threads = size32(dedicated_thread_sleep);
-  u32 const num_worker_threads    = size32(worker_thread_sleep);
-
-  impl->dedicated_threads =
-    PinVec<TaskThread>::make(num_dedicated_threads, allocator).unwrap();
-
-  impl->worker_threads =
-    PinVec<TaskThread>::make(num_worker_threads, allocator).unwrap();
-
-  for (u32 i = 0; i < num_dedicated_threads; i++)
+  for (auto sleep : info.dedicated_thread_sleep)
   {
-    impl->dedicated_threads.push(allocator, dedicated_thread_sleep[i]).unwrap();
-    TaskThread & t = impl->dedicated_threads[i];
-    t.thread       = std::thread{[&t] {
-      SchedulerImpl::thread_loop(t.queue.allocator, t.queue, t.stop_token,
-                                       t.max_sleep);
+    auto thread = dyn<TaskThread>(inplace, info.allocator, info.allocator,
+                                  ThreadType::Dedicated, sleep)
+                    .unwrap();
+    thread->thread = std::thread{[t = thread.get()] {
+      SchedulerImpl::thread_loop(t->queue.allocator, t->queue,
+                                 &t->drain_semaphore, t->max_sleep);
     }};
+    impl->dedicated_threads_.push(std::move(thread)).unwrap();
   }
 
-  for (u32 i = 0; i < num_worker_threads; i++)
+  for (auto sleep : info.worker_thread_sleep)
   {
-    impl->worker_threads.push(allocator, worker_thread_sleep[i]).unwrap();
-    TaskThread & t = impl->worker_threads[i];
-    t.thread       = std::thread{[&t, impl = impl.get()] {
-      SchedulerImpl::thread_loop(impl->worker_queue.allocator,
-                                       impl->worker_queue, t.stop_token, t.max_sleep);
+    auto thread = dyn<TaskThread>(inplace, info.allocator, info.allocator,
+                                  ThreadType::Worker, sleep)
+                    .unwrap();
+    thread->thread = std::thread{[t = thread.get(), q = &impl->worker_queue_] {
+      SchedulerImpl::thread_loop(q->allocator, *q, &t->drain_semaphore,
+                                 t->max_sleep);
     }};
+    impl->worker_threads_.push(std::move(thread)).unwrap();
   }
 
-  return cast<Scheduler *>(std::move(impl));
+  return cast<Scheduler>(std::move(impl));
 }
 
-Scheduler * scheduler = nullptr;
+Scheduler scheduler = nullptr;
 
-void hook_scheduler(Scheduler * instance)
+void hook_scheduler(Scheduler instance)
 {
   scheduler = instance;
 }

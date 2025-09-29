@@ -2,14 +2,35 @@
 
 #pragma once
 
-typedef uint8_t u8;
+typedef uint8_t  u8;
+typedef uint8_t2 u8x2;
+typedef uint8_t3 u8x3;
+typedef uint8_t4 u8x4;
+
 typedef int8_t  i8;
+typedef int8_t2 i8x2;
+typedef int8_t3 i8x3;
+typedef int8_t4 i8x4;
 
-typedef uint16_t u16;
+typedef uint16_t  u16;
+typedef uint16_t2 u16x2;
+typedef uint16_t3 u16x3;
+typedef uint16_t4 u16x4;
+
 typedef int16_t  i16;
+typedef int16_t2 i16x2;
+typedef int16_t3 i16x3;
+typedef int16_t4 i16x4;
 
-typedef uint32_t u32;
+typedef uint32_t  u32;
+typedef uint32_t2 u32x2;
+typedef uint32_t3 u32x3;
+typedef uint32_t4 u32x4;
+
 typedef int32_t  i32;
+typedef int32_t2 i32x2;
+typedef int32_t3 i32x3;
+typedef int32_t4 i32x4;
 
 typedef float16_t    f16;
 typedef float16_t4   f16x4;
@@ -27,8 +48,10 @@ typedef float32_t4x4 f32x4x4;
 typedef float32_t3x3 f32x3x3;
 typedef float32_t2x2 f32x2x2;
 
-typedef u32 SamplerId;
-typedef u32 TextureId;
+typedef u32 SamplerIndex;
+typedef u32 TextureIndex;
+
+static const u32 U32_MAX = -1;
 
 static const f32 PI = 3.1415926535897932384626433832795;
 
@@ -36,6 +59,7 @@ static const f32 GAMMA = 2.2;
 
 static const f32 EPSILON = 0.00000011920929;
 
+// [ ] https://drafts.fxtf.org/compositing-1/
 enum class BlendMode : u32
 {
   Clear      = 0,
@@ -76,4 +100,48 @@ enum class BezierRegions : u32
   Outside = 2,
   Edge    = 4,
   All     = 7
+};
+
+enum class SdfShapeType : u32
+{
+  RRect    = 0,
+  Squircle = 1,
+  SDFMap   = 2
+};
+
+enum class SdfShadeType : u32
+{
+  Flood     = 0,
+  Softened  = 1,
+  Feathered = 2,
+  Stroked   = 3
+};
+
+enum class SdfBlendOp : u32
+{
+  None                = 0,
+  Sub                 = 1,
+  Xor                 = 2,
+  Round               = 3,
+  Onion               = 4,
+  Union               = 5,
+  Intersection        = 6,
+  SmoothUnion         = 7,
+  SmoothSub           = 8,
+  SmoothIntersection  = 9,
+  ExpSmoothUnion      = 10,
+  RootSmoothUnion     = 11,
+  SigSmoothUnion      = 12,
+  QuadSmoothUnion     = 13,
+  CubicSmoothUnion    = 14,
+  QuartSmoothUnion    = 15,
+  CircSmoothUnion     = 16,
+  CircGeomSmoothUnion = 17
+};
+
+enum class SdfMixOp : u32
+{
+  None           = 0,
+  QuadSmoothMin  = 1,
+  CubicSmoothMin = 2
 };

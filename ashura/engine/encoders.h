@@ -1,7 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
-#include "ashura/engine/pass_bundle.h"
-#include "ashura/engine/shaders.gen.h"
+
+#include "ashura/engine/pipeline.h"
 #include "ashura/std/allocator.h"
 #include "ashura/std/math.h"
 #include "ashura/std/obj.h"
@@ -10,62 +10,117 @@
 namespace ash
 {
 
-struct SdfEncoder
+typedef struct ICanvasEncoder * CanvasEncoder;
+
+enum class CanvasEncoderType : u32
 {
-  template <typename Shape, typename Material>
+  Sdf           = 0,
+  Quad          = 1,
+  TriangleFill  = 2,
+  FillStencil   = 3,
+  BezierStencil = 4,
+  Pbr           = 5,
+  Custom        = 6,
+  Other         = 7
+};
+
+struct ICanvasEncoder
+{
+  CanvasEncoderType type_;
+
+  constexpr ICanvasEncoder(CanvasEncoderType type) : type_{type}
+  {
+  }
+
+  constexpr CanvasEncoderType type() const
+  {
+    return type_;
+  }
+
+  constexpr virtual void operator()(GpuFramePlan plan) = 0;
+};
+
+struct CustomCanvasEncoder : ICanvasEncoder
+{
+  CustomCanvasEncoder() : ICanvasEncoder{CanvasEncoderType::Custom}
+  {
+  }
+
+  virtual void operator()(GpuFramePlan) override
+  {
+  }
+
+  ~CustomCanvasEncoder() = default;
+};
+
+template <Callable<GpuFramePlan> Lambda>
+struct PassCanvasEncoder final : CustomCanvasEncoder
+{
+  template <typename... Args>
+  PassCanvasEncoder(Args &&... args) :
+    CustomCanvasEncoder{},
+    lambda_{static_cast<Args &&>(args)...}
+  {
+  }
+
+  virtual void operator()(GpuFramePlan plan) override
+  {
+    lambda_(plan);
+  }
+
+  ~PassCanvasEncoder() = default;
+
+  Lambda lambda_;
+};
+
+struct SdfEncoder final : ICanvasEncoder
+{
   struct Item
   {
-    Framebuffer         framebuffer;
-    Option<PassStencil> stencil;
-    RectU               scissor;
-    gpu::Viewport       viewport;
-    gpu::DescriptorSet  samplers;
-    gpu::DescriptorSet  textures;
-    f32x4x4             world_to_ndc;
-    Shape               shape;
-    f32x4x4             transform;
-    Material            material;
-    ShaderVariantId     shader_variant;
+    u32                     color;
+    Option<u32>             depth_stencil;
+    Option<PipelineStencil> stencil_op;
+    RectU                   scissor;
+    gpu::Viewport           viewport;
+    TextureSet              texture_set;
+    f32x4x4                 world_to_ndc;
+    Span<u8 const>          item;
+    PipelineVariantId       variant;
   };
 
-  Framebuffer framebuffer_;
+  u32 num_instances_;
 
-  Option<PassStencil> stencil_;
+  u32 color_;
+
+  Option<u32> depth_stencil_;
+
+  Option<PipelineStencil> stencil_op_;
 
   RectU scissor_;
 
   gpu::Viewport viewport_;
 
-  gpu::DescriptorSet samplers_;
-
-  gpu::DescriptorSet textures_;
+  TextureSet texture_set_;
 
   f32x4x4 world_to_ndc_;
 
-  Vec<u8> shapes_;
+  Vec<u8> items_;
 
-  Vec<f32x4x4> transforms_;
+  PipelineVariantId variant_;
 
-  Vec<u8> materials_;
-
-  ShaderVariantId shader_variant_;
-
-  template <typename Shape, typename Material>
-  explicit SdfEncoder(Allocator                  allocator,
-                      Item<Shape, Material> const & item) :
-    framebuffer_{item.framebuffer},
-    stencil_{item.stencil},
+  explicit SdfEncoder(Allocator allocator, Item const & item) :
+    ICanvasEncoder{CanvasEncoderType::Sdf},
+    num_instances_{1},
+    depth_stencil_{item.depth_stencil},
+    stencil_op_{item.stencil_op},
     scissor_{item.scissor},
     viewport_{item.viewport},
-    samplers_{item.samplers},
-    textures_{item.textures},
+    texture_set_{item.texture_set},
     world_to_ndc_{item.world_to_ndc},
-    shapes_{allocator},
-    transforms_{allocator},
-    materials_{allocator},
-    shader_variant_{item.shader_variant}
+    items_{allocator},
+    variant_{item.variant}
   {
-    push_(item.shape, item.transform, item.material);
+    push_(item.item);
   }
 
   SdfEncoder(SdfEncoder const &)             = delete;
@@ -74,135 +129,81 @@ struct SdfEncoder
   SdfEncoder & operator=(SdfEncoder &&)      = default;
   ~SdfEncoder()                              = default;
 
-  template <typename Shape, typename Material>
-  void push_(Shape const & shape, f32x4x4 const & transform,
-             Material const & material)
+  void push_(Span<u8 const> item)
   {
-    shapes_.extend(Span{&shape, 1}.as_u8()).unwrap();
-    transforms_.push(transform).unwrap();
-    materials_.extend(Span{&material, 1}.as_u8()).unwrap();
+    items_.extend(item).unwrap();
+    num_instances_++;
   }
 
-  template <typename Shape, typename Material>
-  bool push(Item<Shape, Material> const & item)
+  bool push(Item const & item)
   {
-    auto mergeable =
-      obj::byte_eq(Tuple{framebuffer_, stencil_, scissor_, viewport_, samplers_,
-                         textures_, world_to_ndc_, shader_variant_},
-                   Tuple{item.framebuffer, item.stencil, item.scissor,
-                         item.viewport, item.samplers, item.textures,
-                         item.world_to_ndc, item.shader_variant});
+    auto mergeable = obj::byte_eq(
+      Tuple{color_, depth_stencil_, stencil_op_, scissor_, viewport_,
+            texture_set_, world_to_ndc_, variant_},
+      Tuple{item.color, item.depth_stencil, item.stencil_op, item.scissor,
+            item.viewport, item.texture_set, item.world_to_ndc, item.variant});
 
     if (!mergeable)
     {
       return false;
     }
 
-    push_(item.shape, item.transform, item.material);
+    push_(item.item);
 
     return true;
   }
 
-  void pass(FrameGraph & frame_graph, PassBundle & passes) const
-  {
-    auto shapes     = shapes_.view();
-    auto transforms = transforms_.view();
-    auto materials  = materials_.view();
-
-    auto i_world_to_ndc = frame_graph.push_ssbo(span({world_to_ndc_}));
-    auto i_shapes       = frame_graph.push_ssbo(shapes);
-    auto i_transforms   = frame_graph.push_ssbo(transforms);
-    auto i_materials    = frame_graph.push_ssbo(materials);
-
-    auto num_instances = size32(shapes);
-
-    frame_graph.add_pass(
-      "SDF"_str,
-      [&passes, framebuffer = this->framebuffer_, stencil = this->stencil_,
-       scissor = this->scissor_, viewport = this->viewport_,
-       samplers = this->samplers_, textures = this->textures_, i_world_to_ndc,
-       i_shapes, i_transforms, i_materials,
-       shader_variant = this->shader_variant_,
-       num_instances](FrameGraph & frame_graph, gpu::CommandEncoder & enc) {
-        auto world_to_ndc = frame_graph.get(i_world_to_ndc);
-        auto shapes       = frame_graph.get(i_shapes);
-        auto transforms   = frame_graph.get(i_transforms);
-        auto materials    = frame_graph.get(i_materials);
-
-        auto params = SdfPassParams{
-          .framebuffer  = framebuffer,
-          .stencil      = stencil,
-          .scissor      = scissor,
-          .viewport     = viewport,
-          .samplers     = samplers,
-          .textures     = textures,
-          .world_to_ndc = world_to_ndc,
-          .shapes       = shapes,
-          .transforms   = transforms,
-          .materials    = materials,
-          .instances{0, num_instances}
-        };
-
-        passes.sdf->encode(enc, params, shader_variant);
-      });
-  }
+  virtual void operator()(GpuFramePlan plan) override;
 };
 
-struct QuadEncoder
+struct QuadEncoder final : ICanvasEncoder
 {
-  template <typename Material>
   struct Item
   {
-    Framebuffer         framebuffer;
-    Option<PassStencil> stencil;
-    RectU               scissor;
-    gpu::Viewport       viewport;
-    gpu::DescriptorSet  samplers;
-    gpu::DescriptorSet  textures;
-    f32x4x4             world_to_ndc;
-    f32x4x4             quad;
-    f32x4x4             transform;
-    Material            material;
-    ShaderVariantId     shader_variant;
+    u32                     color;
+    Option<u32>             depth_stencil;
+    Option<PipelineStencil> stencil_op;
+    RectU                   scissor;
+    gpu::Viewport           viewport;
+    TextureSet              texture_set;
+    f32x4x4                 world_to_ndc;
+    Span<u8 const>          quad;
+    PipelineVariantId       variant;
   };
 
-  Framebuffer framebuffer_;
+  u32 num_instances_;
 
-  Option<PassStencil> stencil_;
+  u32 color_;
+
+  Option<u32> depth_stencil_;
+
+  Option<PipelineStencil> stencil_op_;
 
   RectU scissor_;
 
   gpu::Viewport viewport_;
 
-  gpu::DescriptorSet samplers_;
-
-  gpu::DescriptorSet textures_;
+  TextureSet texture_set_;
 
   f32x4x4 world_to_ndc_;
 
-  Vec<f32x4x4> quads_;
+  Vec<u8> quads_;
 
-  Vec<f32x4x4> transforms_;
+  PipelineVariantId variant_;
 
-  Vec<u8> materials_;
-
-  ShaderVariantId shader_variant_;
-
-  template <typename Material>
-  explicit QuadEncoder(Allocator allocator, Item<Material> const & item) :
-    framebuffer_{item.framebuffer},
-    stencil_{item.stencil},
+  explicit QuadEncoder(Allocator allocator, Item const & item) :
+    ICanvasEncoder{CanvasEncoderType::Quad},
+    num_instances_{1},
+    depth_stencil_{item.depth_stencil},
+    stencil_op_{item.stencil_op},
     scissor_{item.scissor},
     viewport_{item.viewport},
-    samplers_{item.samplers},
-    textures_{item.textures},
+    texture_set_{item.texture_set},
     world_to_ndc_{item.world_to_ndc},
     quads_{allocator},
-    transforms_{allocator},
-    materials_{allocator},
-    shader_variant_{item.shader_variant}
+    variant_{item.variant}
   {
-    push_(item.quad, item.transform, item.material);
+    push_(item.quad);
   }
 
   QuadEncoder(QuadEncoder const &)             = delete;
@@ -211,250 +212,155 @@ struct QuadEncoder
   QuadEncoder & operator=(QuadEncoder &&)      = default;
   ~QuadEncoder()                               = default;
 
-  template <typename Material>
-  void push_(f32x4x4 const & quad, f32x4x4 const & transform,
-             Material const & material)
+  void push_(Span<u8 const> quad)
   {
-    quads_.push(quad).unwrap();
-    transforms_.push(transform).unwrap();
-    materials_.extend(Span{&material, 1}.as_u8()).unwrap();
+    quads_.extend(quad).unwrap();
+    num_instances_++;
   }
 
-  template <typename Material>
-  bool push(Item<Material> const & item)
+  bool push(Item const & item)
   {
-    auto mergeable =
-      obj::byte_eq(Tuple{framebuffer_, stencil_, scissor_, viewport_, samplers_,
-                         textures_, world_to_ndc_, shader_variant_},
-                   Tuple{item.framebuffer, item.stencil, item.scissor,
-                         item.viewport, item.samplers, item.textures,
-                         item.world_to_ndc, item.shader_variant});
+    auto mergeable = obj::byte_eq(
+      Tuple{color_, depth_stencil_, stencil_op_, scissor_, viewport_,
+            texture_set_, world_to_ndc_, variant_},
+      Tuple{item.color, item.depth_stencil, item.stencil_op, item.scissor,
+            item.viewport, item.texture_set, item.world_to_ndc, item.variant});
 
     if (!mergeable)
     {
       return false;
     }
 
-    quads_.push(item.quad).unwrap();
-    transforms_.push(item.transform).unwrap();
-    materials_.extend(Span{&item.material, 1}.as_u8()).unwrap();
+    push_(item.quad);
 
     return true;
   }
 
-  void pass(FrameGraph & frame_graph, PassBundle & passes)
-  {
-    auto quads      = quads_.view();
-    auto transforms = transforms_.view();
-    auto materials  = materials_.view();
-
-    auto i_world_to_ndc = frame_graph.push_ssbo(span({world_to_ndc_}));
-    auto i_quads        = frame_graph.push_ssbo(quads);
-    auto i_transforms   = frame_graph.push_ssbo(transforms);
-    auto i_materials    = frame_graph.push_ssbo(materials);
-
-    frame_graph.add_pass(
-      "Quad"_str,
-      [&passes, framebuffer = this->framebuffer_, stencil = this->stencil_,
-       scissor = this->scissor_, viewport = this->viewport_,
-       samplers = this->samplers_, textures = this->textures_, i_world_to_ndc,
-       i_quads, i_transforms, i_materials, num_instances = size32(quads),
-       shader_variant = this->shader_variant_](FrameGraph & frame_graph,
-                                               gpu::CommandEncoder & enc) {
-        auto world_to_ndc = frame_graph.get(i_world_to_ndc);
-        auto quads        = frame_graph.get(i_quads);
-        auto transforms   = frame_graph.get(i_transforms);
-        auto materials    = frame_graph.get(i_materials);
-
-        auto params = QuadPassParams{
-          .framebuffer  = framebuffer,
-          .stencil      = stencil,
-          .scissor      = scissor,
-          .viewport     = viewport,
-          .samplers     = samplers,
-          .textures     = textures,
-          .world_to_ndc = world_to_ndc,
-          .quads        = quads,
-          .transforms   = transforms,
-          .materials    = materials,
-          .instances{0, num_instances}
-        };
-
-        passes.quad->encode(enc, params, shader_variant);
-      });
-  }
+  virtual void operator()(GpuFramePlan plan) override;
 };
 
-struct NgonEncoder
+struct TriangleFillEncoder final : ICanvasEncoder
 {
-  template <typename Material>
   struct Item
   {
-    Framebuffer         framebuffer;
-    Option<PassStencil> stencil;
-    RectU               scissor;
-    gpu::Viewport       viewport;
-    gpu::DescriptorSet  samplers;
-    gpu::DescriptorSet  textures;
-    f32x4x4             world_to_ndc;
-    f32x4x4             transform;
-    Span<f32x2 const>   vertices;
-    Span<u32 const>     indices;
-    Material            material;
-    ShaderVariantId     shader_variant;
+    u32                     color;
+    Option<u32>             depth_stencil;
+    Option<PipelineStencil> stencil_op;
+    RectU                   scissor;
+    gpu::Viewport           viewport;
+    gpu::CullMode           cull_mode;
+    TextureSet              texture_set;
+    f32x4x4                 world_to_ndc;
+    Span<u8 const>          set;
+    Span<u8 const>          vertices;
+    Span<u32 const>         indices;
+    PipelineVariantId       variant;
   };
 
-  Framebuffer framebuffer_;
+  u32 num_instances_;
 
-  Option<PassStencil> stencil_;
+  u32 color_;
+
+  Option<u32> depth_stencil_;
+
+  Option<PipelineStencil> stencil_op_;
 
   RectU scissor_;
 
   gpu::Viewport viewport_;
 
-  gpu::DescriptorSet samplers_;
+  gpu::CullMode cull_mode_;
 
-  gpu::DescriptorSet textures_;
+  TextureSet texture_set_;
 
   f32x4x4 world_to_ndc_;
 
   Vec<u32> index_counts_;
 
-  Vec<f32x4x4> transforms_;
+  Vec<u8> sets_;
 
-  Vec<f32x2> vertices_;
+  Vec<u8> vertices_;
 
-  Vec<u32> indices_;
+  Vec<u8> indices_;
 
-  Vec<u8> materials_;
+  PipelineVariantId variant_;
 
-  ShaderVariantId shader_variant_;
-
-  template <typename Material>
-  explicit NgonEncoder(Allocator allocator, Item<Material> const & item) :
-    framebuffer_{item.framebuffer},
-    stencil_{item.stencil},
+  explicit TriangleFillEncoder(Allocator allocator, Item const & item) :
+    ICanvasEncoder{CanvasEncoderType::TriangleFill},
+    num_instances_{1},
+    depth_stencil_{item.depth_stencil},
+    stencil_op_{item.stencil_op},
     scissor_{item.scissor},
     viewport_{item.viewport},
-    samplers_{item.samplers},
-    textures_{item.textures},
+    cull_mode_{item.cull_mode},
+    texture_set_{item.texture_set},
     world_to_ndc_{item.world_to_ndc},
     index_counts_{allocator},
-    transforms_{allocator},
+    sets_{allocator},
     vertices_{allocator},
     indices_{allocator},
-    materials_{allocator},
-    shader_variant_{item.shader_variant}
+    variant_{item.variant}
   {
-    push_(item.transform, item.vertices, item.indices, item.material);
+    push_(item.set, item.vertices, item.indices);
   }
 
-  NgonEncoder(NgonEncoder const &)             = delete;
-  NgonEncoder(NgonEncoder &&)                  = default;
-  NgonEncoder & operator=(NgonEncoder const &) = delete;
-  NgonEncoder & operator=(NgonEncoder &&)      = default;
-  ~NgonEncoder()                               = default;
+  TriangleFillEncoder(TriangleFillEncoder const &)             = delete;
+  TriangleFillEncoder(TriangleFillEncoder &&)                  = default;
+  TriangleFillEncoder & operator=(TriangleFillEncoder const &) = delete;
+  TriangleFillEncoder & operator=(TriangleFillEncoder &&)      = default;
+  ~TriangleFillEncoder()                                       = default;
 
-  template <typename Material>
-  void push_(f32x4x4 const & transform, Span<f32x2 const> vertices,
-             Span<u32 const> indices, Material const & material)
+  void push_(Span<u8 const> set, Span<u8 const> vertices,
+             Span<u32 const> indices)
   {
     index_counts_.push(size32(indices)).unwrap();
-    transforms_.push(transform).unwrap();
+    sets_.extend(set).unwrap();
     vertices_.extend(vertices).unwrap();
-    indices_.extend(indices).unwrap();
-    materials_.extend(Span{&material, 1}.as_u8()).unwrap();
+    indices_.extend(indices.as_u8()).unwrap();
+    num_instances_++;
   }
 
-  template <typename Material>
-  bool push(Item<Material> const & item)
+  bool push(Item const & item)
   {
-    auto mergeable =
-      obj::byte_eq(Tuple{framebuffer_, stencil_, scissor_, viewport_, samplers_,
-                         textures_, world_to_ndc_, shader_variant_},
-                   Tuple{item.framebuffer, item.stencil, item.scissor,
-                         item.viewport, item.samplers, item.textures,
-                         item.world_to_ndc, item.shader_variant});
+    auto mergeable = obj::byte_eq(
+      Tuple{color_, depth_stencil_, stencil_op_, scissor_, viewport_,
+            cull_mode_, texture_set_, world_to_ndc_, variant_},
+      Tuple{item.color, item.depth_stencil, item.stencil_op, item.scissor,
+            item.viewport, cull_mode_, item.texture_set, item.world_to_ndc,
+            item.variant});
 
     if (!mergeable)
     {
       return false;
     }
 
-    push_(item.transform, item.vertices, item.indices, item.material);
+    push_(item.set, item.vertices, item.indices);
 
     return true;
   }
 
-  void pass(FrameGraph & frame_graph, PassBundle & passes) const
-  {
-    auto index_counts = index_counts_.view();
-    auto transforms   = transforms_.view();
-    auto vertices     = vertices_.view();
-    auto indices      = indices_.view();
-    auto materials    = materials_.view();
-
-    auto i_world_to_ndc = frame_graph.push_ssbo(span({world_to_ndc_}));
-    auto i_transforms   = frame_graph.push_ssbo(transforms);
-    auto i_vertices     = frame_graph.push_ssbo(vertices);
-    auto i_indices      = frame_graph.push_ssbo(indices);
-    auto i_materials    = frame_graph.push_ssbo(materials);
-    auto i_index_counts = frame_graph.push_buffer(index_counts);
-
-    frame_graph.add_pass(
-      "Ngon"_str,
-      [&passes, framebuffer = framebuffer_, stencil = this->stencil_,
-       scissor = this->scissor_, viewport = this->viewport_,
-       samplers = this->samplers_, textures = this->textures_, i_world_to_ndc,
-       i_transforms, i_vertices, i_indices, i_materials, i_index_counts,
-       shader_variant = this->shader_variant_](FrameGraph & frame_graph,
-                                               gpu::CommandEncoder & enc) {
-        auto world_to_ndc = frame_graph.get(i_world_to_ndc);
-        auto transforms   = frame_graph.get(i_transforms);
-        auto vertices     = frame_graph.get(i_vertices);
-        auto indices      = frame_graph.get(i_indices);
-        auto materials    = frame_graph.get(i_materials);
-        auto index_counts = frame_graph.get<u32>(i_index_counts);
-
-        auto params = NgonPassParams{.framebuffer    = framebuffer,
-                                     .stencil        = stencil,
-                                     .scissor        = scissor,
-                                     .viewport       = viewport,
-                                     .samplers       = samplers,
-                                     .textures       = textures,
-                                     .world_to_ndc   = world_to_ndc,
-                                     .transforms     = transforms,
-                                     .vertices       = vertices,
-                                     .indices        = indices,
-                                     .materials      = materials,
-                                     .first_instance = 0,
-                                     .index_counts   = index_counts};
-
-        passes.ngon->encode(enc, params, shader_variant);
-      });
-  }
+  virtual void operator()(GpuFramePlan plan) override;
 };
 
-struct FillStencilEncoder
+struct FillStencilEncoder final : ICanvasEncoder
 {
   struct Item
   {
-    DepthStencilTexture stencil;
-    u32                 write_mask;
-    RectU               scissor;
-    gpu::Viewport       viewport;
-    FillRule            fill_rule;
-    bool                invert;
-    f32x4x4             world_to_ndc;
-    f32x4x4             transform;
-    Span<f32x2 const>   vertices;
-    Span<u32 const>     indices;
-    Span<u32 const>     index_counts;
+    u32             depth_stencil;
+    u32             write_mask;
+    RectU           scissor;
+    gpu::Viewport   viewport;
+    FillRule        fill_rule;
+    bool            invert;
+    f32x4x4         world_to_ndc;
+    f32x4x4         world_transform;
+    Span<u8 const>  vertices;
+    Span<u32 const> indices;
   };
 
-  DepthStencilTexture stencil_;
+  u32 num_instances_;
 
-  u32 write_mask_;
+  u32 depth_stencil_;
 
   RectU scissor_;
 
@@ -466,28 +372,32 @@ struct FillStencilEncoder
 
   f32x4x4 world_to_ndc_;
 
-  Vec<f32x4x4> transforms_;
+  Vec<u8> world_transforms_;
 
-  Vec<f32x2> vertices_;
+  Vec<u8> vertices_;
 
-  Vec<u32> indices_;
+  Vec<u8> indices_;
 
   Vec<u32> index_counts_;
 
+  Vec<u32> write_masks_;
+
   explicit FillStencilEncoder(Allocator allocator, Item const & item) :
-    stencil_{item.stencil},
-    write_mask_{item.write_mask},
+    ICanvasEncoder{CanvasEncoderType::FillStencil},
+    num_instances_{1},
+    depth_stencil_{item.depth_stencil},
     scissor_{item.scissor},
     viewport_{item.viewport},
     fill_rule_{item.fill_rule},
     invert_{item.invert},
     world_to_ndc_{item.world_to_ndc},
-    transforms_{allocator},
+    world_transforms_{allocator},
     vertices_{allocator},
     indices_{allocator},
-    index_counts_{allocator}
+    index_counts_{allocator},
+    write_masks_{allocator}
   {
-    push_(item.transform, item.vertices, item.indices, item.index_counts);
+    push_(item.world_transform, item.vertices, item.indices, item.write_mask);
   }
 
   FillStencilEncoder(FillStencilEncoder const &)             = delete;
@@ -496,98 +406,58 @@ struct FillStencilEncoder
   FillStencilEncoder & operator=(FillStencilEncoder &&)      = default;
   ~FillStencilEncoder()                                      = default;
 
-  void push_(f32x4x4 const & transform, Span<f32x2 const> vertices,
-             Span<u32 const> indices, Span<u32 const> index_counts)
+  void push_(f32x4x4 const & world_transform, Span<u8 const> vertices,
+             Span<u32 const> indices, u32 write_mask)
   {
-    transforms_.push(transform).unwrap();
+    world_transforms_.extend(as_u8_span(world_transform)).unwrap();
     vertices_.extend(vertices).unwrap();
-    indices_.extend(indices).unwrap();
-    index_counts_.extend(index_counts).unwrap();
+    indices_.extend(indices.as_u8()).unwrap();
+    index_counts_.push(size32(indices)).unwrap();
+    write_masks_.push(write_mask).unwrap();
+    num_instances_++;
   }
 
   bool push(Item const & item)
   {
-    auto mergeable = obj::byte_eq(
-      Tuple{stencil_, write_mask_, scissor_, viewport_, fill_rule_, invert_,
-            world_to_ndc_},
-      Tuple{item.stencil, item.write_mask, item.scissor, item.viewport,
-            item.fill_rule, item.invert, item.world_to_ndc});
+    auto mergeable =
+      obj::byte_eq(Tuple{depth_stencil_, scissor_, viewport_, fill_rule_,
+                         invert_, world_to_ndc_},
+                   Tuple{depth_stencil_, item.scissor, item.viewport,
+                         item.fill_rule, item.invert, item.world_to_ndc});
 
     if (!mergeable)
     {
       return false;
     }
 
-    push_(item.transform, item.vertices, item.indices, item.index_counts);
+    push_(item.world_transform, item.vertices, item.indices, item.write_mask);
 
     return true;
   }
 
-  void pass(FrameGraph & frame_graph, PassBundle & passes) const
-  {
-    auto index_counts = index_counts_.view();
-    auto transforms   = transforms_.view();
-    auto vertices     = vertices_.view();
-    auto indices      = indices_.view();
-
-    auto i_world_to_ndc = frame_graph.push_ssbo(span({world_to_ndc_}));
-    auto i_transforms   = frame_graph.push_ssbo(transforms);
-    auto i_vertices     = frame_graph.push_ssbo(vertices);
-    auto i_indices      = frame_graph.push_ssbo(indices);
-    auto i_index_counts = frame_graph.push_buffer(index_counts);
-
-    frame_graph.add_pass(
-      "FillStencil"_str,
-      [&passes, stencil = stencil_, write_mask = this->write_mask_,
-       scissor = this->scissor_, viewport = this->viewport_,
-       fill_rule = this->fill_rule_, invert = this->invert_, i_world_to_ndc,
-       i_transforms, i_vertices, i_indices,
-       i_index_counts](FrameGraph & frame_graph, gpu::CommandEncoder & enc) {
-        auto world_to_ndc = frame_graph.get(i_world_to_ndc);
-        auto transforms   = frame_graph.get(i_transforms);
-        auto vertices     = frame_graph.get(i_vertices);
-        auto indices      = frame_graph.get(i_indices);
-        auto index_counts = frame_graph.get<u32>(i_index_counts);
-
-        auto params = FillStencilPassParams{.stencil        = stencil,
-                                            .write_mask     = write_mask,
-                                            .scissor        = scissor,
-                                            .viewport       = viewport,
-                                            .fill_rule      = fill_rule,
-                                            .invert         = invert,
-                                            .world_to_ndc   = world_to_ndc,
-                                            .transforms     = transforms,
-                                            .vertices       = vertices,
-                                            .indices        = indices,
-                                            .first_instance = 0,
-                                            .index_counts   = index_counts};
-
-        passes.fill_stencil->encode(enc, params);
-      });
-  }
+  virtual void operator()(GpuFramePlan plan) override;
 };
 
-struct BezierStencilEncoder
+struct BezierStencilEncoder final : ICanvasEncoder
 {
   struct Item
   {
-    DepthStencilTexture               stencil;
-    u32                               write_mask;
-    RectU                             scissor;
-    gpu::Viewport                     viewport;
-    FillRule                          fill_rule;
-    bool                              invert;
-    f32x4x4                           world_to_ndc;
-    f32x4x4                           transform;
-    Span<f32x2 const>                 vertices;
-    Span<u32 const>                   indices;
-    Span<shader::BezierRegions const> regions;
-    Span<u32 const>                   region_index_counts;
+    u32             depth_stencil;
+    u32             write_mask;
+    RectU           scissor;
+    gpu::Viewport   viewport;
+    FillRule        fill_rule;
+    bool            invert;
+    f32x4x4         world_to_ndc;
+    f32x4x4         world_transform;
+    u32             first_bezier_vertex;
+    Span<u8 const>  vertices;
+    Span<u32 const> indices;
   };
 
-  DepthStencilTexture stencil_;
+  u32 num_instances_;
 
-  u32 write_mask_;
+  u32 depth_stencil_;
 
   RectU scissor_;
 
@@ -599,32 +469,33 @@ struct BezierStencilEncoder
 
   f32x4x4 world_to_ndc_;
 
-  Vec<f32x4x4> transforms_;
+  Vec<u8> items_;
 
-  Vec<f32x2> vertices_;
+  Vec<u8> vertices_;
 
-  Vec<u32> indices_;
+  Vec<u8> indices_;
 
-  Vec<shader::BezierRegions> regions_;
+  Vec<u32> index_counts_;
 
-  Vec<u32> region_index_counts_;
+  Vec<u32> write_masks_;
 
   explicit BezierStencilEncoder(Allocator allocator, Item const & item) :
-    stencil_{item.stencil},
-    write_mask_{item.write_mask},
+    ICanvasEncoder{CanvasEncoderType::BezierStencil},
+    num_instances_{1},
+    depth_stencil_{item.depth_stencil},
     scissor_{item.scissor},
     viewport_{item.viewport},
     fill_rule_{item.fill_rule},
     invert_{item.invert},
     world_to_ndc_{item.world_to_ndc},
-    transforms_{allocator},
+    items_{allocator},
     vertices_{allocator},
     indices_{allocator},
-    regions_{allocator},
-    region_index_counts_{allocator}
+    index_counts_{allocator},
+    write_masks_{allocator}
   {
-    push_(item.transform, item.vertices, item.indices, item.regions,
-          item.region_index_counts);
+    push_(item.world_transform, item.vertices, item.indices,
+          item.first_bezier_vertex, item.write_mask);
   }
 
   BezierStencilEncoder(BezierStencilEncoder const &)             = delete;
@@ -633,109 +504,68 @@ struct BezierStencilEncoder
   BezierStencilEncoder & operator=(BezierStencilEncoder &&)      = default;
   ~BezierStencilEncoder()                                        = default;
 
-  void push_(f32x4x4 const & transform, Span<f32x2 const> vertices,
-             Span<u32 const> indices, Span<shader::BezierRegions const> regions,
-             Span<u32 const> region_index_counts)
+  void push_(f32x4x4 const & world_transform, Span<u8 const> vertices,
+             Span<u32 const> indices, u32 first_bezier_vertex, u32 write_mask)
   {
-    transforms_.push(transform).unwrap();
+    auto item = shader::BezierStencilItem{
+      .world_transform = world_transform,
+      .first_bezier_vertex =
+        static_cast<u32>(size(indices_) / sizeof(u32)) + first_bezier_vertex};
+    items_.extend(as_u8_span(item)).unwrap();
     vertices_.extend(vertices).unwrap();
-    indices_.extend(indices).unwrap();
-    regions_.extend(regions).unwrap();
-    region_index_counts_.extend(region_index_counts).unwrap();
+    indices_.extend(indices.as_u8()).unwrap();
+    index_counts_.push(size32(indices)).unwrap();
+    write_masks_.push(write_mask).unwrap();
+    num_instances_++;
   }
 
   bool push(Item const & item)
   {
-    auto mergeable = obj::byte_eq(
-      Tuple{stencil_, write_mask_, scissor_, viewport_, fill_rule_, invert_,
-            world_to_ndc_},
-      Tuple{item.stencil, item.write_mask, item.scissor, item.viewport,
-            item.fill_rule, item.invert, item.world_to_ndc});
+    auto mergeable =
+      obj::byte_eq(Tuple{depth_stencil_, scissor_, viewport_, fill_rule_,
+                         invert_, world_to_ndc_},
+                   Tuple{depth_stencil_, item.scissor, item.viewport,
+                         item.fill_rule, item.invert, item.world_to_ndc});
 
     if (!mergeable)
     {
       return false;
     }
 
-    push_(item.transform, item.vertices, item.indices, item.regions,
-          item.region_index_counts);
+    push_(item.world_transform, item.vertices, item.indices,
+          item.first_bezier_vertex, item.write_mask);
 
     return true;
   }
 
-  void pass(FrameGraph & frame_graph, PassBundle & passes) const
-  {
-    auto vertices            = vertices_.view();
-    auto indices             = indices_.view();
-    auto transforms          = transforms_.view();
-    auto regions             = regions_.view();
-    auto region_index_counts = region_index_counts_.view();
-
-    auto i_vertices            = frame_graph.push_ssbo(vertices);
-    auto i_indices             = frame_graph.push_ssbo(indices);
-    auto i_world_to_ndc        = frame_graph.push_ssbo(span({world_to_ndc_}));
-    auto i_transforms          = frame_graph.push_ssbo(transforms);
-    auto i_regions             = frame_graph.push_ssbo(regions);
-    auto i_region_index_counts = frame_graph.push_buffer(region_index_counts);
-
-    frame_graph.add_pass(
-      "Bezier Stencil"_str,
-      [&passes, stencil = this->stencil_, write_mask = this->write_mask_,
-       scissor = this->scissor_, viewport = this->viewport_,
-       fill_rule = this->fill_rule_, invert = this->invert_, i_vertices,
-       i_indices, i_world_to_ndc, i_transforms, i_regions,
-       i_region_index_counts](FrameGraph &          frame_graph,
-                              gpu::CommandEncoder & enc) {
-        auto vertices            = frame_graph.get(i_vertices);
-        auto indices             = frame_graph.get(i_indices);
-        auto world_to_ndc        = frame_graph.get(i_world_to_ndc);
-        auto transforms          = frame_graph.get(i_transforms);
-        auto regions             = frame_graph.get(i_regions);
-        auto region_index_counts = frame_graph.get<u32>(i_region_index_counts);
-
-        auto params =
-          BezierStencilPassParams{.stencil             = stencil,
-                                  .write_mask          = write_mask,
-                                  .scissor             = scissor,
-                                  .viewport            = viewport,
-                                  .fill_rule           = fill_rule,
-                                  .invert              = invert,
-                                  .world_to_ndc        = world_to_ndc,
-                                  .transforms          = transforms,
-                                  .vertices            = vertices,
-                                  .indices             = indices,
-                                  .regions             = regions,
-                                  .region_index_counts = region_index_counts};
-
-        passes.bezier_stencil->encode(enc, params);
-      });
-  }
+  virtual void operator()(GpuFramePlan plan) override;
 };
 
-struct PbrEncoder
+struct PbrEncoder final : ICanvasEncoder
 {
-  template <typename World, typename Material, typename Light>
   struct Item
   {
-    Framebuffer         framebuffer;
-    Option<PassStencil> stencil;
-    RectU               scissor;
-    gpu::Viewport       viewport;
-    gpu::PolygonMode    polygon_mode;
-    gpu::DescriptorSet  samplers;
-    gpu::DescriptorSet  textures;
-    StructBufferSpan    vertices;
-    StructBufferSpan    indices;
-    u32                 num_indices;
-    World               world;
-    Material            material;
-    Span<Light>         lights;
-    ShaderVariantId     shader_variant;
+    u32                     color;
+    Option<u32>             depth_stencil;
+    Option<PipelineStencil> stencil_op;
+    RectU                   scissor;
+    gpu::Viewport           viewport;
+    gpu::PolygonMode        polygon_mode;
+    TextureSet              texture_set;
+    GpuBufferSpan           vertices;
+    GpuBufferSpan           indices;
+    u32                     num_indices;
+    Span<u8 const>          item;
+    Span<u8 const>          lights;
+    gpu::CullMode           cull_mode;
+    PipelineVariantId       variant;
   };
 
-  Framebuffer framebuffer_;
+  u32 color_;
 
-  Option<PassStencil> stencil_;
+  Option<u32> depth_stencil_;
+
+  Option<PipelineStencil> stencil_op_;
 
   RectU scissor_;
 
@@ -743,45 +573,41 @@ struct PbrEncoder
 
   gpu::PolygonMode polygon_mode_;
 
-  gpu::DescriptorSet samplers_;
+  TextureSet texture_set_;
 
-  gpu::DescriptorSet textures_;
+  GpuBufferSpan vertices_;
 
-  StructBufferSpan vertices_;    // = shader::pbr::Vertex
-
-  StructBufferSpan indices_;    // = shader::pbr::Index
+  GpuBufferSpan indices_;
 
   u32 num_indices_;
 
-  Vec<u8> world_;    // = shader::pbr::World
+  Vec<u8> item_;
 
-  Vec<u8> material_;    // = shader::pbr::BaseMaterial,
+  Vec<u8> lights_;
 
-  Vec<u8> lights_;    // = shader::pbr::PunctualLight
+  gpu::CullMode cull_mode_;
 
-  ShaderVariantId shader_variant_;
+  PipelineVariantId variant_;
 
-  template <typename World, typename Material, typename Light>
-  explicit PbrEncoder(Allocator                         allocator,
-                      Item<World, Material, Light> const & item) :
-    framebuffer_{item.framebuffer},
-    stencil_{item.stencil},
+  explicit PbrEncoder(Allocator allocator, Item const & item) :
+    ICanvasEncoder{CanvasEncoderType::Pbr},
+    color_{item.color},
+    depth_stencil_{item.depth_stencil},
+    stencil_op_{item.stencil_op},
     scissor_{item.scissor},
     viewport_{item.viewport},
     polygon_mode_{item.polygon_mode},
-    samplers_{item.samplers},
-    textures_{item.textures},
+    texture_set_{item.texture_set},
     vertices_{item.vertices},
     indices_{item.indices},
     num_indices_{item.num_indices},
-    world_{allocator},
-    material_{allocator},
+    item_{allocator},
     lights_{allocator},
-    shader_variant_{item.shader_variant}
+    cull_mode_{item.cull_mode},
+    variant_{item.variant}
   {
-    world_.extend(Span{&item.world, 1}.as_u8()).unwrap();
-    material_.extend(Span{&item.material, 1}.as_u8()).unwrap();
-    lights_.extend(item.lights.as_u8()).unwrap();
+    item_.extend(item.item).unwrap();
+    lights_.extend(item.lights).unwrap();
   }
 
   PbrEncoder(PbrEncoder const &)             = delete;
@@ -790,42 +616,7 @@ struct PbrEncoder
   PbrEncoder & operator=(PbrEncoder &&)      = default;
   ~PbrEncoder()                              = default;
 
-  void pass(FrameGraph & frame_graph, PassBundle & passes)
-  {
-    auto i_world    = frame_graph.push_ssbo(world_.view());
-    auto i_material = frame_graph.push_ssbo(material_.view());
-    auto i_lights   = frame_graph.push_ssbo(lights_.view());
-
-    frame_graph.add_pass(
-      "PBR"_str,
-      [&passes, framebuffer = framebuffer_, stencil = this->stencil_,
-       scissor = this->scissor_, polygon_mode = this->polygon_mode_,
-       viewport = this->viewport_, samplers = this->samplers_,
-       textures = this->textures_, vertices = this->vertices_,
-       indices = this->indices_, num_indices = this->num_indices_, i_world,
-       i_material, i_lights, shader_variant = this->shader_variant_](
-        FrameGraph & frame_graph, gpu::CommandEncoder & enc) {
-        auto world    = frame_graph.get(i_world);
-        auto material = frame_graph.get(i_material);
-        auto lights   = frame_graph.get(i_lights);
-
-        auto params = PBRPassParams{.framebuffer  = framebuffer,
-                                    .stencil      = stencil,
-                                    .scissor      = scissor,
-                                    .viewport     = viewport,
-                                    .polygon_mode = polygon_mode,
-                                    .samplers     = samplers,
-                                    .textures     = textures,
-                                    .vertices     = vertices,
-                                    .indices      = indices,
-                                    .world        = world,
-                                    .material     = material,
-                                    .lights       = lights,
-                                    .num_indices  = num_indices};
-
-        passes.pbr->encode(enc, params, shader_variant);
-      });
-  }
+  virtual void operator()(GpuFramePlan plan) override;
 };
 
 }    // namespace ash

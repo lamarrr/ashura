@@ -11,6 +11,9 @@ namespace ash
 
 inline constexpr usize MAX_STANDARD_ALIGNMENT = alignof(max_align_t);
 
+/// @brief Minimum alignment of the Vec types. This fits into 1 AVX-512 lane.
+inline constexpr usize SIMD_ALIGNMENT = 64;
+
 /// @brief Just a hint, this is a common cacheline size. not the actual target's
 /// cacheline size
 inline constexpr usize CACHELINE_ALIGNMENT = 64;
@@ -22,15 +25,27 @@ inline constexpr usize PAGE_ALIGNMENT = 16_KB;
 inline constexpr usize PAGE_SIZE = PAGE_ALIGNMENT;
 
 template <typename T>
-constexpr T align_offset(T alignment, T offset)
+constexpr T align_offset_up(T alignment, T offset)
 {
   return (offset + (alignment - 1)) & ~(alignment - 1);
 }
 
 template <typename T>
-T * align(usize alignment, T * p)
+T * align_up(usize alignment, T * p)
 {
-  return (T *) align_offset(alignment, (uptr) p);
+  return (T *) align_offset_up(alignment, (uptr) p);
+}
+
+template <typename T>
+constexpr T align_offset_down(T alignment, T offset)
+{
+  return offset & ~(alignment - 1);
+}
+
+template <typename T>
+T * align_down(usize alignment, T * p)
+{
+  return (T *) align_offset_down(alignment, (uptr) p);
 }
 
 template <typename T>
@@ -44,8 +59,6 @@ bool is_ptr_aligned(usize alignment, T * p)
 {
   return is_aligned(alignment, (uptr) p);
 }
-
-using std::assume_aligned;
 
 namespace mem
 {
@@ -178,36 +191,23 @@ ASH_FORCE_INLINE void prefetch(T const * src, Access rw, Locality locality)
 
 }    // namespace mem
 
-/// @brief copy non-null-terminated string `str` to `c_str` and null-terminate `c_str`.
-[[nodiscard]] inline bool to_c_str(Str str, Span<char> c_str)
-{
-  if ((str.size() + 1) > c_str.size()) [[unlikely]]
-  {
-    return false;
-  }
-
-  mem::copy(str, c_str);
-  c_str[str.size()] = 0;
-  return true;
-}
-
 /// @brief Memory layout of a type
 template <typename T = usize>
-struct CoreLayout
+struct [[nodiscard]] CoreLayout
 {
   using Type = T;
 
-  /// @brief non-zero power-of-2 alignment of the type
+  /// @brief Non-zero power-of-2 alignment of the type
   T alignment = 1;
 
-  /// @brief byte-size of the type
+  /// @brief Byte-size of the type
   T size = 0;
 
   /// @warning must call `aligned()` once done appending
   constexpr CoreLayout append(CoreLayout const & ext) const
   {
     return CoreLayout{.alignment = max(alignment, ext.alignment),
-                      .size = align_offset(ext.alignment, size) + ext.size};
+                      .size = align_offset_up(ext.alignment, size) + ext.size};
   }
 
   constexpr CoreLayout array(T n) const
@@ -218,12 +218,12 @@ struct CoreLayout
   constexpr CoreLayout aligned() const
   {
     return CoreLayout{.alignment = alignment,
-                      .size      = align_offset(alignment, size)};
+                      .size      = align_offset_up(alignment, size)};
   }
 
   constexpr CoreLayout align_to(T align) const
   {
-    return CoreLayout{.alignment = align, .size = align_offset(align, size)};
+    return CoreLayout{.alignment = align, .size = align_offset_up(align, size)};
   }
 
   constexpr CoreLayout lanes(T n) const
@@ -280,7 +280,7 @@ struct Flex
   auto unpack_at_(void const *& stack) const
   {
     using M           = index_pack<I, T...>;
-    stack             = align(members[I].alignment, stack);
+    stack             = align_up(members[I].alignment, stack);
     usize const count = members[I].size / sizeof(M);
     Span<M>     span{(M *) stack, count};
     stack = ((u8 const *) stack) + members[I].size;

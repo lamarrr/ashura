@@ -5,13 +5,28 @@
 #include "ashura/std/mem.h"
 #include "ashura/std/range.h"
 #include "ashura/std/sformat.h"
-#include "vulkan/vulkan.h"
-#include <cstring>
+
+// clang-format off
+
+#include "vulkan/vulkan_beta.h"
+#include "vulkan/vk_enum_string_helper.h"
+
+// clang-format on
 
 namespace ash
 {
 namespace vk
 {
+
+#define SCRATCH_STACK_RESERVE_SIZE 1_KB
+#define SCRATCH_ALLOCATOR(upstream)                              \
+  u8                scratch_memory_[SCRATCH_STACK_RESERVE_SIZE]; \
+  FallbackAllocator scratch_                                     \
+  {                                                              \
+    scratch_memory_, upstream                                    \
+  }
+
+constexpr auto DEBUG_LAYER_EXTENSION_NAME = "VK_LAYER_KHRONOS_validation"_str;
 
 VkResult DebugMarkerSetObjectTagEXT_Stub(VkDevice,
                                          const VkDebugMarkerObjectTagInfoEXT *)
@@ -66,13 +81,14 @@ bool load_instance_table(VkInstance                instance,
   LOAD_VK(CreateDevice);
   LOAD_VK(EnumerateDeviceExtensionProperties);
   LOAD_VK(EnumerateDeviceLayerProperties);
-  LOAD_VK(GetPhysicalDeviceFeatures);
-  LOAD_VK(GetPhysicalDeviceFormatProperties);
-  LOAD_VK(GetPhysicalDeviceImageFormatProperties);
+  LOAD_VK(GetPhysicalDeviceFeatures2KHR);
+  LOAD_VK(GetPhysicalDeviceFormatProperties2KHR);
+  LOAD_VK(GetPhysicalDeviceImageFormatProperties2KHR);
   LOAD_VK(GetPhysicalDeviceMemoryProperties);
-  LOAD_VK(GetPhysicalDeviceProperties);
-  LOAD_VK(GetPhysicalDeviceQueueFamilyProperties);
-  LOAD_VK(GetPhysicalDeviceSparseImageFormatProperties);
+  LOAD_VK(GetPhysicalDeviceMemoryProperties2KHR);
+  LOAD_VK(GetPhysicalDeviceProperties2KHR);
+  LOAD_VK(GetPhysicalDeviceQueueFamilyProperties2KHR);
+  LOAD_VK(GetPhysicalDeviceSparseImageFormatProperties2KHR);
 
   LOAD_VK(GetPhysicalDeviceSurfaceSupportKHR);
   LOAD_VK(GetPhysicalDeviceSurfaceCapabilitiesKHR);
@@ -273,11 +289,13 @@ void load_vma_table(InstanceTable const & instance_table,
   SET_VMA_INST(GetDeviceProcAddr);
   SET_VMA_INST(GetPhysicalDeviceProperties);
   SET_VMA_INST(GetPhysicalDeviceMemoryProperties);
+  SET_VMA_INST(GetPhysicalDeviceMemoryProperties2KHR);
 #undef SET_VMA_INST
 
 #define SET_VMA_DEV(function) vma_table.vk##function = vk_table.function
   SET_VMA_DEV(AllocateMemory);
   SET_VMA_DEV(FreeMemory);
+  SET_VMA_DEV(MapMemory);
   SET_VMA_DEV(UnmapMemory);
   SET_VMA_DEV(FlushMappedMemoryRanges);
   SET_VMA_DEV(InvalidateMappedMemoryRanges);
@@ -293,13 +311,6 @@ void load_vma_table(InstanceTable const & instance_table,
 #undef SET_VMA_DEV
 }
 
-Layout64 MemoryGroup::layout() const
-{
-  return alias_offsets.is_empty() ?
-           Layout64{.alignment = alignment, .size = 0} :
-           Layout64{.alignment = alignment, .size = alias_offsets.last()};
-}
-
 u32 DescriptorBinding::sync_size() const
 {
   return sync_resources.match(
@@ -307,15 +318,15 @@ u32 DescriptorBinding::sync_size() const
     [](auto & v) { return size32(v); }, [](auto & v) { return size32(v); });
 }
 
-void DescriptorSet::remove_bind_loc(BindLocations &      locations,
-                                    BindLocation const & loc)
+void IDescriptorSet::remove_bind_loc(BindLocations &      locations,
+                                     BindLocation const & loc)
 {
   auto pos = find(locations.view(), loc).as_slice_of(locations);
   locations.erase(pos);
 }
 
-void DescriptorSet::update_link(u32 ibinding, u32 first_element,
-                                Span<gpu::BufferBinding const> buffers)
+void IDescriptorSet::update_link(u32 ibinding, u32 first_element,
+                                 Span<gpu::BufferBinding const> buffers)
 {
   auto & binding        = bindings[ibinding];
   auto & sync_resources = binding.sync_resources[v1];
@@ -324,7 +335,7 @@ void DescriptorSet::update_link(u32 ibinding, u32 first_element,
   {
     auto    element = first_element + i;
     auto *& current = sync_resources[element];
-    auto *  next    = (Buffer *) buffer.buffer;
+    auto *  next    = (Buffer) buffer.buffer;
 
     if (current == next)
     {
@@ -348,8 +359,8 @@ void DescriptorSet::update_link(u32 ibinding, u32 first_element,
   }
 }
 
-void DescriptorSet::update_link(u32 ibinding, u32 first_element,
-                                Span<gpu::BufferView const> buffer_views)
+void IDescriptorSet::update_link(u32 ibinding, u32 first_element,
+                                 Span<gpu::BufferView const> buffer_views)
 {
   auto & binding        = bindings[ibinding];
   auto & sync_resources = binding.sync_resources[v2];
@@ -358,7 +369,7 @@ void DescriptorSet::update_link(u32 ibinding, u32 first_element,
   {
     auto    element = first_element + i;
     auto *& current = sync_resources[element];
-    auto *  next    = (BufferView *) buffer_view;
+    auto *  next    = (BufferView) buffer_view;
 
     if (current == next)
     {
@@ -382,8 +393,8 @@ void DescriptorSet::update_link(u32 ibinding, u32 first_element,
   }
 }
 
-void DescriptorSet::update_link(u32 ibinding, u32 first_element,
-                                Span<gpu::ImageBinding const> images)
+void IDescriptorSet::update_link(u32 ibinding, u32 first_element,
+                                 Span<gpu::ImageBinding const> images)
 {
   auto & binding        = bindings[ibinding];
   auto & sync_resources = binding.sync_resources[v3];
@@ -392,7 +403,7 @@ void DescriptorSet::update_link(u32 ibinding, u32 first_element,
   {
     auto    element = first_element + i;
     auto *& current = sync_resources[element];
-    auto *  next    = (ImageView *) image.image_view;
+    auto *  next    = (ImageView) image.image_view;
 
     if (current == next)
     {
@@ -603,32 +614,35 @@ constexpr SyncResourceType
 void HazardBarriers::clear()
 {
   buffers_.clear();
-  buffer_stages_.clear();
+  mem_buffers_.clear();
   images_.clear();
-  image_stages_.clear();
-  mem_.clear();
-  mem_stages_.clear();
+  mem_images_.clear();
 }
 
 void HazardBarriers::buffer(VkPipelineStageFlags src, VkPipelineStageFlags dst,
-                            VkBufferMemoryBarrier buffer)
+                            VkBufferMemoryBarrier const & buffer)
 {
-  buffer_stages_.push(Stage{.src = src, .dst = dst}).unwrap();
-  buffers_.push(buffer).unwrap();
+  buffers_.push(src, dst, buffer).unwrap();
+}
+
+void HazardBarriers::buffer(VkPipelineStageFlags src, VkPipelineStageFlags dst,
+                            VkMemoryBarrier const &       mem,
+                            VkBufferMemoryBarrier const & buffer)
+{
+  mem_buffers_.push(src, dst, mem, buffer).unwrap();
 }
 
 void HazardBarriers::image(VkPipelineStageFlags src, VkPipelineStageFlags dst,
-                           VkImageMemoryBarrier image)
+                           VkImageMemoryBarrier const & image)
 {
-  image_stages_.push(Stage{.src = src, .dst = dst}).unwrap();
-  images_.push(image).unwrap();
+  images_.push(src, dst, image).unwrap();
 }
 
-void HazardBarriers::mem(VkPipelineStageFlags src, VkPipelineStageFlags dst,
-                         VkMemoryBarrier memory)
+void HazardBarriers::image(VkPipelineStageFlags src, VkPipelineStageFlags dst,
+                           VkMemoryBarrier const &      mem,
+                           VkImageMemoryBarrier const & image)
 {
-  mem_stages_.push(Stage{.src = src, .dst = dst}).unwrap();
-  mem_.push(memory).unwrap();
+  mem_images_.push(src, dst, mem, image).unwrap();
 }
 
 // layout transitions are considered write operations even if only a read
@@ -639,14 +653,11 @@ void HazardBarriers::mem(VkPipelineStageFlags src, VkPipelineStageFlags dst,
 // perform reads
 //
 // if their scopes don't line-up, they won't observe the effects same
-void EncoderResourceStates::barrier(Image const &     image,
-                                    MemAccess const & old_access,
-                                    VkImageLayout     old_layout,
-                                    MemAccess const & new_access,
-                                    VkImageLayout     new_layout,
-                                    HazardBarriers &  barriers)
+void HazardBarriers::barrier(IImage const & image, MemAccess old_access,
+                             VkImageLayout old_layout, MemAccess new_access,
+                             VkImageLayout new_layout)
 {
-  barriers.image(
+  this->image(
     old_access.stages, new_access.stages,
     {
       .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
@@ -666,32 +677,67 @@ void EncoderResourceStates::barrier(Image const &     image,
   });
 }
 
-void EncoderResourceStates::barrier(Buffer const &    buffer,
-                                    MemAccess const & old_state,
-                                    MemAccess const & new_state,
-                                    HazardBarriers &  barriers)
+void HazardBarriers::discard_barrier(IImage const & image, MemAccess old_access,
+                                     MemAccess     new_access,
+                                     VkImageLayout new_layout)
 {
-  barriers.buffer(old_state.stages, new_state.stages,
-                  {.sType         = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-                   .pNext         = nullptr,
-                   .srcAccessMask = old_state.access,
-                   .dstAccessMask = new_state.access,
-                   .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                   .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                   .buffer              = buffer.vk,
-                   .offset              = 0,
-                   .size                = VK_WHOLE_SIZE});
+  this->image(
+    old_access.stages, new_access.stages,
+    VkMemoryBarrier{
+      .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+      .pNext         = nullptr,
+      .srcAccessMask = old_access.access,
+      .dstAccessMask = new_access.access
+  },
+    VkImageMemoryBarrier{
+      .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+      .pNext               = nullptr,
+      .srcAccessMask       = VK_ACCESS_NONE,
+      .dstAccessMask       = new_access.access,
+      .oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
+      .newLayout           = new_layout,
+      .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .image               = image.vk,
+      .subresourceRange    = {.aspectMask     = (VkImageAspectFlags) image.aspects,
+                              .baseMipLevel   = 0,
+                              .levelCount     = VK_REMAINING_MIP_LEVELS,
+                              .baseArrayLayer = 0,
+                              .layerCount     = VK_REMAINING_ARRAY_LAYERS}});
 }
 
-void EncoderResourceStates::barrier(MemAccess const & old_state,
-                                    MemAccess const & new_state,
-                                    HazardBarriers &  barriers)
+void HazardBarriers::barrier(IBuffer const & buffer, MemAccess old_access,
+                             MemAccess new_access)
 {
-  barriers.mem(old_state.stages, new_state.stages,
-               {.sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
-                .pNext         = nullptr,
-                .srcAccessMask = old_state.access,
-                .dstAccessMask = new_state.access});
+  this->buffer(old_access.stages, new_access.stages,
+               {.sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+                .pNext               = nullptr,
+                .srcAccessMask       = old_access.access,
+                .dstAccessMask       = new_access.access,
+                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .buffer              = buffer.vk,
+                .offset              = 0,
+                .size                = VK_WHOLE_SIZE});
+}
+
+void HazardBarriers::discard_barrier(IBuffer const & buffer,
+                                     MemAccess old_access, MemAccess new_access)
+{
+  this->buffer(old_access.stages, new_access.stages,
+               VkMemoryBarrier{.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+                               .pNext = nullptr,
+                               .srcAccessMask = old_access.access,
+                               .dstAccessMask = new_access.access},
+               {.sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+                .pNext               = nullptr,
+                .srcAccessMask       = VK_ACCESS_NONE,
+                .dstAccessMask       = new_access.access,
+                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .buffer              = buffer.vk,
+                .offset              = 0,
+                .size                = VK_WHOLE_SIZE});
 }
 
 constexpr bool has_read_access(VkAccessFlags access)
@@ -733,17 +779,17 @@ constexpr bool has_write_access(VkAccessFlags access)
                      VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_NV));
 }
 
-void EncoderResourceStates::access(Image const &     image,
+void EncoderResourceStates::access(IImage const &    image,
                                    MemAccess const & access,
                                    VkImageLayout layout, u32 pass,
                                    HazardBarriers & barriers)
 {
   // only one element of the alias can issue a barrier for a pass
-  auto alias_id = image.memory.memory_group->alias_ids[image.memory.alias];
+  auto alias    = image.memory.alias->id;
   auto has_read = has_read_access(access.access);
   auto element  = image.memory.element;
 
-  auto [hazard, _, last_accessed] = memory_[alias_id];
+  auto [hazard, _, last_accessed] = alias_[alias];
 
   // it was already accessed, resources are only allowed to be in one state for a pass
   if (last_accessed != U32_MAX && last_accessed == pass)
@@ -761,7 +807,7 @@ void EncoderResourceStates::access(Image const &     image,
       .previous = previous,
       .state    = ImageMemState{.element = element, .layout = layout}
     };
-    memory_.dense.v1.set_bit(memory_.to_index(alias_id));
+    alias_.dense.v1.set_bit(alias_.to_index(alias));
   };
 
   auto mark_combined = [&](HazardType type, MemAccess previous,
@@ -772,13 +818,11 @@ void EncoderResourceStates::access(Image const &     image,
       .previous = previous,
       .state    = ImageMemState{.element = element, .layout = layout}
     };
-    memory_.dense.v1.set_bit(memory_.to_index(alias_id));
+    alias_.dense.v1.set_bit(alias_.to_index(alias));
   };
 
   auto discard = [&]() {
-    barrier(image, hazard.latest, VK_IMAGE_LAYOUT_UNDEFINED, access, layout,
-            barriers);
-
+    barriers.discard_barrier(image, hazard.latest, access, layout);
     mark(HazardType::Write, {});
   };
 
@@ -789,7 +833,6 @@ void EncoderResourceStates::access(Image const &     image,
     },
     [&](BufferMemState const &) {
       // hard memory barrier for aliasing
-      barrier(hazard.latest, access, barriers);
       discard();
       return;
     },
@@ -799,7 +842,7 @@ void EncoderResourceStates::access(Image const &     image,
       auto has_write = has_write_access(access.access) || needs_transition;
 
       auto barrier = [&](MemAccess const & from) {
-        this->barrier(image, from, current_layout, access, layout, barriers);
+        barriers.barrier(image, from, current_layout, access, layout);
       };
 
       if (h.element != element)
@@ -958,25 +1001,24 @@ void EncoderResourceStates::access(Image const &     image,
   return;
 }
 
-void EncoderResourceStates::access(ImageView const & image,
-                                   MemAccess const & access,
+void EncoderResourceStates::access(IImageView const & image,
+                                   MemAccess const &  access,
                                    VkImageLayout layout, u32 pass,
                                    HazardBarriers & barriers)
 {
   this->access(*image.image, access, layout, pass, barriers);
 }
 
-void EncoderResourceStates::access(Buffer const &    buffer,
+void EncoderResourceStates::access(IBuffer const &   buffer,
                                    MemAccess const & access, u32 pass,
                                    HazardBarriers & barriers)
 {
-  auto alias_id = buffer.memory.memory_group->alias_ids[buffer.memory.alias];
-
+  auto alias     = buffer.memory.alias->id;
   auto has_write = has_write_access(access.access);
   auto has_read  = has_read_access(access.access);
   auto element   = buffer.memory.element;
 
-  auto [hazard, _, last_accessed] = memory_[alias_id];
+  auto [hazard, _, last_accessed] = alias_[alias];
 
   // it was already accessed, resources are only allowed to be in one state for a pass
   if (last_accessed != U32_MAX && last_accessed == pass)
@@ -992,7 +1034,7 @@ void EncoderResourceStates::access(Buffer const &    buffer,
                     .latest   = access,
                     .previous = previous,
                     .state    = BufferMemState{.element = element}};
-    memory_.dense.v1.set_bit(memory_.to_index(alias_id));
+    alias_.dense.v1.set_bit(alias_.to_index(alias));
   };
 
   auto mark_combined = [&](HazardType type, MemAccess previous,
@@ -1001,11 +1043,11 @@ void EncoderResourceStates::access(Buffer const &    buffer,
                     .latest   = latest,
                     .previous = previous,
                     .state    = ImageMemState{.element = element}};
-    memory_.dense.v1.set_bit(memory_.to_index(alias_id));
+    alias_.dense.v1.set_bit(alias_.to_index(alias));
   };
 
   auto discard = [&]() {
-    barrier(buffer, hazard.latest, access, barriers);
+    barriers.discard_barrier(buffer, hazard.latest, access);
 
     mark(HazardType::Write, {});
   };
@@ -1017,7 +1059,7 @@ void EncoderResourceStates::access(Buffer const &    buffer,
     },
     [&](BufferMemState const & h) {
       auto barrier = [&](MemAccess const & from) {
-        this->barrier(buffer, from, access, barriers);
+        barriers.barrier(buffer, from, access);
       };
 
       if (h.element != element)
@@ -1163,14 +1205,12 @@ void EncoderResourceStates::access(Buffer const &    buffer,
       }
     },
     [&](ImageMemState const &) {
-      // hard memory barrier for aliasing
-      barrier(hazard.latest, access, barriers);
       discard();
       return;
     });
 }
 
-void EncoderResourceStates::access(DescriptorSet const & set, u32 pass,
+void EncoderResourceStates::access(IDescriptorSet const & set, u32 pass,
                                    VkPipelineStageFlags shader_stages,
                                    HazardBarriers &     barriers)
 {
@@ -1194,7 +1234,7 @@ void EncoderResourceStates::access(DescriptorSet const & set, u32 pass,
     binding.sync_resources.match(
       [](None) {},
       [&](auto & buffers) {
-        for (Buffer * buffer : buffers)
+        for (Buffer buffer : buffers)
         {
           if (buffer != nullptr)
           {
@@ -1203,7 +1243,7 @@ void EncoderResourceStates::access(DescriptorSet const & set, u32 pass,
         }
       },
       [&](auto & buffer_views) {
-        for (BufferView * buffer_view : buffer_views)
+        for (BufferView buffer_view : buffer_views)
         {
           if (buffer_view != nullptr)
           {
@@ -1212,7 +1252,7 @@ void EncoderResourceStates::access(DescriptorSet const & set, u32 pass,
         }
       },
       [&](auto & image_views) {
-        for (ImageView * image_view : image_views)
+        for (ImageView image_view : image_views)
         {
           if (image_view != nullptr)
           {
@@ -1226,19 +1266,19 @@ void EncoderResourceStates::access(DescriptorSet const & set, u32 pass,
 
 void EncoderResourceStates::rebuild(DeviceResourceStates const & upstream)
 {
-  memory_.clear();
+  alias_.clear();
 
-  memory_.id_to_index_.extend(upstream.memory_.id_to_index_).unwrap();
-  memory_.index_to_id_.extend(upstream.memory_.index_to_id_).unwrap();
+  alias_.id_to_index_.extend(upstream.alias_.id_to_index_).unwrap();
+  alias_.index_to_id_.extend(upstream.alias_.index_to_id_).unwrap();
 
   // memory hazard
-  memory_.dense.v0.extend(upstream.memory_.dense.v0).unwrap();
+  alias_.dense.v0.extend(upstream.alias_.dense.v0).unwrap();
   // was modified
-  memory_.dense.v1.resize(upstream.memory_.dense.v0.size()).unwrap();
+  alias_.dense.v1.resize(upstream.alias_.dense.v0.size()).unwrap();
   // last_accessed
-  memory_.dense.v2.resize_uninit(upstream.memory_.dense.v0.size()).unwrap();
+  alias_.dense.v2.resize_uninit(upstream.alias_.dense.v0.size()).unwrap();
 
-  fill(memory_.dense.v2.view(), U32_MAX);
+  fill(alias_.dense.v2.view(), U32_MAX);
 
   descriptor_sets_.clear();
 
@@ -1250,12 +1290,12 @@ void EncoderResourceStates::rebuild(DeviceResourceStates const & upstream)
 
 void EncoderResourceStates::commit(DeviceResourceStates & upstream)
 {
-  for (auto [i, m] : zip(range(memory_.size()), memory_))
+  for (auto [i, m] : zip(range(alias_.size()), alias_))
   {
     // if resource was modified
     if (m.v1) [[unlikely]]
     {
-      upstream.memory_[memory_.to_id(i)].v0 = m.v0;
+      upstream.alias_[alias_.to_id(i)].v0 = m.v0;
     }
   }
 }
@@ -1274,7 +1314,7 @@ u32 CommandTracker::begin_pass()
   return index;
 }
 
-void CommandTracker::command(cmd::Command * cmd)
+void CommandTracker::command(cmd::Cmd * cmd)
 {
   if (last_cmd_ == nullptr)
   {
@@ -1293,27 +1333,21 @@ void CommandTracker::end_pass()
 {
 }
 
-void CommandTracker::track(Buffer * buffer, VkPipelineStageFlags stages,
+void CommandTracker::track(Buffer buffer, VkPipelineStageFlags stages,
                            VkAccessFlags access)
 {
   buffers_.push(buffer, stages, access).unwrap();
   passes_.last().buffers++;
 }
 
-void CommandTracker::track(Image * image, VkPipelineStageFlags stages,
+void CommandTracker::track(Image image, VkPipelineStageFlags stages,
                            VkAccessFlags access, VkImageLayout layout)
 {
   images_.push(image, stages, access, layout).unwrap();
   passes_.last().images++;
 }
 
-void CommandTracker::track(ImageView * image, VkPipelineStageFlags stages,
-                           VkAccessFlags access, VkImageLayout layout)
-{
-  track(image->image, stages, access, layout);
-}
-
-void CommandTracker::track(DescriptorSet * set, VkShaderStageFlags stages)
+void CommandTracker::track(DescriptorSet set, VkShaderStageFlags stages)
 {
   descriptor_sets_.push(set, stages).unwrap();
   passes_.last().descriptor_sets++;
@@ -1434,30 +1468,55 @@ static VkBool32 VKAPI_ATTR VKAPI_CALL
   }
 
   auto message_type_s = string_VkDebugUtilsMessageTypeFlagsEXT(message_type);
-  logger->log(level, "[Type: {}, Id: {}, Name: {} ] {}"_str,
-              span(message_type_s), data->messageIdNumber,
-              cstr_span(data->pMessageIdName),
-              data->pMessage == nullptr ? "(empty message)"_str :
-                                          cstr_span(data->pMessage));
-  if (data->objectCount != 0)
+  logger->log(
+    level, "[Type: {}, Id: {}, Name: {} ] {}"_str, span(message_type_s),
+    data->messageIdNumber, cstr(data->pMessageIdName),
+    data->pMessage == nullptr ? "(empty message)"_str : cstr(data->pMessage));
+
+  if (data->objectCount > 0)
   {
     logger->log(level, "Objects Involved:"_str);
-    for (u32 i = 0; i < data->objectCount; i++)
-    {
-      logger->log(level, "[Type: {}] {}"_str,
-                  cstr_span(string_VkObjectType(data->pObjects[i].objectType)),
-                  data->pObjects[i].pObjectName == nullptr ?
-                    "(unnamed)"_str :
-                    cstr_span(data->pObjects[i].pObjectName));
-    }
+  }
+
+  for (auto obj : Span{data->pObjects, data->objectCount})
+  {
+    logger->log(
+      level, "[Type: {}] {}"_str, cstr(string_VkObjectType(obj.objectType)),
+      obj.pObjectName == nullptr ? "(unnamed)"_str : cstr(obj.pObjectName));
+  }
+
+  if (data->queueLabelCount > 0)
+  {
+    logger->log(level, "Command Queues Involved:"_str);
+  }
+
+  for (auto queue : Span{data->pQueueLabels, data->queueLabelCount})
+  {
+    logger->log(level, "{}"_str,
+                queue.pLabelName == nullptr ? "(unnamed)"_str :
+                                              cstr(queue.pLabelName));
+  }
+
+  if (data->cmdBufLabelCount > 0)
+  {
+    logger->log(level, "Command Buffers Involved:"_str);
+  }
+
+  for (auto cmdbuf : Span{data->pCmdBufLabels, data->cmdBufLabelCount})
+  {
+    logger->log(level, "{}"_str,
+                cmdbuf.pLabelName == nullptr ? "(unnamed)"_str :
+                                               cstr(cmdbuf.pLabelName));
   }
 
   return VK_FALSE;
 }
 
 Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
-                                                   bool enable_validation)
+                                                   bool      enable_validation)
 {
+  SCRATCH_ALLOCATOR(allocator);
+
   u32  num_exts;
   auto result =
     vkEnumerateInstanceExtensionProperties(nullptr, &num_exts, nullptr);
@@ -1467,26 +1526,22 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
     return Err{(Status) result};
   }
 
-  VkExtensionProperties * exts;
-  if (!allocator->nalloc(num_exts, exts))
+  Vec<VkExtensionProperties> extensions{scratch_};
+
+  if (!extensions.resize_uninit(num_exts))
   {
     return Err{Status::OutOfHostMemory};
   }
 
-  defer exts_{[&] { allocator->ndealloc(num_exts, exts); }};
+  result = vkEnumerateInstanceExtensionProperties(nullptr, &num_exts,
+                                                  extensions.data());
 
+  if (result != VK_SUCCESS)
   {
-    u32 num_read_exts = num_exts;
-    result =
-      vkEnumerateInstanceExtensionProperties(nullptr, &num_read_exts, exts);
-
-    if (result != VK_SUCCESS)
-    {
-      return Err{(Status) result};
-    }
-
-    CHECK(num_read_exts == num_exts, "");
+    return Err{(Status) result};
   }
+
+  CHECK(extensions.size() == num_exts, "");
 
   u32 num_layers;
   result = vkEnumerateInstanceLayerProperties(&num_layers, nullptr);
@@ -1496,33 +1551,28 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
     return Err{(Status) result};
   }
 
-  VkLayerProperties * layers;
+  Vec<VkLayerProperties> layers{scratch_};
 
-  if (!allocator->nalloc(num_layers, layers))
+  if (!layers.resize_uninit(num_layers))
   {
     return Err{Status::OutOfHostMemory};
   }
 
-  defer layers_{[&] { allocator->ndealloc(num_layers, layers); }};
+  result = vkEnumerateInstanceLayerProperties(&num_layers, layers.data());
 
+  if (result != VK_SUCCESS)
   {
-    u32 num_read_layers = num_layers;
-    result = vkEnumerateInstanceLayerProperties(&num_read_layers, layers);
-
-    if (result != VK_SUCCESS)
-    {
-      return Err{(Status) result};
-    }
-
-    CHECK(num_read_layers == num_layers, "");
+    return Err{(Status) result};
   }
+
+  CHECK(layers.size() == num_layers, "");
 
   trace("Available Extensions:"_str);
 
-  for (VkExtensionProperties const & ext : Span{exts, num_exts})
+  for (auto const & ext : extensions)
   {
     trace("{}\t\t(spec version {}.{}.{} variant {})"_str,
-          cstr_span(ext.extensionName), VK_API_VERSION_MAJOR(ext.specVersion),
+          cstr(ext.extensionName), VK_API_VERSION_MAJOR(ext.specVersion),
           VK_API_VERSION_MINOR(ext.specVersion),
           VK_API_VERSION_PATCH(ext.specVersion),
           VK_API_VERSION_VARIANT(ext.specVersion));
@@ -1530,11 +1580,11 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
 
   trace("Available Layers:"_str);
 
-  for (VkLayerProperties const & layer : Span{layers, num_layers})
+  for (auto const & layer : layers)
   {
     trace("{}\t\t(spec version {}.{}.{} variant {}, implementation version: "
           "{}.{}.{} variant {})"_str,
-          cstr_span(layer.layerName), VK_API_VERSION_MAJOR(layer.specVersion),
+          cstr(layer.layerName), VK_API_VERSION_MAJOR(layer.specVersion),
           VK_API_VERSION_MINOR(layer.specVersion),
           VK_API_VERSION_PATCH(layer.specVersion),
           VK_API_VERSION_VARIANT(layer.specVersion),
@@ -1544,82 +1594,88 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
           VK_API_VERSION_VARIANT(layer.implementationVersion));
   }
 
-  char const * load_exts[16];
-  u32          num_load_exts = 0;
+  Vec<Str> load_extensions{scratch_};
 
-  constexpr char const *           OPTIONAL_EXTS[]  = {"VK_KHR_surface",
-                                                       "VK_KHR_android_surface",
-                                                       "VK_MVK_ios_surface",
-                                                       "VK_MVK_macos_surface",
-                                                       "VK_EXT_metal_surface",
-                                                       "VK_NN_vi_surface",
-                                                       "VK_KHR_wayland_surface",
-                                                       "VK_KHR_win32_surface",
-                                                       "VK_KHR_xcb_surface",
-                                                       "VK_KHR_xlib_surface",
-                                                       "VK_KHR_portability_enumeration"};
-  Bits<u64, sizeof(OPTIONAL_EXTS)> has_optional_ext = {};
+  Vec<Str> required_extensions{scratch_};
 
-  bool has_debug_utils_ext = false;
+  required_extensions
+    .extend(
+      span({cstr(VK_KHR_SURFACE_EXTENSION_NAME),
+            cstr(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME)}))
+    .unwrap();
 
-  for (u32 i = 0; i < num_exts; i++)
-  {
-    for (u32 iopt = 0; iopt < size(OPTIONAL_EXTS); iopt++)
-    {
-      if (strcmp(OPTIONAL_EXTS[iopt], exts[i].extensionName) == 0)
-      {
-        load_exts[num_load_exts++] = OPTIONAL_EXTS[iopt];
-        has_optional_ext.set_bit(iopt);
-      }
-    }
+  Vec<Str> optional_extensions{scratch_};
 
-    if (strcmp(VK_EXT_DEBUG_UTILS_EXTENSION_NAME, exts[i].extensionName) == 0)
-    {
-      has_debug_utils_ext = true;
-    }
-  }
+  optional_extensions
+    .extend(span({cstr(VK_EXT_DEBUG_UTILS_EXTENSION_NAME),
+                  cstr(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME),
+                  "VK_KHR_android_surface"_str, "VK_MVK_ios_surface"_str,
+                  "VK_MVK_macos_surface"_str, "VK_EXT_metal_surface"_str,
+                  "VK_NN_vi_surface"_str, "VK_KHR_wayland_surface"_str,
+                  "VK_KHR_win32_surface"_str, "VK_KHR_xcb_surface"_str,
+                  "VK_KHR_xlib_surface"_str}))
+    .unwrap();
 
   if (enable_validation)
   {
-    if (has_debug_utils_ext)
+    optional_extensions.push(cstr(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)).unwrap();
+  }
+
+  for (auto ext : required_extensions)
+  {
+    CHECK(
+      !find(extensions.view(), ext,
+            [](auto a, auto b) { return mem::eq(cstr(a.extensionName), b); })
+         .is_empty(),
+      "Required Vulkan "
+      "Instance Extension: {}  is not supported on instance",
+      ext);
+    load_extensions.push(ext).unwrap();
+  }
+
+  for (auto ext : optional_extensions)
+  {
+    if (find(extensions.view(), ext, [](auto a, auto b) {
+          return mem::eq(cstr(a.extensionName), b);
+        }).is_empty())
     {
-      load_exts[num_load_exts++] = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
+      trace("Optional Instance Extension: {} is not supported"_str, ext);
     }
     else
     {
-      warn("Required Vulkan "
-           "Extension: {}  is not supported on device",
-           VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+      optional_extensions.push(ext).unwrap();
     }
   }
 
-  char const * load_layers[16];
-  u32          num_load_layers      = 0;
-  bool         has_validation_layer = false;
-
-  for (u32 i = 0; i < num_layers; i++)
-  {
-    if (strcmp("VK_LAYER_KHRONOS_validation", layers[i].layerName) == 0)
-    {
-      has_validation_layer = true;
-    }
-  }
+  Vec<Str> optional_layers{scratch_};
 
   if (enable_validation)
   {
-    if (has_validation_layer)
+    optional_layers.push(DEBUG_LAYER_EXTENSION_NAME).unwrap();
+  }
+
+  Vec<Str> load_layers{scratch_};
+
+  for (auto layer : optional_layers)
+  {
+    if (find(layers.view(), layer, [](auto a, auto b) {
+          return mem::eq(cstr(a.layerName), b);
+        }).is_empty())
     {
-      load_layers[num_load_layers++] = "VK_LAYER_KHRONOS_validation";
+      trace("Optional Instance Layer: {} is not supported"_str, layer);
     }
     else
     {
-      warn("Required Layer: VK_LAYER_KHRONOS_validation is "
-           "not supported");
+      load_layers.push(layer).unwrap();
     }
   }
 
-  bool const validation_enabled =
-    enable_validation && has_debug_utils_ext && has_validation_layer;
+  auto validation_enabled =
+    enable_validation &&
+    !find(load_extensions.view(), cstr(VK_EXT_DEBUG_UTILS_EXTENSION_NAME),
+          str_eq)
+       .is_empty() &&
+    !find(load_layers.view(), DEBUG_LAYER_EXTENSION_NAME, str_eq).is_empty();
 
   // setup before vkInstance to allow debug reporter report
   // messages through the pointer to it
@@ -1630,7 +1686,7 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
                              .applicationVersion = CLIENT_VERSION,
                              .pEngineName        = ENGINE_NAME,
                              .engineVersion      = ENGINE_VERSION,
-                             .apiVersion         = VK_API_VERSION_1_1};
+                             .apiVersion         = ENGINE_VULKAN_VERSION};
 
   VkDebugUtilsMessengerCreateInfoEXT debug_create_info{
     .sType           = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
@@ -1646,19 +1702,38 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
     .pfnUserCallback = debug_callback,
     .pUserData       = nullptr};
 
+  auto has_portability_ext =
+    !find(load_extensions.view(),
+          cstr(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME), str_eq)
+       .is_empty();
+
+  Vec<char const *> load_extensions_c{scratch_};
+
+  for (auto l : load_extensions)
+  {
+    load_extensions_c.push(l.data()).unwrap();
+  }
+
+  Vec<char const *> load_layers_c{scratch_};
+
+  for (auto l : load_layers)
+  {
+    load_layers_c.push(l.data()).unwrap();
+  }
+
   // .pNext helps to debug issues with vkDestroyInstance and vkCreateInstance
   // i.e. (before and after the debug messenger is installed)
   VkInstanceCreateInfo create_info{
     .sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
     .pNext                   = enable_validation ? &debug_create_info : nullptr,
-    .flags                   = has_optional_ext.get(10) ?
+    .flags                   = has_portability_ext ?
                                  VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR :
                                  ((VkInstanceCreateFlags) 0),
     .pApplicationInfo        = &app_info,
-    .enabledLayerCount       = num_load_layers,
-    .ppEnabledLayerNames     = load_layers,
-    .enabledExtensionCount   = num_load_exts,
-    .ppEnabledExtensionNames = load_exts};
+    .enabledLayerCount       = size32(load_layers_c),
+    .ppEnabledLayerNames     = load_layers_c.data(),
+    .enabledExtensionCount   = size32(load_extensions_c),
+    .ppEnabledExtensionNames = load_extensions_c.data()};
 
   VkInstance vk_instance;
 
@@ -1694,8 +1769,8 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
   }
 
   Result instance =
-    dyn<Instance>(inplace, allocator, allocator, vk_table, vk_instance,
-                  vk_debug_messenger, validation_enabled);
+    dyn<IInstance>(inplace, allocator, allocator, vk_table, vk_instance,
+                   vk_debug_messenger, validation_enabled);
 
   if (!instance)
   {
@@ -1722,79 +1797,47 @@ Result<Dyn<gpu::Instance>, Status>
 namespace vk
 {
 
-Instance::~Instance()
+IInstance::~IInstance()
 {
-  if (vk_instance_ == nullptr)
+  if (vk_ == nullptr)
   {
     return;
   }
 
   if (validation_enabled_)
   {
-    vk_table_.DestroyDebugUtilsMessengerEXT(vk_instance_, vk_debug_messenger_,
-                                            nullptr);
+    table_.DestroyDebugUtilsMessengerEXT(vk_, vk_debug_messenger_, nullptr);
   }
-  vk_table_.DestroyInstance(vk_instance_, nullptr);
+  table_.DestroyInstance(vk_, nullptr);
 }
 
-void check_device_limits(VkPhysicalDeviceLimits limits)
+void check_device_features(VkPhysicalDeviceFeatures const & feat)
 {
-  CHECK(limits.maxImageDimension1D >= gpu::MAX_IMAGE_EXTENT_1D, "");
-  CHECK(limits.maxImageDimension2D >= gpu::MAX_IMAGE_EXTENT_2D, "");
-  CHECK(limits.maxImageDimension3D >= gpu::MAX_IMAGE_EXTENT_3D, "");
-  CHECK(limits.maxImageDimensionCube >= gpu::MAX_IMAGE_EXTENT_CUBE, "");
-  CHECK(limits.maxImageArrayLayers >= gpu::MAX_IMAGE_ARRAY_LAYERS, "");
-  CHECK(limits.maxViewportDimensions[0] >= gpu::MAX_VIEWPORT_EXTENT, "");
-  CHECK(limits.maxViewportDimensions[1] >= gpu::MAX_VIEWPORT_EXTENT, "");
-  CHECK(limits.maxFramebufferWidth >= gpu::MAX_FRAMEBUFFER_EXTENT, "");
-  CHECK(limits.maxFramebufferHeight >= gpu::MAX_FRAMEBUFFER_EXTENT, "");
-  CHECK(limits.maxFramebufferLayers >= gpu::MAX_FRAMEBUFFER_LAYERS, "");
-  CHECK(limits.maxVertexInputAttributes >= gpu::MAX_VERTEX_ATTRIBUTES, "");
-  CHECK(limits.maxVertexInputBindings >= gpu::MAX_VERTEX_ATTRIBUTES, "");
-  CHECK(limits.maxPushConstantsSize >= gpu::MAX_PUSH_CONSTANTS_SIZE, "");
-  CHECK(limits.maxBoundDescriptorSets >= gpu::MAX_PIPELINE_DESCRIPTOR_SETS, "");
-  CHECK(limits.maxPerStageDescriptorInputAttachments >=
-          gpu::MAX_PIPELINE_INPUT_ATTACHMENTS,
-        "");
-  CHECK(limits.maxUniformBufferRange >= gpu::MAX_UNIFORM_BUFFER_RANGE, "");
-  CHECK(limits.maxColorAttachments >= gpu::MAX_PIPELINE_COLOR_ATTACHMENTS, "");
-  CHECK(limits.maxSamplerAnisotropy >= gpu::MAX_SAMPLER_ANISOTROPY, "");
-  CHECK(has_bits(limits.framebufferColorSampleCounts,
-                 (VkSampleCountFlags) gpu::REQUIRED_COLOR_SAMPLE_COUNTS),
-        "");
-  CHECK(has_bits(limits.framebufferDepthSampleCounts,
-                 (VkSampleCountFlags) gpu::REQUIRED_DEPTH_SAMPLE_COUNTS),
-        "");
-  CHECK(limits.minTexelBufferOffsetAlignment <= gpu::BUFFER_OFFSET_ALIGNMENT,
-        "");
-  CHECK(limits.minUniformBufferOffsetAlignment <= gpu::BUFFER_OFFSET_ALIGNMENT,
-        "");
-  CHECK(limits.minStorageBufferOffsetAlignment <= gpu::BUFFER_OFFSET_ALIGNMENT,
-        "");
-}
-
-void check_device_features(VkPhysicalDeviceFeatures feat)
-{
+  CHECK(feat.imageCubeArray == VK_TRUE, "");
+  CHECK(feat.independentBlend == VK_TRUE, "");
+  CHECK(feat.dualSrcBlend == VK_TRUE, "");
+  CHECK(feat.depthClamp == VK_TRUE, "");
+  CHECK(feat.depthBiasClamp == VK_TRUE, "");
+  CHECK(feat.fillModeNonSolid == VK_TRUE, "");
   CHECK(feat.samplerAnisotropy == VK_TRUE, "");
+  CHECK(feat.pipelineStatisticsQuery == VK_TRUE, "");
+  CHECK(feat.fragmentStoresAndAtomics == VK_TRUE, "");
   CHECK(feat.shaderUniformBufferArrayDynamicIndexing == VK_TRUE, "");
   CHECK(feat.shaderSampledImageArrayDynamicIndexing == VK_TRUE, "");
   CHECK(feat.shaderStorageBufferArrayDynamicIndexing == VK_TRUE, "");
   CHECK(feat.shaderStorageImageArrayDynamicIndexing == VK_TRUE, "");
   CHECK(feat.multiDrawIndirect == VK_TRUE, "");
   CHECK(feat.drawIndirectFirstInstance == VK_TRUE, "");
-  CHECK(feat.imageCubeArray == VK_TRUE, "");
-  CHECK(feat.pipelineStatisticsQuery == VK_TRUE, "");
 }
 
 Result<gpu::Device, Status>
-  Instance::create_device(Allocator                allocator,
-                          Span<gpu::DeviceType const> preferred_types)
+  IInstance::create_device(Allocator                   allocator,
+                           Span<gpu::DeviceType const> preferred_types)
 {
-  constexpr u32 MAX_QUEUE_FAMILIES = 16;
+  SCRATCH_ALLOCATOR(allocator_);
 
   u32  num_devs;
-  auto result =
-    vk_table_.EnumeratePhysicalDevices(vk_instance_, &num_devs, nullptr);
+  auto result = table_.EnumeratePhysicalDevices(vk_, &num_devs, nullptr);
 
   if (result != VK_SUCCESS)
   {
@@ -1806,55 +1849,85 @@ Result<gpu::Device, Status>
     return Err{Status::DeviceLost};
   }
 
-  VkPhysicalDevice * vk_phy_devs;
+  Vec<VkPhysicalDevice> vk_phy_devs{scratch_};
 
-  if (!allocator->nalloc(num_devs, vk_phy_devs))
+  if (!vk_phy_devs.resize_uninit(num_devs))
   {
     return Err{Status::OutOfHostMemory};
   }
 
-  defer vk_phy_devs_{[&] { allocator->ndealloc(num_devs, vk_phy_devs); }};
+  result = table_.EnumeratePhysicalDevices(vk_, &num_devs, vk_phy_devs.data());
 
+  if (result != VK_SUCCESS)
   {
-    u32 num_read_devs = num_devs;
-    result = vk_table_.EnumeratePhysicalDevices(vk_instance_, &num_read_devs,
-                                                vk_phy_devs);
-
-    if (result != VK_SUCCESS)
-    {
-      return Err{(Status) result};
-    }
-
-    CHECK(num_read_devs == num_devs, "");
+    return Err{(Status) result};
   }
 
-  PhysicalDevice * physical_devs;
-  if (!allocator->nalloc(num_devs, physical_devs))
+  CHECK(num_devs == vk_phy_devs.size(), "");
+
+  Vec<IPhysicalDevice> physical_devs{scratch_};
+  if (!physical_devs.resize_uninit(num_devs))
   {
     return Err{Status::OutOfHostMemory};
   }
 
-  defer physical_devs_{[&] { allocator->ndealloc(num_devs, physical_devs); }};
-
-  for (u32 i = 0; i < num_devs; i++)
+  for (auto [dev, vk_dev] : zip(physical_devs, vk_phy_devs))
   {
-    PhysicalDevice & dev    = physical_devs[i];
-    VkPhysicalDevice vk_dev = vk_phy_devs[i];
-    dev.vk_phy_dev          = vk_dev;
-    vk_table_.GetPhysicalDeviceFeatures(vk_dev, &dev.vk_features);
-    vk_table_.GetPhysicalDeviceMemoryProperties(vk_dev,
-                                                &dev.vk_memory_properties);
-    vk_table_.GetPhysicalDeviceProperties(vk_dev, &dev.vk_properties);
+    VkPhysicalDeviceFeatures2KHR features{
+      .sType    = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2_KHR,
+      .pNext    = nullptr,
+      .features = {}};
+    table_.GetPhysicalDeviceFeatures2KHR(vk_dev, &features);
+    table_.GetPhysicalDeviceMemoryProperties(vk_dev, &dev.vk_memory_properties);
+
+    VkPhysicalDeviceDescriptorIndexingPropertiesEXT descriptor_properties{
+      .sType =
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_PROPERTIES_EXT,
+      .pNext                                                = nullptr,
+      .maxUpdateAfterBindDescriptorsInAllPools              = {},
+      .shaderUniformBufferArrayNonUniformIndexingNative     = {},
+      .shaderSampledImageArrayNonUniformIndexingNative      = {},
+      .shaderStorageBufferArrayNonUniformIndexingNative     = {},
+      .shaderStorageImageArrayNonUniformIndexingNative      = {},
+      .shaderInputAttachmentArrayNonUniformIndexingNative   = {},
+      .robustBufferAccessUpdateAfterBind                    = {},
+      .quadDivergentImplicitLod                             = {},
+      .maxPerStageDescriptorUpdateAfterBindSamplers         = {},
+      .maxPerStageDescriptorUpdateAfterBindUniformBuffers   = {},
+      .maxPerStageDescriptorUpdateAfterBindStorageBuffers   = {},
+      .maxPerStageDescriptorUpdateAfterBindSampledImages    = {},
+      .maxPerStageDescriptorUpdateAfterBindStorageImages    = {},
+      .maxPerStageDescriptorUpdateAfterBindInputAttachments = {},
+      .maxPerStageUpdateAfterBindResources                  = {},
+      .maxDescriptorSetUpdateAfterBindSamplers              = {},
+      .maxDescriptorSetUpdateAfterBindUniformBuffers        = {},
+      .maxDescriptorSetUpdateAfterBindUniformBuffersDynamic = {},
+      .maxDescriptorSetUpdateAfterBindStorageBuffers        = {},
+      .maxDescriptorSetUpdateAfterBindStorageBuffersDynamic = {},
+      .maxDescriptorSetUpdateAfterBindSampledImages         = {},
+      .maxDescriptorSetUpdateAfterBindStorageImages         = {},
+      .maxDescriptorSetUpdateAfterBindInputAttachments      = {}};
+
+    VkPhysicalDeviceProperties2KHR properties{
+      .sType      = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR,
+      .pNext      = &descriptor_properties,
+      .properties = {}};
+
+    table_.GetPhysicalDeviceProperties2KHR(vk_dev, &properties);
+
+    dev.vk                       = vk_dev;
+    dev.vk_features              = features.features;
+    dev.vk_properties            = properties.properties;
+    dev.vk_descriptor_properties = descriptor_properties;
   }
 
   trace("Available Devices:"_str);
-  for (u32 i = 0; i < num_devs; i++)
+  for (auto [i, dev] : enumerate(physical_devs))
   {
-    PhysicalDevice const &             dev        = physical_devs[i];
-    VkPhysicalDeviceProperties const & properties = dev.vk_properties;
+    auto const & properties = dev.vk_properties;
     trace("[Device: {}] {} {} Vulkan API version {}.{}.{} variant {}, Driver "
           "Version: {}, Vendor ID: {}, Device ID: {}"_str,
-          i, cstr_span(string_VkPhysicalDeviceType(properties.deviceType)),
+          i, cstr(string_VkPhysicalDeviceType(properties.deviceType)),
           properties.deviceName, VK_API_VERSION_MAJOR(properties.apiVersion),
           VK_API_VERSION_MINOR(properties.apiVersion),
           VK_API_VERSION_PATCH(properties.apiVersion),
@@ -1862,60 +1935,67 @@ Result<gpu::Device, Status>
           properties.driverVersion, properties.vendorID, properties.deviceID);
 
     u32 num_queue_families;
-    vk_table_.GetPhysicalDeviceQueueFamilyProperties(
-      dev.vk_phy_dev, &num_queue_families, nullptr);
+    table_.GetPhysicalDeviceQueueFamilyProperties2KHR(
+      dev.vk, &num_queue_families, nullptr);
 
-    CHECK(num_queue_families <= MAX_QUEUE_FAMILIES, "");
+    Vec<VkQueueFamilyProperties2KHR> queue_family_properties{scratch_};
 
-    VkQueueFamilyProperties queue_family_properties[MAX_QUEUE_FAMILIES];
-
+    for (auto _ : range(num_queue_families))
     {
-      u32 num_read_queue_families = num_queue_families;
-      vk_table_.GetPhysicalDeviceQueueFamilyProperties(
-        dev.vk_phy_dev, &num_queue_families, queue_family_properties);
-      CHECK(num_read_queue_families == num_queue_families, "");
+      queue_family_properties
+        .push(VkQueueFamilyProperties2KHR{
+          .sType = VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2_KHR,
+          .pNext = nullptr,
+          .queueFamilyProperties = {}})
+        .unwrap();
     }
 
-    for (u32 i = 0; i < num_queue_families; i++)
+    table_.GetPhysicalDeviceQueueFamilyProperties2KHR(
+      dev.vk, &num_queue_families, queue_family_properties.data());
+    CHECK(queue_family_properties.size() == num_queue_families, "");
+
+    for (auto [i, prop] : enumerate<u32>(queue_family_properties))
     {
-      trace("\t\tQueue Family: {}, Count: {}, Flags: {}", i,
-            queue_family_properties[i].queueCount,
-            string_VkQueueFlags(queue_family_properties[i].queueFlags));
+      trace("\t\tQueue Family: {}, Count: {}, Flags: {}"_str, i,
+            prop.queueFamilyProperties.queueCount,
+            string_VkQueueFlags(prop.queueFamilyProperties.queueFlags));
     }
   }
 
-  u32 selected_dev_idx      = num_devs;
-  u32 selected_queue_family = VK_QUEUE_FAMILY_IGNORED;
+  u32 selected_dev_idx      = U32_MAX;
+  u32 selected_queue_family = U32_MAX;
 
-  for (usize i = 0; i < size32(preferred_types); i++)
+  for (auto preferred_type : preferred_types)
   {
-    for (u32 idev = 0; idev < num_devs && selected_dev_idx == num_devs; idev++)
+    for (auto [idev, dev] : enumerate<u32>(physical_devs))
     {
-      PhysicalDevice const & dev = physical_devs[idev];
-
       u32 num_queue_families;
-      vk_table_.GetPhysicalDeviceQueueFamilyProperties(
-        dev.vk_phy_dev, &num_queue_families, nullptr);
+      table_.GetPhysicalDeviceQueueFamilyProperties2KHR(
+        dev.vk, &num_queue_families, nullptr);
 
-      CHECK(num_queue_families <= MAX_QUEUE_FAMILIES, "");
+      Vec<VkQueueFamilyProperties2KHR> queue_family_properties{scratch_};
 
-      VkQueueFamilyProperties queue_family_properties[MAX_QUEUE_FAMILIES];
-
+      for (auto _ : range(num_queue_families))
       {
-        u32 num_read_queue_families = num_queue_families;
-        vk_table_.GetPhysicalDeviceQueueFamilyProperties(
-          dev.vk_phy_dev, &num_queue_families, queue_family_properties);
-        CHECK(num_read_queue_families == num_queue_families, "");
+        queue_family_properties
+          .push(VkQueueFamilyProperties2KHR{
+            .sType = VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2_KHR,
+            .pNext = nullptr,
+            .queueFamilyProperties = {}})
+          .unwrap();
       }
 
-      if (((VkPhysicalDeviceType) preferred_types[i]) ==
+      table_.GetPhysicalDeviceQueueFamilyProperties2KHR(
+        dev.vk, &num_queue_families, queue_family_properties.data());
+      CHECK(queue_family_properties.size() == num_queue_families, "");
+
+      if (((VkPhysicalDeviceType) preferred_type) ==
           dev.vk_properties.deviceType)
       {
-        for (u32 iqueue_family = 0;
-             iqueue_family < num_queue_families && selected_dev_idx == num_devs;
-             iqueue_family++)
+        for (auto [iqueue_family, queue_family_prop] :
+             enumerate<u32>(queue_family_properties))
         {
-          if (has_bits(queue_family_properties[iqueue_family].queueFlags,
+          if (has_bits(queue_family_prop.queueFamilyProperties.queueFlags,
                        (VkQueueFlags) (VK_QUEUE_COMPUTE_BIT |
                                        VK_QUEUE_GRAPHICS_BIT |
                                        VK_QUEUE_TRANSFER_BIT)))
@@ -1926,87 +2006,87 @@ Result<gpu::Device, Status>
           }
         }
       }
+
+      if (selected_dev_idx != U32_MAX)
+      {
+        break;
+      }
+    }
+
+    if (selected_dev_idx != U32_MAX)
+    {
+      break;
     }
   }
 
-  if (selected_dev_idx == num_devs)
+  if (selected_dev_idx == U32_MAX)
   {
-    trace("No Suitable Device Found");
+    trace("No Suitable Device Found"_str);
     return Err{Status::DeviceLost};
   }
 
-  PhysicalDevice selected_dev = physical_devs[selected_dev_idx];
+  IPhysicalDevice selected_dev = physical_devs[selected_dev_idx];
 
-  check_device_limits(selected_dev.vk_properties.limits);
   check_device_features(selected_dev.vk_features);
 
-  trace("Selected Device {}", selected_dev_idx);
+  trace("Selected Device {}"_str, selected_dev_idx);
 
-  u32 num_exts;
-  result = vk_table_.EnumerateDeviceExtensionProperties(
-    selected_dev.vk_phy_dev, nullptr, &num_exts, nullptr);
+  u32 num_extensions;
+  result = table_.EnumerateDeviceExtensionProperties(selected_dev.vk, nullptr,
+                                                     &num_extensions, nullptr);
 
   if (result != VK_SUCCESS)
   {
     return Err{(Status) result};
   }
 
-  VkExtensionProperties * exts;
+  Vec<VkExtensionProperties> extensions{scratch_};
 
-  if (!allocator->nalloc(num_exts, exts))
+  if (!extensions.resize_uninit(num_extensions))
   {
     return Err{Status::OutOfHostMemory};
   }
 
-  defer exts_{[&] { allocator->ndealloc(num_exts, exts); }};
-
+  result = table_.EnumerateDeviceExtensionProperties(
+    selected_dev.vk, nullptr, &num_extensions, extensions.data());
+  if (result != VK_SUCCESS)
   {
-    u32 num_read_exts = num_exts;
-    result            = vk_table_.EnumerateDeviceExtensionProperties(
-      selected_dev.vk_phy_dev, nullptr, &num_read_exts, exts);
-    if (result != VK_SUCCESS)
-    {
-      return Err{(Status) result};
-    }
-    CHECK(num_exts == num_read_exts, "");
+    return Err{(Status) result};
   }
+
+  CHECK(num_extensions == extensions.size(), "");
 
   u32 num_layers;
-  result = vk_table_.EnumerateDeviceLayerProperties(selected_dev.vk_phy_dev,
-                                                    &num_layers, nullptr);
+  result = table_.EnumerateDeviceLayerProperties(selected_dev.vk, &num_layers,
+                                                 nullptr);
 
   if (result != VK_SUCCESS)
   {
     return Err{(Status) result};
   }
 
-  VkLayerProperties * layers;
+  Vec<VkLayerProperties> layers{scratch_};
 
-  if (!allocator->nalloc(num_layers, layers))
+  if (!layers.resize_uninit(num_layers))
   {
     return Err{Status::OutOfHostMemory};
   }
 
-  defer layers_{[&] { allocator->ndealloc(num_layers, layers); }};
-
+  result = table_.EnumerateDeviceLayerProperties(selected_dev.vk, &num_layers,
+                                                 layers.data());
+  if (result != VK_SUCCESS)
   {
-    u32 num_read_layers = num_layers;
-    result = vk_table_.EnumerateDeviceLayerProperties(selected_dev.vk_phy_dev,
-                                                      &num_read_layers, layers);
-    if (result != VK_SUCCESS)
-    {
-      return Err{(Status) result};
-    }
-    CHECK(num_read_layers == num_layers, "");
+    return Err{(Status) result};
   }
+
+  CHECK(layers.size() == num_layers, "");
 
   trace("Available Extensions:"_str);
 
-  for (u32 i = 0; i < num_exts; i++)
+  for (auto & ext : extensions)
   {
-    VkExtensionProperties const & ext = exts[i];
     trace("\t\t{} (spec version: {}.{}.{} variant {})"_str,
-          cstr_span(ext.extensionName), VK_API_VERSION_MAJOR(ext.specVersion),
+          cstr(ext.extensionName), VK_API_VERSION_MAJOR(ext.specVersion),
           VK_API_VERSION_MINOR(ext.specVersion),
           VK_API_VERSION_PATCH(ext.specVersion),
           VK_API_VERSION_VARIANT(ext.specVersion));
@@ -2014,13 +2094,11 @@ Result<gpu::Device, Status>
 
   trace("Available Layers:");
 
-  for (u32 i = 0; i < num_layers; i++)
+  for (auto & layer : layers)
   {
-    VkLayerProperties const & layer = layers[i];
-
     trace("\t\t{} (spec version: {}.{}.{} variant {}, implementation version: "
           "{}.{}.{} variant {})"_str,
-          cstr_span(layer.layerName), VK_API_VERSION_MAJOR(layer.specVersion),
+          cstr(layer.layerName), VK_API_VERSION_MAJOR(layer.specVersion),
           VK_API_VERSION_MINOR(layer.specVersion),
           VK_API_VERSION_PATCH(layer.specVersion),
           VK_API_VERSION_VARIANT(layer.specVersion),
@@ -2030,82 +2108,92 @@ Result<gpu::Device, Status>
           VK_API_VERSION_VARIANT(layer.implementationVersion));
   }
 
-  constexpr char const * required_exts[] = {
-    VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-    VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
-    VK_EXT_EXTENDED_DYNAMIC_STATE_EXTENSION_NAME,
-    VK_KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME,
-    VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
-    VK_KHR_CREATE_RENDERPASS_2_EXTENSION_NAME};
-  bool required_ext_found[size(required_exts)] = {};
-  bool has_debug_marker_ext                    = false;
-  bool has_portability_ext                     = false;
+  Vec<Str> required_extensions{scratch_};
 
-  for (u32 i = 0; i < num_exts; i++)
+  required_extensions
+    .extend(span<Str>({cstr(VK_KHR_SWAPCHAIN_EXTENSION_NAME),
+                       cstr(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME),
+                       cstr(VK_EXT_EXTENDED_DYNAMIC_STATE_EXTENSION_NAME),
+                       cstr(VK_KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME),
+                       cstr(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME),
+                       cstr(VK_KHR_CREATE_RENDERPASS_2_EXTENSION_NAME)}))
+    .unwrap();
+
+  Vec<Str> optional_extensions{scratch_};
+
+  optional_extensions
+    .extend(span<Str>({cstr(VK_EXT_DEBUG_MARKER_EXTENSION_NAME),
+                       cstr(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME)}))
+    .unwrap();
+
+  Vec<Str> load_extensions{scratch_};
+
+  for (auto ext : required_extensions)
   {
-    for (u32 ireq = 0; ireq < size(required_exts); ireq++)
-    {
-      if (strcmp(required_exts[ireq], exts[i].extensionName) == 0)
-      {
-        required_ext_found[ireq] = true;
-      }
-    }
-    if (strcmp(VK_EXT_DEBUG_MARKER_EXTENSION_NAME, exts[i].extensionName) == 0)
-    {
-      has_debug_marker_ext = true;
-    }
-    else if (strcmp("VK_KHR_portability_subset", exts[i].extensionName) == 0)
-    {
-      has_portability_ext = true;
-    }
+    CHECK(
+      !find(extensions.view(), ext,
+            [](auto a, auto b) { return mem::eq(cstr(a.extensionName), b); })
+         .is_empty(),
+      "Required Vulkan "
+      "Device Extension: {}  is not supported on instance",
+      ext);
+    load_extensions.push(ext).unwrap();
   }
 
-  char const * load_exts[16];
-  u32          num_load_exts = 0;
-
-  // optional, stubbed
-  if (has_debug_marker_ext)
+  for (auto ext : optional_extensions)
   {
-    load_exts[num_load_exts] = VK_EXT_DEBUG_MARKER_EXTENSION_NAME;
-    num_load_exts++;
-  }
-
-  if (has_portability_ext)
-  {
-    load_exts[num_load_exts++] = "VK_KHR_portability_subset";
-  }
-
-  // required
-  for (u32 i = 0; i < size(required_exts); i++)
-  {
-    if (!required_ext_found[i])
+    if (find(extensions.view(), ext, [](auto a, auto b) {
+          return mem::eq(cstr(a.extensionName), b);
+        }).is_empty())
     {
-      trace("Required Extension: {} is not present", required_exts[i]);
-      return Err{Status::ExtensionNotPresent};
+      trace("Optional Device Extension: {} is not supported"_str, ext);
     }
-
-    load_exts[num_load_exts] = required_exts[i];
-    num_load_exts++;
-  }
-
-  bool has_validation_layer = false;
-
-  for (u32 i = 0; i < num_layers; i++)
-  {
-    if (strcmp(layers[i].layerName, "VK_LAYER_KHRONOS_validation") == 0)
+    else
     {
-      has_validation_layer = true;
-      break;
+      load_extensions.push(ext).unwrap();
     }
   }
 
-  char const * load_layers[8];
-  u32          num_load_layers = 0;
+  auto has_debug_marker_ext =
+    !find(load_extensions.view(), cstr(VK_EXT_DEBUG_MARKER_EXTENSION_NAME),
+          str_eq)
+       .is_empty();
 
-  // optional
-  if (vk_debug_messenger_ != nullptr && has_validation_layer)
+  Vec<Str> optional_layers{scratch_};
+
+  if (vk_debug_messenger_ != nullptr)
   {
-    load_layers[num_load_layers++] = "VK_LAYER_KHRONOS_validation";
+    optional_layers.push(DEBUG_LAYER_EXTENSION_NAME).unwrap();
+  }
+
+  Vec<Str> load_layers{scratch_};
+
+  for (auto layer : optional_layers)
+  {
+    if (find(layers.view(), layer, [](auto a, auto b) {
+          return mem::eq(cstr(a.layerName), b);
+        }).is_empty())
+    {
+      trace("Optional Device Layer: {} is not supported"_str, layer);
+    }
+    else
+    {
+      load_layers.push(layer).unwrap();
+    }
+  }
+
+  Vec<char const *> load_extensions_c{scratch_};
+
+  for (auto l : load_extensions)
+  {
+    load_extensions_c.push(l.data()).unwrap();
+  }
+
+  Vec<char const *> load_layers_c{scratch_};
+
+  for (auto l : load_layers)
+  {
+    load_layers_c.push(l.data()).unwrap();
   }
 
   f32 const queue_priority = 1.0F;
@@ -2119,33 +2207,34 @@ Result<gpu::Device, Status>
     .pQueuePriorities = &queue_priority};
 
   VkPhysicalDeviceFeatures features{
-    .robustBufferAccess             = VK_FALSE,
-    .fullDrawIndexUint32            = VK_FALSE,
-    .imageCubeArray                 = VK_TRUE,
-    .independentBlend               = VK_FALSE,
-    .geometryShader                 = VK_FALSE,
-    .tessellationShader             = VK_FALSE,
-    .sampleRateShading              = VK_FALSE,
-    .dualSrcBlend                   = VK_FALSE,
-    .logicOp                        = VK_FALSE,
-    .multiDrawIndirect              = VK_TRUE,
-    .drawIndirectFirstInstance      = VK_TRUE,
-    .depthClamp                     = VK_FALSE,
-    .depthBiasClamp                 = VK_FALSE,
-    .fillModeNonSolid               = selected_dev.vk_features.fillModeNonSolid,
-    .depthBounds                    = VK_FALSE,
-    .wideLines                      = VK_FALSE,
-    .largePoints                    = VK_FALSE,
-    .alphaToOne                     = VK_FALSE,
-    .multiViewport                  = VK_FALSE,
-    .samplerAnisotropy              = VK_TRUE,
-    .textureCompressionETC2         = VK_FALSE,
-    .textureCompressionASTC_LDR     = VK_FALSE,
-    .textureCompressionBC           = VK_FALSE,
-    .occlusionQueryPrecise          = VK_FALSE,
-    .pipelineStatisticsQuery        = VK_TRUE,
-    .vertexPipelineStoresAndAtomics = VK_FALSE,
-    .fragmentStoresAndAtomics       = VK_TRUE,
+    .robustBufferAccess        = VK_FALSE,
+    .fullDrawIndexUint32       = VK_FALSE,
+    .imageCubeArray            = VK_TRUE,
+    .independentBlend          = VK_TRUE,
+    .geometryShader            = selected_dev.vk_features.geometryShader,
+    .tessellationShader        = selected_dev.vk_features.tessellationShader,
+    .sampleRateShading         = VK_FALSE,
+    .dualSrcBlend              = VK_TRUE,
+    .logicOp                   = VK_FALSE,
+    .multiDrawIndirect         = VK_TRUE,
+    .drawIndirectFirstInstance = VK_TRUE,
+    .depthClamp                = VK_TRUE,
+    .depthBiasClamp            = VK_TRUE,
+    .fillModeNonSolid          = selected_dev.vk_features.fillModeNonSolid,
+    .depthBounds               = selected_dev.vk_features.depthBounds,
+    .wideLines                 = selected_dev.vk_features.wideLines,
+    .largePoints               = selected_dev.vk_features.largePoints,
+    .alphaToOne                = selected_dev.vk_features.alphaToOne,
+    .multiViewport             = selected_dev.vk_features.multiViewport,
+    .samplerAnisotropy         = VK_TRUE,
+    .textureCompressionETC2 = selected_dev.vk_features.textureCompressionETC2,
+    .textureCompressionASTC_LDR =
+      selected_dev.vk_features.textureCompressionASTC_LDR,
+    .textureCompressionBC    = selected_dev.vk_features.textureCompressionBC,
+    .occlusionQueryPrecise   = VK_FALSE,
+    .pipelineStatisticsQuery = VK_TRUE,
+    .vertexPipelineStoresAndAtomics          = VK_FALSE,
+    .fragmentStoresAndAtomics                = VK_TRUE,
     .shaderTessellationAndGeometryPointSize  = VK_FALSE,
     .shaderImageGatherExtended               = VK_FALSE,
     .shaderStorageImageExtendedFormats       = VK_FALSE,
@@ -2211,20 +2300,20 @@ Result<gpu::Device, Status>
     .descriptorBindingVariableDescriptorCount           = VK_TRUE,
     .runtimeDescriptorArray                             = VK_TRUE};
 
-  VkDeviceCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-                                 .pNext = &descriptor_indexing_features,
-                                 .flags = 0,
-                                 .queueCreateInfoCount    = 1,
-                                 .pQueueCreateInfos       = &queue_create_info,
-                                 .enabledLayerCount       = num_load_layers,
-                                 .ppEnabledLayerNames     = load_layers,
-                                 .enabledExtensionCount   = num_load_exts,
-                                 .ppEnabledExtensionNames = load_exts,
-                                 .pEnabledFeatures        = &features};
+  VkDeviceCreateInfo create_info{
+    .sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+    .pNext                   = &descriptor_indexing_features,
+    .flags                   = 0,
+    .queueCreateInfoCount    = 1,
+    .pQueueCreateInfos       = &queue_create_info,
+    .enabledLayerCount       = size32(load_layers_c),
+    .ppEnabledLayerNames     = load_layers_c.data(),
+    .enabledExtensionCount   = size32(load_extensions_c),
+    .ppEnabledExtensionNames = load_extensions_c.data(),
+    .pEnabledFeatures        = &features};
 
   VkDevice vk_dev;
-  result = vk_table_.CreateDevice(selected_dev.vk_phy_dev, &create_info,
-                                  nullptr, &vk_dev);
+  result = table_.CreateDevice(selected_dev.vk, &create_info, nullptr, &vk_dev);
 
   if (result != VK_SUCCESS)
   {
@@ -2233,11 +2322,10 @@ Result<gpu::Device, Status>
 
   DeviceTable        vk_dev_table;
   VmaVulkanFunctions vma_table;
-  CHECK(
-    load_device_table(vk_dev, vk_table_, vk_dev_table, has_debug_marker_ext),
-    "");
+  CHECK(load_device_table(vk_dev, table_, vk_dev_table, has_debug_marker_ext),
+        "");
 
-  load_vma_table(vk_table_, vk_dev_table, vma_table);
+  load_vma_table(table_, vk_dev_table, vma_table);
 
   defer vk_dev_{[&] {
     if (vk_dev != nullptr)
@@ -2251,14 +2339,14 @@ Result<gpu::Device, Status>
 
   VmaAllocatorCreateInfo vma_create_info{
     .flags          = VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT,
-    .physicalDevice = selected_dev.vk_phy_dev,
+    .physicalDevice = selected_dev.vk,
     .device         = vk_dev,
     .preferredLargeHeapBlockSize    = 0,
     .pAllocationCallbacks           = nullptr,
     .pDeviceMemoryCallbacks         = nullptr,
     .pHeapSizeLimit                 = nullptr,
     .pVulkanFunctions               = &vma_table,
-    .instance                       = vk_instance_,
+    .instance                       = vk_,
     .vulkanApiVersion               = VK_API_VERSION_1_0,
     .pTypeExternalMemoryHandleTypes = nullptr};
 
@@ -2277,32 +2365,36 @@ Result<gpu::Device, Status>
     }
   }};
 
-  Device * dev;
+  IDevice * dev;
 
   if (!allocator->nalloc(1, dev))
   {
     return Err{Status::OutOfHostMemory};
   }
 
-  new (dev) Device{allocator,    this,   selected_dev,          vk_dev_table,
-                   vma_table,    vk_dev, selected_queue_family, vk_queue,
-                   vma_allocator};
+  new (dev) IDevice{allocator,    *this,  selected_dev,          vk_dev_table,
+                    vma_table,    vk_dev, selected_queue_family, vk_queue,
+                    vma_allocator};
 
   vma_allocator = nullptr;
   vk_dev        = nullptr;
   dev           = nullptr;
 
+  auto queue_label = "CommandQueue 0"_str;
+  dev->set_resource_name(queue_label, dev->vk_queue_, VK_OBJECT_TYPE_QUEUE,
+                         VK_DEBUG_REPORT_OBJECT_TYPE_QUEUE_EXT, scratch_);
+
   return Ok<gpu::Device>{dev};
 }
 
-gpu::Backend Instance::get_backend()
+gpu::Backend IInstance::get_backend()
 {
   return gpu::Backend::Vulkan;
 }
 
-void Instance::uninit(gpu::Device device_)
+void IInstance::uninit(gpu::Device device_)
 {
-  auto * dev = (Device *) device_;
+  auto * dev = (Device) device_;
 
   if (dev == nullptr)
   {
@@ -2313,16 +2405,17 @@ void Instance::uninit(gpu::Device device_)
   allocator_->ndealloc(1, dev);
 }
 
-void Instance::uninit(gpu::Surface surface)
+void IInstance::uninit(gpu::Surface surface)
 {
-  vk_table_.DestroySurfaceKHR(vk_instance_, (Surface) surface, nullptr);
+  table_.DestroySurfaceKHR(vk_, (Surface) surface, nullptr);
 }
 
-void Device::set_resource_name(Str label, void const * resource,
-                               VkObjectType               type,
-                               VkDebugReportObjectTypeEXT debug_type)
+void IDevice::set_resource_name(Str label, void const * resource,
+                                VkObjectType               type,
+                                VkDebugReportObjectTypeEXT debug_type,
+                                Allocator                  scratch)
 {
-  SmallVec<char, 512> label_c_str{allocator_};
+  Vec<char> label_c_str{scratch};
 
   label_c_str.extend(label).unwrap();
   label_c_str.push('\0').unwrap();
@@ -2334,7 +2427,7 @@ void Device::set_resource_name(Str label, void const * resource,
     .objectHandle = (u64) resource,
     .pObjectName  = label_c_str.data()};
 
-  instance_->vk_table_.SetDebugUtilsObjectNameEXT(vk_dev_, &name_info);
+  instance_->table_.SetDebugUtilsObjectNameEXT(vk_dev_, &name_info);
   VkDebugMarkerObjectNameInfoEXT debug_info{
     .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,
     .pNext       = nullptr,
@@ -2342,18 +2435,17 @@ void Device::set_resource_name(Str label, void const * resource,
     .object      = (u64) resource,
     .pObjectName = label_c_str.data()};
 
-  vk_table_.DebugMarkerSetObjectNameEXT(vk_dev_, &debug_info);
+  table_.DebugMarkerSetObjectNameEXT(vk_dev_, &debug_info);
 }
 
-gpu::DeviceProperties Device::get_properties()
+gpu::DeviceProperties IDevice::get_properties()
 {
-  VkPhysicalDeviceFeatures const &   vk_features   = phy_dev_.vk_features;
-  VkPhysicalDeviceProperties const & vk_properties = phy_dev_.vk_properties;
+  VkPhysicalDeviceProperties const & vk_properties = phy_.vk_properties;
 
   bool has_uma = false;
-  for (u32 i = 0; i < phy_dev_.vk_memory_properties.memoryTypeCount; i++)
+  for (u32 i = 0; i < phy_.vk_memory_properties.memoryTypeCount; i++)
   {
-    if (has_bits(phy_dev_.vk_memory_properties.memoryTypes[i].propertyFlags,
+    if (has_bits(phy_.vk_memory_properties.memoryTypes[i].propertyFlags,
                  (VkMemoryPropertyFlags) (VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
                                           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)))
     {
@@ -2362,46 +2454,123 @@ gpu::DeviceProperties Device::get_properties()
     }
   }
 
-  gpu::DeviceProperties properties{
-    .api_version             = vk_properties.apiVersion,
-    .driver_version          = vk_properties.driverVersion,
-    .vendor_id               = vk_properties.vendorID,
-    .device_id               = vk_properties.deviceID,
-    .device_name             = cstr_span(vk_properties.deviceName),
-    .type                    = (gpu::DeviceType) vk_properties.deviceType,
-    .has_unified_memory      = has_uma,
-    .has_non_solid_fill_mode = (vk_features.fillModeNonSolid == VK_TRUE),
-    .timestamp_period        = vk_properties.limits.timestampPeriod,
-    .max_compute_work_group_invocations =
-      vk_properties.limits.maxComputeWorkGroupInvocations,
-    .max_compute_shared_memory_size =
-      vk_properties.limits.maxComputeSharedMemorySize};
+  auto & vklimit = phy_.vk_properties.limits;
 
-  mem::copy(Span{vk_properties.limits.maxComputeWorkGroupCount, 3},
-            properties.max_compute_work_group_count);
-  mem::copy(Span{vk_properties.limits.maxComputeWorkGroupSize, 3},
-            properties.max_compute_work_group_size);
+  gpu::DeviceLimits limits{
+    .image_extent_1d           = vklimit.maxImageDimension1D,
+    .image_extent_2d           = vklimit.maxImageDimension2D,
+    .image_extent_3d           = vklimit.maxImageDimension3D,
+    .image_extent_cube         = vklimit.maxImageDimensionCube,
+    .image_array_layers        = vklimit.maxImageArrayLayers,
+    .uniform_buffer_range      = vklimit.maxUniformBufferRange,
+    .storage_buffer_range      = vklimit.maxStorageBufferRange,
+    .push_constants_size       = vklimit.maxPushConstantsSize,
+    .bound_descriptor_sets     = vklimit.maxBoundDescriptorSets,
+    .per_stage_samplers        = vklimit.maxPerStageDescriptorSamplers,
+    .per_stage_uniform_buffers = vklimit.maxPerStageDescriptorUniformBuffers,
+    .per_stage_storage_buffers = vklimit.maxPerStageDescriptorStorageBuffers,
+    .per_stage_sampled_images  = vklimit.maxPerStageDescriptorSampledImages,
+    .per_stage_storage_images  = vklimit.maxPerStageDescriptorStorageImages,
+    .per_stage_input_attachments =
+      vklimit.maxPerStageDescriptorInputAttachments,
+    .per_stage_resources            = vklimit.maxPerStageResources,
+    .descriptor_set_samplers        = vklimit.maxDescriptorSetSamplers,
+    .descriptor_set_uniform_buffers = vklimit.maxDescriptorSetUniformBuffers,
+    .descriptor_set_uniform_buffers_dynamic =
+      vklimit.maxDescriptorSetUniformBuffersDynamic,
+    .descriptor_set_storage_buffers = vklimit.maxDescriptorSetStorageBuffers,
+    .descriptor_set_storage_buffers_dynamic =
+      vklimit.maxDescriptorSetStorageBuffersDynamic,
+    .descriptor_set_sampled_images = vklimit.maxDescriptorSetSampledImages,
+    .descriptor_set_storage_images = vklimit.maxDescriptorSetStorageImages,
+    .descriptor_set_input_attachments =
+      vklimit.maxDescriptorSetInputAttachments,
+    .compute_work_group_invocations  = vklimit.maxComputeWorkGroupInvocations,
+    .compute_shared_memory_size      = vklimit.maxComputeSharedMemorySize,
+    .compute_work_groups             = {vklimit.maxComputeWorkGroupCount[0],
+                                        vklimit.maxComputeWorkGroupCount[1],
+                                        vklimit.maxComputeWorkGroupCount[2]},
+    .compute_work_group_size         = {vklimit.maxComputeWorkGroupSize[0],
+                                        vklimit.maxComputeWorkGroupSize[1],
+                                        vklimit.maxComputeWorkGroupSize[2]},
+    .draw_indirect                   = vklimit.maxDrawIndirectCount,
+    .sampler_lod                     = vklimit.maxSamplerLodBias,
+    .sampler_anisotropy              = vklimit.maxSamplerAnisotropy,
+    .viewports                       = vklimit.maxViewports,
+    .viewport_extent                 = {vklimit.maxViewportDimensions[0],
+                                        vklimit.maxViewportDimensions[1]},
+    .uniform_buffer_offset_alignment = vklimit.minUniformBufferOffsetAlignment,
+    .texel_buffer_offset_alignment   = vklimit.minTexelBufferOffsetAlignment,
+    .storage_buffer_offset_alignment = vklimit.minStorageBufferOffsetAlignment,
+    .framebuffer_extent              = {vklimit.maxFramebufferWidth,
+                                        vklimit.maxFramebufferHeight},
+    .framebuffer_layers              = vklimit.maxFramebufferLayers,
+    .framebuffer_color_samples       = vklimit.framebufferColorSampleCounts,
+    .framebuffer_depth_samples       = vklimit.framebufferDepthSampleCounts,
+    .framebuffer_stencil_samples     = vklimit.framebufferStencilSampleCounts,
+    .sampled_image_color_samples     = vklimit.sampledImageColorSampleCounts,
+    .sampled_image_depth_samples     = vklimit.sampledImageDepthSampleCounts,
+    .sampled_image_stencil_samples   = vklimit.sampledImageStencilSampleCounts,
+    .storage_image_sample_samples    = vklimit.storageImageSampleCounts
+  };
+
+  auto & vkfeat = phy_.vk_features;
+
+  gpu::DeviceFeatures features{
+    .geometry_shader          = vkfeat.geometryShader == VK_TRUE,
+    .tessellation_shader      = vkfeat.tessellationShader == VK_TRUE,
+    .depth_bounds             = vkfeat.depthBounds == VK_TRUE,
+    .wide_lines               = vkfeat.wideLines == VK_TRUE,
+    .large_points             = vkfeat.largePoints == VK_TRUE,
+    .alpha_to_one             = vkfeat.alphaToOne == VK_TRUE,
+    .multi_viewport           = vkfeat.multiViewport == VK_TRUE,
+    .texture_compression_etc2 = vkfeat.textureCompressionETC2 == VK_TRUE,
+    .texture_compression_astc_ldr =
+      vkfeat.textureCompressionASTC_LDR == VK_TRUE,
+    .texture_compression_bc = vkfeat.textureCompressionBC == VK_TRUE,
+    .shader_float64         = vkfeat.shaderFloat64 == VK_TRUE,
+    .shader_int64           = vkfeat.shaderInt64 == VK_TRUE,
+    .shader_int16           = vkfeat.shaderInt16 == VK_TRUE,
+  };
+
+  gpu::DeviceProperties properties{
+    .api_version        = vk_properties.apiVersion,
+    .driver_version     = vk_properties.driverVersion,
+    .vendor_id          = vk_properties.vendorID,
+    .device_id          = vk_properties.deviceID,
+    .device_name        = cstr(vk_properties.deviceName),
+    .type               = (gpu::DeviceType) vk_properties.deviceType,
+    .has_unified_memory = has_uma,
+    .timestamp_period   = vk_properties.limits.timestampPeriod,
+    .features           = features,
+    .limits             = limits};
 
   return properties;
 }
 
 Result<gpu::FormatProperties, Status>
-  Device::get_format_properties(gpu::Format format)
+  IDevice::get_format_properties(gpu::Format format)
 {
-  VkFormatProperties props;
-  instance_->vk_table_.GetPhysicalDeviceFormatProperties(
-    phy_dev_.vk_phy_dev, (VkFormat) format, &props);
+  VkFormatProperties2KHR props{.sType =
+                                 VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2_KHR,
+                               .pNext            = nullptr,
+                               .formatProperties = {}};
+  instance_->table_.GetPhysicalDeviceFormatProperties2KHR(
+    phy_.vk, (VkFormat) format, &props);
   return Ok(gpu::FormatProperties{
-    .linear_tiling_features = (gpu::FormatFeatures) props.linearTilingFeatures,
+    .linear_tiling_features =
+      (gpu::FormatFeatures) props.formatProperties.linearTilingFeatures,
     .optimal_tiling_features =
-      (gpu::FormatFeatures) props.optimalTilingFeatures,
-    .buffer_features = (gpu::FormatFeatures) props.bufferFeatures});
+      (gpu::FormatFeatures) props.formatProperties.optimalTilingFeatures,
+    .buffer_features =
+      (gpu::FormatFeatures) props.formatProperties.bufferFeatures});
 }
 
-Result<gpu::Buffer, Status> Device::create_buffer(gpu::BufferInfo const & info)
+Result<gpu::Buffer, Status> IDevice::create_buffer(gpu::BufferInfo const & info)
 {
   CHECK(info.size != 0, "");
   CHECK(info.usage != gpu::BufferUsage::None, "");
+  SCRATCH_ALLOCATOR(allocator_);
 
   VkBufferCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
                                  .pNext = nullptr,
@@ -2414,7 +2583,7 @@ Result<gpu::Buffer, Status> Device::create_buffer(gpu::BufferInfo const & info)
 
   VkBuffer vk;
 
-  auto result = vk_table_.CreateBuffer(vk_dev_, &create_info, nullptr, &vk);
+  auto result = table_.CreateBuffer(vk_dev_, &create_info, nullptr, &vk);
 
   if (result != VK_SUCCESS)
   {
@@ -2422,34 +2591,32 @@ Result<gpu::Buffer, Status> Device::create_buffer(gpu::BufferInfo const & info)
   }
 
   set_resource_name(info.label, vk, VK_OBJECT_TYPE_BUFFER,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT);
+                    VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT, scratch_);
 
-  Buffer * buffer;
+  IBuffer * buffer;
+
   if (!allocator_->nalloc(1, buffer))
   {
-    vk_table_.DestroyBuffer(vk_dev_, vk, nullptr);
+    table_.DestroyBuffer(vk_dev_, vk, nullptr);
     return Err{Status::OutOfHostMemory};
   }
 
-  new (buffer) Buffer{
+  new (buffer) IBuffer{
     .vk             = vk,
     .usage          = info.usage,
     .host_mapped    = info.host_mapped,
     .size           = info.size,
-    .memory         = MemoryInfo{.memory_group = nullptr,
-                                 .alias        = 0,
-                                 .element      = 0,
-                                 .type         = gpu::MemoryType::Unique},
+    .memory         = MemoryInfo{.alias   = nullptr,
+                                 .element = 0,
+                                 .type    = gpu::MemoryType::Unique},
     .bind_locations = BindLocations{allocator_}
   };
 
   if (info.memory_type == gpu::MemoryType::Unique)
   {
     Enum<gpu::Buffer, gpu::Image> const resources[] = {(gpu::Buffer) buffer};
-    u32 const                           aliases[]   = {0, 1};
 
-    auto status = create_memory_group(
-      gpu::MemoryGroupInfo{.resources = resources, .aliases = aliases});
+    auto status = create_alias(gpu::AliasInfo{.resources = resources});
 
     if (!status)
     {
@@ -2462,9 +2629,11 @@ Result<gpu::Buffer, Status> Device::create_buffer(gpu::BufferInfo const & info)
 }
 
 Result<gpu::BufferView, Status>
-  Device::create_buffer_view(gpu::BufferViewInfo const & info)
+  IDevice::create_buffer_view(gpu::BufferViewInfo const & info)
 {
-  auto * buffer = (Buffer *) info.buffer;
+  SCRATCH_ALLOCATOR(allocator_);
+
+  auto * buffer = (Buffer) info.buffer;
 
   CHECK(buffer != nullptr, "");
   CHECK(has_any_bit(buffer->usage, gpu::BufferUsage::UniformTexelBuffer |
@@ -2486,33 +2655,35 @@ Result<gpu::BufferView, Status>
 
   VkBufferView vk;
 
-  auto result = vk_table_.CreateBufferView(vk_dev_, &create_info, nullptr, &vk);
+  auto result = table_.CreateBufferView(vk_dev_, &create_info, nullptr, &vk);
   if (result != VK_SUCCESS)
   {
     return Err{(Status) result};
   }
 
   set_resource_name(info.label, vk, VK_OBJECT_TYPE_BUFFER_VIEW,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_VIEW_EXT);
+                    VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_VIEW_EXT, scratch_);
 
-  BufferView * view;
+  IBufferView * view;
 
   if (!allocator_->nalloc(1, view))
   {
-    vk_table_.DestroyBufferView(vk_dev_, vk, nullptr);
+    table_.DestroyBufferView(vk_dev_, vk, nullptr);
     return Err{Status::OutOfHostMemory};
   }
 
-  new (view) BufferView{.vk             = vk,
-                        .buffer         = buffer,
-                        .slice          = slice,
-                        .bind_locations = BindLocations{allocator_}};
+  new (view) IBufferView{.vk             = vk,
+                         .buffer         = buffer,
+                         .slice          = slice,
+                         .bind_locations = BindLocations{allocator_}};
 
   return Ok{(gpu::BufferView) view};
 }
 
-Result<gpu::Image, Status> Device::create_image(gpu::ImageInfo const & info)
+Result<gpu::Image, Status> IDevice::create_image(gpu::ImageInfo const & info)
 {
+  SCRATCH_ALLOCATOR(allocator_);
+
   CHECK(info.format != gpu::Format::Undefined, "");
   CHECK(info.usage != gpu::ImageUsage::None, "");
   CHECK(info.aspects != gpu::ImageAspects::None, "");
@@ -2521,26 +2692,32 @@ Result<gpu::Image, Status> Device::create_image(gpu::ImageInfo const & info)
   CHECK(info.mip_levels > 0, "");
   CHECK(info.mip_levels <= info.extent.mips(), "");
   CHECK(info.array_layers > 0, "");
-  CHECK(info.array_layers <= gpu::MAX_IMAGE_ARRAY_LAYERS, "");
+  CHECK(info.array_layers <= phy_.vk_properties.limits.maxImageArrayLayers, "");
 
   switch (info.type)
   {
     case gpu::ImageType::Type1D:
-      CHECK(info.extent.x() <= gpu::MAX_IMAGE_EXTENT_1D, "");
+      CHECK(info.extent.x() <= phy_.vk_properties.limits.maxImageDimension1D,
+            "");
       CHECK(info.extent.y() == 1, "");
       CHECK(info.extent.z() == 1, "");
       break;
 
     case gpu::ImageType::Type2D:
-      CHECK(info.extent.x() <= gpu::MAX_IMAGE_EXTENT_2D, "");
-      CHECK(info.extent.y() <= gpu::MAX_IMAGE_EXTENT_2D, "");
+      CHECK(info.extent.x() <= phy_.vk_properties.limits.maxImageDimension2D,
+            "");
+      CHECK(info.extent.y() <= phy_.vk_properties.limits.maxImageDimension2D,
+            "");
       CHECK(info.extent.z() == 1, "");
       break;
 
     case gpu::ImageType::Type3D:
-      CHECK(info.extent.x() <= gpu::MAX_IMAGE_EXTENT_3D, "");
-      CHECK(info.extent.y() <= gpu::MAX_IMAGE_EXTENT_3D, "");
-      CHECK(info.extent.z() <= gpu::MAX_IMAGE_EXTENT_3D, "");
+      CHECK(info.extent.x() <= phy_.vk_properties.limits.maxImageDimension3D,
+            "");
+      CHECK(info.extent.y() <= phy_.vk_properties.limits.maxImageDimension3D,
+            "");
+      CHECK(info.extent.z() <= phy_.vk_properties.limits.maxImageDimension3D,
+            "");
       break;
 
     default:
@@ -2569,7 +2746,7 @@ Result<gpu::Image, Status> Device::create_image(gpu::ImageInfo const & info)
 
   VkImage vk;
 
-  auto result = vk_table_.CreateImage(vk_dev_, &create_info, nullptr, &vk);
+  auto result = table_.CreateImage(vk_dev_, &create_info, nullptr, &vk);
 
   if (result != VK_SUCCESS)
   {
@@ -2577,17 +2754,17 @@ Result<gpu::Image, Status> Device::create_image(gpu::ImageInfo const & info)
   }
 
   set_resource_name(info.label, vk, VK_OBJECT_TYPE_IMAGE,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT);
+                    VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT, scratch_);
 
-  Image * image;
+  IImage * image;
 
   if (!allocator_->nalloc(1, image))
   {
-    vk_table_.DestroyImage(vk_dev_, vk, nullptr);
+    table_.DestroyImage(vk_dev_, vk, nullptr);
     return Err{Status::OutOfHostMemory};
   }
 
-  new (image) Image{
+  new (image) IImage{
     .vk                 = vk,
     .type               = info.type,
     .usage              = info.usage,
@@ -2597,19 +2774,15 @@ Result<gpu::Image, Status> Device::create_image(gpu::ImageInfo const & info)
     .mip_levels         = info.mip_levels,
     .array_layers       = info.array_layers,
     .is_swapchain_image = false,
-    .memory             = MemoryInfo{.memory_group = nullptr,
-                                     .alias        = 0,
-                                     .element      = 0,
-                                     .type         = info.memory_type}
+    .memory =
+      MemoryInfo{.alias = nullptr, .element = 0, .type = info.memory_type}
   };
 
   if (info.memory_type == gpu::MemoryType::Unique)
   {
     Enum<gpu::Buffer, gpu::Image> const resources[] = {(gpu::Image) image};
-    u32 const                           aliases[]   = {0, 1};
 
-    auto status = create_memory_group(
-      gpu::MemoryGroupInfo{.resources = resources, .aliases = aliases});
+    auto status = create_alias(gpu::AliasInfo{.resources = resources});
 
     if (!status)
     {
@@ -2622,9 +2795,11 @@ Result<gpu::Image, Status> Device::create_image(gpu::ImageInfo const & info)
 }
 
 Result<gpu::ImageView, Status>
-  Device::create_image_view(gpu::ImageViewInfo const & info)
+  IDevice::create_image_view(gpu::ImageViewInfo const & info)
 {
-  auto * src_image = (Image *) info.image;
+  SCRATCH_ALLOCATOR(allocator_);
+
+  auto * src_image = (Image) info.image;
 
   CHECK(info.image != nullptr, "");
   CHECK(info.view_format != gpu::Format::Undefined, "");
@@ -2657,113 +2832,75 @@ Result<gpu::ImageView, Status>
   };
 
   VkImageView vk;
-  auto result = vk_table_.CreateImageView(vk_dev_, &create_info, nullptr, &vk);
+  auto result = table_.CreateImageView(vk_dev_, &create_info, nullptr, &vk);
   if (result != VK_SUCCESS)
   {
     return Err{(Status) result};
   }
 
   set_resource_name(info.label, vk, VK_OBJECT_TYPE_IMAGE_VIEW,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_VIEW_EXT);
+                    VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_VIEW_EXT, scratch_);
 
-  ImageView * view;
+  IImageView * view;
+
   if (!allocator_->nalloc(1, view))
   {
-    vk_table_.DestroyImageView(vk_dev_, vk, nullptr);
+    table_.DestroyImageView(vk_dev_, vk, nullptr);
     return Err{Status::OutOfHostMemory};
   }
 
-  new (view) ImageView{.vk             = vk,
-                       .image          = src_image,
-                       .format         = info.view_format,
-                       .mip_levels     = mip_levels,
-                       .array_layers   = array_layers,
-                       .bind_locations = BindLocations{allocator_}};
+  new (view) IImageView{.vk             = vk,
+                        .image          = src_image,
+                        .format         = info.view_format,
+                        .mip_levels     = mip_levels,
+                        .array_layers   = array_layers,
+                        .bind_locations = BindLocations{allocator_}};
 
   return Ok{(gpu::ImageView) view};
 }
 
-Result<gpu::MemoryGroup, Status>
-  Device::create_memory_group(gpu::MemoryGroupInfo const & info)
+Result<gpu::Alias, Status> IDevice::create_alias(gpu::AliasInfo const & info)
 {
-  CHECK(info.aliases.size() > 1, "");
-  auto num_aliases = size32(info.aliases) - 1;
+  CHECK(!info.resources.is_empty(), "");
 
-  auto min_alias_offset_alignment =
-    max(phy_dev_.vk_properties.limits.bufferImageGranularity,
-        phy_dev_.vk_properties.limits.nonCoherentAtomSize,
-        phy_dev_.vk_properties.limits.minMemoryMapAlignment,
-        phy_dev_.vk_properties.limits.minStorageBufferOffsetAlignment,
-        phy_dev_.vk_properties.limits.minTexelBufferOffsetAlignment,
-        phy_dev_.vk_properties.limits.minUniformBufferOffsetAlignment);
-
-  for (auto i : range(num_aliases))
+  for (auto & resource : info.resources)
   {
-    auto alias_begin = info.aliases[i];
-    auto alias_end   = info.aliases[i + 1];
-
-    for (auto & resource :
-         info.resources.slice(Slice::range(alias_begin, alias_end)))
-    {
-      resource.match(
-        [&](gpu::Buffer p) {
-          auto buffer = (Buffer *) p;
-          CHECK(buffer->memory.memory_group == nullptr, "");
-        },
-        [&](gpu::Image p) {
-          auto image = (Image *) p;
-          CHECK(image->memory.memory_group == nullptr, "");
-        });
-    }
+    resource.match(
+      [&](gpu::Buffer p) {
+        auto buffer = (Buffer) p;
+        CHECK(buffer->memory.alias == nullptr, "");
+      },
+      [&](gpu::Image p) {
+        auto image = (Image) p;
+        CHECK(image->memory.alias == nullptr, "");
+      });
   }
 
-  Layout64 group_layout{};
-  u32      group_memory_type_bits = 0;
-  bool     host_mapped            = false;
+  Layout64 layout{};
+  u32      memory_type_bits = 0;
+  auto     host_mapped      = false;
 
-  SmallVec<u64> alias_offsets{allocator_};
-
-  alias_offsets.push((u64) 0).unwrap();
-
-  for (auto i : range(num_aliases))
+  for (auto & resource : info.resources)
   {
-    Layout64 alias_layout{};
-    u32      alias_memory_type_bits = 0;
+    VkMemoryRequirements req{};
+    resource.match(
+      [&](gpu::Buffer p) {
+        auto buffer = ptr(p);
+        table_.GetBufferMemoryRequirements(vk_dev_, buffer->vk, &req);
+        host_mapped = host_mapped || buffer->host_mapped;
+      },
+      [&](gpu::Image p) {
+        auto image = ptr(p);
+        table_.GetImageMemoryRequirements(vk_dev_, image->vk, &req);
+      });
 
-    auto alias_begin       = info.aliases[i];
-    auto alias_end         = info.aliases[i + 1];
-    auto alias_host_mapped = false;
+    layout =
+      layout.unioned(Layout64{.alignment = req.alignment, .size = req.size});
 
-    for (auto & resource :
-         info.resources.slice(Slice::range(alias_begin, alias_end)))
-    {
-      VkMemoryRequirements req{};
-      resource.match(
-        [&](gpu::Buffer p) {
-          auto buffer = ptr(p);
-          vk_table_.GetBufferMemoryRequirements(vk_dev_, buffer->vk, &req);
-          alias_host_mapped = alias_host_mapped || buffer->host_mapped;
-        },
-        [&](gpu::Image p) {
-          auto image = ptr(p);
-          vk_table_.GetImageMemoryRequirements(vk_dev_, image->vk, &req);
-        });
-
-      alias_layout = alias_layout.unioned(
-        Layout64{.alignment = req.alignment, .size = req.size});
-
-      alias_memory_type_bits |= req.memoryTypeBits;
-    }
-
-    alias_layout.alignment =
-      max(alias_layout.alignment, min_alias_offset_alignment);
-    group_layout = group_layout.append(alias_layout.aligned());
-    group_memory_type_bits |= alias_memory_type_bits;
-    alias_offsets.push(group_layout.size).unwrap();
-    host_mapped = host_mapped || alias_host_mapped;
+    memory_type_bits |= req.memoryTypeBits;
   }
 
-  group_layout = group_layout.aligned();
+  layout = layout.aligned();
 
   VmaAllocationCreateFlags flags =
     host_mapped ? (VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
@@ -2775,20 +2912,19 @@ Result<gpu::MemoryGroup, Status>
     .usage          = VMA_MEMORY_USAGE_AUTO,
     .requiredFlags  = {},
     .preferredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-    .memoryTypeBits = group_memory_type_bits,
+    .memoryTypeBits = memory_type_bits,
     .pool           = nullptr,
     .pUserData      = nullptr,
     .priority       = 0};
 
   VmaAllocationInfo    vma_allocation_info;
   VmaAllocation        vma_allocation;
-  VkMemoryRequirements group_requirements{.size      = group_layout.size,
-                                          .alignment = group_layout.alignment,
-                                          .memoryTypeBits =
-                                            group_memory_type_bits};
+  VkMemoryRequirements requirements{.size           = layout.size,
+                                    .alignment      = layout.alignment,
+                                    .memoryTypeBits = memory_type_bits};
 
   auto result =
-    vmaAllocateMemory(vma_allocator_, &group_requirements, &alloc_create_info,
+    vmaAllocateMemory(vma_allocator_, &requirements, &alloc_create_info,
                       &vma_allocation, &vma_allocation_info);
 
   if (result != VK_SUCCESS)
@@ -2798,118 +2934,90 @@ Result<gpu::MemoryGroup, Status>
 
   CHECK(!(host_mapped && (vma_allocation_info.pMappedData == nullptr)), "");
 
-  SmallVec<AliasId> alias_ids{allocator_};
+  auto id = allocate_alias_id();
 
-  for (auto i : range(num_aliases))
+  IAlias * alias;
+
+  CHECK(allocator_->nalloc(1, alias), "");
+
+  new (alias) IAlias{.id             = id,
+                     .vma_allocation = vma_allocation,
+                     .layout         = layout,
+                     .map            = vma_allocation_info.pMappedData};
+
+  for (auto [i, resource] : enumerate(info.resources))
   {
-    auto first_alias  = info.aliases[i];
-    auto alias_end    = info.aliases[i + 1];
-    auto alias_offset = alias_offsets[i];
+    VkResult result = VK_SUCCESS;
+    resource.match(
+      [&](gpu::Buffer p) {
+        auto buffer = ptr(p);
+        result      = vmaBindBufferMemory2(vma_allocator_, vma_allocation, 0,
+                                           buffer->vk, nullptr);
+        buffer->memory.alias   = alias;
+        buffer->memory.element = i;
+      },
+      [&](gpu::Image p) {
+        auto image = ptr(p);
+        result     = vmaBindImageMemory2(vma_allocator_, vma_allocation, 0,
+                                         image->vk, nullptr);
+        image->memory.alias   = alias;
+        image->memory.element = i;
+      });
 
-    for (auto [ialias, resource] :
-         enumerate(info.resources.slice(Slice::range(first_alias, alias_end))))
-    {
-      VkResult result = VK_SUCCESS;
-      resource.match(
-        [&](gpu::Buffer p) {
-          auto buffer = ptr(p);
-          result      = vmaBindBufferMemory2(vma_allocator_, vma_allocation,
-                                             alias_offset, buffer->vk, nullptr);
-          buffer->memory.alias   = i;
-          buffer->memory.element = ialias;
-        },
-        [&](gpu::Image p) {
-          auto image = ptr(p);
-          result     = vmaBindImageMemory2(vma_allocator_, vma_allocation,
-                                           alias_offset, image->vk, nullptr);
-          image->memory.alias   = i;
-          image->memory.element = ialias;
-        });
-
-      CHECK(result == VK_SUCCESS, "");
-    }
-
-    alias_ids.push(allocate_alias_id()).unwrap();
+    CHECK(result == VK_SUCCESS, "");
   }
 
-  MemoryGroup * group;
-
-  CHECK(allocator_->nalloc(1, group), "");
-
-  new (group) MemoryGroup{.vma_allocation = vma_allocation,
-                          .alignment      = 0,
-                          .map            = vma_allocation_info.pMappedData,
-                          .alias_offsets  = std::move(alias_offsets),
-                          .alias_ids      = std::move(alias_ids)};
-
-  return Ok{(gpu::MemoryGroup) group};
+  return Ok{(gpu::Alias) alias};
 }
 
-Result<gpu::MemoryGroup, Status>
-  Device::create_shim_memory_group(gpu::MemoryGroupInfo const & info)
+Result<gpu::Alias, Status>
+  IDevice::create_shim_alias(gpu::AliasInfo const & info)
 {
-  CHECK(info.aliases.size() > 1, "");
-  auto num_aliases = size32(info.aliases) - 1;
+  CHECK(!info.resources.is_empty(), "");
 
-  for (auto i : range(num_aliases))
+  for (auto & resource : info.resources)
   {
-    auto alias_begin = info.aliases[i];
-    auto alias_end   = info.aliases[i + 1];
-
-    for (auto & resource :
-         info.resources.slice(Slice::range(alias_begin, alias_end)))
-    {
-      resource.match([&](gpu::Buffer) { CHECK(false, ""); },
-                     [&](gpu::Image p) {
-                       auto image = (Image *) p;
-                       CHECK(image->memory.memory_group == nullptr, "");
-                     });
-    }
+    resource.match([&](gpu::Buffer) { CHECK(false, ""); },
+                   [&](gpu::Image p) {
+                     auto image = (Image) p;
+                     CHECK(image->memory.alias == nullptr, "");
+                   });
   }
 
-  SmallVec<AliasId> alias_ids{allocator_};
+  auto id = allocate_alias_id();
 
-  for (auto i : range(num_aliases))
+  IAlias * alias;
+
+  CHECK(allocator_->nalloc(1, alias), "");
+
+  new (alias)
+    IAlias{.id = id, .vma_allocation = nullptr, .layout = {}, .map = nullptr};
+
+  for (auto [i, resource] : enumerate(info.resources))
   {
-    auto first_alias = info.aliases[i];
-    auto alias_end   = info.aliases[i + 1];
+    VkResult result = VK_SUCCESS;
+    resource.match([&](gpu::Buffer) { CHECK(false, ""); },
+                   [&](gpu::Image p) {
+                     auto image            = ptr(p);
+                     image->memory.alias   = alias;
+                     image->memory.element = i;
+                   });
 
-    for (auto [ialias, resource] :
-         enumerate(info.resources.slice(Slice::range(first_alias, alias_end))))
-    {
-      VkResult result = VK_SUCCESS;
-      resource.match([&](gpu::Buffer) { CHECK(false, ""); },
-                     [&](gpu::Image p) {
-                       auto image            = ptr(p);
-                       image->memory.alias   = i;
-                       image->memory.element = ialias;
-                     });
-
-      CHECK(result == VK_SUCCESS, "");
-    }
-
-    alias_ids.push(allocate_alias_id()).unwrap();
+    CHECK(result == VK_SUCCESS, "");
   }
 
-  MemoryGroup * group;
-
-  CHECK(allocator_->nalloc(1, group), "");
-
-  new (group) MemoryGroup{.vma_allocation = nullptr,
-                          .alignment      = 0,
-                          .map            = nullptr,
-                          .alias_offsets  = {},
-                          .alias_ids      = std::move(alias_ids)};
-
-  return Ok{(gpu::MemoryGroup) group};
+  return Ok{(gpu::Alias) alias};
 }
 
 Result<gpu::Sampler, Status>
-  Device::create_sampler(gpu::SamplerInfo const & info)
+  IDevice::create_sampler(gpu::SamplerInfo const & info)
 {
-  CHECK(!(info.anisotropy_enable &&
-          (info.max_anisotropy > gpu::MAX_SAMPLER_ANISOTROPY)),
-        "");
+  SCRATCH_ALLOCATOR(allocator_);
+
+  CHECK(
+    !(info.anisotropy_enable &&
+      (info.max_anisotropy > phy_.vk_properties.limits.maxSamplerAnisotropy)),
+    "");
   CHECK(!(info.anisotropy_enable && (info.max_anisotropy < 1.0)), "");
 
   VkSamplerCreateInfo create_info{
@@ -2934,20 +3042,22 @@ Result<gpu::Sampler, Status>
 
   VkSampler vk_sampler;
   auto      result =
-    vk_table_.CreateSampler(vk_dev_, &create_info, nullptr, &vk_sampler);
+    table_.CreateSampler(vk_dev_, &create_info, nullptr, &vk_sampler);
   if (result != VK_SUCCESS)
   {
     return Err{(Status) result};
   }
 
   set_resource_name(info.label, vk_sampler, VK_OBJECT_TYPE_SAMPLER,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_SAMPLER_EXT);
+                    VK_DEBUG_REPORT_OBJECT_TYPE_SAMPLER_EXT, scratch_);
 
   return Ok{(gpu::Sampler) vk_sampler};
 }
 
-Result<gpu::Shader, Status> Device::create_shader(gpu::ShaderInfo const & info)
+Result<gpu::Shader, Status> IDevice::create_shader(gpu::ShaderInfo const & info)
 {
+  SCRATCH_ALLOCATOR(allocator_);
+
   CHECK(info.spirv_code.size_bytes() > 0, "");
 
   VkShaderModuleCreateInfo create_info{
@@ -2959,14 +3069,14 @@ Result<gpu::Shader, Status> Device::create_shader(gpu::ShaderInfo const & info)
 
   VkShaderModule vk_shader;
   auto           result =
-    vk_table_.CreateShaderModule(vk_dev_, &create_info, nullptr, &vk_shader);
+    table_.CreateShaderModule(vk_dev_, &create_info, nullptr, &vk_shader);
   if (result != VK_SUCCESS)
   {
     return Err{(Status) result};
   }
 
   set_resource_name(info.label, vk_shader, VK_OBJECT_TYPE_SHADER_MODULE,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT);
+                    VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT, scratch_);
 
   return Ok{(gpu::Shader) vk_shader};
 }
@@ -3017,9 +3127,11 @@ bool is_mutating_set(Span<gpu::DescriptorBindingInfo const> bindings)
   return any_is(bindings, is_mutating_binding);
 }
 
-Result<gpu::DescriptorSetLayout, Status> Device::create_descriptor_set_layout(
+Result<gpu::DescriptorSetLayout, Status> IDevice::create_descriptor_set_layout(
   gpu::DescriptorSetLayoutInfo const & info)
 {
+  SCRATCH_ALLOCATOR(allocator_);
+
   u32                                   num_descriptors     = 0;
   u32                                   num_variable_length = 0;
   Array<u32, gpu::NUM_DESCRIPTOR_TYPES> sizing              = {};
@@ -3039,15 +3151,18 @@ Result<gpu::DescriptorSetLayout, Status> Device::create_descriptor_set_layout(
     sizing[(u32) gpu::DescriptorType::DynUniformBuffer];
 
   CHECK(info.bindings.size() > 0, "");
-  CHECK(info.bindings.size() <= gpu::MAX_DESCRIPTOR_SET_BINDINGS, "");
   CHECK((num_dynamic_read_storage_buffers +
          num_dynamic_read_write_storage_buffers) <=
-          gpu::MAX_PIPELINE_DYNAMIC_STORAGE_BUFFERS,
+          phy_.vk_descriptor_properties
+            .maxDescriptorSetUpdateAfterBindStorageBuffersDynamic,
         "");
   CHECK(num_dynamic_uniform_buffers <=
-          gpu::MAX_PIPELINE_DYNAMIC_UNIFORM_BUFFERS,
+          phy_.vk_descriptor_properties
+            .maxDescriptorSetUpdateAfterBindUniformBuffersDynamic,
         "");
-  CHECK(num_descriptors <= gpu::MAX_DESCRIPTOR_SET_DESCRIPTORS, "");
+  CHECK(num_descriptors <=
+          phy_.vk_descriptor_properties.maxPerStageUpdateAfterBindResources,
+        "");
   CHECK(num_variable_length <= 1, "");
   CHECK(
     !(num_variable_length > 0 && (num_dynamic_read_storage_buffers > 0 ||
@@ -3058,15 +3173,15 @@ Result<gpu::DescriptorSetLayout, Status> Device::create_descriptor_set_layout(
   for (auto [i, binding] : enumerate<u32>(info.bindings))
   {
     CHECK(binding.count > 0, "");
-    CHECK(binding.count <= gpu::MAX_BINDING_DESCRIPTORS, "");
+    CHECK(binding.count <=
+            phy_.vk_descriptor_properties.maxPerStageUpdateAfterBindResources,
+          "");
     CHECK(!(binding.is_variable_length && (i != (info.bindings.size() - 1))),
           "");
   }
 
-  InplaceVec<VkDescriptorSetLayoutBinding, gpu::MAX_DESCRIPTOR_SET_BINDINGS>
-    vk_bindings;
-  InplaceVec<VkDescriptorBindingFlagsEXT, gpu::MAX_DESCRIPTOR_SET_BINDINGS>
-    vk_binding_flags;
+  Vec<VkDescriptorSetLayoutBinding, 0> vk_bindings{scratch_};
+  Vec<VkDescriptorBindingFlagsEXT, 0>  vk_binding_flags;
 
   for (auto [i, binding] : enumerate<u32>(info.bindings))
   {
@@ -3108,7 +3223,7 @@ Result<gpu::DescriptorSetLayout, Status> Device::create_descriptor_set_layout(
 
   VkDescriptorSetLayout vk;
   auto                  result =
-    vk_table_.CreateDescriptorSetLayout(vk_dev_, &create_info, nullptr, &vk);
+    table_.CreateDescriptorSetLayout(vk_dev_, &create_info, nullptr, &vk);
 
   if (result != VK_SUCCESS)
   {
@@ -3118,29 +3233,30 @@ Result<gpu::DescriptorSetLayout, Status> Device::create_descriptor_set_layout(
   defer vk_{[&] {
     if (vk != nullptr)
     {
-      vk_table_.DestroyDescriptorSetLayout(vk_dev_, vk, nullptr);
+      table_.DestroyDescriptorSetLayout(vk_dev_, vk, nullptr);
     }
   }};
 
   set_resource_name(info.label, vk, VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT_EXT);
+                    VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT_EXT,
+                    scratch_);
 
-  DescriptorSetLayout * layout;
+  IDescriptorSetLayout * layout;
+
   if (!allocator_->nalloc(1, layout))
   {
     return Err{Status::OutOfHostMemory};
   }
 
-  InplaceVec<gpu::DescriptorBindingInfo, gpu::MAX_DESCRIPTOR_SET_BINDINGS>
-    bindings;
+  SmallVec<gpu::DescriptorBindingInfo, 1, 0> bindings{allocator_};
   bindings.extend(info.bindings).unwrap();
 
   auto is_mutating = is_mutating_set(info.bindings);
 
-  new (layout) DescriptorSetLayout{.vk                  = vk,
-                                   .bindings            = bindings,
-                                   .num_variable_length = num_variable_length,
-                                   .is_mutating         = is_mutating};
+  new (layout) IDescriptorSetLayout{.vk                  = vk,
+                                    .bindings            = std::move(bindings),
+                                    .num_variable_length = num_variable_length,
+                                    .is_mutating         = is_mutating};
 
   vk = nullptr;
 
@@ -3148,9 +3264,11 @@ Result<gpu::DescriptorSetLayout, Status> Device::create_descriptor_set_layout(
 }
 
 Result<gpu::DescriptorSet, Status>
-  Device::create_descriptor_set(gpu::DescriptorSetInfo const & info)
+  IDevice::create_descriptor_set(gpu::DescriptorSetInfo const & info)
 {
-  auto * layout = (DescriptorSetLayout *) info.layout;
+  SCRATCH_ALLOCATOR(allocator_);
+
+  auto * layout = (DescriptorSetLayout) info.layout;
   CHECK(info.variable_lengths.size() == layout->num_variable_length, "");
 
   {
@@ -3169,7 +3287,7 @@ Result<gpu::DescriptorSet, Status>
 
   constexpr u32 NUM_VK_DESCRIPTOR_TYPES = 11;
 
-  InplaceVec<u32, gpu::MAX_DESCRIPTOR_SET_BINDINGS> bindings_sizes;
+  Vec<u32, 0> bindings_sizes{scratch_};
 
   Array<u32, NUM_VK_DESCRIPTOR_TYPES> vk_type_count;
 
@@ -3219,7 +3337,7 @@ Result<gpu::DescriptorSet, Status>
 
   VkDescriptorPool vk_pool;
   auto             result =
-    vk_table_.CreateDescriptorPool(vk_dev_, &create_info, nullptr, &vk_pool);
+    table_.CreateDescriptorPool(vk_dev_, &create_info, nullptr, &vk_pool);
 
   if (result != VK_SUCCESS)
   {
@@ -3227,7 +3345,7 @@ Result<gpu::DescriptorSet, Status>
   }
 
   defer vk_pool_{
-    [&] { vk_table_.DestroyDescriptorPool(vk_dev_, vk_pool, nullptr); }};
+    [&] { table_.DestroyDescriptorPool(vk_dev_, vk_pool, nullptr); }};
 
   VkDescriptorSetVariableDescriptorCountAllocateInfoEXT var_alloc_info{
     .sType =
@@ -3244,7 +3362,7 @@ Result<gpu::DescriptorSet, Status>
     .pSetLayouts        = &layout->vk};
 
   VkDescriptorSet vk;
-  result = vk_table_.AllocateDescriptorSets(vk_dev_, &alloc_info, &vk);
+  result = table_.AllocateDescriptorSets(vk_dev_, &alloc_info, &vk);
 
   // must not have these errors
   CHECK(result != VK_ERROR_OUT_OF_POOL_MEMORY &&
@@ -3257,12 +3375,12 @@ Result<gpu::DescriptorSet, Status>
   }
 
   set_resource_name(info.label, vk, VK_OBJECT_TYPE_DESCRIPTOR_SET,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_SET_EXT);
+                    VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_SET_EXT, scratch_);
 
   set_resource_name(info.label, vk_pool, VK_OBJECT_TYPE_DESCRIPTOR_POOL,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_POOL_EXT);
+                    VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_POOL_EXT, scratch_);
 
-  InplaceVec<DescriptorBinding, gpu::MAX_DESCRIPTOR_SET_BINDINGS> bindings;
+  SmallVec<DescriptorBinding, 1, 0> bindings{allocator_};
 
   for (auto [size, info] : zip(bindings_sizes, layout->bindings))
   {
@@ -3283,25 +3401,25 @@ Result<gpu::DescriptorSet, Status>
       case SyncResourceType::Buffer:
       {
         binding.sync_resources =
-          SmallVec<Buffer *, 4>::make(size, allocator_).unwrap();
+          SmallVec<Buffer, 4, 0>::make(size, allocator_).unwrap();
       }
       break;
       case SyncResourceType::BufferView:
       {
         binding.sync_resources =
-          SmallVec<BufferView *, 4>::make(size, allocator_).unwrap();
+          SmallVec<BufferView, 4, 0>::make(size, allocator_).unwrap();
       }
       break;
       case SyncResourceType::ImageView:
       {
         binding.sync_resources =
-          SmallVec<ImageView *, 4>::make(size, allocator_).unwrap();
+          SmallVec<ImageView, 4, 0>::make(size, allocator_).unwrap();
       }
       break;
     }
   }
 
-  DescriptorSet * set;
+  IDescriptorSet * set;
 
   if (!allocator_->nalloc(1, set))
   {
@@ -3310,11 +3428,11 @@ Result<gpu::DescriptorSet, Status>
 
   auto id = allocate_descriptor_set_id();
 
-  new (set) DescriptorSet{.vk          = vk,
-                          .vk_pool     = vk_pool,
-                          .id          = id,
-                          .is_mutating = layout->is_mutating,
-                          .bindings    = std::move(bindings)};
+  new (set) IDescriptorSet{.vk          = vk,
+                           .vk_pool     = vk_pool,
+                           .id          = id,
+                           .is_mutating = layout->is_mutating,
+                           .bindings    = std::move(bindings)};
 
   vk_pool = nullptr;
   vk      = nullptr;
@@ -3323,8 +3441,10 @@ Result<gpu::DescriptorSet, Status>
 }
 
 Result<gpu::PipelineCache, Status>
-  Device::create_pipeline_cache(gpu::PipelineCacheInfo const & info)
+  IDevice::create_pipeline_cache(gpu::PipelineCacheInfo const & info)
 {
+  SCRATCH_ALLOCATOR(allocator_);
+
   VkPipelineCacheCreateInfo create_info{
     .sType           = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO,
     .pNext           = nullptr,
@@ -3334,37 +3454,40 @@ Result<gpu::PipelineCache, Status>
 
   VkPipelineCache vk_cache;
   auto            result =
-    vk_table_.CreatePipelineCache(vk_dev_, &create_info, nullptr, &vk_cache);
+    table_.CreatePipelineCache(vk_dev_, &create_info, nullptr, &vk_cache);
   if (result != VK_SUCCESS)
   {
     return Err{(Status) result};
   }
 
   set_resource_name(info.label, vk_cache, VK_OBJECT_TYPE_PIPELINE_CACHE,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_CACHE_EXT);
+                    VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_CACHE_EXT, scratch_);
 
   return Ok{(gpu::PipelineCache) vk_cache};
 }
 
 Result<gpu::ComputePipeline, Status>
-  Device::create_compute_pipeline(gpu::ComputePipelineInfo const & info)
+  IDevice::create_compute_pipeline(gpu::ComputePipelineInfo const & info)
 {
-  CHECK(info.descriptor_set_layouts.size() <= gpu::MAX_PIPELINE_DESCRIPTOR_SETS,
+  SCRATCH_ALLOCATOR(allocator_);
+
+  CHECK(info.descriptor_set_layouts.size() <=
+          phy_.vk_properties.limits.maxBoundDescriptorSets,
         "");
-  CHECK(info.push_constants_size <= gpu::MAX_PUSH_CONSTANTS_SIZE, "");
+  CHECK(info.push_constants_size <=
+          phy_.vk_properties.limits.maxPushConstantsSize,
+        "");
   CHECK(is_aligned(4U, info.push_constants_size), "");
   CHECK(info.compute_shader.entry_point.size() > 0 &&
           info.compute_shader.entry_point.size() < 256,
         "");
   CHECK(info.compute_shader.shader != nullptr, "");
 
-  InplaceVec<VkDescriptorSetLayout, gpu::MAX_PIPELINE_DESCRIPTOR_SETS>
-    vk_descriptor_set_layouts;
+  Vec<VkDescriptorSetLayout, 0> vk_descriptor_set_layouts{scratch_};
 
   for (auto layout : info.descriptor_set_layouts)
   {
-    vk_descriptor_set_layouts.push(((DescriptorSetLayout *) layout)->vk)
-      .unwrap();
+    vk_descriptor_set_layouts.push(((DescriptorSetLayout) layout)->vk).unwrap();
   }
 
   VkSpecializationInfo vk_specialization{
@@ -3374,8 +3497,9 @@ Result<gpu::ComputePipeline, Status>
     .dataSize = info.compute_shader.specialization_constants_data.size_bytes(),
     .pData    = info.compute_shader.specialization_constants_data.data()};
 
-  char entry_point[256];
-  CHECK(to_c_str(info.compute_shader.entry_point, entry_point), "");
+  Vec<char> entry_point{scratch_};
+  entry_point.extend(info.compute_shader.entry_point).unwrap();
+  entry_point.push('\0').unwrap();
 
   VkPipelineShaderStageCreateInfo vk_stage{
     .sType               = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -3383,7 +3507,7 @@ Result<gpu::ComputePipeline, Status>
     .flags               = 0,
     .stage               = VK_SHADER_STAGE_COMPUTE_BIT,
     .module              = (Shader) info.compute_shader.shader,
-    .pName               = entry_point,
+    .pName               = entry_point.data(),
     .pSpecializationInfo = &vk_specialization};
 
   VkPushConstantRange push_constants_range{.stageFlags =
@@ -3402,8 +3526,8 @@ Result<gpu::ComputePipeline, Status>
       info.push_constants_size == 0 ? nullptr : &push_constants_range};
 
   VkPipelineLayout vk_layout;
-  auto result = vk_table_.CreatePipelineLayout(vk_dev_, &layout_create_info,
-                                               nullptr, &vk_layout);
+  auto result = table_.CreatePipelineLayout(vk_dev_, &layout_create_info,
+                                            nullptr, &vk_layout);
   if (result != VK_SUCCESS)
   {
     return Err{(Status) result};
@@ -3419,62 +3543,68 @@ Result<gpu::ComputePipeline, Status>
     .basePipelineIndex  = 0};
 
   VkPipeline vk;
-  result = vk_table_.CreateComputePipelines(
+  result = table_.CreateComputePipelines(
     vk_dev_, info.cache == nullptr ? nullptr : (PipelineCache) info.cache, 1,
     &create_info, nullptr, &vk);
 
   if (result != VK_SUCCESS)
   {
-    vk_table_.DestroyPipelineLayout(vk_dev_, vk_layout, nullptr);
+    table_.DestroyPipelineLayout(vk_dev_, vk_layout, nullptr);
     return Err{(Status) result};
   }
 
   set_resource_name(info.label, vk, VK_OBJECT_TYPE_PIPELINE,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_EXT);
+                    VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_EXT, scratch_);
   set_resource_name(info.label, vk_layout, VK_OBJECT_TYPE_PIPELINE_LAYOUT,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_LAYOUT_EXT);
+                    VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_LAYOUT_EXT, scratch_);
 
-  ComputePipeline * pipeline;
+  IComputePipeline * pipeline;
+
   if (!allocator_->nalloc(1, pipeline))
   {
-    vk_table_.DestroyPipelineLayout(vk_dev_, vk_layout, nullptr);
-    vk_table_.DestroyPipeline(vk_dev_, vk, nullptr);
+    table_.DestroyPipelineLayout(vk_dev_, vk_layout, nullptr);
+    table_.DestroyPipeline(vk_dev_, vk, nullptr);
     return Err{Status::OutOfHostMemory};
   }
 
   new (pipeline)
-    ComputePipeline{.vk                  = vk,
-                    .vk_layout           = vk_layout,
-                    .push_constants_size = info.push_constants_size,
-                    .num_sets            = size32(info.descriptor_set_layouts)};
+    IComputePipeline{.vk                  = vk,
+                     .vk_layout           = vk_layout,
+                     .push_constants_size = info.push_constants_size,
+                     .num_sets = size32(info.descriptor_set_layouts)};
 
   return Ok{(gpu::ComputePipeline) pipeline};
 }
 
 Result<gpu::GraphicsPipeline, Status>
-  Device::create_graphics_pipeline(gpu::GraphicsPipelineInfo const & info)
+  IDevice::create_graphics_pipeline(gpu::GraphicsPipelineInfo const & info)
 {
+  SCRATCH_ALLOCATOR(allocator_);
+
   CHECK(!(info.rasterization_state.polygon_mode != gpu::PolygonMode::Fill &&
-          !phy_dev_.vk_features.fillModeNonSolid),
+          !phy_.vk_features.fillModeNonSolid),
         "");
-  CHECK(info.descriptor_set_layouts.size() <= gpu::MAX_PIPELINE_DESCRIPTOR_SETS,
+  CHECK(info.descriptor_set_layouts.size() <=
+          phy_.vk_properties.limits.maxBoundDescriptorSets,
         "");
-  CHECK(info.push_constants_size <= gpu::MAX_PUSH_CONSTANTS_SIZE, "");
+  CHECK(info.push_constants_size <=
+          phy_.vk_properties.limits.maxPushConstantsSize,
+        "");
   CHECK(is_aligned(4U, info.push_constants_size), "");
   CHECK(!info.vertex_shader.entry_point.is_empty(), "");
   CHECK(!info.fragment_shader.entry_point.is_empty(), "");
-  CHECK(info.vertex_attributes.size() <= gpu::MAX_VERTEX_ATTRIBUTES, "");
+  CHECK(info.vertex_attributes.size() <=
+          phy_.vk_properties.limits.maxVertexInputAttributes,
+        "");
   CHECK(info.color_blend_state.attachments.size() <=
-          gpu::MAX_PIPELINE_COLOR_ATTACHMENTS,
+          phy_.vk_properties.limits.maxColorAttachments,
         "");
 
-  InplaceVec<VkDescriptorSetLayout, gpu::MAX_PIPELINE_DESCRIPTOR_SETS>
-    vk_descriptor_set_layouts;
+  Vec<VkDescriptorSetLayout, 0> vk_descriptor_set_layouts{scratch_};
 
   for (auto layout : info.descriptor_set_layouts)
   {
-    vk_descriptor_set_layouts.push(((DescriptorSetLayout *) layout)->vk)
-      .unwrap();
+    vk_descriptor_set_layouts.push(((DescriptorSetLayout) layout)->vk).unwrap();
   }
 
   VkSpecializationInfo vk_vs_specialization{
@@ -3491,10 +3621,13 @@ Result<gpu::GraphicsPipeline, Status>
     .dataSize = info.fragment_shader.specialization_constants_data.size_bytes(),
     .pData    = info.fragment_shader.specialization_constants_data.data()};
 
-  char vs_entry_point[256];
-  char fs_entry_point[256];
-  CHECK(to_c_str(info.vertex_shader.entry_point, vs_entry_point), "");
-  CHECK(to_c_str(info.fragment_shader.entry_point, fs_entry_point), "");
+  Vec<char> vs_entry_point{scratch_};
+  vs_entry_point.extend(info.vertex_shader.entry_point).unwrap();
+  vs_entry_point.push('\0').unwrap();
+
+  Vec<char> fs_entry_point{scratch_};
+  fs_entry_point.extend(info.fragment_shader.entry_point).unwrap();
+  fs_entry_point.push('\0').unwrap();
 
   VkPipelineShaderStageCreateInfo vk_stages[2] = {
     {.sType               = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -3502,14 +3635,14 @@ Result<gpu::GraphicsPipeline, Status>
      .flags               = 0,
      .stage               = VK_SHADER_STAGE_VERTEX_BIT,
      .module              = (Shader) info.vertex_shader.shader,
-     .pName               = vs_entry_point,
+     .pName               = vs_entry_point.data(),
      .pSpecializationInfo = &vk_vs_specialization},
     {.sType               = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
      .pNext               = nullptr,
      .flags               = 0,
      .stage               = VK_SHADER_STAGE_FRAGMENT_BIT,
      .module              = (Shader) info.fragment_shader.shader,
-     .pName               = fs_entry_point,
+     .pName               = fs_entry_point.data(),
      .pSpecializationInfo = &vk_fs_specialization}
   };
 
@@ -3529,15 +3662,14 @@ Result<gpu::GraphicsPipeline, Status>
 
   VkPipelineLayout vk_layout;
 
-  auto result = vk_table_.CreatePipelineLayout(vk_dev_, &layout_create_info,
-                                               nullptr, &vk_layout);
+  auto result = table_.CreatePipelineLayout(vk_dev_, &layout_create_info,
+                                            nullptr, &vk_layout);
   if (result != VK_SUCCESS)
   {
     return Err{(Status) result};
   }
 
-  InplaceVec<VkVertexInputBindingDescription, gpu::MAX_VERTEX_ATTRIBUTES>
-    input_bindings;
+  Vec<VkVertexInputBindingDescription, 0> input_bindings{scratch_};
 
   for (auto binding : info.vertex_input_bindings)
   {
@@ -3549,8 +3681,7 @@ Result<gpu::GraphicsPipeline, Status>
       .unwrap();
   }
 
-  InplaceVec<VkVertexInputAttributeDescription, gpu::MAX_VERTEX_ATTRIBUTES>
-    attributes;
+  Vec<VkVertexInputAttributeDescription, 0> attributes{scratch_};
 
   for (auto attribute : info.vertex_attributes)
   {
@@ -3660,9 +3791,7 @@ Result<gpu::GraphicsPipeline, Status>
     .maxDepthBounds = info.depth_stencil_state.max_depth_bounds
   };
 
-  InplaceVec<VkPipelineColorBlendAttachmentState,
-             gpu::MAX_PIPELINE_COLOR_ATTACHMENTS>
-    attachment_states;
+  Vec<VkPipelineColorBlendAttachmentState, 0> attachment_states{scratch_};
 
   for (auto state : info.color_blend_state.attachments)
   {
@@ -3716,7 +3845,7 @@ Result<gpu::GraphicsPipeline, Status>
     .dynamicStateCount = size32(dynamic_states),
     .pDynamicStates    = dynamic_states};
 
-  InplaceVec<VkFormat, gpu::MAX_PIPELINE_COLOR_ATTACHMENTS> color_formats;
+  Vec<VkFormat, 0> color_formats{scratch_};
 
   for (auto fmt : info.color_formats)
   {
@@ -3759,50 +3888,53 @@ Result<gpu::GraphicsPipeline, Status>
     .basePipelineIndex   = 0};
 
   VkPipeline vk;
-  result = vk_table_.CreateGraphicsPipelines(
+  result = table_.CreateGraphicsPipelines(
     vk_dev_, info.cache == nullptr ? nullptr : (PipelineCache) info.cache, 1,
     &create_info, nullptr, &vk);
 
   if (result != VK_SUCCESS)
   {
-    vk_table_.DestroyPipelineLayout(vk_dev_, vk_layout, nullptr);
+    table_.DestroyPipelineLayout(vk_dev_, vk_layout, nullptr);
     return Err{(Status) result};
   }
 
   set_resource_name(info.label, vk, VK_OBJECT_TYPE_PIPELINE,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_EXT);
+                    VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_EXT, scratch_);
   set_resource_name(info.label, vk_layout, VK_OBJECT_TYPE_PIPELINE_LAYOUT,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_LAYOUT_EXT);
+                    VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_LAYOUT_EXT, scratch_);
 
-  GraphicsPipeline * pipeline;
+  IGraphicsPipeline * pipeline;
+
   if (!allocator_->nalloc(1, pipeline))
   {
-    vk_table_.DestroyPipelineLayout(vk_dev_, vk_layout, nullptr);
-    vk_table_.DestroyPipeline(vk_dev_, vk, nullptr);
+    table_.DestroyPipelineLayout(vk_dev_, vk_layout, nullptr);
+    table_.DestroyPipeline(vk_dev_, vk, nullptr);
     return Err{Status::OutOfHostMemory};
   }
 
   new (pipeline)
-    GraphicsPipeline{.vk                  = vk,
-                     .vk_layout           = vk_layout,
-                     .push_constants_size = info.push_constants_size,
-                     .num_sets            = size32(info.descriptor_set_layouts),
-                     .depth_fmt           = info.depth_format,
-                     .stencil_fmt         = info.stencil_format,
-                     .sample_count = info.rasterization_state.sample_count,
-                     .num_vertex_attributes = size32(info.vertex_attributes)};
+    IGraphicsPipeline{.vk                  = vk,
+                      .vk_layout           = vk_layout,
+                      .push_constants_size = info.push_constants_size,
+                      .num_sets = size32(info.descriptor_set_layouts),
+                      .color_fmts{allocator_},
+                      .depth_fmt    = info.depth_format,
+                      .stencil_fmt  = info.stencil_format,
+                      .sample_count = info.rasterization_state.sample_count,
+                      .num_vertex_attributes = size32(info.vertex_attributes)};
 
   pipeline->color_fmts.extend(info.color_formats).unwrap();
 
   return Ok{(gpu::GraphicsPipeline) pipeline};
 }
 
-Result<Void, Status> Device::recreate_swapchain(Swapchain * swapchain)
+Result<Void, Status> IDevice::recreate_swapchain(Swapchain swapchain)
 {
+  SCRATCH_ALLOCATOR(allocator_);
+
   auto info = std::move(swapchain->preference);
   CHECK(info.preferred_extent.x() > 0, "");
   CHECK(info.preferred_extent.y() > 0, "");
-  CHECK(info.preferred_buffering <= gpu::MAX_SWAPCHAIN_IMAGES, "");
 
   auto vk_surface       = (VkSurfaceKHR) info.surface;
   auto old_vk_swapchain = swapchain->vk;
@@ -3810,13 +3942,13 @@ Result<Void, Status> Device::recreate_swapchain(Swapchain * swapchain)
   defer old_vk_swapchain_{[&] {
     if (old_vk_swapchain != nullptr)
     {
-      vk_table_.DestroySwapchainKHR(vk_dev_, old_vk_swapchain, nullptr);
+      table_.DestroySwapchainKHR(vk_dev_, old_vk_swapchain, nullptr);
     }
   }};
 
   VkSurfaceCapabilitiesKHR surface_capabilities;
-  auto result = instance_->vk_table_.GetPhysicalDeviceSurfaceCapabilitiesKHR(
-    phy_dev_.vk_phy_dev, vk_surface, &surface_capabilities);
+  auto result = instance_->table_.GetPhysicalDeviceSurfaceCapabilitiesKHR(
+    phy_.vk, vk_surface, &surface_capabilities);
 
   if (result != VK_SUCCESS)
   {
@@ -3824,6 +3956,7 @@ Result<Void, Status> Device::recreate_swapchain(Swapchain * swapchain)
     return Err{(Status) result};
   }
 
+  CHECK(info.preferred_buffering <= surface_capabilities.maxImageCount, "");
   CHECK(has_bits(surface_capabilities.supportedUsageFlags,
                  (VkImageUsageFlags) info.usage),
         "");
@@ -3890,7 +4023,7 @@ Result<Void, Status> Device::recreate_swapchain(Swapchain * swapchain)
 
   VkSwapchainKHR vk;
 
-  result = vk_table_.CreateSwapchainKHR(vk_dev_, &create_info, nullptr, &vk);
+  result = table_.CreateSwapchainKHR(vk_dev_, &create_info, nullptr, &vk);
 
   if (result != VK_SUCCESS)
   {
@@ -3901,21 +4034,22 @@ Result<Void, Status> Device::recreate_swapchain(Swapchain * swapchain)
   defer vk_{[&] {
     if (vk != nullptr)
     {
-      vk_table_.DestroySwapchainKHR(vk_dev_, vk, nullptr);
+      table_.DestroySwapchainKHR(vk_dev_, vk, nullptr);
     }
   }};
 
   u32 num_images;
-  result = vk_table_.GetSwapchainImagesKHR(vk_dev_, vk, &num_images, nullptr);
+  result = table_.GetSwapchainImagesKHR(vk_dev_, vk, &num_images, nullptr);
 
   CHECK(result == VK_SUCCESS, "");
 
-  InplaceVec<VkImage, gpu::MAX_SWAPCHAIN_IMAGES> vk_images;
-  vk_images.resize(num_images).unwrap();
+  Vec<VkImage, 0> vk_images{scratch_};
+  vk_images.resize_uninit(num_images).unwrap();
 
   result =
-    vk_table_.GetSwapchainImagesKHR(vk_dev_, vk, &num_images, vk_images.data());
+    table_.GetSwapchainImagesKHR(vk_dev_, vk, &num_images, vk_images.data());
 
+  CHECK(num_images == vk_images.size(), "");
   CHECK(result == VK_SUCCESS, "");
 
   VkSemaphoreCreateInfo sem_info{.sType =
@@ -3923,9 +4057,9 @@ Result<Void, Status> Device::recreate_swapchain(Swapchain * swapchain)
                                  .pNext = nullptr,
                                  .flags = 0};
 
-  InplaceVec<Image *, gpu::MAX_SWAPCHAIN_IMAGES> images;
+  SmallVec<Image, 8, 0> images{allocator_};
   images.resize(num_images).unwrap();
-  InplaceVec<VkSemaphore, gpu::MAX_SWAPCHAIN_IMAGES> acquire_semaphores;
+  SmallVec<VkSemaphore, 8, 0> acquire_semaphores{allocator_};
   acquire_semaphores.resize(num_images).unwrap();
 
   for (auto [i, vk, image, acquire_semaphore] :
@@ -3933,79 +4067,63 @@ Result<Void, Status> Device::recreate_swapchain(Swapchain * swapchain)
   {
     CHECK(allocator_->nalloc(1, image), "");
 
-    new (image) Image{
+    new (image) IImage{
       .vk                 = vk,
       .type               = gpu::ImageType::Type2D,
       .usage              = info.usage,
       .aspects            = gpu::ImageAspects::Color,
       .sample_count       = gpu::SampleCount::C1,
-      .extent             = {vk_extent.width, vk_extent.height, 1},
+      .extent             = {vk_extent.width,  vk_extent.height, 1                              },
       .mip_levels         = 1,
       .array_layers       = 1,
       .is_swapchain_image = true,
-      .memory             = MemoryInfo{.memory_group = nullptr,
-                             .alias        = 0,
-                             .element      = 0,
-                             .type         = gpu::MemoryType::Group}
+      .memory             = MemoryInfo{
+                             .alias = nullptr, .element = 0,     .type = gpu::MemoryType::Unique}
     };
 
-    auto result = vk_table_.CreateSemaphore(vk_dev_, &sem_info, nullptr,
-                                            &acquire_semaphore);
+    auto result =
+      table_.CreateSemaphore(vk_dev_, &sem_info, nullptr, &acquire_semaphore);
 
     CHECK(result == VK_SUCCESS, "");
   }
 
   auto swapchain_label =
-    ssformat<256>(allocator_, "{}:Swapchain"_str, info.label).unwrap();
+    sformat(scratch_, "{} / Swapchain"_str, info.label).unwrap();
 
   set_resource_name(swapchain_label, vk, VK_OBJECT_TYPE_SWAPCHAIN_KHR,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_SWAPCHAIN_KHR_EXT);
+                    VK_DEBUG_REPORT_OBJECT_TYPE_SWAPCHAIN_KHR_EXT, scratch_);
   for (auto [i, image, acquire_semaphore] :
        zip(range(images.size()), images, acquire_semaphores))
   {
     auto label =
-      ssformat<256>(allocator_, "{}:Swapchain.Image:{}"_str, info.label, i)
-        .unwrap();
+      sformat(scratch_, "{} / SwapchainImage {}"_str, info.label, i).unwrap();
     set_resource_name(label, image->vk, VK_OBJECT_TYPE_IMAGE,
-                      VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT);
+                      VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT, scratch_);
 
     auto acq_sem_label =
-      ssformat<256>(allocator_, "{}:QueueScope.AcquireSemaphore:{}"_str,
-                    info.label, i)
-        .unwrap();
+      sformat(scratch_, "{} / AcquireSemaphore {}"_str, info.label, i).unwrap();
 
     set_resource_name(acq_sem_label, acquire_semaphore,
                       VK_OBJECT_TYPE_SEMAPHORE,
-                      VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT);
+                      VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT, scratch_);
   }
 
-  InplaceVec<Enum<gpu::Buffer, gpu::Image>, gpu::MAX_SWAPCHAIN_IMAGES>
-                                                 group_resources;
-  InplaceVec<u32, gpu::MAX_SWAPCHAIN_IMAGES + 1> aliases;
-
-  aliases.push(0U).unwrap();
-
-  for (auto [i, image] : enumerate<u32>(images))
+  for (auto image : images)
   {
-    group_resources.push((gpu::Image) image).unwrap();
-    aliases.push(i + 1).unwrap();
+    Enum<gpu::Buffer, gpu::Image> resources[] = {(gpu::Image) image};
+
+    create_shim_alias(gpu::AliasInfo{.label = {}, .resources = resources})
+      .unwrap();
   }
-
-  auto group_info =
-    gpu::MemoryGroupInfo{.resources = group_resources, .aliases = aliases};
-
-  auto memory_group =
-    (MemoryGroup *) create_shim_memory_group(group_info).unwrap();
 
   release(*swapchain);
-  swapchain->~Swapchain();
+  swapchain->~ISwapchain();
 
-  new (swapchain) Swapchain{
+  new (swapchain) ISwapchain{
     .vk                 = vk,
     .vk_surface         = vk_surface,
     .images             = std::move(images),
     .acquire_semaphores = std::move(acquire_semaphores),
-    .memory_group       = memory_group,
     .current_image      = none,
     .current_semaphore  = none,
     .is_deferred        = false,
@@ -4026,7 +4144,7 @@ Result<Void, Status> Device::recreate_swapchain(Swapchain * swapchain)
 }
 
 Result<gpu::Swapchain, Status>
-  Device::create_swapchain(gpu::SwapchainInfo const & info)
+  IDevice::create_swapchain(gpu::SwapchainInfo const & info)
 {
   Vec<char> label{allocator_};
   if (!label.extend(info.label))
@@ -4043,7 +4161,8 @@ Result<gpu::Swapchain, Status>
                            .preferred_extent    = info.preferred_extent,
                            .composite_alpha     = info.composite_alpha};
 
-  Swapchain * shim;
+  ISwapchain * shim;
+
   if (!allocator_->nalloc(1, shim))
   {
     return Err{Status::OutOfHostMemory};
@@ -4056,12 +4175,11 @@ Result<gpu::Swapchain, Status>
     }
   }};
 
-  new (shim) Swapchain{
+  new (shim) ISwapchain{
     .vk                 = nullptr,
     .vk_surface         = nullptr,
     .images             = {},
     .acquire_semaphores = {},
-    .memory_group       = nullptr,
     .current_image      = none,
     .current_semaphore  = none,
     .is_deferred        = false,
@@ -4089,8 +4207,10 @@ Result<gpu::Swapchain, Status>
 }
 
 Result<gpu::TimestampQuery, Status>
-  Device::create_timestamp_query(gpu::TimestampQueryInfo const & info)
+  IDevice::create_timestamp_query(gpu::TimestampQueryInfo const & info)
 {
+  SCRATCH_ALLOCATOR(allocator_);
+
   CHECK(info.count > 0, "");
 
   VkQueryPoolCreateInfo create_info{.sType =
@@ -4102,7 +4222,7 @@ Result<gpu::TimestampQuery, Status>
                                     .pipelineStatistics = 0};
   VkQueryPool           vk_pool;
   auto                  result =
-    vk_table_.CreateQueryPool(vk_dev_, &create_info, nullptr, &vk_pool);
+    table_.CreateQueryPool(vk_dev_, &create_info, nullptr, &vk_pool);
 
   if (result != VK_SUCCESS)
   {
@@ -4110,17 +4230,19 @@ Result<gpu::TimestampQuery, Status>
   }
 
   set_resource_name(info.label, vk_pool, VK_OBJECT_TYPE_QUERY_POOL,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_QUERY_POOL_EXT);
+                    VK_DEBUG_REPORT_OBJECT_TYPE_QUERY_POOL_EXT, scratch_);
 
   return Ok{(gpu::TimestampQuery) vk_pool};
 }
 
 Result<gpu::StatisticsQuery, Status>
-  Device::create_statistics_query(gpu::StatisticsQueryInfo const & info)
+  IDevice::create_statistics_query(gpu::StatisticsQueryInfo const & info)
 {
+  SCRATCH_ALLOCATOR(allocator_);
+
   CHECK(info.count > 0, "");
 
-  if (phy_dev_.vk_features.pipelineStatisticsQuery != VK_TRUE)
+  if (phy_.vk_features.pipelineStatisticsQuery != VK_TRUE)
   {
     return Err{Status::FeatureNotPresent};
   }
@@ -4144,36 +4266,38 @@ Result<gpu::StatisticsQuery, Status>
 
   VkQueryPool vk_pool;
   auto        result =
-    vk_table_.CreateQueryPool(vk_dev_, &create_info, nullptr, &vk_pool);
+    table_.CreateQueryPool(vk_dev_, &create_info, nullptr, &vk_pool);
   if (result != VK_SUCCESS)
   {
     return Err{(Status) result};
   }
 
   set_resource_name(info.label, vk_pool, VK_OBJECT_TYPE_QUERY_POOL,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_QUERY_POOL_EXT);
+                    VK_DEBUG_REPORT_OBJECT_TYPE_QUERY_POOL_EXT, scratch_);
 
   return Ok{(gpu::StatisticsQuery) vk_pool};
 }
 
 Result<gpu::CommandEncoder, Status>
-  Device::create_command_encoder(gpu::CommandEncoderInfo const &)
+  IDevice::create_command_encoder(gpu::CommandEncoderInfo const &)
 {
-  CommandEncoder * enc;
+  ICommandEncoder * enc;
 
   if (!allocator_->nalloc(1, enc))
   {
     return Err{Status::OutOfHostMemory};
   }
 
-  new (enc) CommandEncoder{this, allocator_};
+  new (enc) ICommandEncoder{*this, allocator_};
 
   return Ok{(gpu::CommandEncoder) enc};
 }
 
 Result<gpu::CommandBuffer, Status>
-  Device::create_command_buffer(gpu::CommandBufferInfo const & info)
+  IDevice::create_command_buffer(gpu::CommandBufferInfo const & info)
 {
+  SCRATCH_ALLOCATOR(allocator_);
+
   VkCommandPoolCreateInfo pool_create_info{
     .sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
     .pNext            = nullptr,
@@ -4182,7 +4306,7 @@ Result<gpu::CommandBuffer, Status>
 
   VkCommandPool vk_pool;
   auto          result =
-    vk_table_.CreateCommandPool(vk_dev_, &pool_create_info, nullptr, &vk_pool);
+    table_.CreateCommandPool(vk_dev_, &pool_create_info, nullptr, &vk_pool);
 
   if (result != VK_SUCCESS)
   {
@@ -4192,14 +4316,14 @@ Result<gpu::CommandBuffer, Status>
   defer pool_{[&] {
     if (vk_pool != nullptr)
     {
-      vk_table_.DestroyCommandPool(vk_dev_, vk_pool, nullptr);
+      table_.DestroyCommandPool(vk_dev_, vk_pool, nullptr);
     }
   }};
 
   auto pool_label =
-    ssformat<512>(allocator_, "{}:CommandPool"_str, info.label).unwrap();
+    sformat(scratch_, "{} / CommandPool"_str, info.label).unwrap();
   set_resource_name(pool_label, vk_pool, VK_OBJECT_TYPE_COMMAND_POOL,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_COMMAND_POOL_EXT);
+                    VK_DEBUG_REPORT_OBJECT_TYPE_COMMAND_POOL_EXT, scratch_);
 
   VkCommandBufferAllocateInfo allocate_info{
     .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -4209,7 +4333,7 @@ Result<gpu::CommandBuffer, Status>
     .commandBufferCount = 1};
 
   VkCommandBuffer vk;
-  result = vk_table_.AllocateCommandBuffers(vk_dev_, &allocate_info, &vk);
+  result = table_.AllocateCommandBuffers(vk_dev_, &allocate_info, &vk);
 
   if (result != VK_SUCCESS)
   {
@@ -4219,21 +4343,21 @@ Result<gpu::CommandBuffer, Status>
   defer buff_{[&] {
     if (vk != nullptr)
     {
-      vk_table_.FreeCommandBuffers(vk_dev_, vk_pool, 1, &vk);
+      table_.FreeCommandBuffers(vk_dev_, vk_pool, 1, &vk);
     }
   }};
 
   set_resource_name(info.label, vk, VK_OBJECT_TYPE_COMMAND_BUFFER,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_COMMAND_BUFFER_EXT);
+                    VK_DEBUG_REPORT_OBJECT_TYPE_COMMAND_BUFFER_EXT, scratch_);
 
-  CommandBuffer * buff;
+  ICommandBuffer * buff;
 
   if (!allocator_->nalloc(1, buff))
   {
     return Err{Status::OutOfHostMemory};
   }
 
-  new (buff) CommandBuffer{this, vk_pool, vk, allocator_};
+  new (buff) ICommandBuffer{*this, vk_pool, vk, allocator_};
 
   vk_pool = nullptr;
   vk      = nullptr;
@@ -4242,20 +4366,22 @@ Result<gpu::CommandBuffer, Status>
 }
 
 Result<gpu::QueueScope, Status>
-  Device::create_queue_scope(gpu::QueueScopeInfo const & info)
+  IDevice::create_queue_scope(gpu::QueueScopeInfo const & info)
 {
-  SmallVec<VkSemaphore, 4> submit_semaphores{allocator_};
-  SmallVec<VkFence, 4>     submit_fences{allocator_};
+  SCRATCH_ALLOCATOR(allocator_);
+
+  SmallVec<VkSemaphore, 4, 0> submit_semaphores{allocator_};
+  SmallVec<VkFence, 4, 0>     submit_fences{allocator_};
 
   defer _{[&] {
     for (auto sem : submit_semaphores)
     {
-      vk_table_.DestroySemaphore(vk_dev_, sem, nullptr);
+      table_.DestroySemaphore(vk_dev_, sem, nullptr);
     }
 
     for (auto fence : submit_fences)
     {
-      vk_table_.DestroyFence(vk_dev_, fence, nullptr);
+      table_.DestroyFence(vk_dev_, fence, nullptr);
     }
   }};
 
@@ -4271,17 +4397,13 @@ Result<gpu::QueueScope, Status>
   for (auto i : range(info.buffering))
   {
     auto sbm_sem_label =
-      ssformat<256>(allocator_, "{}:QueueScope.SubmitSemaphore:{}"_str,
-                    info.label, i)
-        .unwrap();
+      sformat(scratch_, "{} / SubmitSemaphore {}"_str, info.label, i).unwrap();
     auto sbm_fnc_label =
-      ssformat<256>(allocator_, "{}:QueueScope.SubmitFence:{}"_str, info.label,
-                    i)
-        .unwrap();
+      sformat(scratch_, "{} / SubmitFence {}"_str, info.label, i).unwrap();
 
     VkSemaphore acquire_sem;
     auto        result =
-      vk_table_.CreateSemaphore(vk_dev_, &sem_info, nullptr, &acquire_sem);
+      table_.CreateSemaphore(vk_dev_, &sem_info, nullptr, &acquire_sem);
     if (result != VK_SUCCESS)
     {
       return Err{(Status) result};
@@ -4289,74 +4411,72 @@ Result<gpu::QueueScope, Status>
 
     VkSemaphore submit_sem;
 
-    result =
-      vk_table_.CreateSemaphore(vk_dev_, &sem_info, nullptr, &submit_sem);
+    result = table_.CreateSemaphore(vk_dev_, &sem_info, nullptr, &submit_sem);
 
     set_resource_name(sbm_sem_label, submit_sem, VK_OBJECT_TYPE_SEMAPHORE,
-                      VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT);
+                      VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT, scratch_);
 
     submit_semaphores.push(submit_sem).unwrap();
 
     VkFence submit_fence;
-    result =
-      vk_table_.CreateFence(vk_dev_, &fence_info, nullptr, &submit_fence);
+    result = table_.CreateFence(vk_dev_, &fence_info, nullptr, &submit_fence);
 
     set_resource_name(sbm_fnc_label, submit_fence, VK_OBJECT_TYPE_FENCE,
-                      VK_DEBUG_REPORT_OBJECT_TYPE_FENCE_EXT);
+                      VK_DEBUG_REPORT_OBJECT_TYPE_FENCE_EXT, scratch_);
 
     submit_fences.push(submit_fence).unwrap();
   }
 
-  QueueScope * scope;
+  IQueueScope * scope;
 
   if (!allocator_->nalloc(1, scope))
   {
     return Err{Status::OutOfDeviceMemory};
   }
 
-  new (scope) QueueScope{info.buffering, std::move(submit_semaphores),
-                         std::move(submit_fences)};
+  new (scope) IQueueScope{info.buffering, std::move(submit_semaphores),
+                          std::move(submit_fences)};
 
   return Ok{(gpu::QueueScope) scope};
 }
 
-AliasId Device::allocate_alias_id()
+AliasId IDevice::allocate_alias_id()
 {
   WriteGuard guard{resource_states_.lock_};
-  auto       id = resource_states_.memory_.push(Hazard{}).unwrap();
+  auto       id = resource_states_.alias_.push(Hazard{}).unwrap();
   return static_cast<AliasId>(id);
 }
 
-void Device::release_alias_id(AliasId id)
+void IDevice::release_alias_id(AliasId id)
 {
   WriteGuard guard{resource_states_.lock_};
-  resource_states_.memory_.erase(id);
+  resource_states_.alias_.erase(id);
   return;
 }
 
-DescriptorSetId Device::allocate_descriptor_set_id()
+DescriptorSetId IDevice::allocate_descriptor_set_id()
 {
   WriteGuard guard{resource_states_.lock_};
   auto       id = resource_states_.descriptor_sets_.push().unwrap();
   return static_cast<DescriptorSetId>(id);
 }
 
-void Device::release_descriptor_set_id(DescriptorSetId id)
+void IDevice::release_descriptor_set_id(DescriptorSetId id)
 {
   WriteGuard guard{resource_states_.lock_};
   resource_states_.descriptor_sets_.erase(id);
   return;
 }
 
-void Device::uninit()
+void IDevice::uninit()
 {
   vmaDestroyAllocator(vma_allocator_);
-  vk_table_.DestroyDevice(vk_dev_, nullptr);
+  table_.DestroyDevice(vk_dev_, nullptr);
 }
 
-void Device::uninit(gpu::Buffer buffer_)
+void IDevice::uninit(gpu::Buffer buffer_)
 {
-  auto * buffer = (Buffer *) buffer_;
+  auto * buffer = (Buffer) buffer_;
 
   if (buffer == nullptr)
   {
@@ -4366,33 +4486,33 @@ void Device::uninit(gpu::Buffer buffer_)
   for (auto loc : buffer->bind_locations)
   {
     loc.set->bindings[loc.binding].sync_resources[v1][loc.element] =
-      (Buffer *) nullptr;
+      (Buffer) nullptr;
   }
 
-  if (buffer->memory.memory_group != nullptr)
+  if (buffer->memory.alias != nullptr)
   {
     switch (buffer->memory.type)
     {
       case gpu::MemoryType::Unique:
       {
-        uninit((gpu::MemoryGroup) buffer->memory.memory_group);
+        uninit((gpu::Alias) buffer->memory.alias);
       }
       break;
-      case gpu::MemoryType::Group:
+      case gpu::MemoryType::Aliased:
       {
       }
       break;
     }
   }
 
-  vk_table_.DestroyBuffer(vk_dev_, buffer->vk, nullptr);
-  buffer->~Buffer();
+  table_.DestroyBuffer(vk_dev_, buffer->vk, nullptr);
+  buffer->~IBuffer();
   allocator_->ndealloc(1, buffer);
 }
 
-void Device::uninit(gpu::BufferView buffer_view_)
+void IDevice::uninit(gpu::BufferView buffer_view_)
 {
-  auto * buffer_view = (BufferView *) buffer_view_;
+  auto * buffer_view = (BufferView) buffer_view_;
 
   if (buffer_view == nullptr)
   {
@@ -4402,17 +4522,17 @@ void Device::uninit(gpu::BufferView buffer_view_)
   for (auto & loc : buffer_view->bind_locations)
   {
     loc.set->bindings[loc.binding].sync_resources[v2][loc.element] =
-      (BufferView *) nullptr;
+      (BufferView) nullptr;
   }
 
-  vk_table_.DestroyBufferView(vk_dev_, buffer_view->vk, nullptr);
-  buffer_view->~BufferView();
+  table_.DestroyBufferView(vk_dev_, buffer_view->vk, nullptr);
+  buffer_view->~IBufferView();
   allocator_->ndealloc(1, buffer_view);
 }
 
-void Device::uninit(gpu::Image image_)
+void IDevice::uninit(gpu::Image image_)
 {
-  auto * image = (Image *) image_;
+  auto * image = (Image) image_;
 
   if (image == nullptr)
   {
@@ -4421,35 +4541,35 @@ void Device::uninit(gpu::Image image_)
 
   if (image->is_swapchain_image)
   {
-    image->~Image();
+    image->~IImage();
     allocator_->ndealloc(1, image);
     return;
   }
 
-  if (image->memory.memory_group != nullptr)
+  if (image->memory.alias != nullptr)
   {
     switch (image->memory.type)
     {
       case gpu::MemoryType::Unique:
       {
-        uninit((gpu::MemoryGroup) image->memory.memory_group);
+        uninit((gpu::Alias) image->memory.alias);
       }
       break;
-      case gpu::MemoryType::Group:
+      case gpu::MemoryType::Aliased:
       {
       }
       break;
     }
   }
 
-  vk_table_.DestroyImage(vk_dev_, image->vk, nullptr);
-  image->~Image();
+  table_.DestroyImage(vk_dev_, image->vk, nullptr);
+  image->~IImage();
   allocator_->ndealloc(1, image);
 }
 
-void Device::uninit(gpu::ImageView image_view_)
+void IDevice::uninit(gpu::ImageView image_view_)
 {
-  auto * image_view = (ImageView *) image_view_;
+  auto * image_view = (ImageView) image_view_;
 
   if (image_view == nullptr)
   {
@@ -4459,64 +4579,61 @@ void Device::uninit(gpu::ImageView image_view_)
   for (auto loc : image_view->bind_locations)
   {
     loc.set->bindings[loc.binding].sync_resources[v3][loc.element] =
-      (ImageView *) nullptr;
+      (ImageView) nullptr;
   }
 
-  vk_table_.DestroyImageView(vk_dev_, image_view->vk, nullptr);
-  image_view->~ImageView();
+  table_.DestroyImageView(vk_dev_, image_view->vk, nullptr);
+  image_view->~IImageView();
   allocator_->ndealloc(1, image_view);
 }
 
-void Device::uninit(gpu::MemoryGroup group_)
+void IDevice::uninit(gpu::Alias alias_)
 {
-  auto * group = (MemoryGroup *) group_;
+  auto * alias = (Alias) alias_;
 
-  if (group == nullptr)
+  if (alias == nullptr)
   {
     return;
   }
 
-  if (group->vma_allocation != nullptr)
+  if (alias->vma_allocation != nullptr)
   {
-    vmaFreeMemory(vma_allocator_, group->vma_allocation);
+    vmaFreeMemory(vma_allocator_, alias->vma_allocation);
   }
 
-  for (auto alias_id : group->alias_ids)
-  {
-    release_alias_id(alias_id);
-  }
+  release_alias_id(alias->id);
 
-  group->~MemoryGroup();
-  allocator_->ndealloc(1, group);
+  alias->~IAlias();
+  allocator_->ndealloc(1, alias);
 }
 
-void Device::uninit(gpu::Sampler sampler_)
+void IDevice::uninit(gpu::Sampler sampler_)
 {
-  vk_table_.DestroySampler(vk_dev_, (Sampler) sampler_, nullptr);
+  table_.DestroySampler(vk_dev_, (Sampler) sampler_, nullptr);
 }
 
-void Device::uninit(gpu::Shader shader_)
+void IDevice::uninit(gpu::Shader shader_)
 {
-  vk_table_.DestroyShaderModule(vk_dev_, (Shader) shader_, nullptr);
+  table_.DestroyShaderModule(vk_dev_, (Shader) shader_, nullptr);
 }
 
-void Device::uninit(gpu::DescriptorSetLayout layout_)
+void IDevice::uninit(gpu::DescriptorSetLayout layout_)
 {
-  auto * layout = (DescriptorSetLayout *) layout_;
+  auto * layout = (DescriptorSetLayout) layout_;
 
   if (layout == nullptr)
   {
     return;
   }
 
-  vk_table_.DestroyDescriptorSetLayout(vk_dev_, layout->vk, nullptr);
-  layout->~DescriptorSetLayout();
+  table_.DestroyDescriptorSetLayout(vk_dev_, layout->vk, nullptr);
+  layout->~IDescriptorSetLayout();
   allocator_->ndealloc(1, layout);
 }
 
-void Device::uninit(gpu::DescriptorSet set_)
+void IDevice::uninit(gpu::DescriptorSet set_)
 {
-  auto * set = (DescriptorSet *) set_;
+  auto * set = (DescriptorSet) set_;
 
   if (set == nullptr)
   {
@@ -4532,7 +4649,7 @@ void Device::uninit(gpu::DescriptorSet set_)
         {
           if (buffer != nullptr)
           {
-            DescriptorSet::remove_bind_loc(
+            IDescriptorSet::remove_bind_loc(
               buffer->bind_locations,
               BindLocation{.set = set, .binding = ibinding, .element = i});
           }
@@ -4543,7 +4660,7 @@ void Device::uninit(gpu::DescriptorSet set_)
         {
           if (buffer_view != nullptr)
           {
-            DescriptorSet::remove_bind_loc(
+            IDescriptorSet::remove_bind_loc(
               buffer_view->bind_locations,
               BindLocation{.set = set, .binding = ibinding, .element = i});
           }
@@ -4554,7 +4671,7 @@ void Device::uninit(gpu::DescriptorSet set_)
         {
           if (image_view != nullptr)
           {
-            DescriptorSet::remove_bind_loc(
+            IDescriptorSet::remove_bind_loc(
               image_view->bind_locations,
               BindLocation{.set = set, .binding = ibinding, .element = i});
           }
@@ -4563,48 +4680,48 @@ void Device::uninit(gpu::DescriptorSet set_)
   }
 
   release_descriptor_set_id(set->id);
-  vk_table_.FreeDescriptorSets(vk_dev_, set->vk_pool, 1, &set->vk);
-  vk_table_.DestroyDescriptorPool(vk_dev_, set->vk_pool, nullptr);
-  set->~DescriptorSet();
+  table_.FreeDescriptorSets(vk_dev_, set->vk_pool, 1, &set->vk);
+  table_.DestroyDescriptorPool(vk_dev_, set->vk_pool, nullptr);
+  set->~IDescriptorSet();
   allocator_->ndealloc(1, set);
 }
 
-void Device::uninit(gpu::PipelineCache cache_)
+void IDevice::uninit(gpu::PipelineCache cache_)
 {
-  vk_table_.DestroyPipelineCache(vk_dev_, (PipelineCache) cache_, nullptr);
+  table_.DestroyPipelineCache(vk_dev_, (PipelineCache) cache_, nullptr);
 }
 
-void Device::uninit(gpu::ComputePipeline pipeline_)
+void IDevice::uninit(gpu::ComputePipeline pipeline_)
 {
-  auto * pipeline = (ComputePipeline *) pipeline_;
+  auto * pipeline = (ComputePipeline) pipeline_;
 
   if (pipeline == nullptr)
   {
     return;
   }
 
-  vk_table_.DestroyPipeline(vk_dev_, pipeline->vk, nullptr);
-  vk_table_.DestroyPipelineLayout(vk_dev_, pipeline->vk_layout, nullptr);
-  pipeline->~ComputePipeline();
+  table_.DestroyPipeline(vk_dev_, pipeline->vk, nullptr);
+  table_.DestroyPipelineLayout(vk_dev_, pipeline->vk_layout, nullptr);
+  pipeline->~IComputePipeline();
   allocator_->ndealloc(1, pipeline);
 }
 
-void Device::uninit(gpu::GraphicsPipeline pipeline_)
+void IDevice::uninit(gpu::GraphicsPipeline pipeline_)
 {
-  auto * pipeline = (GraphicsPipeline *) pipeline_;
+  auto * pipeline = (GraphicsPipeline) pipeline_;
 
   if (pipeline == nullptr)
   {
     return;
   }
 
-  vk_table_.DestroyPipeline(vk_dev_, pipeline->vk, nullptr);
-  vk_table_.DestroyPipelineLayout(vk_dev_, pipeline->vk_layout, nullptr);
-  pipeline->~GraphicsPipeline();
+  table_.DestroyPipeline(vk_dev_, pipeline->vk, nullptr);
+  table_.DestroyPipelineLayout(vk_dev_, pipeline->vk_layout, nullptr);
+  pipeline->~IGraphicsPipeline();
   allocator_->ndealloc(1, pipeline);
 }
 
-void Device::release(Swapchain & swapchain)
+void IDevice::release(ISwapchain & swapchain)
 {
   for (auto image : swapchain.images)
   {
@@ -4613,17 +4730,15 @@ void Device::release(Swapchain & swapchain)
 
   for (auto sem : swapchain.acquire_semaphores)
   {
-    vk_table_.DestroySemaphore(vk_dev_, sem, nullptr);
+    table_.DestroySemaphore(vk_dev_, sem, nullptr);
   }
 
-  vk_table_.DestroySwapchainKHR(vk_dev_, swapchain.vk, nullptr);
-
-  uninit((gpu::MemoryGroup) swapchain.memory_group);
+  table_.DestroySwapchainKHR(vk_dev_, swapchain.vk, nullptr);
 }
 
-void Device::uninit(gpu::Swapchain swapchain_)
+void IDevice::uninit(gpu::Swapchain swapchain_)
 {
-  auto * swapchain = (Swapchain *) swapchain_;
+  auto * swapchain = (Swapchain) swapchain_;
 
   if (swapchain == nullptr)
   {
@@ -4632,55 +4747,55 @@ void Device::uninit(gpu::Swapchain swapchain_)
 
   release(*swapchain);
 
-  swapchain->~Swapchain();
+  swapchain->~ISwapchain();
   allocator_->ndealloc(1, swapchain);
 }
 
-void Device::uninit(gpu::TimestampQuery query_)
+void IDevice::uninit(gpu::TimestampQuery query_)
 {
   auto vk_pool = (VkQueryPool) query_;
 
-  vk_table_.DestroyQueryPool(vk_dev_, vk_pool, nullptr);
+  table_.DestroyQueryPool(vk_dev_, vk_pool, nullptr);
 }
 
-void Device::uninit(gpu::StatisticsQuery query_)
+void IDevice::uninit(gpu::StatisticsQuery query_)
 {
   auto vk_pool = (VkQueryPool) query_;
 
-  vk_table_.DestroyQueryPool(vk_dev_, vk_pool, nullptr);
+  table_.DestroyQueryPool(vk_dev_, vk_pool, nullptr);
 }
 
-void Device::uninit(gpu::CommandEncoder enc_)
+void IDevice::uninit(gpu::CommandEncoder enc_)
 {
-  auto enc = (CommandEncoder *) enc_;
+  auto enc = (CommandEncoder) enc_;
 
   if (enc == nullptr)
   {
     return;
   }
 
-  enc->~CommandEncoder();
+  enc->~ICommandEncoder();
   allocator_->ndealloc(1, enc);
 }
 
-void Device::uninit(gpu::CommandBuffer buff_)
+void IDevice::uninit(gpu::CommandBuffer buff_)
 {
-  auto buff = (CommandBuffer *) buff_;
+  auto buff = (CommandBuffer) buff_;
   if (buff == nullptr)
   {
     return;
   }
 
-  vk_table_.FreeCommandBuffers(vk_dev_, buff->vk_pool_, 1, &buff->vk_);
-  vk_table_.DestroyCommandPool(vk_dev_, buff->vk_pool_, nullptr);
+  table_.FreeCommandBuffers(vk_dev_, buff->vk_pool_, 1, &buff->vk_);
+  table_.DestroyCommandPool(vk_dev_, buff->vk_pool_, nullptr);
 
-  buff->~CommandBuffer();
+  buff->~ICommandBuffer();
   allocator_->ndealloc(1, buff);
 }
 
-void Device::uninit(gpu::QueueScope scope_)
+void IDevice::uninit(gpu::QueueScope scope_)
 {
-  auto scope = (QueueScope *) scope_;
+  auto scope = (QueueScope) scope_;
 
   if (scope == nullptr)
   {
@@ -4689,50 +4804,47 @@ void Device::uninit(gpu::QueueScope scope_)
 
   for (auto sem : scope->submit_semaphores_)
   {
-    vk_table_.DestroySemaphore(vk_dev_, sem, nullptr);
+    table_.DestroySemaphore(vk_dev_, sem, nullptr);
   }
 
   for (auto fence : scope->submit_fences_)
   {
-    vk_table_.DestroyFence(vk_dev_, fence, nullptr);
+    table_.DestroyFence(vk_dev_, fence, nullptr);
   }
 
-  scope->~QueueScope();
+  scope->~IQueueScope();
   allocator_->ndealloc(1, scope);
 }
 
-Result<Span<u8>, Status> Device::get_memory_map(gpu::Buffer buffer_)
+Result<Span<u8>, Status> IDevice::get_memory_map(gpu::Buffer buffer_)
 {
-  auto * buffer = (Buffer *) buffer_;
+  auto * buffer = (Buffer) buffer_;
 
   CHECK(buffer->host_mapped, "");
-  CHECK(buffer->memory.memory_group != nullptr, "");
+  CHECK(buffer->memory.alias != nullptr, "");
 
   auto & mem       = buffer->memory;
-  auto * group     = mem.memory_group;
-  auto * alias_map = ((u8 *) group->map) + group->alias_offsets[mem.alias];
+  auto * alias_map = (u8 *) mem.alias->map;
 
   return Ok{
     Span<u8>{alias_map, buffer->size}
   };
 }
 
-Result<Void, Status> Device::invalidate_mapped_memory(gpu::Buffer buffer_,
-                                                      Slice64     range)
+Result<Void, Status> IDevice::invalidate_mapped_memory(gpu::Buffer buffer_,
+                                                       Slice64     range)
 {
-  auto * buffer = (Buffer *) buffer_;
+  auto * buffer = (Buffer) buffer_;
 
   CHECK(buffer->host_mapped, "");
-  CHECK(buffer->memory.memory_group != nullptr, "");
+  CHECK(buffer->memory.alias != nullptr, "");
 
   range = range(buffer->size);
 
-  auto * group        = buffer->memory.memory_group;
-  auto   alias_offset = group->alias_offsets[buffer->memory.alias];
+  auto & mem = buffer->memory;
 
-  auto result =
-    vmaInvalidateAllocation(vma_allocator_, group->vma_allocation,
-                            alias_offset + range.offset, range.span);
+  auto result = vmaInvalidateAllocation(
+    vma_allocator_, mem.alias->vma_allocation, range.offset, range.span);
   if (result != VK_SUCCESS)
   {
     return Err{(Status) result};
@@ -4740,21 +4852,20 @@ Result<Void, Status> Device::invalidate_mapped_memory(gpu::Buffer buffer_,
   return Ok{Void{}};
 }
 
-Result<Void, Status> Device::flush_mapped_memory(gpu::Buffer buffer_,
-                                                 Slice64     range)
+Result<Void, Status> IDevice::flush_mapped_memory(gpu::Buffer buffer_,
+                                                  Slice64     range)
 {
-  auto * buffer = (Buffer *) buffer_;
+  auto * buffer = (Buffer) buffer_;
 
   CHECK(buffer->host_mapped, "");
-  CHECK(buffer->memory.memory_group != nullptr, "");
+  CHECK(buffer->memory.alias != nullptr, "");
 
   range = range(buffer->size);
 
-  auto * group        = buffer->memory.memory_group;
-  auto   alias_offset = group->alias_offsets[buffer->memory.alias];
+  auto & mem = buffer->memory;
 
-  auto result = vmaFlushAllocation(vma_allocator_, group->vma_allocation,
-                                   alias_offset + range.offset, range.span);
+  auto result = vmaFlushAllocation(vma_allocator_, mem.alias->vma_allocation,
+                                   range.offset, range.span);
   if (result != VK_SUCCESS)
   {
     return Err{(Status) result};
@@ -4762,12 +4873,12 @@ Result<Void, Status> Device::flush_mapped_memory(gpu::Buffer buffer_,
   return Ok{Void{}};
 }
 
-Result<usize, Status> Device::get_pipeline_cache_size(gpu::PipelineCache cache)
+Result<usize, Status> IDevice::get_pipeline_cache_size(gpu::PipelineCache cache)
 {
   usize size;
 
-  auto result = vk_table_.GetPipelineCacheData(vk_dev_, (PipelineCache) cache,
-                                               &size, nullptr);
+  auto result =
+    table_.GetPipelineCacheData(vk_dev_, (PipelineCache) cache, &size, nullptr);
   if (result != VK_SUCCESS)
   {
     return Err{(Status) result};
@@ -4775,13 +4886,13 @@ Result<usize, Status> Device::get_pipeline_cache_size(gpu::PipelineCache cache)
   return Ok{(usize) size};
 }
 
-Result<Void, Status> Device::get_pipeline_cache_data(gpu::PipelineCache cache,
-                                                     Vec<u8> &          out)
+Result<Void, Status> IDevice::get_pipeline_cache_data(gpu::PipelineCache cache,
+                                                      Vec<u8> &          out)
 {
   usize size = 0;
 
-  auto result = vk_table_.GetPipelineCacheData(vk_dev_, (PipelineCache) cache,
-                                               &size, nullptr);
+  auto result =
+    table_.GetPipelineCacheData(vk_dev_, (PipelineCache) cache, &size, nullptr);
 
   if (result == VK_SUCCESS)
   {
@@ -4800,8 +4911,8 @@ Result<Void, Status> Device::get_pipeline_cache_data(gpu::PipelineCache cache,
     return Err{Status::OutOfHostMemory};
   }
 
-  result = vk_table_.GetPipelineCacheData(vk_dev_, (PipelineCache) cache, &size,
-                                          out.data() + offset);
+  result = table_.GetPipelineCacheData(vk_dev_, (PipelineCache) cache, &size,
+                                       out.data() + offset);
 
   if (result != VK_SUCCESS)
   {
@@ -4813,14 +4924,14 @@ Result<Void, Status> Device::get_pipeline_cache_data(gpu::PipelineCache cache,
 }
 
 Result<Void, Status>
-  Device::merge_pipeline_cache(gpu::PipelineCache             dst,
-                               Span<gpu::PipelineCache const> srcs)
+  IDevice::merge_pipeline_cache(gpu::PipelineCache             dst,
+                                Span<gpu::PipelineCache const> srcs)
 {
   auto num_srcs = size32(srcs);
 
   CHECK(num_srcs > 0, "");
 
-  auto result = vk_table_.MergePipelineCaches(
+  auto result = table_.MergePipelineCaches(
     vk_dev_, (PipelineCache) dst, num_srcs, (PipelineCache *) srcs.data());
 
   if (result != VK_SUCCESS)
@@ -4830,15 +4941,17 @@ Result<Void, Status>
   return Ok{Void{}};
 }
 
-void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
+void IDevice::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
 {
+  SCRATCH_ALLOCATOR(allocator_);
+
   if (update.buffers.is_empty() && update.texel_buffers.is_empty() &&
       update.images.is_empty())
   {
     return;
   }
 
-  auto * set = (DescriptorSet *) update.set;
+  auto * set = (DescriptorSet) update.set;
 
   CHECK(update.binding < set->bindings.size(), "");
   auto & binding = set->bindings[update.binding];
@@ -4854,16 +4967,18 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
     {
       for (gpu::BufferBinding const & b : update.buffers)
       {
-        auto * buffer = (Buffer *) b.buffer;
+        auto * buffer = (Buffer) b.buffer;
         if (buffer == nullptr)
         {
           continue;
         }
-        CHECK(buffer->memory.memory_group != nullptr, "");
         CHECK(has_bits(buffer->usage, descriptor_buffer_usage(binding.type)),
               "");
-        CHECK(is_valid_buffer_access(buffer->size, b.range,
-                                     gpu::BUFFER_OFFSET_ALIGNMENT, 1),
+        CHECK(is_valid_buffer_access(
+                buffer->size, b.range,
+                max(phy_.vk_properties.limits.minStorageBufferOffsetAlignment,
+                    phy_.vk_properties.limits.minUniformBufferOffsetAlignment),
+                1),
               "");
       }
     }
@@ -4872,12 +4987,11 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
     {
       for (gpu::BufferView v : update.texel_buffers)
       {
-        auto * view = (BufferView *) v;
+        auto * view = (BufferView) v;
         if (view == nullptr)
         {
           continue;
         }
-        CHECK(view->buffer->memory.memory_group != nullptr, "");
         CHECK(
           has_bits(view->buffer->usage, descriptor_buffer_usage(binding.type)),
           "");
@@ -4888,13 +5002,12 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
     {
       for (gpu::ImageBinding const & b : update.images)
       {
-        auto * view = (ImageView *) b.image_view;
+        auto * view = (ImageView) b.image_view;
         if (view == nullptr)
         {
           continue;
         }
-        auto * image = (Image *) view->image;
-        CHECK(image->memory.memory_group != nullptr, "");
+        auto * image = (Image) view->image;
         CHECK(has_bits(image->usage, descriptor_image_usage(binding.type)), "");
         CHECK(image->sample_count == gpu::SampleCount::C1, "");
       }
@@ -4905,15 +5018,9 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
       CHECK_UNREACHABLE();
   }
 
-  Span<VkDescriptorImageInfo>  image_infos;
-  Span<VkDescriptorBufferInfo> buffer_infos;
-  Span<VkBufferView>           texel_buffer_views;
-
-  scratch_
-    .resize(max(sizeof(VkDescriptorBufferInfo), sizeof(VkBufferView),
-                sizeof(VkDescriptorImageInfo)) *
-            binding.count)
-    .unwrap();
+  Vec<VkDescriptorBufferInfo> buffer_infos{scratch_};
+  Vec<VkDescriptorImageInfo>  image_infos{scratch_};
+  Vec<VkBufferView>           texel_infos{scratch_};
 
   switch (binding.type)
   {
@@ -4924,11 +5031,10 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
     case gpu::DescriptorType::RWStorageBuffer:
     case gpu::DescriptorType::DynRWStorageBuffer:
     {
-      buffer_infos =
-        Span{(VkDescriptorBufferInfo *) scratch_.data(), update.buffers.size()};
+      buffer_infos.resize_uninit(update.buffers.size()).unwrap();
       for (auto [vk, b] : zip(buffer_infos, update.buffers))
       {
-        auto * buffer = (Buffer *) b.buffer;
+        auto * buffer = (Buffer) b.buffer;
         auto   range  = b.range(buffer->size);
         vk = VkDescriptorBufferInfo{.buffer = (buffer == nullptr) ? nullptr :
                                                                     buffer->vk,
@@ -4944,11 +5050,10 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
     case gpu::DescriptorType::StorageImage:
     case gpu::DescriptorType::InputAttachment:
     {
-      image_infos =
-        Span{(VkDescriptorImageInfo *) scratch_.data(), update.images.size()};
+      image_infos.resize_uninit(update.images.size()).unwrap();
       for (auto [vk, b] : zip(image_infos, update.images))
       {
-        auto * view    = (ImageView *) b.image_view;
+        auto * view    = (ImageView) b.image_view;
         auto * sampler = (Sampler) b.sampler;
         vk             = VkDescriptorImageInfo{
                       .sampler     = sampler,
@@ -4961,11 +5066,10 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
     case gpu::DescriptorType::StorageTexelBuffer:
     case gpu::DescriptorType::UniformTexelBuffer:
     {
-      texel_buffer_views =
-        Span{(VkBufferView *) scratch_.data(), update.texel_buffers.size()};
-      for (auto [vk, b] : zip(texel_buffer_views, update.texel_buffers))
+      texel_infos.resize_uninit(update.texel_buffers.size()).unwrap();
+      for (auto [vk, b] : zip(texel_infos, update.texel_buffers))
       {
-        auto * view = (BufferView *) b;
+        auto * view = (BufferView) b;
         vk          = (view == nullptr) ? nullptr : view->vk;
       }
     }
@@ -4975,23 +5079,20 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
       CHECK_UNREACHABLE();
   }
 
-  VkWriteDescriptorSet vk_write{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                                .pNext = nullptr,
-                                .dstSet          = set->vk,
-                                .dstBinding      = update.binding,
-                                .dstArrayElement = update.first_element,
-                                .descriptorCount =
-                                  max(size32(image_infos), size32(buffer_infos),
-                                      size32(texel_buffer_views)),
-                                .descriptorType   = to_vk(binding.type),
-                                .pImageInfo       = image_infos.data(),
-                                .pBufferInfo      = buffer_infos.data(),
-                                .pTexelBufferView = texel_buffer_views.data()};
+  VkWriteDescriptorSet vk_write{
+    .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+    .pNext           = nullptr,
+    .dstSet          = set->vk,
+    .dstBinding      = update.binding,
+    .dstArrayElement = update.first_element,
+    .descriptorCount =
+      max(size32(image_infos), size32(buffer_infos), size32(texel_infos)),
+    .descriptorType   = to_vk(binding.type),
+    .pImageInfo       = image_infos.data(),
+    .pBufferInfo      = buffer_infos.data(),
+    .pTexelBufferView = texel_infos.data()};
 
-  vk_table_.UpdateDescriptorSets(vk_dev_, 1, &vk_write, 0, nullptr);
-
-  scratch_.shrink().unwrap();
-  scratch_.clear();
+  table_.UpdateDescriptorSets(vk_dev_, 1, &vk_write, 0, nullptr);
 
   switch (sync_type)
   {
@@ -5019,20 +5120,18 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
   }
 }
 
-gpu::QueueScopeState Device::get_queue_scope_state(gpu::QueueScope scope_)
+gpu::QueueScopeState IDevice::get_queue_scope_state(gpu::QueueScope scope_)
 {
   CHECK(scope_ != nullptr, "");
-  auto scope = (QueueScope *) scope_;
+  auto scope = (QueueScope) scope_;
 
-  return gpu::QueueScopeState{.tail_frame    = scope->tail_frame_,
-                              .current_frame = scope->current_frame_,
-                              .ring_index    = scope->ring_index_,
-                              .buffering     = scope->buffering_};
+  return gpu::QueueScopeState{.ring_index = scope->ring_index_,
+                              .buffering  = scope->buffering_};
 }
 
-Result<Void, Status> Device::wait_idle()
+Result<Void, Status> IDevice::await_idle()
 {
-  auto result = vk_table_.DeviceWaitIdle(vk_dev_);
+  auto result = table_.DeviceWaitIdle(vk_dev_);
   if (result != VK_SUCCESS)
   {
     return Err{(Status) result};
@@ -5041,9 +5140,9 @@ Result<Void, Status> Device::wait_idle()
   return Ok{Void{}};
 }
 
-Result<Void, Status> Device::wait_queue_idle()
+Result<Void, Status> IDevice::await_queue_idle()
 {
-  auto result = vk_table_.QueueWaitIdle(vk_queue_);
+  auto result = table_.QueueWaitIdle(vk_queue_);
   if (result != VK_SUCCESS)
   {
     return Err{(Status) result};
@@ -5053,40 +5152,38 @@ Result<Void, Status> Device::wait_queue_idle()
 }
 
 Result<Void, Status>
-  Device::get_surface_formats(gpu::Surface              surface_,
-                              Vec<gpu::SurfaceFormat> & formats)
+  IDevice::get_surface_formats(gpu::Surface              surface_,
+                               Vec<gpu::SurfaceFormat> & formats)
 {
+  SCRATCH_ALLOCATOR(allocator_);
+
   auto surface = (VkSurfaceKHR) surface_;
 
   u32  num_supported;
-  auto result = instance_->vk_table_.GetPhysicalDeviceSurfaceFormatsKHR(
-    phy_dev_.vk_phy_dev, surface, &num_supported, nullptr);
+  auto result = instance_->table_.GetPhysicalDeviceSurfaceFormatsKHR(
+    phy_.vk, surface, &num_supported, nullptr);
 
   if (result != VK_SUCCESS)
   {
     return Err{(Status) result};
   }
 
-  VkSurfaceFormatKHR * vk_formats;
-  if (!allocator_->nalloc(num_supported, vk_formats))
+  Vec<VkSurfaceFormatKHR> vk_formats{scratch_};
+
+  if (!vk_formats.resize_uninit(num_supported))
   {
     return Err{Status::OutOfHostMemory};
   }
 
-  defer vk_formats_{[&] { allocator_->ndealloc(num_supported, vk_formats); }};
+  result = instance_->table_.GetPhysicalDeviceSurfaceFormatsKHR(
+    phy_.vk, surface, &num_supported, vk_formats.data());
 
+  if (result != VK_SUCCESS && result != VK_INCOMPLETE)
   {
-    u32 num_read = num_supported;
-    result       = instance_->vk_table_.GetPhysicalDeviceSurfaceFormatsKHR(
-      phy_dev_.vk_phy_dev, surface, &num_supported, vk_formats);
-
-    if (result != VK_SUCCESS && result != VK_INCOMPLETE)
-    {
-      return Err{(Status) result};
-    }
-
-    CHECK(num_read == num_supported && result != VK_INCOMPLETE, "");
+    return Err{(Status) result};
   }
+
+  CHECK(vk_formats.size() == num_supported && result != VK_INCOMPLETE, "");
 
   usize const offset = formats.size();
 
@@ -5095,52 +5192,49 @@ Result<Void, Status>
     return Err{Status::OutOfHostMemory};
   }
 
-  for (u32 i = 0; i < num_supported; i++)
+  for (auto [fmt, vk] : zip(formats.view().slice(offset), vk_formats))
   {
-    formats[offset + i].format = (gpu::Format) vk_formats[i].format;
-    formats[offset + i].color_space =
-      (gpu::ColorSpace) vk_formats[i].colorSpace;
+    fmt = gpu::SurfaceFormat{.format      = (gpu::Format) vk.format,
+                             .color_space = (gpu::ColorSpace) vk.colorSpace};
   }
 
   return Ok{};
 }
 
 Result<Void, Status>
-  Device::get_surface_present_modes(gpu::Surface            surface_,
-                                    Vec<gpu::PresentMode> & modes)
+  IDevice::get_surface_present_modes(gpu::Surface            surface_,
+                                     Vec<gpu::PresentMode> & modes)
 {
-  VkSurfaceKHR const surface = (VkSurfaceKHR) surface_;
+  SCRATCH_ALLOCATOR(allocator_);
+
+  auto surface = (VkSurfaceKHR) surface_;
 
   u32  num_supported;
-  auto result = instance_->vk_table_.GetPhysicalDeviceSurfacePresentModesKHR(
-    phy_dev_.vk_phy_dev, surface, &num_supported, nullptr);
+  auto result = instance_->table_.GetPhysicalDeviceSurfacePresentModesKHR(
+    phy_.vk, surface, &num_supported, nullptr);
 
   if (result != VK_SUCCESS)
   {
     return Err{(Status) result};
   }
 
-  VkPresentModeKHR * vk_present_modes;
-  if (!allocator_->nalloc(num_supported, vk_present_modes))
+  Vec<VkPresentModeKHR> vk_present_modes{scratch_};
+
+  if (!vk_present_modes.resize_uninit(num_supported))
   {
     return Err{Status::OutOfHostMemory};
   }
 
-  defer vk_present_modes_{
-    [&] { allocator_->ndealloc(num_supported, vk_present_modes); }};
+  result = instance_->table_.GetPhysicalDeviceSurfacePresentModesKHR(
+    phy_.vk, surface, &num_supported, vk_present_modes.data());
 
+  if (result != VK_SUCCESS && result != VK_INCOMPLETE)
   {
-    u32 num_read = num_supported;
-    result       = instance_->vk_table_.GetPhysicalDeviceSurfacePresentModesKHR(
-      phy_dev_.vk_phy_dev, surface, &num_supported, vk_present_modes);
-
-    if (result != VK_SUCCESS && result != VK_INCOMPLETE)
-    {
-      return Err{(Status) result};
-    }
-
-    CHECK(num_read == num_supported && result != VK_INCOMPLETE, "");
+    return Err{(Status) result};
   }
+
+  CHECK(vk_present_modes.size() == num_supported && result != VK_INCOMPLETE,
+        "");
 
   auto offset = modes.size();
 
@@ -5149,21 +5243,21 @@ Result<Void, Status>
     return Err{Status::OutOfHostMemory};
   }
 
-  for (u32 i = 0; i < num_supported; i++)
+  for (auto [mode, vk] : zip(modes.view().slice(offset), vk_present_modes))
   {
-    modes[offset + i] = (gpu::PresentMode) vk_present_modes[i];
+    mode = (gpu::PresentMode) vk;
   }
 
   return Ok{};
 }
 
 Result<gpu::SurfaceCapabilities, Status>
-  Device::get_surface_capabilities(gpu::Surface surface_)
+  IDevice::get_surface_capabilities(gpu::Surface surface_)
 {
   auto                     surface = (VkSurfaceKHR) surface_;
   VkSurfaceCapabilitiesKHR capabilities;
-  auto result = instance_->vk_table_.GetPhysicalDeviceSurfaceCapabilitiesKHR(
-    phy_dev_.vk_phy_dev, surface, &capabilities);
+  auto result = instance_->table_.GetPhysicalDeviceSurfaceCapabilitiesKHR(
+    phy_.vk, surface, &capabilities);
 
   if (result != VK_SUCCESS)
   {
@@ -5179,9 +5273,9 @@ Result<gpu::SurfaceCapabilities, Status>
 }
 
 Result<gpu::SwapchainState, Status>
-  Device::get_swapchain_state(gpu::Swapchain swapchain_)
+  IDevice::get_swapchain_state(gpu::Swapchain swapchain_)
 {
-  auto * swapchain = (Swapchain *) swapchain_;
+  auto * swapchain = (Swapchain) swapchain_;
 
   gpu::SwapchainState state{
     .extent          = swapchain->extent,
@@ -5195,26 +5289,24 @@ Result<gpu::SwapchainState, Status>
 }
 
 Result<Void, Status>
-  Device::get_timestamp_query_result(gpu::TimestampQuery query_, Slice32 range,
-                                     Vec<u64> & timestamps)
+  IDevice::get_timestamp_query_result(gpu::TimestampQuery query_, u32 first,
+                                      Span<u64> timestamps)
 {
-  if (range.is_empty())
+  if (timestamps.is_empty())
   {
     return Ok{};
   }
 
   auto vk_pool = (VkQueryPool) query_;
 
-  auto offset = timestamps.size();
-  timestamps.extend_uninit(range.span).unwrap();
+  auto n = size32(timestamps);
 
-  auto result = vk_table_.GetQueryPoolResults(
-    vk_dev_, vk_pool, range.offset, range.span, sizeof(u64) * range.span,
-    timestamps.data() + offset, sizeof(u64), VK_QUERY_RESULT_64_BIT);
+  auto result = table_.GetQueryPoolResults(vk_dev_, vk_pool, first, n,
+                                           sizeof(u64) * n, timestamps.data(),
+                                           sizeof(u64), VK_QUERY_RESULT_64_BIT);
 
   if (result != VK_SUCCESS)
   {
-    timestamps.resize(offset).unwrap();
     return Err{(Status) result};
   }
 
@@ -5222,43 +5314,34 @@ Result<Void, Status>
 }
 
 Result<Void, Status>
-  Device::get_statistics_query_result(gpu::StatisticsQuery           query_,
-                                      Slice32                        range,
-                                      Vec<gpu::PipelineStatistics> & statistics)
+  IDevice::get_statistics_query_result(gpu::StatisticsQuery query_, u32 first,
+                                       Span<gpu::PipelineStatistics> statistics)
 {
-  if (phy_dev_.vk_features.pipelineStatisticsQuery != VK_TRUE)
-  {
-    return Err{Status::FeatureNotPresent};
-  }
-
-  if (range.is_empty())
+  if (statistics.is_empty())
   {
     return Ok{};
   }
 
   auto vk_pool = (VkQueryPool) query_;
 
-  auto offset = statistics.size();
-  statistics.extend_uninit(range.span).unwrap();
+  auto n = size32(statistics);
 
-  auto result = vk_table_.GetQueryPoolResults(
-    vk_dev_, vk_pool, range.offset, range.span,
-    sizeof(gpu::PipelineStatistics) * range.span, statistics.data() + offset,
-    sizeof(gpu::PipelineStatistics), VK_QUERY_RESULT_64_BIT);
+  auto result = table_.GetQueryPoolResults(
+    vk_dev_, vk_pool, first, n, sizeof(gpu::PipelineStatistics) * n,
+    statistics.data(), sizeof(gpu::PipelineStatistics), VK_QUERY_RESULT_64_BIT);
 
   if (result != VK_SUCCESS)
   {
-    statistics.resize(offset).unwrap();
     return Err{(Status) result};
   }
 
   return Ok{};
 }
 
-Result<Void, Status> Device::acquire_next(gpu::Swapchain swapchain_)
+Result<Void, Status> IDevice::acquire_next(gpu::Swapchain swapchain_)
 {
   CHECK(swapchain_ != nullptr, "");
-  auto swapchain = (Swapchain *) swapchain_;
+  auto swapchain = (Swapchain) swapchain_;
 
   VkResult result = VK_SUCCESS;
 
@@ -5267,7 +5350,7 @@ Result<Void, Status> Device::acquire_next(gpu::Swapchain swapchain_)
   {
     // await all pending submitted operations on the device possibly using
     // the swapchain, to avoid destroying whilst in use
-    result = vk_table_.QueueWaitIdle(vk_queue_);
+    result = table_.QueueWaitIdle(vk_queue_);
     if (result != VK_SUCCESS)
     {
       return Err{(Status) result};
@@ -5279,7 +5362,7 @@ Result<Void, Status> Device::acquire_next(gpu::Swapchain swapchain_)
   if (!swapchain->is_deferred)
   {
     u32 next_image;
-    result = vk_table_.AcquireNextImageKHR(
+    result = table_.AcquireNextImageKHR(
       vk_dev_, swapchain->vk, U64_MAX,
       swapchain->acquire_semaphores[swapchain->ring_index], nullptr,
       &next_image);
@@ -5302,35 +5385,35 @@ Result<Void, Status> Device::acquire_next(gpu::Swapchain swapchain_)
   return Ok{};
 }
 
-Result<Void, Status> Device::submit(gpu::CommandBuffer buffer_,
+Result<u64, Status> IDevice::submit(gpu::CommandBuffer buffer_,
                                     gpu::QueueScope    scope_)
 {
-  char              reserved_[512];
-  FallbackAllocator scratch{Arena::from(reserved_), allocator_};
+  u8                reserved_[512];
+  FallbackAllocator scratch{reserved_, allocator_};
 
-  auto * buffer = (CommandBuffer *) buffer_;
+  auto * buffer = (CommandBuffer) buffer_;
   CHECK(buffer != nullptr, "");
   CHECK(buffer->state_ == CommandBufferState::Recorded, "");
   CHECK(buffer->status_ == Status::Success, "");
   CHECK(scope_ != nullptr, "");
 
-  auto scope = (QueueScope *) scope_;
+  auto scope = (QueueScope) scope_;
 
   auto submit_fence     = scope->submit_fences_[scope->ring_index_];
   auto submit_semaphore = scope->submit_semaphores_[scope->ring_index_];
 
   // wait to re-use sync primitives
   auto result =
-    vk_table_.WaitForFences(vk_dev_, 1, &submit_fence, VK_TRUE, U64_MAX);
+    table_.WaitForFences(vk_dev_, 1, &submit_fence, VK_TRUE, U64_MAX);
 
   CHECK(result == VK_SUCCESS, "");
 
-  result = vk_table_.ResetFences(vk_dev_, 1, &submit_fence);
+  result = table_.ResetFences(vk_dev_, 1, &submit_fence);
 
   CHECK(result == VK_SUCCESS, "");
 
   auto swapchain     = buffer->swapchain_;
-  auto is_presenting = swapchain != nullptr && !swapchain->is_out_of_date &&
+  auto is_presenting = swapchain.is_some() && !swapchain->is_out_of_date &&
                        !swapchain->is_deferred;
   auto acquire_semaphore =
     is_presenting ?
@@ -5350,7 +5433,7 @@ Result<Void, Status> Device::submit(gpu::CommandBuffer buffer_,
     .signalSemaphoreCount = is_presenting ? 1U : 0U,
     .pSignalSemaphores    = is_presenting ? &submit_semaphore : nullptr};
 
-  result = vk_table_.QueueSubmit(vk_queue_, 1, &submit_info, submit_fence);
+  result = table_.QueueSubmit(vk_queue_, 1, &submit_info, submit_fence);
 
   CHECK(result == VK_SUCCESS, "");
 
@@ -5359,10 +5442,7 @@ Result<Void, Status> Device::submit(gpu::CommandBuffer buffer_,
   // commit the updated state of the resources
   buffer->commit_resource_states();
 
-  scope->current_frame_++;
-  scope->tail_frame_ = (scope->current_frame_ < scope->buffering_) ?
-                         0 :
-                         (scope->current_frame_ - scope->buffering_);
+  auto id            = scope->frame_++;
   scope->ring_index_ = (scope->ring_index_ + 1) % scope->buffering_;
 
   if (is_presenting)
@@ -5377,7 +5457,7 @@ Result<Void, Status> Device::submit(gpu::CommandBuffer buffer_,
                        .pSwapchains        = &swapchain->vk,
                        .pImageIndices      = &image,
                        .pResults           = nullptr};
-    result = vk_table_.QueuePresentKHR(vk_queue_, &present_info);
+    result = table_.QueuePresentKHR(vk_queue_, &present_info);
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR)
     {
@@ -5393,32 +5473,81 @@ Result<Void, Status> Device::submit(gpu::CommandBuffer buffer_,
     }
   }
 
+  return Ok{id};
+}
+
+Result<Void, Status> IDevice::await_queue_scope_idle(gpu::QueueScope scope_,
+                                                     nanoseconds     timeout)
+{
+  CHECK(scope_ != nullptr, "");
+
+  auto scope = (QueueScope) scope_;
+
+  auto submit_fence = scope->submit_fences_[scope->ring_index_];
+
+  auto result = table_.WaitForFences(vk_dev_, 1, &submit_fence, VK_TRUE,
+                                     (u64) max(timeout.count(), 0LL));
+
+  if (result != VK_SUCCESS)
+  {
+    return Err{(Status) result};
+  }
+
+  return Ok{};
+}
+
+Result<Void, Status> IDevice::await_queue_scope_frame(gpu::QueueScope scope_,
+                                                      u64             frame,
+                                                      nanoseconds     timeout)
+{
+  CHECK(scope_ != nullptr, "");
+  auto scope = (QueueScope) scope_;
+
+  CHECK(frame <= scope->frame_, "");
+
+  if (sat_sub(scope->frame_, scope->buffering_) >= frame)
+  {
+    return Ok{};
+  }
+
+  auto dist         = scope->frame_ - frame;
+  auto ring_index   = ring_sub(scope->ring_index_, dist, scope->buffering_);
+  auto submit_fence = scope->submit_fences_[ring_index];
+
+  auto result = table_.WaitForFences(vk_dev_, 1, &submit_fence, VK_TRUE,
+                                     (u64) max(timeout.count(), 0LL));
+
+  if (result != VK_SUCCESS)
+  {
+    return Err{(Status) result};
+  }
+
   return Ok{};
 }
 
 void PassContext::clear()
 {
-  graphics_pipeline = nullptr;
-  compute_pipeline  = nullptr;
+  graphics_pipeline = none;
+  compute_pipeline  = none;
   color_attachments.clear();
   depth_attachment   = none;
   stencil_attachment = none;
   descriptor_sets.clear();
   vertex_buffers.clear();
-  index_buffer        = nullptr;
+  index_buffer        = none;
   index_type          = gpu::IndexType::U16;
   index_buffer_offset = 0;
   has_graphics_state  = false;
 }
 
-void CommandEncoder::begin()
+void ICommandEncoder::begin()
 {
   CHECK(state_ == CommandBufferState::Reset, "");
   state_ = CommandBufferState::Recording;
   tracker_.begin_pass();
 }
 
-Result<Void, Status> CommandEncoder::end()
+Result<Void, Status> ICommandEncoder::end()
 {
   CHECK(state_ == CommandBufferState::Recording, "");
   CHECK(pass_ == Pass::None, "");
@@ -5432,20 +5561,20 @@ Result<Void, Status> CommandEncoder::end()
   return Ok{};
 }
 
-void CommandEncoder::reset()
+void ICommandEncoder::reset()
 {
   CHECK(state_ == CommandBufferState::Reset ||
           state_ == CommandBufferState::Recorded ||
           state_ == CommandBufferState::Submitted,
         "");
-  pool_.shrink();
-  pool_.reclaim();
+  arena_.shrink();
+  arena_.reclaim();
   status_ = Status::Success;
   state_  = CommandBufferState::Reset;
   pass_   = Pass::None;
   tracker_.reset();
   ctx_.clear();
-  swapchain_ = nullptr;
+  swapchain_ = none;
 }
 
 #define PRELUDE()                                           \
@@ -5470,8 +5599,8 @@ void CommandEncoder::reset()
     return;                                  \
   }
 
-void CommandEncoder::reset_timestamp_query(gpu::TimestampQuery query,
-                                           Slice32             range)
+void ICommandEncoder::reset_timestamp_query(gpu::TimestampQuery query,
+                                            Slice32             range)
 {
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
@@ -5479,8 +5608,8 @@ void CommandEncoder::reset_timestamp_query(gpu::TimestampQuery query,
   CMD(ResetTimestampQuery{.query = (VkQueryPool) query, .range = range});
 }
 
-void CommandEncoder::reset_statistics_query(gpu::StatisticsQuery query,
-                                            Slice32              range)
+void ICommandEncoder::reset_statistics_query(gpu::StatisticsQuery query,
+                                             Slice32              range)
 {
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
@@ -5488,8 +5617,8 @@ void CommandEncoder::reset_statistics_query(gpu::StatisticsQuery query,
   CMD(ResetStatisticsQuery{.query = (VkQueryPool) query, .range = range});
 }
 
-void CommandEncoder::write_timestamp(gpu::TimestampQuery query,
-                                     gpu::PipelineStages stage, u32 index)
+void ICommandEncoder::write_timestamp(gpu::TimestampQuery query,
+                                      gpu::PipelineStages stage, u32 index)
 {
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
@@ -5499,7 +5628,7 @@ void CommandEncoder::write_timestamp(gpu::TimestampQuery query,
                      .index  = index});
 }
 
-void CommandEncoder::begin_statistics(gpu::StatisticsQuery query, u32 index)
+void ICommandEncoder::begin_statistics(gpu::StatisticsQuery query, u32 index)
 {
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
@@ -5507,7 +5636,7 @@ void CommandEncoder::begin_statistics(gpu::StatisticsQuery query, u32 index)
   CMD(BeginStatistics{.query = (VkQueryPool) query, .index = index});
 }
 
-void CommandEncoder::end_statistics(gpu::StatisticsQuery query, u32 index)
+void ICommandEncoder::end_statistics(gpu::StatisticsQuery query, u32 index)
 {
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
@@ -5515,7 +5644,7 @@ void CommandEncoder::end_statistics(gpu::StatisticsQuery query, u32 index)
   CMD(EndStatistics{.query = (VkQueryPool) query, .index = index});
 }
 
-void CommandEncoder::begin_debug_marker(Str region_name_, f32x4 color)
+void ICommandEncoder::begin_debug_marker(Str region_name_, f32x4 color)
 {
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
@@ -5529,7 +5658,7 @@ void CommandEncoder::begin_debug_marker(Str region_name_, f32x4 color)
 
   CMD(BeginDebugMarker{.info = info});
 
-  Vec<char, 0> region_name{pool_};
+  Vec<char, 0> region_name{arena_};
   MEMTRY(region_name.extend_uninit(region_name_.size() + 1));
 
   mem::copy(region_name_, region_name.data());
@@ -5538,15 +5667,17 @@ void CommandEncoder::begin_debug_marker(Str region_name_, f32x4 color)
   cmd->info.pMarkerName = region_name.leak().data();
 }
 
-void CommandEncoder::end_debug_marker()
+void ICommandEncoder::end_debug_marker()
 {
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
 
+  // [ ] how are commands matched to the passes?
+  // [ ] begin pass is being called after cmd insertion
   CMD(EndDebugMarker{});
 }
 
-void CommandEncoder::fill_buffer(gpu::Buffer dst_, Slice64 range, u32 data)
+void ICommandEncoder::fill_buffer(gpu::Buffer dst_, Slice64 range, u32 data)
 {
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
@@ -5564,15 +5695,15 @@ void CommandEncoder::fill_buffer(gpu::Buffer dst_, Slice64 range, u32 data)
   tracker_.end_pass();
 }
 
-void CommandEncoder::copy_buffer(gpu::Buffer src_, gpu::Buffer dst_,
-                                 Span<gpu::BufferCopy const> copies_)
+void ICommandEncoder::copy_buffer(gpu::Buffer src_, gpu::Buffer dst_,
+                                  Span<gpu::BufferCopy const> copies_)
 {
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
   CHECK(!copies_.is_empty(), "");
 
-  auto * src = (Buffer *) src_;
-  auto * dst = (Buffer *) dst_;
+  auto * src = (Buffer) src_;
+  auto * dst = (Buffer) dst_;
 
   CHECK(has_bits(src->usage, gpu::BufferUsage::TransferSrc), "");
   CHECK(has_bits(dst->usage, gpu::BufferUsage::TransferDst), "");
@@ -5587,7 +5718,7 @@ void CommandEncoder::copy_buffer(gpu::Buffer src_, gpu::Buffer dst_,
 
   CMD(CopyBuffer{.src = src->vk, .dst = dst->vk, .copies{}});
 
-  Vec<VkBufferCopy, 0> copies{pool_};
+  Vec<VkBufferCopy, 0> copies{arena_};
 
   MEMTRY(copies.resize_uninit(copies_.size()));
 
@@ -5608,14 +5739,14 @@ void CommandEncoder::copy_buffer(gpu::Buffer src_, gpu::Buffer dst_,
   tracker_.end_pass();
 }
 
-void CommandEncoder::update_buffer(Span<u8 const> src_, u64 dst_offset,
-                                   gpu::Buffer dst_)
+void ICommandEncoder::update_buffer(Span<u8 const> src_, u64 dst_offset,
+                                    gpu::Buffer dst_)
 {
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
-  CHECK(src_.size_bytes() <= gpu::MAX_UPDATE_BUFFER_SIZE, "");
+  CHECK(src_.size_bytes() <= 64_KB, "");
 
-  auto * dst       = (Buffer *) dst_;
+  auto * dst       = (Buffer) dst_;
   auto   copy_size = size64(src_);
 
   CHECK(has_bits(dst->usage, gpu::BufferUsage::TransferDst), "");
@@ -5624,7 +5755,7 @@ void CommandEncoder::update_buffer(Span<u8 const> src_, u64 dst_offset,
 
   CMD(UpdateBuffer{.src = {}, .dst_offset = dst_offset, .dst = dst->vk});
 
-  Vec<u8, 0> src{pool_};
+  Vec<u8, 0> src{arena_};
 
   MEMTRY(src.extend(src_));
 
@@ -5636,7 +5767,7 @@ void CommandEncoder::update_buffer(Span<u8 const> src_, u64 dst_offset,
   tracker_.end_pass();
 }
 
-void CommandEncoder::clear_color_image(
+void ICommandEncoder::clear_color_image(
   gpu::Image dst_, gpu::Color value,
   Span<gpu::ImageSubresourceRange const> ranges_)
 {
@@ -5644,7 +5775,7 @@ void CommandEncoder::clear_color_image(
   CHECK(pass_ == Pass::None, "");
   CHECK(!ranges_.is_empty(), "");
 
-  auto * dst = (Image *) dst_;
+  auto * dst = (Image) dst_;
 
   CHECK(has_bits(dst->usage, gpu::ImageUsage::TransferDst), "");
 
@@ -5662,7 +5793,7 @@ void CommandEncoder::clear_color_image(
     .value  = {.uint32{value.u32[0], value.u32[1], value.u32[2], value.u32[3]}},
     .ranges = {}});
 
-  Vec<VkImageSubresourceRange, 0> ranges{pool_};
+  Vec<VkImageSubresourceRange, 0> ranges{arena_};
 
   MEMTRY(ranges.extend_uninit(ranges_.size()));
 
@@ -5685,7 +5816,7 @@ void CommandEncoder::clear_color_image(
   tracker_.end_pass();
 }
 
-void CommandEncoder::clear_depth_stencil_image(
+void ICommandEncoder::clear_depth_stencil_image(
   gpu::Image dst_, gpu::DepthStencil value,
   Span<gpu::ImageSubresourceRange const> ranges_)
 {
@@ -5693,7 +5824,7 @@ void CommandEncoder::clear_depth_stencil_image(
   CHECK(pass_ == Pass::None, "");
   CHECK(!ranges_.is_empty(), "");
 
-  auto * dst = (Image *) dst_;
+  auto * dst = (Image) dst_;
 
   CHECK(has_bits(dst->usage, gpu::ImageUsage::TransferDst), "");
 
@@ -5713,7 +5844,7 @@ void CommandEncoder::clear_depth_stencil_image(
                              .value      = vk_depth_stencil,
                              .ranges     = {}});
 
-  Vec<VkImageSubresourceRange, 0> ranges{pool_};
+  Vec<VkImageSubresourceRange, 0> ranges{arena_};
 
   MEMTRY(ranges.extend_uninit(ranges_.size()));
 
@@ -5736,15 +5867,15 @@ void CommandEncoder::clear_depth_stencil_image(
   tracker_.end_pass();
 }
 
-void CommandEncoder::copy_image(gpu::Image src_, gpu::Image dst_,
-                                Span<gpu::ImageCopy const> copies_)
+void ICommandEncoder::copy_image(gpu::Image src_, gpu::Image dst_,
+                                 Span<gpu::ImageCopy const> copies_)
 {
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
   CHECK(!copies_.is_empty(), "");
 
-  auto * src = (Image *) src_;
-  auto * dst = (Image *) dst_;
+  auto * src = (Image) src_;
+  auto * dst = (Image) dst_;
 
   CHECK(has_bits(src->usage, gpu::ImageUsage::TransferSrc), "");
   CHECK(has_bits(dst->usage, gpu::ImageUsage::TransferDst), "");
@@ -5790,7 +5921,7 @@ void CommandEncoder::copy_image(gpu::Image src_, gpu::Image dst_,
                 .dst_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                 .copies     = {}});
 
-  Vec<VkImageCopy, 0> copies{pool_};
+  Vec<VkImageCopy, 0> copies{arena_};
 
   MEMTRY(copies.extend_uninit(copies_.size()));
 
@@ -5833,15 +5964,15 @@ void CommandEncoder::copy_image(gpu::Image src_, gpu::Image dst_,
   tracker_.end_pass();
 }
 
-void CommandEncoder::copy_buffer_to_image(
+void ICommandEncoder::copy_buffer_to_image(
   gpu::Buffer src_, gpu::Image dst_, Span<gpu::BufferImageCopy const> copies_)
 {
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
   CHECK(!copies_.is_empty() > 0, "");
 
-  auto * src = (Buffer *) src_;
-  auto * dst = (Image *) dst_;
+  auto * src = (Buffer) src_;
+  auto * dst = (Image) dst_;
 
   CHECK(has_bits(src->usage, gpu::BufferUsage::TransferSrc), "");
   CHECK(has_bits(dst->usage, gpu::ImageUsage::TransferDst), "");
@@ -5875,7 +6006,7 @@ void CommandEncoder::copy_buffer_to_image(
                         .dst_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                         .copies     = {}});
 
-  Vec<VkBufferImageCopy, 0> copies{pool_};
+  Vec<VkBufferImageCopy, 0> copies{arena_};
 
   MEMTRY(copies.extend_uninit(copies_.size()));
 
@@ -5911,16 +6042,16 @@ void CommandEncoder::copy_buffer_to_image(
   tracker_.end_pass();
 }
 
-void CommandEncoder::blit_image(gpu::Image src_, gpu::Image dst_,
-                                Span<gpu::ImageBlit const> blits_,
-                                gpu::Filter                filter)
+void ICommandEncoder::blit_image(gpu::Image src_, gpu::Image dst_,
+                                 Span<gpu::ImageBlit const> blits_,
+                                 gpu::Filter                filter)
 {
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
   CHECK(!blits_.is_empty(), "");
 
-  auto * src = (Image *) src_;
-  auto * dst = (Image *) dst_;
+  auto * src = (Image) src_;
+  auto * dst = (Image) dst_;
 
   CHECK(has_bits(src->usage, gpu::ImageUsage::TransferSrc), "");
   CHECK(has_bits(dst->usage, gpu::ImageUsage::TransferDst), "");
@@ -5962,7 +6093,7 @@ void CommandEncoder::blit_image(gpu::Image src_, gpu::Image dst_,
                 .blits      = {},
                 .filter     = (VkFilter) filter});
 
-  Vec<VkImageBlit, 0> blits{pool_};
+  Vec<VkImageBlit, 0> blits{arena_};
 
   MEMTRY(blits.resize_uninit(blits_.size()));
 
@@ -6008,15 +6139,15 @@ void CommandEncoder::blit_image(gpu::Image src_, gpu::Image dst_,
   tracker_.end_pass();
 }
 
-void CommandEncoder::resolve_image(gpu::Image src_, gpu::Image dst_,
-                                   Span<gpu::ImageResolve const> resolves_)
+void ICommandEncoder::resolve_image(gpu::Image src_, gpu::Image dst_,
+                                    Span<gpu::ImageResolve const> resolves_)
 {
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
   CHECK(!resolves_.is_empty(), "");
 
-  auto * src = (Image *) src_;
-  auto * dst = (Image *) dst_;
+  auto * src = (Image) src_;
+  auto * dst = (Image) dst_;
 
   CHECK(has_bits(src->usage, gpu::ImageUsage::TransferSrc), "");
   CHECK(has_bits(dst->usage, gpu::ImageUsage::TransferDst), "");
@@ -6066,7 +6197,7 @@ void CommandEncoder::resolve_image(gpu::Image src_, gpu::Image dst_,
                    .dst_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                    .resolves   = {}});
 
-  Vec<VkImageResolve, 0> resolves{pool_};
+  Vec<VkImageResolve, 0> resolves{arena_};
 
   MEMTRY(resolves.resize_uninit(resolves_.size()));
 
@@ -6110,7 +6241,7 @@ void CommandEncoder::resolve_image(gpu::Image src_, gpu::Image dst_,
   tracker_.end_pass();
 }
 
-void CommandEncoder::begin_compute_pass()
+void ICommandEncoder::begin_compute_pass()
 {
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
@@ -6120,7 +6251,7 @@ void CommandEncoder::begin_compute_pass()
   tracker_.begin_pass();
 }
 
-void CommandEncoder::end_compute_pass()
+void ICommandEncoder::end_compute_pass()
 {
   PRELUDE();
   CHECK(pass_ == Pass::Compute, "");
@@ -6139,7 +6270,7 @@ void validate_attachment(gpu::RenderingAttachment const & info,
     "");
   if (info.view != nullptr)
   {
-    auto image = ((ImageView *) info.view)->image;
+    auto image = ((ImageView) info.view)->image;
     CHECK(has_bits(image->aspects, aspects), "");
     CHECK(has_bits(image->usage, usage), "");
     CHECK(!(info.resolve_mode != gpu::ResolveModes::None &&
@@ -6148,7 +6279,7 @@ void validate_attachment(gpu::RenderingAttachment const & info,
   }
   if (info.resolve != nullptr)
   {
-    auto image = ((ImageView *) info.resolve)->image;
+    auto image = ((ImageView) info.resolve)->image;
     CHECK(has_bits(image->aspects, aspects), "");
     CHECK(has_bits(image->usage, usage), "");
     CHECK(image->sample_count == gpu::SampleCount::C1, "");
@@ -6196,11 +6327,12 @@ constexpr VkAccessFlags
   return access;
 }
 
-void CommandEncoder::begin_rendering(gpu::RenderingInfo const & info)
+void ICommandEncoder::begin_rendering(gpu::RenderingInfo const & info)
 {
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
-  CHECK(info.color_attachments.size() <= gpu::MAX_PIPELINE_COLOR_ATTACHMENTS,
+  CHECK(info.color_attachments.size() <=
+          dev_->phy_.vk_properties.limits.maxColorAttachments,
         "");
   CHECK(info.render_area.extent.x() > 0, "");
   CHECK(info.render_area.extent.y() > 0, "");
@@ -6240,9 +6372,9 @@ void CommandEncoder::begin_rendering(gpu::RenderingInfo const & info)
                                .pStencilAttachment   = nullptr}
   });
 
-  Vec<VkRenderingAttachmentInfo, 0> color_attachments{pool_};
-  Vec<VkRenderingAttachmentInfo, 0> depth_attachment{pool_};
-  Vec<VkRenderingAttachmentInfo, 0> stencil_attachment{pool_};
+  Vec<VkRenderingAttachmentInfo, 0> color_attachments{arena_};
+  Vec<VkRenderingAttachmentInfo, 0> depth_attachment{arena_};
+  Vec<VkRenderingAttachmentInfo, 0> stencil_attachment{arena_};
 
   MEMTRY(color_attachments.resize_uninit(info.color_attachments.size()));
 
@@ -6467,7 +6599,7 @@ void CommandEncoder::begin_rendering(gpu::RenderingInfo const & info)
   }
 }
 
-void CommandEncoder::end_rendering()
+void ICommandEncoder::end_rendering()
 {
   PRELUDE();
   CHECK(pass_ == Pass::Render, "");
@@ -6480,7 +6612,7 @@ void CommandEncoder::end_rendering()
   tracker_.end_pass();
 }
 
-void CommandEncoder::bind_compute_pipeline(gpu::ComputePipeline pipeline_)
+void ICommandEncoder::bind_compute_pipeline(gpu::ComputePipeline pipeline_)
 {
   PRELUDE();
   CHECK(pass_ == Pass::Compute, "");
@@ -6489,11 +6621,11 @@ void CommandEncoder::bind_compute_pipeline(gpu::ComputePipeline pipeline_)
   CMD(BindPipeline{.bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS,
                    .pipeline   = pipeline->vk});
 
-  ctx_.compute_pipeline = pipeline;
+  ctx_.compute_pipeline = *pipeline;
 }
 
 void validate_pipeline_compatible(
-  GraphicsPipeline *                   pipeline,
+  GraphicsPipeline                     pipeline,
   Span<gpu::RenderingAttachment const> color_attachments,
   Option<gpu::RenderingAttachment>     depth_attachment,
   Option<gpu::RenderingAttachment>     stencil_attachment)
@@ -6525,7 +6657,7 @@ void validate_pipeline_compatible(
   });
 }
 
-void CommandEncoder::bind_graphics_pipeline(gpu::GraphicsPipeline pipeline_)
+void ICommandEncoder::bind_graphics_pipeline(gpu::GraphicsPipeline pipeline_)
 {
   PRELUDE();
   CHECK(pass_ == Pass::Render, "");
@@ -6536,36 +6668,46 @@ void CommandEncoder::bind_graphics_pipeline(gpu::GraphicsPipeline pipeline_)
   CMD(BindPipeline{.bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS,
                    .pipeline   = pipeline->vk});
 
-  ctx_.graphics_pipeline = pipeline;
+  ctx_.graphics_pipeline = *pipeline;
 }
 
-void CommandEncoder::bind_descriptor_sets(
+void ICommandEncoder::bind_descriptor_sets(
   Span<gpu::DescriptorSet const> descriptor_sets_,
   Span<u32 const>                dynamic_offsets_)
 {
   PRELUDE();
   CHECK(pass_ == Pass::Render || pass_ == Pass::Compute, "");
-  CHECK(descriptor_sets_.size() <= gpu::MAX_PIPELINE_DESCRIPTOR_SETS, "");
-  CHECK(dynamic_offsets_.size() <= (gpu::MAX_PIPELINE_DYNAMIC_STORAGE_BUFFERS +
-                                    gpu::MAX_PIPELINE_DYNAMIC_UNIFORM_BUFFERS),
+  CHECK(descriptor_sets_.size() <=
+          dev_->phy_.vk_properties.limits.maxBoundDescriptorSets,
+        "");
+  CHECK(dynamic_offsets_.size() <=
+          sat_add(dev_->phy_.vk_descriptor_properties
+                    .maxDescriptorSetUpdateAfterBindUniformBuffersDynamic,
+                  dev_->phy_.vk_descriptor_properties
+                    .maxDescriptorSetUpdateAfterBindStorageBuffersDynamic),
         "");
 
   for (auto offset : dynamic_offsets_)
   {
-    CHECK(is_aligned<u64>(gpu::BUFFER_OFFSET_ALIGNMENT, offset), "");
+    CHECK(
+      is_aligned<u64>(
+        max(dev_->phy_.vk_properties.limits.minUniformBufferOffsetAlignment,
+            dev_->phy_.vk_properties.limits.minStorageBufferOffsetAlignment),
+        offset),
+      "");
   }
 
   switch (pass_)
   {
     case Pass::Render:
     {
-      CHECK(ctx_.graphics_pipeline != nullptr, "");
+      CHECK(ctx_.graphics_pipeline.is_some(), "");
       CHECK(ctx_.graphics_pipeline->num_sets == descriptor_sets_.size(), "");
     }
     break;
     case Pass::Compute:
     {
-      CHECK(ctx_.compute_pipeline != nullptr, "");
+      CHECK(ctx_.compute_pipeline.is_some(), "");
       CHECK(ctx_.compute_pipeline->num_sets == descriptor_sets_.size(), "");
     }
     break;
@@ -6603,17 +6745,17 @@ void CommandEncoder::bind_descriptor_sets(
                          .sets            = {},
                          .dynamic_offsets = {}});
 
-  Vec<VkDescriptorSet, 0> descriptor_sets{pool_};
+  Vec<VkDescriptorSet, 0> descriptor_sets{arena_};
 
   MEMTRY(descriptor_sets.resize_uninit(descriptor_sets_.size()));
 
   for (auto [vk, set_] : zip(descriptor_sets, descriptor_sets_))
   {
-    auto * set = (DescriptorSet *) set_;
+    auto * set = (DescriptorSet) set_;
     vk         = set->vk;
   }
 
-  Vec<u32, 0> dynamic_offsets{pool_};
+  Vec<u32, 0> dynamic_offsets{arena_};
 
   MEMTRY(dynamic_offsets.extend(dynamic_offsets_));
 
@@ -6633,25 +6775,27 @@ void CommandEncoder::bind_descriptor_sets(
   }
 }
 
-void CommandEncoder::push_constants(Span<u8 const> constants_)
+void ICommandEncoder::push_constants(Span<u8 const> constants_)
 {
   PRELUDE();
   CHECK(pass_ == Pass::Render || pass_ == Pass::Compute, "");
-  CHECK(constants_.size_bytes() <= gpu::MAX_PUSH_CONSTANTS_SIZE, "");
+  CHECK(constants_.size_bytes() <=
+          dev_->phy_.vk_properties.limits.maxPushConstantsSize,
+        "");
   CHECK(is_aligned<u32>(4U, constants_.size()), "");
 
   switch (pass_)
   {
     case Pass::Render:
     {
-      CHECK(ctx_.graphics_pipeline != nullptr, "");
+      CHECK(ctx_.graphics_pipeline.is_some(), "");
       CHECK(constants_.size() == ctx_.graphics_pipeline->push_constants_size,
             "");
     }
     break;
     case Pass::Compute:
     {
-      CHECK(ctx_.compute_pipeline != nullptr, "");
+      CHECK(ctx_.compute_pipeline.is_some(), "");
       CHECK(constants_.size() == ctx_.compute_pipeline->push_constants_size,
             "");
     }
@@ -6680,40 +6824,40 @@ void CommandEncoder::push_constants(Span<u8 const> constants_)
 
   CMD(PushConstants{.layout = layout, .constants = {}});
 
-  Vec<u8> constants{pool_};
+  Vec<u8> constants{arena_};
 
   MEMTRY(constants.extend(constants_));
 
   cmd->constants = constants.leak();
 }
 
-void CommandEncoder::dispatch(u32x3 group_count)
+void ICommandEncoder::dispatch(u32x3 group_count)
 {
   PRELUDE();
   CHECK(pass_ == Pass::Compute, "");
 
-  CHECK(ctx_.compute_pipeline != nullptr, "");
+  CHECK(ctx_.compute_pipeline.is_some(), "");
   CHECK(group_count.x() <=
-          dev_->phy_dev_.vk_properties.limits.maxComputeWorkGroupCount[0],
+          dev_->phy_.vk_properties.limits.maxComputeWorkGroupCount[0],
         "");
   CHECK(group_count.y() <=
-          dev_->phy_dev_.vk_properties.limits.maxComputeWorkGroupCount[1],
+          dev_->phy_.vk_properties.limits.maxComputeWorkGroupCount[1],
         "");
   CHECK(group_count.z() <=
-          dev_->phy_dev_.vk_properties.limits.maxComputeWorkGroupCount[2],
+          dev_->phy_.vk_properties.limits.maxComputeWorkGroupCount[2],
         "");
 
   CMD(Dispatch{.group_count = group_count});
 }
 
-void CommandEncoder::dispatch_indirect(gpu::Buffer buffer_, u64 offset)
+void ICommandEncoder::dispatch_indirect(gpu::Buffer buffer_, u64 offset)
 {
   PRELUDE();
   CHECK(pass_ == Pass::Compute, "");
   CHECK(buffer_ != nullptr, "");
-  CHECK(ctx_.compute_pipeline != nullptr, "");
+  CHECK(ctx_.compute_pipeline.is_some(), "");
 
-  auto * buffer = (Buffer *) buffer_;
+  auto * buffer = (Buffer) buffer_;
 
   CHECK(has_bits(buffer->usage, gpu::BufferUsage::IndirectBuffer), "");
   CHECK(is_valid_buffer_access(buffer->size,
@@ -6727,11 +6871,11 @@ void CommandEncoder::dispatch_indirect(gpu::Buffer buffer_, u64 offset)
                  VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
 }
 
-void CommandEncoder::set_graphics_state(gpu::GraphicsState const & state)
+void ICommandEncoder::set_graphics_state(gpu::GraphicsState const & state)
 {
   PRELUDE();
   CHECK(pass_ == Pass::Render, "");
-  CHECK(ctx_.graphics_pipeline != nullptr, "");
+  CHECK(ctx_.graphics_pipeline.is_some(), "");
   CHECK(state.viewport.min_depth >= 0.0F, "");
   CHECK(state.viewport.min_depth <= 1.0F, "");
   CHECK(state.viewport.max_depth >= 0.0F, "");
@@ -6742,21 +6886,23 @@ void CommandEncoder::set_graphics_state(gpu::GraphicsState const & state)
   ctx_.has_graphics_state = true;
 }
 
-void CommandEncoder::bind_vertex_buffers(
+void ICommandEncoder::bind_vertex_buffers(
   Span<gpu::Buffer const> vertex_buffers_, Span<u64 const> offsets_)
 {
   PRELUDE();
   CHECK(pass_ == Pass::Render, "");
   CHECK(!vertex_buffers_.is_empty(), "");
-  CHECK(vertex_buffers_.size() <= gpu::MAX_VERTEX_ATTRIBUTES, "");
-  CHECK(ctx_.graphics_pipeline != nullptr, "");
+  CHECK(vertex_buffers_.size() <=
+          dev_->phy_.vk_properties.limits.maxVertexInputBindings,
+        "");
+  CHECK(ctx_.graphics_pipeline.is_some(), "");
   CHECK(vertex_buffers_.size() == ctx_.graphics_pipeline->num_vertex_attributes,
         "");
   CHECK(offsets_.size() == vertex_buffers_.size(), "");
 
   for (auto [buff_, off] : zip(vertex_buffers_, offsets_))
   {
-    auto * buff = (Buffer *) buff_;
+    auto * buff = (Buffer) buff_;
     CHECK(buff_ != nullptr, "");
     CHECK(is_valid_buffer_access(buff->size, Slice64{off, 1}, 1, 1), "");
     CHECK(has_bits(buff->usage, gpu::BufferUsage::VertexBuffer), "");
@@ -6764,17 +6910,17 @@ void CommandEncoder::bind_vertex_buffers(
 
   CMD(BindVertexBuffers{.buffers = {}, .offsets = {}});
 
-  Vec<VkBuffer, 0> vertex_buffers{pool_};
+  Vec<VkBuffer, 0> vertex_buffers{arena_};
 
   MEMTRY(vertex_buffers.resize_uninit(vertex_buffers_.size()));
 
   for (auto [vk, buff_] : zip(vertex_buffers, vertex_buffers_))
   {
-    auto * buff = (Buffer *) buff_;
+    auto * buff = (Buffer) buff_;
     vk          = buff->vk;
   }
 
-  Vec<u64, 0> offsets{pool_};
+  Vec<u64, 0> offsets{arena_};
 
   MEMTRY(offsets.extend(offsets_));
 
@@ -6795,15 +6941,15 @@ void CommandEncoder::bind_vertex_buffers(
   }
 }
 
-void CommandEncoder::bind_index_buffer(gpu::Buffer index_buffer_, u64 offset,
-                                       gpu::IndexType index_type)
+void ICommandEncoder::bind_index_buffer(gpu::Buffer index_buffer_, u64 offset,
+                                        gpu::IndexType index_type)
 {
   PRELUDE();
   CHECK(pass_ == Pass::Render, "");
   CHECK(index_buffer_ != nullptr, "");
-  CHECK(ctx_.graphics_pipeline != nullptr, "");
+  CHECK(ctx_.graphics_pipeline.is_some(), "");
 
-  auto * index_buffer = (Buffer *) index_buffer_;
+  auto * index_buffer = (Buffer) index_buffer_;
   auto   index_size   = index_type_size(index_type);
 
   CHECK(has_bits(index_buffer->usage, gpu::BufferUsage::IndexBuffer), "");
@@ -6818,16 +6964,16 @@ void CommandEncoder::bind_index_buffer(gpu::Buffer index_buffer_, u64 offset,
   tracker_.track(index_buffer, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
                  VK_ACCESS_INDEX_READ_BIT);
 
-  ctx_.index_buffer        = index_buffer;
+  ctx_.index_buffer        = *index_buffer;
   ctx_.index_type          = index_type;
   ctx_.index_buffer_offset = offset;
 }
 
-void CommandEncoder::draw(Slice32 vertices, Slice32 instances)
+void ICommandEncoder::draw(Slice32 vertices, Slice32 instances)
 {
   PRELUDE();
   CHECK(pass_ == Pass::Render, "");
-  CHECK(ctx_.graphics_pipeline != nullptr, "");
+  CHECK(ctx_.graphics_pipeline.is_some(), "");
   CHECK(ctx_.has_graphics_state, "");
   CHECK(ctx_.graphics_pipeline->num_vertex_attributes ==
           ctx_.vertex_buffers.size(),
@@ -6837,18 +6983,18 @@ void CommandEncoder::draw(Slice32 vertices, Slice32 instances)
   CMD(Draw{.vertices = vertices, .instances = instances});
 }
 
-void CommandEncoder::draw_indexed(Slice32 indices, Slice32 instances,
-                                  i32 vertex_offset)
+void ICommandEncoder::draw_indexed(Slice32 indices, Slice32 instances,
+                                   i32 vertex_offset)
 {
   PRELUDE();
   CHECK(pass_ == Pass::Render, "");
-  CHECK(ctx_.graphics_pipeline != nullptr, "");
+  CHECK(ctx_.graphics_pipeline.is_some(), "");
   CHECK(ctx_.has_graphics_state, "");
   CHECK(ctx_.graphics_pipeline->num_vertex_attributes ==
           ctx_.vertex_buffers.size(),
         "");
   CHECK(ctx_.graphics_pipeline->num_sets == ctx_.descriptor_sets.size(), "");
-  CHECK(ctx_.index_buffer != nullptr, "");
+  CHECK(ctx_.index_buffer.is_some(), "");
 
   auto index_size = index_type_size(ctx_.index_type);
   CHECK(is_valid_buffer_access(
@@ -6863,19 +7009,19 @@ void CommandEncoder::draw_indexed(Slice32 indices, Slice32 instances,
                   .vertex_offset = vertex_offset});
 }
 
-void CommandEncoder::draw_indirect(gpu::Buffer buffer_, u64 offset,
-                                   u32 draw_count, u32 stride)
+void ICommandEncoder::draw_indirect(gpu::Buffer buffer_, u64 offset,
+                                    u32 draw_count, u32 stride)
 {
   PRELUDE();
   CHECK(pass_ == Pass::Render, "");
-  CHECK(ctx_.graphics_pipeline != nullptr, "");
+  CHECK(ctx_.graphics_pipeline.is_some(), "");
   CHECK(ctx_.has_graphics_state, "");
   CHECK(ctx_.graphics_pipeline->num_vertex_attributes ==
           ctx_.vertex_buffers.size(),
         "");
   CHECK(ctx_.graphics_pipeline->num_sets == ctx_.descriptor_sets.size(), "");
 
-  auto * buffer = (Buffer *) buffer_;
+  auto * buffer = (Buffer) buffer_;
 
   CHECK(has_bits(buffer->usage, gpu::BufferUsage::IndirectBuffer), "");
   CHECK(stride >= sizeof(gpu::DrawCommand), "");
@@ -6892,20 +7038,20 @@ void CommandEncoder::draw_indirect(gpu::Buffer buffer_, u64 offset,
                  VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
 }
 
-void CommandEncoder::draw_indexed_indirect(gpu::Buffer buffer_, u64 offset,
-                                           u32 draw_count, u32 stride)
+void ICommandEncoder::draw_indexed_indirect(gpu::Buffer buffer_, u64 offset,
+                                            u32 draw_count, u32 stride)
 {
   PRELUDE();
   CHECK(pass_ == Pass::Render, "");
-  CHECK(ctx_.graphics_pipeline != nullptr, "");
+  CHECK(ctx_.graphics_pipeline.is_some(), "");
   CHECK(ctx_.has_graphics_state, "");
   CHECK(ctx_.graphics_pipeline->num_vertex_attributes ==
           ctx_.vertex_buffers.size(),
         "");
   CHECK(ctx_.graphics_pipeline->num_sets == ctx_.descriptor_sets.size(), "");
-  CHECK(ctx_.index_buffer != nullptr, "");
+  CHECK(ctx_.index_buffer.is_some(), "");
 
-  auto * buffer = (Buffer *) buffer_;
+  auto * buffer = (Buffer) buffer_;
 
   CHECK(has_bits(buffer->usage, gpu::BufferUsage::IndirectBuffer), "");
   CHECK(is_valid_buffer_access(
@@ -6922,18 +7068,18 @@ void CommandEncoder::draw_indexed_indirect(gpu::Buffer buffer_, u64 offset,
                  VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
 }
 
-void CommandEncoder::present(gpu::Swapchain swapchain_)
+void ICommandEncoder::present(gpu::Swapchain swapchain_)
 {
   CHECK(state_ == CommandBufferState::Recording, "");
 
   CHECK(swapchain_ != nullptr, "");
-  CHECK(this->swapchain_ == nullptr,
+  CHECK(this->swapchain_.is_none(),
         "Can only present one swapchain on a Command Encoder/Command Buffer");
 
-  auto swapchain = (Swapchain *) swapchain_;
+  auto swapchain = (Swapchain) swapchain_;
   CHECK(!swapchain->is_out_of_date,
         "Attempted to present to out-of-date swapchain");
-  this->swapchain_ = swapchain;
+  this->swapchain_ = *swapchain;
 
   if (!swapchain->is_deferred)
   {
@@ -6943,7 +7089,7 @@ void CommandEncoder::present(gpu::Swapchain swapchain_)
   }
 }
 
-void CommandBuffer::begin()
+void ICommandBuffer::begin()
 {
   CHECK(state_ == CommandBufferState::Reset, "");
 
@@ -6958,18 +7104,18 @@ void CommandBuffer::begin()
     .flags            = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
     .pInheritanceInfo = nullptr};
 
-  auto result = dev_->vk_table_.BeginCommandBuffer(vk_, &info);
+  auto result = dev_->table_.BeginCommandBuffer(vk_, &info);
 
   CHECK(result == VK_SUCCESS, "");
 
   state_ = CommandBufferState::Recording;
 }
 
-Result<Void, Status> CommandBuffer::end()
+Result<Void, Status> ICommandBuffer::end()
 {
   CHECK(state_ == CommandBufferState::Recording, "");
 
-  dev_->vk_table_.EndCommandBuffer(vk_);
+  dev_->table_.EndCommandBuffer(vk_);
 
   state_ = CommandBufferState::Recorded;
   if (status_ != Status::Success)
@@ -6980,13 +7126,13 @@ Result<Void, Status> CommandBuffer::end()
   return Ok{};
 }
 
-void CommandBuffer::reset()
+void ICommandBuffer::reset()
 {
   CHECK(state_ == CommandBufferState::Reset ||
           state_ == CommandBufferState::Submitted,
         "");
 
-  dev_->vk_table_.ResetCommandBuffer(vk_, 0);
+  dev_->table_.ResetCommandBuffer(vk_, 0);
 
   state_ = CommandBufferState::Reset;
 }
@@ -7237,8 +7383,8 @@ ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
                            cmd.stride);
 }
 
-inline cmd::Command * encode_n(DeviceTable const & t, VkCommandBuffer vk,
-                               cmd::Command * cmd_, usize n)
+inline cmd::Cmd * encode_n(DeviceTable const & t, VkCommandBuffer vk,
+                           cmd::Cmd * cmd_, usize n)
 {
 #define CMD_CASE(type)               \
   case cmd::Type::type:              \
@@ -7284,7 +7430,6 @@ inline cmd::Command * encode_n(DeviceTable const & t, VkCommandBuffer vk,
       CMD_CASE(DrawIndexedIndirect);
     }
 
-    mem::prefetch(cmd_->next, mem::Access::Read, mem::Locality::None);
     cmd_ = cmd_->next;
     n--;
   }
@@ -7295,29 +7440,37 @@ inline cmd::Command * encode_n(DeviceTable const & t, VkCommandBuffer vk,
 void issue_barriers(DeviceTable const & t, VkCommandBuffer cmd,
                     HazardBarriers const & barriers)
 {
-  for (auto [barr, stage] : zip(barriers.mem_, barriers.mem_stages_))
+  for (auto [src_stage, dst_stage, buffer_barrier] : barriers.buffers_)
   {
-    t.CmdPipelineBarrier(cmd, stage.src, stage.dst, 0, 1, &barr, 0, nullptr, 0,
-                         nullptr);
+    t.CmdPipelineBarrier(cmd, src_stage, dst_stage, 0, 0, nullptr, 1,
+                         &buffer_barrier, 0, nullptr);
   }
 
-  for (auto [barr, stage] : zip(barriers.buffers_, barriers.buffer_stages_))
+  for (auto [src_stage, dst_stage, memory_barrier, buffer_barrier] :
+       barriers.mem_buffers_)
   {
-    t.CmdPipelineBarrier(cmd, stage.src, stage.dst, 0, 0, nullptr, 1, &barr, 0,
-                         nullptr);
+    t.CmdPipelineBarrier(cmd, src_stage, dst_stage, 0, 1, &memory_barrier, 1,
+                         &buffer_barrier, 0, nullptr);
   }
 
-  for (auto [barr, stage] : zip(barriers.images_, barriers.image_stages_))
+  for (auto [src_stage, dst_stage, image_barrier] : barriers.images_)
   {
-    t.CmdPipelineBarrier(cmd, stage.src, stage.dst, 0, 0, nullptr, 0, nullptr,
-                         1, &barr);
+    t.CmdPipelineBarrier(cmd, src_stage, dst_stage, 0, 0, nullptr, 0, nullptr,
+                         1, &image_barrier);
+  }
+
+  for (auto [src_stage, dst_stage, memory_barrier, image_barrier] :
+       barriers.mem_images_)
+  {
+    t.CmdPipelineBarrier(cmd, src_stage, dst_stage, 0, 1, &memory_barrier, 0,
+                         nullptr, 1, &image_barrier);
   }
 }
 
-void CommandBuffer::record(gpu::CommandEncoder encoder_)
+void ICommandBuffer::record(gpu::CommandEncoder encoder_)
 {
   CHECK(state_ == CommandBufferState::Recording, "");
-  auto * encoder = (CommandEncoder *) encoder_;
+  auto * encoder = (CommandEncoder) encoder_;
   CHECK(encoder != nullptr, "");
 
   if (encoder->tracker_.passes_.is_empty())
@@ -7325,7 +7478,7 @@ void CommandBuffer::record(gpu::CommandEncoder encoder_)
     return;
   }
 
-  HazardBarriers barriers{pool_};
+  HazardBarriers barriers{arena_};
   auto *         next_command = encoder->tracker_.first_cmd_;
 
   for (auto [ipass, begin] : enumerate(encoder->tracker_.passes_.view().slice(
@@ -7361,14 +7514,14 @@ void CommandBuffer::record(gpu::CommandEncoder encoder_)
       resource_states_.access(*descriptor_set, stages, ipass, barriers);
     }
 
-    issue_barriers(dev_->vk_table_, vk_, barriers);
+    issue_barriers(dev_->table_, vk_, barriers);
     barriers.clear();
 
-    next_command = encode_n(dev_->vk_table_, vk_, next_command, commands.span);
+    next_command = encode_n(dev_->table_, vk_, next_command, commands.span);
   }
 }
 
-void CommandBuffer::commit_resource_states()
+void ICommandBuffer::commit_resource_states()
 {
   {
     WriteGuard guard{dev_->resource_states_.lock_};

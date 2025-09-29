@@ -1,5 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
+#include "ashura/engine/shaders/items.gen.h"
 #include "ashura/gpu/gpu.h"
 #include "ashura/std/allocators.h"
 #include "ashura/std/async.h"
@@ -11,45 +12,32 @@
 namespace ash
 {
 
-/// @details do not change the underlying type. It maps directly to the GPU handle
-enum class [[nodiscard]] TextureId : u32
-{
-  Base        = 0,
-  White       = 0,
-  Black       = 1,
-  Transparent = 2,
-  Alpha       = 3,
-  Red         = 4,
-  Green       = 5,
-  Blue        = 6,
-  Magenta     = 7,
-  Cyan        = 8,
-  Yellow      = 9
-};
+typedef struct IGpuFramePlan *                  GpuFramePlan;
+typedef struct IGpuFrame *                      GpuFrame;
+typedef Fn<void(GpuFrame, gpu::CommandEncoder)> GpuPassFn;
+typedef Dyn<GpuPassFn>                          GpuPass;
+typedef Fn<void()>                              GpuFrameTaskFn;
+typedef Dyn<GpuFrameTaskFn>                     GpuFrameTask;
+typedef struct IGpuSys *                        GpuSys;
 
-inline constexpr u32 NUM_DEFAULT_TEXTURES = 10;
+inline constexpr u32 NUM_DEFAULT_TEXTURES = 16;
 
-/// @details do not change the underlying type. It maps directly to the GPU handle
-enum class [[nodiscard]] SamplerId : u32
-{
-  LinearBlack    = 0,
-  NearestBlack   = 1,
-  LinearClamped  = 2,
-  NearestClamped = 3
-};
+inline constexpr u32 NUM_DEFAULT_SAMPLERS = 60;
 
 enum class [[nodiscard]] GpuBufferId : u32
 {
 };
 
-enum class [[nodiscard]] BufferId : u32
+enum class [[nodiscard]] CpuBufferId : u32
 {
 };
 
-inline constexpr u32 NUM_DEFAULT_SAMPLERS = 4;
+typedef Dict<gpu::SamplerInfo, Tuple<SamplerIndex, gpu::Sampler>, BitHash,
+             BitEq, u32>
+  SamplerCache;
 
-/// @brief created with sampled, storage, color attachment, and transfer flags
-struct [[nodiscard]] ColorTexture
+/// @brief Created with sampled, storage, color attachment, and transfer flags
+struct [[nodiscard]] ColorImage
 {
   static constexpr gpu::FormatFeatures FEATURES =
     gpu::FormatFeatures::ColorAttachment |
@@ -81,20 +69,19 @@ struct [[nodiscard]] ColorTexture
 
   gpu::DescriptorSet input_attachment = nullptr;
 
-  static constexpr TextureId sampled_texture_id = TextureId::Base;
+  static constexpr TextureIndex sampled_texture_index = TextureIndex::Base;
 
-  static constexpr TextureId storage_texture_id = TextureId::Base;
+  static constexpr TextureIndex storage_texture_index = TextureIndex::Base;
 
-  constexpr u32x3 extent() const
-  {
-    return info.extent;
-  }
+  static constexpr TextureIndex input_attachment_index = TextureIndex::Base;
+
+  u32x3 extent() const;
 
   void uninit(gpu::Device device);
 };
 
-/// @brief created with color attachment flag
-struct [[nodiscard]] ColorMsaaTexture
+/// @brief Created with color attachment flag
+struct [[nodiscard]] ColorMsaaImage
 {
   gpu::ImageInfo info = {};
 
@@ -102,24 +89,18 @@ struct [[nodiscard]] ColorMsaaTexture
 
   gpu::Image image = nullptr;
 
-  /// @brief to preserve bandwidth (especially for tiled architectures), preferably
+  /// @brief To preserve bandwidth (especially for tiled architectures), preferably
   /// use `StoreOp::DontCare` and `LoadOp::Clear/LoadOp::DontCare` in the render passes.
   gpu::ImageView view = nullptr;
 
-  constexpr gpu::SampleCount sample_count() const
-  {
-    return info.sample_count;
-  }
+  gpu::SampleCount sample_count() const;
 
-  constexpr u32x3 extent() const
-  {
-    return info.extent;
-  }
+  u32x3 extent() const;
 
   void uninit(gpu::Device device);
 };
 
-struct [[nodiscard]] DepthStencilTexture
+struct [[nodiscard]] DepthStencilImage
 {
   static constexpr gpu::FormatFeatures FEATURES =
     gpu::FormatFeatures::DepthStencilAttachment |
@@ -152,66 +133,34 @@ struct [[nodiscard]] DepthStencilTexture
 
   gpu::DescriptorSet depth_input_attachment = nullptr;
 
-  static constexpr TextureId sampled_depth_texture_id = TextureId::Base;
+  static constexpr TextureIndex sampled_depth_texture_index =
+    TextureIndex::Base;
 
-  static constexpr TextureId storage_depth_texture_id = TextureId::Base;
+  static constexpr TextureIndex storage_depth_texture_index =
+    TextureIndex::Base;
 
-  constexpr u32x3 extent() const
-  {
-    return info.extent;
-  }
+  static constexpr TextureIndex input_attachment_depth_index =
+    TextureIndex::Base;
+
+  u32x3 extent() const;
 
   void uninit(gpu::Device device);
 };
 
 struct [[nodiscard]] Framebuffer
 {
-  /// @brief color texture
-  ColorTexture color = {};
+  /// @brief Color image
+  ColorImage color = {};
 
-  Option<ColorMsaaTexture> color_msaa = none;
+  Option<ColorMsaaImage> color_msaa = none;
 
-  /// @brief combined depth and stencil aspect attachment
-  DepthStencilTexture depth_stencil = {};
+  /// @brief Combined depth and stencil aspect attachment
+  DepthStencilImage depth_stencil = {};
 
-  constexpr u32x3 extent() const
-  {
-    return color.extent();
-  }
+  u32x3 extent() const;
 
   void uninit(gpu::Device device);
 };
-
-struct SamplerHasher
-{
-  constexpr usize operator()(gpu::SamplerInfo const & info) const
-  {
-    return bit_hash(info);
-  }
-};
-
-struct SamplerEq
-{
-  constexpr bool operator()(gpu::SamplerInfo const & a,
-                            gpu::SamplerInfo const & b) const
-  {
-    // [ ] fix; make the labels empty
-    return obj::byte_eq(a, b);
-  }
-};
-
-typedef Dict<gpu::SamplerInfo, SamplerId, SamplerHasher, SamplerEq, u32>
-  SamplerDict;
-
-struct GpuFrame;
-
-struct FrameGraph;
-
-struct GpuSystem;
-
-typedef Fn<void(GpuFrame &)> GpuPassFn;
-
-typedef Dyn<GpuPassFn> GpuPass;
 
 struct [[nodiscard]] GpuBuffer
 {
@@ -228,17 +177,16 @@ struct [[nodiscard]] GpuBuffer
 
   gpu::Buffer buffer = nullptr;
 
-  gpu::DescriptorSet const_buffer = nullptr;
+  gpu::DescriptorSet uniform_buffer = nullptr;
 
-  gpu::DescriptorSet read_struct_buffer = nullptr;
+  gpu::DescriptorSet read_storage_buffer = nullptr;
 
-  gpu::DescriptorSet read_write_struct_buffer = nullptr;
+  gpu::DescriptorSet read_write_storage_buffer = nullptr;
 
   void uninit(gpu::Device device);
 
-  static GpuBuffer create(gpu::Device device, GpuSystem const & system,
-                          u64 capacity, gpu::BufferUsage usage, Str label,
-                          Allocator scratch);
+  static GpuBuffer create(GpuSys sys, u64 capacity, gpu::BufferUsage usage,
+                          Str label, Allocator scratch);
 };
 
 struct [[nodiscard]] GpuBufferSpan
@@ -247,31 +195,11 @@ struct [[nodiscard]] GpuBufferSpan
   Slice64   slice  = {};
 };
 
-enum class GpuFrameState : u8
-{
-  Reset        = 0,
-  Constructing = 1,
-  Constructed  = 2,
-  Encoding     = 3,
-  Encoded      = 4,
-  Executing    = 5
-};
-
 struct GpuQueries
 {
-  static constexpr u32 DEFAULT_NUM_FRAME_TIMESTAMPS = 8'192;
-
-  static constexpr u32 DEFAULT_NUM_FRAME_STATISTICS = 4'096;
-
-  f32 time_period = 1;
-
   gpu::TimestampQuery timestamps = nullptr;
 
-  u32 next_timestamp = 0;
-
   gpu::StatisticsQuery statistics = nullptr;
-
-  u32 next_statistics = 0;
 
   Vec<u64> cpu_timestamps;
 
@@ -279,72 +207,117 @@ struct GpuQueries
 
   void uninit(gpu::Device device);
 
-  u32 timestamps_capacity() const
-  {
-    return size32(cpu_timestamps);
-  }
+  u32 timestamps_capacity() const;
 
-  u32 statistics_capacity() const
-  {
-    return size32(cpu_statistics);
-  }
-
-  Option<Tuple<gpu::TimestampQuery, u32>> allocate_timestamp();
-
-  Option<Tuple<gpu::StatisticsQuery, u32>> allocate_statistics();
-
-  void reset();
+  u32 statistics_capacity() const;
 
   static GpuQueries create(Allocator allocator, gpu::Device device,
-                           Span<char const> label, f32 time_period,
-                           u32 timestamps_capacity, u32 statistics_capacity,
-                           Allocator scratch);
+                           Span<char const> label, u32 timestamps_capacity,
+                           u32 statistics_capacity, Allocator scratch);
+};
+
+struct GpuFrameCfg
+{
+  u64 min_buffer_size         = 5_MB;
+  u64 max_buffer_size         = 4_GB;
+  u64 min_scratch_buffer_size = 5_MB;
+  u64 max_scratch_buffer_size = 1_GB;
+  u32 max_scratch_buffers     = 4;
+  u32 min_scratch_images      = 3;
+  u32 max_scratch_images      = 5;
+};
+
+struct GpuSysCfg
+{
+  u32 bindless_samplers_capacity                   = 1'024;
+  u32 bindless_sampled_textures_capacity           = 8'192;
+  u32 bindless_storage_textures_capacity           = 8'192;
+  u32 bindless_uniform_buffers_capacity            = 1'024;
+  u32 bindless_read_storage_buffers_capacity       = 1'024;
+  u32 bindless_read_write_storage_buffers_capacity = 1'024;
+  u32 bindless_input_attachments_capacity          = 1'024;
+  u32 frame_timestamps_capacity                    = 8'192;
+  u32 frame_statistics_capacity                    = 4'096;
+};
+
+struct GpuSysPreferences
+{
+  u32                            buffering               = 4;
+  u32x2                          initial_extent          = {1'920, 1'080};
+  GpuSysCfg                      cfg                     = {};
+  Span<gpu::Format const>        color_formats           = {};
+  Span<gpu::Format const>        depth_stencil_formats   = {};
+  Span<gpu::SurfaceFormat const> swapchain_formats       = {};
+  Span<gpu::PresentMode const>   swapchain_present_modes = {};
+  gpu::CompositeAlpha swapchain_composite_alpha = gpu::CompositeAlpha::Opaque;
 };
 
 struct GpuDescriptorsLayout
 {
-  static constexpr u32 DEFAULT_SAMPLED_TEXTURES_CAPACITY = 16'384;
-
-  static constexpr u32 DEFAULT_SAMPLERS_CAPACITY = 512;
-
+  /// @brief Bindless samplers
   gpu::DescriptorSetLayout samplers = nullptr;
 
+  u32 samplers_capacity = 0;
+
+  /// @brief Bindless textures
   gpu::DescriptorSetLayout sampled_textures = nullptr;
 
+  u32 sampled_textures_capacity = 0;
+
+  /// @brief Bindless storage textures
   gpu::DescriptorSetLayout storage_textures = nullptr;
 
-  gpu::DescriptorSetLayout const_buffer = nullptr;
+  u32 storage_textures_capacity = 0;
 
-  gpu::DescriptorSetLayout read_struct_buffer = nullptr;
+  /// @brief Single dynamic-offset constant buffer
+  gpu::DescriptorSetLayout uniform_buffer = nullptr;
 
-  gpu::DescriptorSetLayout read_write_struct_buffer = nullptr;
+  /// @brief Single dynamic-offset storage buffer
+  gpu::DescriptorSetLayout read_storage_buffer = nullptr;
 
-  gpu::DescriptorSetLayout const_buffers = nullptr;
+  /// @brief Single dynamic-offset storage buffer
+  gpu::DescriptorSetLayout read_write_storage_buffer = nullptr;
 
-  gpu::DescriptorSetLayout read_struct_buffers = nullptr;
+  /// @brief Bindless static offset uniform buffers
+  gpu::DescriptorSetLayout uniform_buffers = nullptr;
 
-  gpu::DescriptorSetLayout read_write_struct_buffers = nullptr;
+  u32 uniform_buffer_capacity = 0;
 
+  /// @brief Bindless static offset storage buffers
+  gpu::DescriptorSetLayout read_storage_buffers = nullptr;
+
+  u32 read_storage_buffers_capacity = 0;
+
+  /// @brief Bindless static offset writable storage buffers
+  gpu::DescriptorSetLayout read_write_storage_buffers = nullptr;
+
+  u32 read_write_storage_buffers_capacity = 0;
+
+  /// @brief Bindless input attachments
   gpu::DescriptorSetLayout input_attachments = nullptr;
 
-  // u32 num_samplers,
-  // u32 num_sampled_textures
+  u32 input_attachments_capacity = 0;
 
   void uninit(gpu::Device device);
+
+  static GpuDescriptorsLayout create(gpu::Device device, Str label,
+                                     GpuSysCfg const & cfg, Allocator scratch);
 };
 
 struct GpuDescriptors
 {
   gpu::DescriptorSet samplers = nullptr;
 
+  BitVec<u64> samplers_slots = {};
+
   gpu::DescriptorSet sampled_textures = nullptr;
+
+  BitVec<u64> sampled_textures_slots = {};
 
   void uninit(gpu::Device device);
 
-  static GpuDescriptors create(GpuDescriptorsLayout const & layout);
+  static GpuDescriptors create(GpuSys sys, Str label, Allocator scratch);
 };
-
-using GpuFrameTask = Dyn<Fn<void()>>;
 
 struct GpuFrameTargetInfo
 {
@@ -360,12 +333,21 @@ struct GpuFrameTargetInfo
   }
 };
 
-using GpuFrameTarget = ColorTexture;
+enum class GpuFramePlanState : u8
+{
+  Reset     = 0,
+  Recording = 1,
+  Recorded  = 2,
+  Submitted = 3,
+  Executed  = 4
+};
 
 /// @brief A prepared frame ready to be executed on the render thread
-struct GpuFramePlan
+struct IGpuFramePlan
 {
   Allocator allocator_;
+
+  GpuSys sys_;
 
   Vec<GpuFrameTask> pre_frame_tasks_;
 
@@ -381,16 +363,25 @@ struct GpuFramePlan
 
   Vec<Slice64> cpu_buffer_entries_;
 
-  u64 scratch_buffer_reserve_size_;
+  Vec<u64> scratch_buffer_sizes_;
+
+  u32 num_scratch_images_;
 
   Vec<GpuPass> passes_;
 
   GpuFrameTargetInfo target_;
 
+  GpuFramePlanState state_;
+
+  Dyn<Semaphore> semaphore_;
+
+  u64 submission_stage_;
+
   ArenaPool arena_;
 
-  GpuFramePlan(Allocator allocator) :
+  IGpuFramePlan(Allocator allocator, GpuSys sys, Dyn<Semaphore> semaphore) :
     allocator_{allocator},
+    sys_{sys},
     pre_frame_tasks_{allocator},
     post_frame_tasks_{allocator},
     frame_completed_tasks_{allocator},
@@ -398,42 +389,58 @@ struct GpuFramePlan
     gpu_buffer_entries_{allocator},
     cpu_buffer_data_{allocator},
     cpu_buffer_entries_{allocator},
-    scratch_buffer_reserve_size_{0},
+    scratch_buffer_sizes_{allocator},
+    num_scratch_images_{0},
     passes_{allocator},
     target_{},
+    state_{GpuFramePlanState::Reset},
+    semaphore_{std::move(semaphore)},
+    submission_stage_{0},
     arena_{allocator}
   {
   }
 
-  // [ ]
+  void uninit();
+
   void set_target(GpuFrameTargetInfo target);
 
-  void reserve_scratch_buffer(u64 size);
+  void reserve_scratch_buffers(Span<u64 const> sizes);
+
+  void reserve_scratch_images(u32 num_scratch_images);
 
   void add_preframe_task(GpuFrameTask && task);
 
   template <Callable Lambda>
-  void add_preframe_task(Lambda && task);
+  void add_preframe_task(Lambda && task)
+  {
+    return add_preframe_task(
+      dyn_lambda<GpuFrameTaskFn>(arena_, static_cast<Lambda &&>(task))
+        .unwrap());
+  }
 
   void add_postframe_task(GpuFrameTask && task);
 
   template <Callable Lambda>
-  void add_postframe_task(Lambda && task);
+  void add_postframe_task(Lambda && task)
+  {
+    return add_postframe_task(
+      dyn_lambda<GpuFrameTaskFn>(arena_, static_cast<Lambda &&>(task))
+        .unwrap());
+  }
 
   void add_pass(GpuPass && pass);
 
-  template <Callable<FrameGraph &, gpu::CommandEncoder &> Lambda>
+  template <Callable<GpuFrame, gpu::CommandEncoder> Lambda>
   void add_pass(Lambda && task)
   {
-    auto      lambda = dyn(arena_, static_cast<Lambda &&>(task)).unwrap();
-    GpuPassFn func{lambda.get()};
-    return add_pass(transmute(std::move(lambda), func));
+    return add_pass(
+      dyn_lambda<GpuPassFn>(arena_, static_cast<Lambda &&>(task)).unwrap());
   }
 
-  BufferId push_cpu(Span<u8 const> data);
+  CpuBufferId push_cpu(Span<u8 const> data);
 
   template <typename T>
-  BufferId push_cpu(Span<T> data)
+  CpuBufferId push_cpu(Span<T> data)
   {
     return push_cpu(data.as_u8().as_const());
   }
@@ -446,66 +453,106 @@ struct GpuFramePlan
     return push_gpu(data.as_u8().as_const());
   }
 
+  GpuSys sys() const;
+
+  gpu::Device device() const;
+
   void begin();
 
   void end();
 
   void reset();
+
+  /// @brief Await completion of the frame
+  /// @returns true if the frame completed before the timeout period
+  bool await(nanoseconds timeout);
 };
 
-struct TextureUnion
+struct ImageUnion
 {
-  ColorTexture        color;
-  DepthStencilTexture depth_stencil;
+  ColorImage        color         = {};
+  DepthStencilImage depth_stencil = {};
+  gpu::Alias        alias         = nullptr;
 
   void uninit(gpu::Device device);
 
-  static TextureUnion create(gpu::Device device, GpuSystem const & sys,
-                             u32x2 target_size, gpu::Format color_format,
-                             gpu::Format depth_stencil_format, Str label,
-                             Allocator scratch);
+  static ImageUnion create(GpuSys sys, u32x2 target_size,
+                           gpu::Format color_format,
+                           gpu::Format depth_stencil_format, Str label,
+                           Allocator scratch);
 };
 
-struct ScratchTextures
+struct ScratchImages
 {
-  Vec<TextureUnion> textures;
-  gpu::MemoryGroup  memory_group = nullptr;
+  Vec<ImageUnion> images;
 
   void uninit(gpu::Device device);
 
-  static ScratchTextures create(gpu::Device device, GpuSystem const & system,
-                                u32 num_scratch, u32x2 target_size,
-                                gpu::Format color_format,
-                                gpu::Format depth_stencil_format, Str label,
-                                Allocator allocator, Allocator scratch);
+  static ScratchImages create(GpuSys sys, u32 num_scratch, u32x2 target_size,
+                              gpu::Format color_format,
+                              gpu::Format depth_stencil_format, Str label,
+                              Allocator allocator, Allocator scratch);
+};
+
+struct ScratchBuffers
+{
+  Vec<GpuBuffer> buffers;
+
+  void uninit(gpu::Device device);
+
+  static ScratchBuffers create(GpuSys sys, Span<u64 const> sizes, Str label,
+                               Allocator allocator, Allocator scratch);
+
+  void grow(GpuSys sys, Span<u64 const> sizes, Str label, Allocator allocator,
+            Allocator scratch);
 };
 
 struct GpuFrameResources
 {
-  GpuBuffer       buffer           = {};
-  GpuFrameTarget  target           = {};
-  ScratchTextures scratch_textures = {};
-  GpuBuffer       scratch_buffer   = {};
-  GpuQueries      queries          = {};
+  GpuBuffer      buffer          = {};
+  ScratchBuffers scratch_buffers = {};
+  ScratchImages  scratch_images  = {};
+  GpuQueries     queries         = {};
 
   void uninit(gpu::Device device);
 };
 
-// [ ] relax limits and raise errors instead
-// [ ] target extent: get swapchain extent at frame begin??? no, rebuild target and scratch if extent and formats not same
-//
-// [ ] single scratch buffer with bounds; min max;------- won't work with ping-ponging
-//
-// [ ] await_frame_complete()
-// [ ] execute_frame_complete_tasks() -- need to be scheduled
-//
-// [ ] we want to be able to start recording CPU-side work for this frame whilst the GPU work is still executing-----------------
 // [ ] handle the case where swapchain might be deferred or not have images
-// [ ] how and when to sync texture extents or formats; is there a general concept to mutable state gotten from the execution?
-//  ----------- post-complete task; Option<Diff> ; i.e. Option<u32x2> new_swapchain_extent;
-//
-//
 // [ ] we should sync and update texture configurations when swapchain config changes
+// [ ] to recreate swapchain, how do we wait correctly on the swapchain image presentation before re-creating?
+
+enum class ScratchTexureType : u8
+{
+  SampledColor                = 0,
+  StorageColor                = 1,
+  InputAttachmentColor        = 2,
+  SampledDepthStencil         = 3,
+  StorageDepthStencil         = 4,
+  InputAttachmentDepthStencil = 5
+};
+
+struct ScratchTexture
+{
+  u32               image = 0;
+  ScratchTexureType type  = ScratchTexureType::SampledColor;
+};
+
+struct SampledTextures
+{
+};
+
+inline constexpr SampledTextures sampled_textures;
+
+using TextureSet = Enum<ScratchTexture, SampledTextures>;
+
+enum class GpuFrameState : u8
+{
+  Reset     = 0,
+  Recording = 1,
+  Recorded  = 2,
+  Submitted = 2,
+  Completed = 3
+};
 
 /// @brief GpuFrame represents the state needed to render a frame on the GPU.
 /// This object is prepared on the main/scheduling thread and submitted to the GPU on a render thread.
@@ -513,54 +560,57 @@ struct GpuFrameResources
 /// We thus have copies of some of the resources across the frames.
 /// The swapchain is also recreated and acquired on the render thread. The primary color target might
 /// thus, be out-of-sync with the swapchain extent, in that case, we blit from the target to the swapchain image.
-struct GpuFrame
+struct IGpuFrame
 {
-  static constexpr u32 DEFAULT_NUM_SCRATCH_TEXTURES = 4;
-
   Allocator allocator_;
 
-  gpu::Device device_;
+  gpu::Device dev_;
 
-  GpuSystem * system_;
+  GpuSys sys_;
 
   u32 id_;
 
   GpuFrameState state_;
 
-  gpu::Swapchain swapchain_;
+  u64 scope_frame_id_;
 
   GpuFrameTargetInfo target_info_;
 
+  GpuFrameCfg cfg_;
+
   GpuFrameResources resources_;
 
-  u32 next_scratch_texture_;
+  u32 next_timestamp_;
 
-  Semaphore semaphore_;
+  u32 next_statistics_;
 
-  gpu::QueueScope queue_scope_;
+  Dyn<Semaphore> semaphore_;
+
+  u64 submission_stage_;
 
   gpu::CommandEncoder command_encoder_;
 
   gpu::CommandBuffer command_buffer_;
 
-  // [ ] needed for methods that need to get context info; i.e. buffer, textuyres
-  GpuFramePlan * current_plan_;
+  /// @brief Currently bounded frame plan
+  GpuFramePlan current_plan_;
 
-  GpuFrame(Allocator allocator, gpu::Device device, GpuSystem * system, u32 id,
-           gpu::Swapchain swapchain, Semaphore semaphore,
-           gpu::QueueScope queue_scope, gpu::CommandEncoder command_encoder,
-           gpu::CommandBuffer command_buffer) :
+  IGpuFrame(Allocator allocator, gpu::Device device, GpuSys sys, u32 id,
+            Dyn<Semaphore> semaphore, gpu::CommandEncoder command_encoder,
+            gpu::CommandBuffer command_buffer) :
     allocator_{allocator},
-    device_{device},
-    system_{system},
+    dev_{device},
+    sys_{sys},
     id_{id},
     state_{GpuFrameState::Reset},
-    swapchain_{swapchain},
+    scope_frame_id_{0},
     target_info_{},
+    cfg_{},
     resources_{},
-    next_scratch_texture_{0},
-    semaphore_{semaphore},
-    queue_scope_{queue_scope},
+    next_timestamp_{0},
+    next_statistics_{0},
+    semaphore_{std::move(semaphore)},
+    submission_stage_{0},
     command_encoder_{command_encoder},
     command_buffer_{command_buffer},
     current_plan_{nullptr}
@@ -569,19 +619,12 @@ struct GpuFrame
 
   void uninit();
 
-  Option<Tuple<gpu::TimestampQuery, u32>> allocate_timestamp();
+  gpu::Device dev() const;
 
-  Option<Tuple<gpu::StatisticsQuery, u32>> allocate_statistics();
+  GpuSys sys() const;
 
-  void get_scratch_textures(u32 num_scratch, Vec<TextureUnion> & textures);
-
-  gpu::Device device() const;
-
-  GpuSystem * system() const;
-
+  /// @brief Swapchain images must be manually acquired and blitted to
   gpu::Swapchain swapchain() const;
-
-  ColorTexture target() const;
 
   gpu::DescriptorSet sampled_textures() const;
 
@@ -591,40 +634,76 @@ struct GpuFrame
 
   gpu::CommandBuffer command_buffer() const;
 
+  Option<Tuple<gpu::TimestampQuery, u32>> allocate_timestamp();
+
+  Option<Tuple<gpu::StatisticsQuery, u32>> allocate_statistics();
+
+  Span<ImageUnion const> get_scratch_images() const;
+
+  ImageUnion get_scratch_image(u32 index) const;
+
+  Span<GpuBuffer const> get_scratch_buffers() const;
+
   GpuBufferSpan get(GpuBufferId id);
 
-  Span<u8 const> get(BufferId id);
+  Span<u8 const> get(CpuBufferId id);
 
   template <typename T>
-  Span<T const> get(BufferId id)
+  Span<T const> get(CpuBufferId id)
   {
     return get(id).reinterpret<T>();
   }
 
-  void begin_(GpuFramePlan * plan);
+  gpu::DescriptorSet get(TextureSet tex);
 
-  void end_();
+  void begin();
 
-  void execute_();
+  void cmd(GpuFramePlan plan);
 
-  void complete_();
+  void end();
 
-  void reset_();
+  /// @brief Submit frame to the GPU
+  void submit();
 
-  void await_();
+  /// @brief The frame has finished executing on the GPU, run completion tasks or fetch data from GPU
+  /// @return true if the frame has been executed, otherwise, false.
+  bool try_complete(nanoseconds timeout);
+
+  /// @brief Reset the frame for recording
+  void reset();
+
+  /// @brief Await completion of the frame
+  /// @returns true if the frame completed before the timeout period
+  bool await(nanoseconds timeout);
 };
 
-struct GpuSystem
+/// @brief A GpuSys has two primary components: The GpuFramePlan and the GpuFrame.
+///
+/// The GpuFramePlan describes the operations that need to be executed for a specific frame. It also contains the
+/// description of all resources that will need to be allocated/copied to the GPU in order to execute the frame.
+///
+///
+/// The GpuFrame contains the GPU resources that are needed to actually execute the frame.
+///
+/// The GpuFramePlan can be continously prepared whilst the frames are executing on the render thread so the GPU is never
+/// starved of work. This also means we can submit frames as soon as they are ready and immediately start doing other work
+/// without any waits on the CPU.
+///
+/// To keep the queue saturated, we'd ideally want to have atleast N + 1 FramePlans and N+1 Frames ???????????
+///
+struct IGpuSys
 {
-  static constexpr u32 NUM_TEXTURE_SLOTS = 2'048;
+  static constexpr u32 MAX_BUFFERING = 4;
 
-  static constexpr u32 NUM_SAMPLER_SLOTS = 128;
+  bool initialized_;
 
-  gpu::Device * device_;
+  Allocator allocator_;
 
-  Vec<GpuFrame, 4> frame_data_;
+  gpu::Device dev_;
 
-  u32 frame_ring_index_;
+  gpu::Surface surface_;
+
+  GpuSysCfg cfg_;
 
   gpu::DeviceProperties props_;
 
@@ -632,73 +711,113 @@ struct GpuSystem
 
   u32 buffering_;
 
-  gpu::SampleCount sample_count_;
-
-  /// @brief hdr if hdr supported and required.
+  /// @brief Hdr if hdr supported and required.
   gpu::Format color_format_;
 
   gpu::Format depth_stencil_format_;
 
-  GpuDescriptorsLayout layouts_;
+  gpu::SampleCount sample_count_;
+
+  GpuDescriptorsLayout descriptors_layout_;
+
+  gpu::Swapchain swapchain_;
+
+  gpu::QueueScope queue_scope_;
+
+  IFutex resources_lock_;
+
+  SamplerCache sampler_cache_;
 
   GpuDescriptors descriptors_;
-
-  SamplerDict sampler_dict_;
 
   gpu::Image default_image_;
 
   Array<gpu::ImageView, NUM_DEFAULT_TEXTURES> default_image_views_;
 
-  // [ ] managing laRGE number of textures, samplers; sync
+  u32 frame_ring_index_;
 
-  static GpuSystem create(Allocator allocator, gpu::Device device,
-                          Span<u8 const> pipeline_cache_data, bool use_hdr,
-                          u32 buffering, gpu::SampleCount sample_count,
-                          u32x2 initial_extent);
+  Vec<Dyn<GpuFrame>> frames_;
 
-  GpuSystem(Allocator allocator, gpu::Device & device,
-            gpu::DeviceProperties props, gpu::PipelineCache pipeline_cache,
-            u32 buffering, gpu::SampleCount sample_count,
-            gpu::Format color_format, gpu::Format depth_stencil_format,
-            GpuDescriptorsLayout descriptors_layout, gpu::Image default_image,
-            Array<gpu::ImageView, NUM_DEFAULT_TEXTURES> default_image_views,
-            FrameGraph                                  frame_graph) :
-    device_{&device},
-    props_{props},
-    pipeline_cache_{pipeline_cache},
-    buffering_{buffering},
-    sample_count_{sample_count},
-    color_format_{color_format},
-    depth_stencil_format_{depth_stencil_format},
-    descriptors_layout_{descriptors_layout},
-    sampler_cache_{allocator},
-    default_image_{default_image},
-    default_image_views_{default_image_views},
-    texture_slots_{},
-    sampler_slots_{},
-    frame_graph_{std::move(frame_graph)}
+  Vec<Dyn<GpuFramePlan>> plans_;
+
+  Scheduler scheduler_;
+
+  ThreadId thread_id_;
+
+  IGpuSys() :
+    initialized_{false},
+    allocator_{},
+    dev_{nullptr},
+    surface_{nullptr},
+    cfg_{},
+    props_{},
+    pipeline_cache_{nullptr},
+    buffering_{0},
+    color_format_{gpu::Format::Undefined},
+    depth_stencil_format_{gpu::Format::Undefined},
+    descriptors_layout_{},
+    swapchain_{nullptr},
+    queue_scope_{nullptr},
+    resources_lock_{},
+    sampler_cache_{},
+    descriptors_{},
+    default_image_{nullptr},
+    default_image_views_{},
+    frame_ring_index_{0},
+    frames_{},
+    plans_{},
+    scheduler_{nullptr},
+    thread_id_{ThreadId::Undefined}
   {
   }
 
-  GpuSystem(GpuSystem const &)             = delete;
-  GpuSystem(GpuSystem &&)                  = default;
-  GpuSystem & operator=(GpuSystem const &) = delete;
-  GpuSystem & operator=(GpuSystem &&)      = default;
-  ~GpuSystem()                             = default;
+  IGpuSys(IGpuSys const &)             = delete;
+  IGpuSys(IGpuSys &&)                  = delete;
+  IGpuSys & operator=(IGpuSys const &) = delete;
+  IGpuSys & operator=(IGpuSys &&)      = delete;
+  ~IGpuSys()                           = default;
 
-  void shutdown(Vec<u8> & cache);
+  /// @brief Uninitialize the gpu system and get the pipeline cache data
+  void uninit(Vec<u8> & cache);
 
-  Sampler create_sampler(gpu::SamplerInfo const & info);
+  /// @brief Initialize the GPU system with the provided pipeline cache data and preference
+  ///
+  void init(Allocator allocator, gpu::Device device,
+            Span<u8 const> pipeline_cache_data, gpu::Surface surface,
+            GpuSysPreferences const & preferences, Scheduler scheduler,
+            ThreadId thread_id);
 
-  TextureId alloc_texture_id(gpu::ImageView view);
+  SamplerIndex create_cached_sampler(gpu::SamplerInfo const & info);
 
-  void release_texture_id(TextureId id);
+  /// @brief Allocate a texture slot for the image and bind it to the textures descriptors
+  /// at the start of the next frame
+  TextureIndex alloc_texture_index(gpu::ImageView view);
 
-  SamplerId alloc_sampler_id(gpu::Sampler sampler);
+  /// @brief Release a texture slot and unbind it from the textures descriptors at the start
+  /// of the next frame
+  void release_texture_index(TextureIndex index);
 
-  void release_sampler_id(SamplerId id);
+  gpu::Device device();
 
-  GpuFrame & frame();
+  Allocator allocator() const;
+
+  GpuFramePlan plan();
+
+  gpu::Format color_format() const;
+
+  gpu::Format depth_stencil_format() const;
+
+  gpu::SampleCount sample_count() const;
+
+  gpu::PipelineCache pipeline_cache() const;
+
+  GpuDescriptorsLayout const & descriptors_layout() const;
+
+  gpu::DescriptorSet samplers() const;
+
+  gpu::DescriptorSet sampled_textures() const;
+
+  void submit_frame();
 };
 
 }    // namespace ash

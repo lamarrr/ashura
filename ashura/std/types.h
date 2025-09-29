@@ -24,10 +24,20 @@ typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
 
+struct alignas(16) u128
+{
+  u64 repr_[2];
+};
+
 typedef int8_t  i8;
 typedef int16_t i16;
 typedef int32_t i32;
 typedef int64_t i64;
+
+struct alignas(16) i128
+{
+  u64 repr_[2];
+};
 
 typedef size_t    usize;
 typedef ptrdiff_t isize;
@@ -551,6 +561,19 @@ constexpr i32 sat_mul(i32 a, i32 b)
   return (i32) clamp((i64) a * (i64) b, (i64) I32_MIN, (i64) I32_MAX);
 }
 
+template <Unsigned T>
+constexpr T ring_add(T index, T dist, T size)
+{
+  return (index + dist) % size;
+}
+
+template <Unsigned T>
+constexpr T ring_sub(T index, T dist, T size)
+{
+  dist = dist % size;
+  return (index >= dist) ? (index - dist) : (size - (dist - index));
+}
+
 using std::bit_cast;
 
 template <typename T>
@@ -583,6 +606,11 @@ constexpr bool is_pow2(u32 x)
 constexpr bool is_pow2(u64 x)
 {
   return (x & (x - 1)) == 0ULL;
+}
+
+constexpr u64 operator""_B(u64 x)
+{
+  return x;
 }
 
 constexpr u64 operator""_KB(u64 x)
@@ -1147,6 +1175,18 @@ template <typename Container, typename T>
 concept SpanCompatibleContainer =
   SpanContainer<Container> && SpanCompatible<ContainerDataType<Container>, T>;
 
+template <usize Alignment, typename T>
+[[nodiscard]] constexpr T * assume_aligned_to(T * ptr)
+{
+  if (std::is_constant_evaluated())
+  {
+    return ptr;
+  }
+  else
+  {
+    return static_cast<T *>(__builtin_assume_aligned(ptr, Alignment));
+  }
+}
 template <typename T>
 struct [[nodiscard]] Span
 {
@@ -1393,6 +1433,18 @@ template <typename R>
 constexpr auto view(R & range) -> decltype(range.view())
 {
   return range.view();
+}
+
+template <typename T>
+constexpr Span<u8 const> as_u8_span(T const & obj)
+{
+  return Span<T const>{&obj, 1}.as_u8();
+}
+
+template <typename T>
+constexpr Span<u8> as_u8_span(T & obj)
+{
+  return Span<T>{&obj, 1}.as_u8();
 }
 
 typedef Span<char const> Str;
@@ -2218,7 +2270,7 @@ struct PFnTraits<R (*)(Args...)> : PFnTraits<R(Args...)>
 template <typename Sig>
 struct MethodTraits;
 
-/// @brief non-const method traits
+/// @brief Non-const method traits
 template <typename T, typename R, typename... Args>
 struct MethodTraits<R (T::*)(Args...)>
 {
@@ -2228,7 +2280,7 @@ struct MethodTraits<R (T::*)(Args...)>
   using Thunk  = FunctorThunk<T, R(Args...)>;
 };
 
-/// @brief const method traits
+/// @brief Const method traits
 template <typename T, typename R, typename... Args>
 struct MethodTraits<R (T::*)(Args...) const>
 {
@@ -2290,7 +2342,7 @@ struct Fn<R(Args...)>
   {
   }
 
-  /// @brief create a function view from an object reference and a function
+  /// @brief Create a function view from an object reference and a function
   /// thunk to execute using the object reference as its first argument.
   template <typename T>
   Fn(T * data, R (*thunk)(T *, Args...)) :
@@ -2305,7 +2357,7 @@ struct Fn<R(Args...)>
   {
   }
 
-  /// @brief make a function view from a functor reference. Functor should outlive
+  /// @brief Make a function view from a functor reference. Functor should outlive
   /// the Fn
   template <typename F>
   requires ((!Convertible<F, R (*)(Args...)>) && CallableOf<F, R, Args...>)
@@ -2357,7 +2409,7 @@ constexpr usize cstr_len(Char * c_str)
 }
 
 template <typename Char>
-constexpr Span<Char> cstr_span(Char * c_str)
+constexpr Span<Char> cstr(Char * c_str)
 {
   return {c_str, cstr_len(c_str)};
 }
@@ -2376,18 +2428,18 @@ struct SourceLocation
   static constexpr SourceLocation current(
 #if ASH_HAS_BUILTIN(FILE) || (defined(__cpp_lib_source_location) && \
                               __cpp_lib_source_location >= 201'907L)
-    Str file = cstr_span(__builtin_FILE()),
+    Str file = cstr(__builtin_FILE()),
 #elif defined(__FILE__)
-    Str file = cstr_span(__FILE__),
+    Str file = cstr(__FILE__),
 #else
-    Str file = cstr_span("unknown"),
+    Str file = cstr("unknown"),
 #endif
 
 #if ASH_HAS_BUILTIN(FUNCTION) || (defined(__cpp_lib_source_location) && \
                                   __cpp_lib_source_location >= 201'907L)
-    Str function = cstr_span(__builtin_FUNCTION()),
+    Str function = cstr(__builtin_FUNCTION()),
 #else
-    Str function = cstr_span("unknown"),
+    Str function = cstr("unknown"),
 #endif
 
 #if ASH_HAS_BUILTIN(LINE) || (defined(__cpp_lib_source_location) && \
@@ -2457,7 +2509,7 @@ struct Inplace
 
 inline constexpr Inplace inplace{};
 
-/// @brief uninitialized storage
+/// @brief Uninitialized storage
 template <usize Alignment, usize Capacity>
 struct InplaceStorage
 {

@@ -12,7 +12,7 @@ constexpr usize PATH_RESERVED_SIZE = 256;
 Result<Void, IoErr> read_file(Str path, Vec<u8> & buff)
 {
   u8                reserved[PATH_RESERVED_SIZE];
-  FallbackAllocator allocator{Arena::from(reserved), default_allocator};
+  FallbackAllocator allocator{reserved, default_allocator};
   Vec<char>         path_c_str{allocator};
 
   if (!path_c_str.extend_uninit(path.size() + 1))
@@ -20,7 +20,8 @@ Result<Void, IoErr> read_file(Str path, Vec<u8> & buff)
     return Err{IoErr::OutOfMemory};
   }
 
-  CHECK(to_c_str(path, path_c_str), "");
+  mem::copy(path, path_c_str.data());
+  path_c_str.last() = '\0';
 
   std::FILE * file = std::fopen(path_c_str.data(), "rb");
 
@@ -71,7 +72,7 @@ Result<Void, IoErr> read_file(Str path, Vec<u8> & buff)
 Result<Void, IoErr> write_to_file(Str path, Span<u8 const> buff, bool append)
 {
   u8                reserved[PATH_RESERVED_SIZE];
-  FallbackAllocator allocator{Arena::from(reserved), default_allocator};
+  FallbackAllocator allocator{reserved, default_allocator};
   Vec<char>         path_c_str{allocator};
 
   if (!path_c_str.extend_uninit(path.size() + 1))
@@ -79,7 +80,8 @@ Result<Void, IoErr> write_to_file(Str path, Span<u8 const> buff, bool append)
     return Err{IoErr::OutOfMemory};
   }
 
-  CHECK(to_c_str(path, path_c_str), "");
+  mem::copy(path, path_c_str.data());
+  path_c_str.last() = '\0';
 
   std::FILE * file = std::fopen(path_c_str.data(), append ? "a" : "w");
 

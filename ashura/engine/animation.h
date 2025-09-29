@@ -392,13 +392,13 @@ struct AnimationState
   nanoseconds run_delay_ = 0ns;
   nanoseconds run_time_  = nanoseconds::max();
 
-  /// @brief is the animation a delayed type of animation
+  /// @brief Is the animation a delayed type of animation
   constexpr bool is_delayed() const
   {
     return run_delay_ != 0ns;
   }
 
-  /// @brief is the animation pending execution due to a delay
+  /// @brief Is the animation pending execution due to a delay
   constexpr bool is_pending() const
   {
     return delay_ != 0ns;

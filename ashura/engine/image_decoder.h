@@ -1,6 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 
+#include "ashura/engine/errors.h"
 #include "ashura/gpu/gpu.h"
 #include "ashura/std/result.h"
 #include "ashura/std/types.h"
@@ -8,15 +9,6 @@
 
 namespace ash
 {
-
-enum class [[nodiscard]] ImageLoadErr : i32
-{
-  OutOfMemory       = 0,
-  InvalidPath       = 1,
-  IoErr             = 2,
-  DecodeFailed      = 3,
-  UnsupportedFormat = 4
-};
 
 struct DecodedImageInfo
 {

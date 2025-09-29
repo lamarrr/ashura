@@ -15,60 +15,63 @@ struct Arena final : IAllocator
   u8 *  begin;
   u8 *  end;
   u8 *  offset;
-  usize alignment;
   usize allocated;
 
   constexpr Arena() :
+    IAllocator{},
     begin{nullptr},
     end{nullptr},
     offset{nullptr},
-    alignment{1},
     allocated{0}
   {
   }
 
-  constexpr Arena(u8 * begin, u8 * end, usize alignment) :
+  constexpr Arena(u8 * begin, u8 * end) :
+    IAllocator{},
     begin{begin},
     end{end},
     offset{begin},
-    alignment{alignment},
     allocated{0}
   {
   }
 
-  constexpr Arena(void * begin, void * end, usize alignment) :
-    begin{static_cast<u8 *>(begin)},
-    end{static_cast<u8 *>(end)},
-    offset{static_cast<u8 *>(begin)},
-    alignment{alignment},
-    allocated{0}
+  constexpr Arena(i8 * begin, i8 * end) :
+    Arena{reinterpret_cast<u8 *>(begin), reinterpret_cast<u8 *>(end)}
   {
   }
 
-  [[nodiscard]] static constexpr Arena from(Span<u8> buffer)
+  constexpr Arena(void * begin, void * end) :
+    Arena{static_cast<u8 *>(begin), static_cast<u8 *>(end)}
   {
-    return Arena{buffer.pbegin(), buffer.pend(), 1};
   }
 
-  [[nodiscard]] static constexpr Arena from(Span<char> buffer)
+  constexpr Arena(Span<u8> buffer) : Arena{buffer.pbegin(), buffer.pend()}
   {
-    return Arena{buffer.pbegin(), buffer.pend(), 1};
   }
 
-  constexpr Arena(Arena const &)             = default;
-  constexpr Arena(Arena &&)                  = default;
-  constexpr Arena & operator=(Arena const &) = default;
-  constexpr Arena & operator=(Arena &&)      = default;
+  constexpr Arena(Span<i8> buffer) : Arena{buffer.pbegin(), buffer.pend()}
+  {
+  }
+
+  template <usize N>
+  constexpr Arena(u8 (&buffer)[N]) : Arena{buffer, buffer + N}
+  {
+  }
+
+  template <usize N>
+  constexpr Arena(i8 (&buffer)[N]) : Arena{buffer, buffer + N}
+  {
+  }
+
+  constexpr Arena(Arena const &)             = delete;
+  constexpr Arena(Arena &&)                  = delete;
+  constexpr Arena & operator=(Arena const &) = delete;
+  constexpr Arena & operator=(Arena &&)      = delete;
   constexpr ~Arena()                         = default;
 
-  [[nodiscard]] constexpr usize size() const
+  [[nodiscard]] constexpr usize capacity() const
   {
     return end - begin;
-  }
-
-  constexpr Layout layout() const
-  {
-    return Layout{alignment, size()};
   }
 
   [[nodiscard]] constexpr usize used() const
@@ -108,7 +111,7 @@ struct Arena final : IAllocator
       return true;
     }
 
-    u8 * aligned    = align(layout.alignment, offset);
+    u8 * aligned    = align_up(layout.alignment, offset);
     u8 * new_offset = aligned + layout.size;
     if (new_offset > end)
     {
@@ -204,15 +207,14 @@ struct ArenaPoolCfg
 /// @source: allocation memory source
 struct ArenaPool final : IAllocator
 {
-  Allocator source        = {};
+  Allocator    source        = {};
   Arena *      arenas        = nullptr;
   usize        num_arenas    = 0;
   usize        current_arena = 0;
   ArenaPoolCfg cfg           = {};
 
-  ArenaPool() = default;
-
-  explicit ArenaPool(Allocator source, ArenaPoolCfg const & cfg = {}) :
+  explicit ArenaPool(Allocator source = {}, ArenaPoolCfg const & cfg = {}) :
+    IAllocator{},
     source{source},
     cfg{cfg}
   {
@@ -222,29 +224,9 @@ struct ArenaPool final : IAllocator
 
   ArenaPool & operator=(ArenaPool const &) = delete;
 
-  ArenaPool(ArenaPool && other) :
-    source{other.source},
-    arenas{other.arenas},
-    num_arenas{other.num_arenas},
-    current_arena{other.current_arena},
-    cfg{other.cfg}
-  {
-    other.source        = {};
-    other.arenas        = nullptr;
-    other.num_arenas    = 0;
-    other.current_arena = 0;
-  }
+  ArenaPool(ArenaPool && other) = delete;
 
-  ArenaPool & operator=(ArenaPool && other)
-  {
-    if (this == &other) [[unlikely]]
-    {
-      return *this;
-    }
-    uninit();
-    new (this) ArenaPool{static_cast<ArenaPool &&>(other)};
-    return *this;
-  }
+  ArenaPool & operator=(ArenaPool && other) = delete;
 
   ~ArenaPool()
   {
@@ -261,12 +243,12 @@ struct ArenaPool final : IAllocator
     current_arena = 0;
   }
 
-  [[nodiscard]] usize size() const
+  [[nodiscard]] usize capacity() const
   {
     usize s = 0;
     for (usize i = 0; i < num_arenas; i++)
     {
-      s += arenas[i].size();
+      s += arenas[i].capacity();
     }
 
     return s;
@@ -298,7 +280,9 @@ struct ArenaPool final : IAllocator
   {
     for (usize i = num_arenas; i-- > 0;)
     {
-      source->dealloc(arenas[i].layout(), arenas[i].begin);
+      source->dealloc(
+        Layout{.alignment = cfg.arena_alignment, .size = arenas[i].capacity()},
+        arenas[i].begin);
     }
     source->ndealloc(num_arenas, arenas);
   }
@@ -339,10 +323,10 @@ struct ArenaPool final : IAllocator
       return false;
     }
 
-    Layout const arena_layout{cfg.arena_alignment,
-                              max(layout.size, cfg.min_arena_size)};
+    Layout arena_layout{cfg.arena_alignment,
+                        max(layout.size, cfg.min_arena_size)};
 
-    if ((size() + arena_layout.size) > cfg.max_total_size)
+    if ((capacity() + arena_layout.size) > cfg.max_total_size)
     {
       mem = nullptr;
       return false;
@@ -363,8 +347,8 @@ struct ArenaPool final : IAllocator
       return false;
     }
 
-    Arena * arena = new (arenas + num_arenas)
-      Arena{arena_mem, arena_mem + arena_layout.size, arena_layout.alignment};
+    Arena * arena =
+      new (arenas + num_arenas) Arena{arena_mem, arena_mem + arena_layout.size};
 
     current_arena = num_arenas;
 
@@ -411,7 +395,9 @@ struct ArenaPool final : IAllocator
         // if only and first allocation on the arena, realloc arena
         if (arena.begin == mem)
         {
-          if (!source->realloc(arena.layout(), new_size, arena.begin))
+          if (!source->realloc(Layout{.alignment = cfg.arena_alignment,
+                                      .size      = arena.capacity()},
+                               new_size, arena.begin))
           {
             return false;
           }
@@ -461,6 +447,9 @@ struct ArenaPool final : IAllocator
     }
   }
 
+  // [ ] implement
+  void shrink();
+
   constexpr Allocator ref()
   {
     return Allocator{*this};
@@ -469,19 +458,20 @@ struct ArenaPool final : IAllocator
 
 struct FallbackAllocator : IAllocator
 {
-  Arena        arena;
+  Arena     arena;
   Allocator fallback;
 
-  constexpr FallbackAllocator(Arena arena, Allocator fallback) :
+  constexpr FallbackAllocator(Span<u8> arena, Allocator fallback) :
+    IAllocator{},
     arena{arena},
     fallback{fallback}
   {
   }
 
-  constexpr FallbackAllocator(FallbackAllocator const &)             = default;
-  constexpr FallbackAllocator(FallbackAllocator &&)                  = default;
-  constexpr FallbackAllocator & operator=(FallbackAllocator const &) = default;
-  constexpr FallbackAllocator & operator=(FallbackAllocator &&)      = default;
+  constexpr FallbackAllocator(FallbackAllocator const &)             = delete;
+  constexpr FallbackAllocator(FallbackAllocator &&)                  = delete;
+  constexpr FallbackAllocator & operator=(FallbackAllocator const &) = delete;
+  constexpr FallbackAllocator & operator=(FallbackAllocator &&)      = delete;
   constexpr ~FallbackAllocator()                                     = default;
 
   virtual bool alloc(Layout layout, u8 *& mem) override

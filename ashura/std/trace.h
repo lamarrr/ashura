@@ -83,7 +83,7 @@ struct MemoryTraceSink final : TraceSink
 
   FileTraceSink * upstream_ = nullptr;
 
-  /// @brief number of records for each trace event before a flush happens
+  /// @brief Number of records for each trace event before a flush happens
   usize buffer_size_ = 2'048;
 
   Records traces_;

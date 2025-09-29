@@ -6,10 +6,7 @@
 #include "modules/sdf.slang"
 #include "modules/types.slang"
 
-namespace pbr
-{
-
-struct Shading
+struct PbrShading
 {
   f32x3 albedo              = f32x3(0);
   f32   metallic            = 0;
@@ -46,72 +43,71 @@ struct Shading
   }
 };
 
-struct FragmentInfo
+struct PbrFragmentInfo
 {
-  f32x4 eye_pos;
   f32x4 world_pos;
   f32x4 screen_pos;
-  f32x4 rel_pos;
+  f32x2 uv;
+  u32   instance;
 };
 
-interface Material
+interface PbrMaterial
 {
-  Shading shade(FragmentInfo info, SamplerState samplers[],
-                Texture2D textures[]);
+  PbrShading shade(PbrFragmentInfo info, SamplerState samplers[],
+                   Texture2D textures[]);
 }
 
-// [ ] enable backface culling
-struct BaseMaterial : Material
+struct PbrCoreMaterial : PbrMaterial
 {
-  f32x4     albedo;      // only xyz
-  f32x4     emission;    // only xyz
-  f32       metallic;
-  f32       roughness;
-  f32       normal;
-  f32       occlusion;
-  f32       ior;
-  f32       clearcoat;
-  f32       clearcoat_roughness;
-  f32       clearcoat_normal;
-  f32       lit;
-  SamplerId sampler;
-  TextureId albedo_map;
-  TextureId metallic_map;
-  TextureId roughness_map;
-  TextureId normal_map;
-  TextureId occlusion_map;
-  TextureId emission_map;
-  TextureId clearcoat_map;
-  TextureId clearcoat_roughness_map;
-  TextureId clearcoat_normal_map;
+  f32x4        albedo;      // only xyz
+  f32x4        emission;    // only xyz
+  f32          metallic;
+  f32          roughness;
+  f32          normal;
+  f32          occlusion;
+  f32          ior;
+  f32          clearcoat;
+  f32          clearcoat_roughness;
+  f32          clearcoat_normal;
+  f32          lit;
+  SamplerIndex sampler;
+  TextureIndex albedo_map;
+  TextureIndex metallic_map;
+  TextureIndex roughness_map;
+  TextureIndex normal_map;
+  TextureIndex occlusion_map;
+  TextureIndex emission_map;
+  TextureIndex clearcoat_map;
+  TextureIndex clearcoat_roughness_map;
+  TextureIndex clearcoat_normal_map;
 
-  Shading shade(FragmentInfo info, SamplerState samplers[],
-                Texture2D textures[])
+  PbrShading shade(PbrFragmentInfo info, SamplerState samplers[],
+                   Texture2D textures[])
   {
-    var s  = samplers[sampler];
-    var uv = info.rel_pos.xy + 0.5;
+    var s       = samplers[sampler];
+    var norm_uv = info.uv + 0.5;
 
-    Shading sh;
+    PbrShading sh;
     // clang-format off
-    sh.albedo = textures[NonUniformResourceIndex(albedo_map)].Sample(s, uv).rgb * albedo.xyz;
-    sh.metallic = textures[NonUniformResourceIndex(metallic_map)].Sample(s, uv).r * metallic;
-    sh.roughness = textures[NonUniformResourceIndex(roughness_map)].Sample(s, uv).r * roughness;
+    sh.albedo = textures[NonUniformResourceIndex(albedo_map)].Sample(s, norm_uv).rgb * albedo.xyz;
+    sh.metallic = textures[NonUniformResourceIndex(metallic_map)].Sample(s, norm_uv).r * metallic;
+    sh.roughness = textures[NonUniformResourceIndex(roughness_map)].Sample(s, norm_uv).r * roughness;
 
     // convert from perceptual roughness to actual roughness
     sh.roughness           = pow2(sh.roughness);
     sh.clearcoat_roughness = pow2(sh.clearcoat_roughness);
 
-    sh.normal = textures[NonUniformResourceIndex(normal_map)].Sample(s, uv).rgb * normal;
+    sh.normal = textures[NonUniformResourceIndex(normal_map)].Sample(s, norm_uv).rgb * normal;
   
-    f32 occlusion = textures[NonUniformResourceIndex(occlusion_map)].Sample(s, uv).r * occlusion;
+    f32 occlusion = textures[NonUniformResourceIndex(occlusion_map)].Sample(s, norm_uv).r * occlusion;
     sh.albedo = occlusion * sh.albedo;
 
 
-    sh.emission = textures[NonUniformResourceIndex(emission_map)].Sample(s, uv).rgb * emission.xyz;
+    sh.emission = textures[NonUniformResourceIndex(emission_map)].Sample(s, norm_uv).rgb * emission.xyz;
     sh.ior = ior;
-    sh.clearcoat = textures[NonUniformResourceIndex(clearcoat_map)].Sample(s, uv).r * clearcoat;
-    sh.clearcoat_roughness = textures[NonUniformResourceIndex(clearcoat_roughness_map)].Sample(s, uv).r * clearcoat_roughness;
-    sh.clearcoat_normal = textures[NonUniformResourceIndex(clearcoat_normal_map)].Sample(s, uv).rgb * clearcoat_normal;
+    sh.clearcoat = textures[NonUniformResourceIndex(clearcoat_map)].Sample(s, norm_uv).r * clearcoat;
+    sh.clearcoat_roughness = textures[NonUniformResourceIndex(clearcoat_roughness_map)].Sample(s, norm_uv).r * clearcoat_roughness;
+    sh.clearcoat_normal = textures[NonUniformResourceIndex(clearcoat_normal_map)].Sample(s, norm_uv).rgb * clearcoat_normal;
     sh.lit  = lit;
 
     // clang-format on
@@ -120,13 +116,13 @@ struct BaseMaterial : Material
   }
 };
 
-interface Lighting
+interface PbrLighting
 {
   f32x4 position();
   f32x4 irradiance(f32x4 world_pos, f32x4 surface_normal);
 }
 
-struct PunctualLight : Lighting
+struct PunctualLight : PbrLighting
 {
   f32x4 direction;    // xyz
   f32x4 pos;          // xyz
@@ -157,5 +153,4 @@ struct PunctualLight : Lighting
 
 // [ ] image-based light
 // [ ] rectangular lights
-
-}    // namespace pbr
+// [ ] https://developer.nvidia.com/gpugems/gpugems/part-iii-materials/chapter-19-image-based-lighting

@@ -20,7 +20,7 @@ struct Inputs
 struct VertexOutput
 {
   f32x4                     pos : SV_Position;
-  [[vk::location(0)]] f32x2 uv : REL_POS;
+  [[vk::location(0)]] f32x2 uv  : REL_POS;
 };
 
 [[vk::binding(0, 0)]]
@@ -41,7 +41,7 @@ f32x4 main_image(f32x2 fragCoord);
 VertexOutput vert(u32 vertex_idx : SV_VertexID)
 {
   f32x2 local_pos = VERTEX_BUFFER[vertex_idx];
-  return VertexOutput(f32x4(local_pos * 2, 0, 1), local_pos + 0.5);
+  return VertexOutput(f32x4(local_pos * 2, 0.0, 1.0), local_pos + 0.5);
 }
 
 [[shader("fragment")]]

@@ -22,23 +22,23 @@ struct List : View
 
   struct State
   {
-    /// @brief effective translation of the entire list
+    /// @brief Effective translation of the entire list
     f32 total_translation = 0;
 
-    /// @brief the view extent of the viewport
+    /// @brief The view extent of the viewport
     f32 view_extent = 0;
 
-    /// @brief the first of the currently active subset
+    /// @brief The first of the currently active subset
     usize first_item = 0;
 
-    /// @brief determined upper bound
+    /// @brief Determined upper bound
     usize max_count = USIZE_MAX;
 
     usize num_loaded = 0;
 
     Option<f32> item_size = none;
 
-    /// @brief the item generator
+    /// @brief The item generator
     Generator generator = DEFAULT_GENERATOR;
 
     Vec<Dyn<View *>> items;

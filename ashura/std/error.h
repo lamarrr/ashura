@@ -10,13 +10,13 @@
     {                                                                         \
       ::ash::SourceLocation const src_loc_ = (src_loc_expr);                  \
       (logger_expr)                                                           \
-        .panic(::ash::cstr_span(                                              \
-                 "panic in function: {}\n{}:{}:{}: " description_fstr         \
-                 "\ntriggered by "                                            \
-                 "expression: \n\t{}\t|\t... {} ..."),                        \
-               src_loc_.function, src_loc_.file, src_loc_.line,               \
-               src_loc_.column __VA_OPT__(, ) __VA_ARGS__, src_loc_.line,     \
-               #cond_expr);                                                   \
+        .panic(                                                               \
+          ::ash::cstr("panic in function: {}\n{}:{}:{}: " description_fstr    \
+                      "\ntriggered by "                                       \
+                      "expression: \n\t{}\t|\t... {} ..."),                   \
+          src_loc_.function, src_loc_.file, src_loc_.line,                    \
+          src_loc_.column __VA_OPT__(, ) __VA_ARGS__, src_loc_.line,          \
+          #cond_expr);                                                        \
     }                                                                         \
   } while (false)
 

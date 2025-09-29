@@ -2,7 +2,7 @@
 #pragma once
 
 #include "ashura/engine/gpu_system.h"
-#include "ashura/engine/ids.h"
+#include "ashura/engine/image_system.h"
 #include "ashura/std/image.h"
 #include "ashura/std/types.h"
 
@@ -29,16 +29,6 @@ constexpr f32x2 au_to_px(i32x2 au, f32 base)
 {
   return f32x2{au_to_px(au.x(), base), au_to_px(au.y(), base)};
 }
-
-enum class FontLoadErr : u8
-{
-  OutOfMemory       = 0,
-  InvalidPath       = 1,
-  IoErr             = 2,
-  DecodeFailed      = 3,
-  FaceNotFound      = 4,
-  UnsupportedFormat = 5
-};
 
 constexpr Str to_str(FontLoadErr err)
 {
@@ -90,7 +80,7 @@ struct ResolvedFontMetrics
   }
 };
 
-/// @brief normalized font metrics
+/// @brief Normalized font metrics
 /// @param ascent  maximum ascent of the font's glyphs (au)
 /// @param descent maximum descent of the font's glyphs (au)
 /// @param advance maximum advance of the font's glyphs (au)
@@ -141,16 +131,21 @@ struct CpuFontAtlas
 
 struct GpuFontAtlas
 {
-  Vec<TextureId>  textures    = {};
-  ImageId         image       = ImageId::None;
-  i32             font_height = 0;
-  u32x2           extent      = {};
-  Vec<AtlasGlyph> glyphs      = {};
+  Vec<TextureIndex> textures    = {};
+  ImageId           image       = ImageId::None;
+  i32               font_height = 0;
+  u32x2             extent      = {};
+  Vec<AtlasGlyph>   glyphs      = {};
 
   constexpr u32 num_layers() const
   {
     return size32(textures);
   }
+};
+
+enum class FontId : u64
+{
+  None = U64_MAX
 };
 
 /// @param postscript_name ASCII. i.e. RobotoBold
@@ -164,7 +159,6 @@ struct GpuFontAtlas
 /// @param gpu_atlas gpu font atlas if loaded
 struct FontInfo
 {
-  FontId                       id                = FontId::None;
   Str                          label             = {};
   bool                         has_color         = false;
   Str                          postscript_name   = {};
@@ -179,11 +173,12 @@ struct FontInfo
   Option<GpuFontAtlas const &> gpu_atlas         = none;
 };
 
-struct Font
-{
-  virtual FontInfo info() = 0;
+typedef struct IFont * Font;
 
-  virtual ~Font() = default;
+struct IFont
+{
+  virtual ~IFont()        = default;
+  virtual FontInfo info() = 0;
 };
 
 }    // namespace ash

@@ -23,6 +23,13 @@ namespace ash
 ///
 struct IAllocator
 {
+  constexpr IAllocator()                               = default;
+  constexpr IAllocator(IAllocator const &)             = delete;
+  constexpr IAllocator(IAllocator &&)                  = delete;
+  constexpr IAllocator & operator=(IAllocator const &) = delete;
+  constexpr IAllocator & operator=(IAllocator &&)      = delete;
+  constexpr ~IAllocator()                              = default;
+
   [[nodiscard]] constexpr virtual bool alloc(Layout layout, u8 *& mem) = 0;
 
   [[nodiscard]] constexpr virtual bool zalloc(Layout layout, u8 *& mem) = 0;
@@ -57,40 +64,44 @@ struct IAllocator
     dealloc(layout_of<T>.array(num), (u8 *) mem);
   }
 
-  /// @brief alignment-padded allocation
+  /// @brief Alignment-padded allocation
   template <typename T>
   [[nodiscard]] constexpr bool pnalloc(usize alignment, usize num, T *& mem)
   {
-    return alloc(layout_of<T>.array(num).align_to(alignment).aligned(),
-                 (u8 *&) mem);
+    return alloc(layout_of<T>.array(num).align_to(alignment), (u8 *&) mem);
   }
 
   template <typename T>
   [[nodiscard]] constexpr bool pnzalloc(usize alignment, usize num, T *& mem)
   {
-    return zalloc(layout_of<T>.array(num).align_to(alignment).aligned(),
-                  (u8 *&) mem);
+    return zalloc(layout_of<T>.array(num).align_to(alignment), (u8 *&) mem);
   }
 
   template <typename T>
   [[nodiscard]] constexpr bool pnrealloc(usize alignment, usize old_num,
                                          usize new_num, T *& mem)
   {
-    return realloc(
-      layout_of<T>.array(old_num).align_to(alignment).aligned(),
-      layout_of<T>.array(new_num).align_to(alignment).aligned().size,
-      (u8 *&) mem);
+    return realloc(layout_of<T>.array(old_num).align_to(alignment),
+                   layout_of<T>.array(new_num).align_to(alignment).size,
+                   (u8 *&) mem);
   }
 
   template <typename T>
   constexpr void pndealloc(usize alignment, usize num, T * mem)
   {
-    dealloc(layout_of<T>.array(num).align_to(alignment).aligned(), (u8 *) mem);
+    dealloc(layout_of<T>.array(num).align_to(alignment), (u8 *) mem);
   }
 };
 
 struct NoopAllocator final : IAllocator
 {
+  constexpr NoopAllocator()                                  = default;
+  constexpr NoopAllocator(NoopAllocator const &)             = delete;
+  constexpr NoopAllocator(NoopAllocator &&)                  = delete;
+  constexpr NoopAllocator & operator=(NoopAllocator const &) = delete;
+  constexpr NoopAllocator & operator=(NoopAllocator &&)      = delete;
+  constexpr ~NoopAllocator()                                 = default;
+
   virtual bool alloc(Layout, u8 *&) override
   {
     return false;
@@ -116,6 +127,13 @@ struct NoopAllocator final : IAllocator
 /// available and supported it can allocate over-aligned memory.
 struct HeapAllocator final : IAllocator
 {
+  constexpr HeapAllocator()                                  = default;
+  constexpr HeapAllocator(HeapAllocator const &)             = delete;
+  constexpr HeapAllocator(HeapAllocator &&)                  = delete;
+  constexpr HeapAllocator & operator=(HeapAllocator const &) = delete;
+  constexpr HeapAllocator & operator=(HeapAllocator &&)      = delete;
+  constexpr ~HeapAllocator()                                 = default;
+
   virtual bool alloc(Layout, u8 *& mem) override;
 
   virtual bool zalloc(Layout, u8 *& mem) override;

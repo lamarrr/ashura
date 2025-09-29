@@ -21,7 +21,7 @@ struct NodeVertex
   }
 };
 
-/// @brief flattened hierarchical tree node, all siblings are packed
+/// @brief Flattened hierarchical tree node, all siblings are packed
 /// sequentially.
 /// This only represents the parent node.
 /// Since the tree is rebuilt from scratch every time, the order is preserved in

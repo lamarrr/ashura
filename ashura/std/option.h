@@ -345,6 +345,26 @@ struct [[nodiscard]] Option
   {
     return ConstView{&v0_, is_some() ? 1 : 0};
   }
+
+  constexpr T * operator->()
+  {
+    return &v0_;
+  }
+
+  constexpr T const * operator->() const
+  {
+    return &v0_;
+  }
+
+  constexpr T & operator*()
+  {
+    return v0_;
+  }
+
+  constexpr T const & operator*() const
+  {
+    return v0_;
+  }
 };
 
 template <typename T>

@@ -38,7 +38,10 @@ enum class LogLevels : u32
 
 ASH_BIT_ENUM_OPS(LogLevels)
 
-struct LogSink
+typedef struct ILogSink * LogSink;
+typedef struct ILogger *  Logger;
+
+struct ILogSink
 {
   virtual void log(LogLevel level, Str log_message) = 0;
   virtual void flush()                              = 0;
@@ -47,33 +50,33 @@ struct LogSink
 /// @brief Logger needs to use fixed-size memory as malloc can fail and make
 /// logging unreliable. This means each log statement's content/payload is
 /// limited to `BUFFER_CAPACITY`.
-struct Logger
+struct ILogger
 {
-  static constexpr usize MAX_SINKS       = 16;
+  static constexpr usize MAX_SINKS       = 32;
   static constexpr usize BUFFER_CAPACITY = 8_KB;
 
-  LogSink * sinks_[MAX_SINKS] = {};
-  usize     num_sinks_        = 0;
+  LogSink sinks_[MAX_SINKS];
+  usize   num_sinks_;
 
-  constexpr Logger(Span<LogSink * const> sinks)
+  constexpr ILogger(Span<LogSink const> sinks) : sinks_{}, num_sinks_{0}
   {
-    auto src = sinks.slice(0, MAX_SINKS);
-    obj::copy_assign(src, sinks_);
-    num_sinks_ = src.size();
+    sinks = sinks.slice(0, MAX_SINKS);
+    obj::copy_assign(sinks, sinks_);
+    num_sinks_ = sinks.size();
   }
 
-  constexpr Logger(std::initializer_list<LogSink * const> sinks) :
-    Logger{span(sinks)}
+  constexpr ILogger(std::initializer_list<LogSink const> sinks) :
+    ILogger{span(sinks)}
   {
   }
 
-  constexpr Logger(Logger const &)             = delete;
-  constexpr Logger(Logger &&)                  = default;
-  constexpr Logger & operator=(Logger &&)      = default;
-  constexpr Logger & operator=(Logger const &) = delete;
-  constexpr ~Logger()                          = default;
+  constexpr ILogger(ILogger const &)             = delete;
+  constexpr ILogger(ILogger &&)                  = default;
+  constexpr ILogger & operator=(ILogger &&)      = default;
+  constexpr ILogger & operator=(ILogger const &) = delete;
+  constexpr ~ILogger()                           = default;
 
-  constexpr Span<LogSink * const> sinks() const
+  constexpr Span<LogSink const> sinks() const
   {
     return Span{sinks_, num_sinks_};
   }
@@ -116,7 +119,7 @@ struct Logger
 
   void flush()
   {
-    for (LogSink * sink : sinks())
+    for (auto & sink : sinks())
     {
       sink->flush();
     }
@@ -138,7 +141,7 @@ struct Logger
     auto format_sink = [&](Str str) {
       if (!buffer.extend(str))
       {
-        for (LogSink * sink : sinks())
+        for (auto & sink : sinks())
         {
           sink->log(level, buffer);
         }
@@ -147,7 +150,7 @@ struct Logger
 
         if (!buffer.extend(str))
         {
-          for (LogSink * sink : sinks())
+          for (auto & sink : sinks())
           {
             sink->log(level, str);
           }
@@ -179,7 +182,7 @@ struct Logger
       }
     }
 
-    for (LogSink * sink : sinks())
+    for (auto & sink : sinks())
     {
       sink->log(level, buffer);
     }
@@ -212,7 +215,7 @@ struct Logger
   }
 };
 
-struct StdioSink : LogSink
+struct StdioSink : ILogSink
 {
   std::mutex mutex;
 
@@ -222,7 +225,7 @@ struct StdioSink : LogSink
 
 extern StdioSink stdio_sink;
 
-struct FileSink : LogSink
+struct FileSink : ILogSink
 {
   std::FILE * file = nullptr;
   std::mutex  mutex;
@@ -231,9 +234,9 @@ struct FileSink : LogSink
   void flush() override;
 };
 
-extern Logger * logger;
+extern Logger logger;
 
-ASH_C_LINKAGE ASH_DLL_EXPORT void hook_logger(Logger *);
+ASH_C_LINKAGE ASH_DLL_EXPORT void hook_logger(Logger);
 
 template <typename... Args>
 void debug(Str fstr, Args const &... args)
