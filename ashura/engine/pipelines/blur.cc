@@ -140,7 +140,7 @@ void BlurPipeline::encode(gpu::CommandEncoder        e,
 
   auto stencil = params.stencil.map([&](PipelineStencil const &) {
     return gpu::RenderingAttachment{
-      .view         = params.framebuffer.depth_stencil.stencil_view,
+      .view         = params.framebuffer.depth_stencil.v().stencil_view,
       .resolve      = nullptr,
       .resolve_mode = gpu::ResolveModes::None,
       .load_op      = gpu::LoadOp::Load,

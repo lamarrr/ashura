@@ -172,30 +172,10 @@ constexpr f32 invsqrt(f32 x)
 
 /// @brief Calculate log base 2 of an unsigned integer. Undefined behaviour if
 /// value is 0
-constexpr u32 ulog2(u8 value)
+template <Unsigned T>
+constexpr T log2(T value)
 {
-  return 7 - std::countl_zero(value);
-}
-
-/// @brief Calculate log base 2 of an unsigned integer. Undefined behaviour if
-/// value is 0
-constexpr u32 ulog2(u16 value)
-{
-  return 15 - std::countl_zero(value);
-}
-
-/// @brief Calculate log base 2 of an unsigned integer. Undefined behaviour if
-/// value is 0
-constexpr u32 ulog2(u32 value)
-{
-  return 31 - std::countl_zero(value);
-}
-
-/// @brief Calculate log base 2 of an unsigned integer. Undefined behaviour if
-/// value is 0
-constexpr u32 ulog2(u64 value)
-{
-  return 63 - std::countl_zero(value);
+  return (sizeof(T) * 8 - 1) - std::countl_zero(value);
 }
 
 constexpr u32 mip(u32 a, u32 level)
@@ -205,7 +185,7 @@ constexpr u32 mip(u32 a, u32 level)
 
 constexpr auto mips(Unsigned auto a)
 {
-  return (a == 0) ? 0 : ulog2(a);
+  return (a == 0) ? 0 : log2(a);
 }
 
 /// @brief Linearly interpolate between points `low` and `high` given
@@ -962,6 +942,118 @@ struct vec
     return *this;
   }
 
+  constexpr vec operator>>(vec b) const requires (Unsigned<T>)
+  {
+    vec c;
+#pragma unroll
+    for (usize i = 0; i < N; i++)
+    {
+      c.v[i] = v[i] >> b.v[i];
+    }
+    return c;
+  }
+
+  constexpr vec & operator>>=(vec b) requires (Unsigned<T>)
+  {
+    *this = *this >> b;
+    return *this;
+  }
+
+  constexpr vec operator>>(Type b) const requires (Unsigned<T>)
+  {
+    return *this >> splat(b);
+  }
+
+  constexpr vec & operator>>=(Type b) requires (Unsigned<T>)
+  {
+    *this = *this >> b;
+    return *this;
+  }
+
+  constexpr vec operator<<(vec b) const requires (Unsigned<T>)
+  {
+    vec c;
+#pragma unroll
+    for (usize i = 0; i < N; i++)
+    {
+      c.v[i] = v[i] << b.v[i];
+    }
+    return c;
+  }
+
+  constexpr vec & operator<<=(vec b) requires (Unsigned<T>)
+  {
+    *this = *this << b;
+    return *this;
+  }
+
+  constexpr vec operator<<(Type b) const requires (Unsigned<T>)
+  {
+    return *this << splat(b);
+  }
+
+  constexpr vec & operator<<=(Type b) requires (Unsigned<T>)
+  {
+    *this = *this << b;
+    return *this;
+  }
+
+  constexpr vec operator&(vec b) const requires (Unsigned<T>)
+  {
+    vec c;
+#pragma unroll
+    for (usize i = 0; i < N; i++)
+    {
+      c.v[i] = v[i] & b.v[i];
+    }
+    return c;
+  }
+
+  constexpr vec & operator&=(vec b) requires (Unsigned<T>)
+  {
+    *this = *this & b;
+    return *this;
+  }
+
+  constexpr vec operator&(Type b) const requires (Unsigned<T>)
+  {
+    return *this & splat(b);
+  }
+
+  constexpr vec & operator&=(Type b) requires (Unsigned<T>)
+  {
+    *this = *this & b;
+    return *this;
+  }
+
+  constexpr vec operator|(vec b) const requires (Unsigned<T>)
+  {
+    vec c;
+#pragma unroll
+    for (usize i = 0; i < N; i++)
+    {
+      c.v[i] = v[i] | b.v[i];
+    }
+    return c;
+  }
+
+  constexpr vec & operator|=(vec b) requires (Unsigned<T>)
+  {
+    *this = *this | b;
+    return *this;
+  }
+
+  constexpr vec operator|(Type b) const requires (Unsigned<T>)
+  {
+    return *this | splat(b);
+  }
+
+  constexpr vec & operator|=(Type b) requires (Unsigned<T>)
+  {
+    *this = *this | b;
+    return *this;
+  }
+
   constexpr vec sat_add(vec b) const requires (Integral<T>)
   {
     vec c;
@@ -1010,28 +1102,6 @@ struct vec
     return sat_mul(splat(b));
   }
 
-  constexpr vec operator|(vec b) const requires (Unsigned<T>)
-  {
-    vec c;
-#pragma unroll
-    for (usize i = 0; i < N; i++)
-    {
-      c.v[i] = v[i] | b.v[i];
-    }
-    return c;
-  }
-
-  constexpr vec operator&(vec b) const requires (Unsigned<T>)
-  {
-    vec c;
-#pragma unroll
-    for (usize i = 0; i < N; i++)
-    {
-      c.v[i] = v[i] & b.v[i];
-    }
-    return c;
-  }
-
   constexpr Type sum() const
   {
     Type sum = 0;
@@ -1043,6 +1113,18 @@ struct vec
     return sum;
   }
 
+  template <typename U>
+  constexpr U sum() const
+  {
+    U sum = 0;
+#pragma unroll
+    for (usize i = 0; i < N; i++)
+    {
+      sum += static_cast<U>(v[i]);
+    }
+    return sum;
+  }
+
   constexpr Type product() const
   {
     Type product = 1;
@@ -1050,6 +1132,18 @@ struct vec
     for (usize i = 0; i < N; i++)
     {
       product *= v[i];
+    }
+    return product;
+  }
+
+  template <typename U>
+  constexpr U product() const
+  {
+    U product = 1;
+#pragma unroll
+    for (usize i = 0; i < N; i++)
+    {
+      product *= static_cast<U>(v[i]);
     }
     return product;
   }
@@ -1120,6 +1214,11 @@ struct vec
       return {y() * b.z() - z() * b.y(), z() * b.x() - x() * b.z(),
               x() * b.y() - y() * b.x()};
     }
+  }
+
+  constexpr f32 scalar_cross(vec b) const requires (Signed<T> && N == 2)
+  {
+    return x() * b.y() - y() * b.x();
   }
 
   constexpr Type length() const requires (FloatingPoint<T>)

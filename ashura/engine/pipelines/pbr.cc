@@ -173,22 +173,22 @@ void PBRPipeline::encode(gpu::CommandEncoder       e,
         .unwrap();
     });
 
-  auto depth = gpu::RenderingAttachment{
-    .view         = params.framebuffer.depth_stencil.depth_view,
-    .resolve      = nullptr,
-    .resolve_mode = gpu::ResolveModes::None,
-    .load_op      = gpu::LoadOp::Load,
-    .store_op     = gpu::StoreOp::Store,
-    .clear        = {}};
+  auto depth = params.framebuffer.depth_stencil.map([](auto & s) {
+    return gpu::RenderingAttachment{.view         = s.depth_view,
+                                    .resolve      = nullptr,
+                                    .resolve_mode = gpu::ResolveModes::None,
+                                    .load_op      = gpu::LoadOp::Load,
+                                    .store_op     = gpu::StoreOp::Store,
+                                    .clear        = {}};
+  });
 
-  auto stencil = params.stencil.map([&](PipelineStencil const &) {
-    return gpu::RenderingAttachment{
-      .view         = params.framebuffer.depth_stencil.stencil_view,
-      .resolve      = nullptr,
-      .resolve_mode = gpu::ResolveModes::None,
-      .load_op      = gpu::LoadOp::Load,
-      .store_op     = gpu::StoreOp::None,
-      .clear        = {}};
+  auto stencil = params.framebuffer.depth_stencil.map([&](auto & s) {
+    return gpu::RenderingAttachment{.view         = s.stencil_view,
+                                    .resolve      = nullptr,
+                                    .resolve_mode = gpu::ResolveModes::None,
+                                    .load_op      = gpu::LoadOp::Load,
+                                    .store_op     = gpu::StoreOp::None,
+                                    .clear        = {}};
   });
 
   auto info =
@@ -231,7 +231,7 @@ void PBRPipeline::encode(gpu::CommandEncoder       e,
       params.stencil.map([](auto s) { return s.back; }
            ).unwrap_or(),
     .cull_mode                = params.cull_mode,
-    .front_face               = gpu::FrontFace::CounterClockWise,
+    .front_face               = params.front_face,
     .depth_test_enable        = true,
     .depth_compare_op         = gpu::CompareOp::Less,
     .depth_write_enable       = true,

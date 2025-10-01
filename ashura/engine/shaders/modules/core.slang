@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "types.slang"
+#include "modules/types.slang"
 
 f32 pow2(f32 x)
 {

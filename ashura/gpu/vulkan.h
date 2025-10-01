@@ -981,7 +981,7 @@ struct DeviceResourceStates
                 >
     descriptor_sets_;
 
-  ReadWriteLock lock_;
+  ReadWriteLock<IFutex> lock_;
 
   DeviceResourceStates(Allocator allocator) :
     alias_{allocator},
@@ -1199,18 +1199,20 @@ struct ICommandEncoder final : gpu::ICommandEncoder
   ICommandEncoder & operator=(ICommandEncoder &&)      = delete;
   ~ICommandEncoder()                                   = default;
 
-  template <typename Cmd>
-  Cmd * push(Cmd const & cmd)
+  template <typename CmdImpl>
+  CmdImpl * push(CmdImpl const & cmd)
   {
-    Cmd * p_cmd;
+    CmdImpl * p_cmd;
     if (!arena_.nalloc(1, p_cmd))
     {
       return nullptr;
     }
 
-    new (p_cmd) Cmd{cmd};
+    new (p_cmd) CmdImpl{cmd};
 
-    tracker_.command(p_cmd);
+    tracker_.command((cmd::Cmd *) p_cmd);
+
+    return p_cmd;
   }
 
   virtual void begin() override;

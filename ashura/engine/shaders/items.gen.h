@@ -11,7 +11,7 @@ namespace ash
 // do not change the underlying type. It maps directly to the GPU handle
 enum class [[nodiscard]] TextureIndex : u32
 {
-  Base = 0,
+  Default = 0,
 
   /// @brief Nominal Texture Ids for the GPU system's texture set
   White              = 0,     // [1, 1, 1, 1]
@@ -256,8 +256,12 @@ struct SdfMeshGradientMaterial
   alignas(4) TextureIndex sdf_map;
 };
 
-struct TriangleSetTextureMaterial
+struct TriangleSetGradientMaterial
 {
+  alignas(16) f32x4 top;
+  alignas(16) f32x4 bottom;
+  alignas(8) f32x2 gradient_rotor;
+  alignas(4) f32 gradient_center;
   alignas(4) SamplerIndex sampler;
   alignas(4) TextureIndex texture;
 };
@@ -343,16 +347,11 @@ struct TriangleSetItem
   MaterialType material;
 };
 
-typedef TriangleSetItem<TriangleSetTextureMaterial> TriangleSetGradientItem;
+typedef TriangleSetItem<TriangleSetGradientMaterial> TriangleSetGradientItem;
 
-struct TriangleVertex
+struct Vertex2D
 {
-  alignas(4) f32 x;
-  alignas(4) f32 y;
-  alignas(4) f32 r;
-  alignas(4) f32 g;
-  alignas(4) f32 b;
-  alignas(4) f32 a;
+  alignas(8) f32x2 pos;
 };
 
 template <typename MaterialType>
@@ -369,22 +368,23 @@ struct PbrItem
 
 typedef PbrItem<PbrCoreMaterial> CorePbrItem;
 
-struct PathVertex
+struct VectorPathVertex
 {
   alignas(8) f32x2 position;
   alignas(4) f32 alpha_mask;
-  alignas(4) u32 paint_id;
+  alignas(4) u32 fill_id;
 };
 
-struct PathCoverageItem
+struct VectorPathCoverageItem
 {
   alignas(16) f32x4x4 world_transform;
 };
 
-struct PathPaintItem
+struct VectorPathFillItem
 {
   alignas(16) f32x4x4 world_transform;
-  alignas(4) u32 paint_id;
+  alignas(16) f32x4x4 uv_transform;
+  alignas(4) u32 fill_id;
   alignas(4) f32 feather_min;
   alignas(4) f32 feather_max;
   QuadGradientMaterial material;
@@ -393,7 +393,7 @@ struct PathPaintItem
 struct BezierStencilItem
 {
   alignas(16) f32x4x4 world_transform;
-  alignas(4) u32 first_bezier_vertex;
+  alignas(4) u32 first_bezier_index;
 };
 
 }    // namespace shader

@@ -2,7 +2,6 @@
 #pragma once
 #include "ashura/engine/encoders.h"
 #include "ashura/engine/pipeline.h"
-#include "ashura/engine/shaders.gen.h"
 #include "ashura/engine/text.h"
 #include "ashura/std/allocators.h"
 #include "ashura/std/color.h"
@@ -11,6 +10,20 @@
 
 namespace ash
 {
+
+enum class CurveType : u8
+{
+  Line            = 0,
+  Arc             = 1,
+  QuadraticBezier = 2,
+  CubicBezier     = 3
+};
+
+enum class LineCap : u8
+{
+  Square = 0,
+  Round  = 1
+};
 
 namespace path
 {
@@ -28,72 +41,75 @@ void rect(Vec<f32x2> & vtx, f32x2 extent, f32x2 center);
 
 void line(Span<f32x2> vtx, f32x2 cp0, f32x2 cp1);
 
-/// @brief generate vertices for an arc
+/// @brief Generate vertices for an arc
 /// @param segments upper bound on the number of segments to divide the arc
 /// into
 /// @param start start angle
 /// @param turn turn angle
 void arc(Span<f32x2> vtx, f32x2 radii, f32x2 center, f32 start, f32 turn);
 
-/// @brief generate vertices for a quadratic bezier curve
+/// @brief Generate vertices for a quadratic bezier curve
 /// @param segments upper bound on the number of segments to divide the bezier
 /// curve into
 /// @param cp[0-2] control points
 void bezier(Span<f32x2> vtx, f32x2 cp0, f32x2 cp1, f32x2 cp2);
 
-/// @brief generate vertices for a quadratic bezier curve
+/// @brief Generate vertices for a quadratic bezier curve
 /// @param segments upper bound on the number of segments to divide the bezier
 /// curve into
 /// @param cp[0-3] control points
 void cubic_bezier(Span<f32x2> vtx, f32x2 cp0, f32x2 cp1, f32x2 cp2, f32x2 cp3);
 
-/// @brief generate a catmull rom spline
+/// @brief Generate a catmull rom spline
 /// @param segments upper bound on the number of segments to divide the bezier
 /// curve into
 /// @param cp[0-3] control points
 void catmull_rom(Span<f32x2> vtx, f32x2 cp0, f32x2 cp1, f32x2 cp2, f32x2 cp3);
 
-/// @brief generate vertices for a circle
+/// @brief Generate vertices for a circle
 /// @param segments upper bound on the number of segments to divide the circle
 /// into
 void circle(Vec<f32x2> & vtx, f32x2 extent, f32x2 center, u32 segments);
 
-/// @brief generate vertices for a circle
+/// @brief Generate vertices for a circle
 /// @param segments upper bound on the number of segments to divide the circle
 /// into
 /// @param degree number of degrees of the super-ellipse
 void squircle(Vec<f32x2> & vtx, f32x2 extent, f32x2 center, f32 degree,
               u32 segments);
 
-/// @brief generate vertices for a circle
+/// @brief Generate vertices for a circle
 /// @param segments upper bound on the number of segments to divide the circle
 /// into
 /// @param corner_radii border radius of each corner
 void rrect(Vec<f32x2> & vtx, f32x2 extent, f32x2 center, f32x4 corner_radii,
            u32 segments);
 
-/// @brief generate vertices of a bevel rect
+/// @brief Generate vertices of a bevel rect
 /// @param vtx
 /// @param slants each component represents the relative distance from the
 /// corners of each bevel
 void brect(Vec<f32x2> & vtx, f32x2 extent, f32x2 center, f32x4 slants);
 
-/// @brief triangulate a stroke path, given the vertices for its points
+/// @brief Triangulate a stroke path, given the vertices for its points
 void triangulate_stroke(Span<f32x2 const> points, Vec<f32x2> & vtx,
-                        Vec<u32> & idx, f32 thickness);
+                        Vec<u32> & idx, f32 thickness, LineCap cap);
 
 void triangulate_stroke(Span<f32x2 const> points, Vec<f32x2> & vtx,
-                        Vec<u16> & idx, f32 thickness);
+                        Vec<u16> & idx, f32 thickness, LineCap cap);
 
-/// @brief generate indices for a triangle list
+/// @brief Generate indices for a triangle list
 void triangles(u32 first_vertex, u32 num_vertices, Vec<u32> & idx);
 
 void triangles(u16 first_vertex, u16 num_vertices, Vec<u16> & idx);
 
-/// @brief generate vertices for a quadratic bezier curve
 void triangulate_convex(Vec<u32> & idx, u32 first_vertex, u32 num_vertices);
 
 void triangulate_convex(Vec<u16> & idx, u16 first_vertex, u16 num_vertices);
+
+void tesselate_curves(Vec<f32x2> & curves, Span<CurveType const> segment_types,
+                      Span<u32 const>   subdivisions,
+                      Span<f32x2 const> control_points);
 
 };    // namespace path
 
@@ -101,42 +117,44 @@ void triangulate_convex(Vec<u16> & idx, u16 first_vertex, u16 num_vertices);
 
 struct Shape
 {
-  /// @brief object-world-space transform matrix
+  /// @brief Object-world-space transform matrix
   f32x4x4 world_transform = f32x4x4::identity();
 
+  /// @brief Nominal-space to uv-space transform matrix.
+  /// uv-space ranges from [-0.5 to +0.5] on both axes.
   f32x4x4 uv_transform = f32x4x4::identity();
 
-  /// @brief center of the shape in world-space
+  /// @brief Center of the shape in world-space
   CRect area = {};
 
-  /// @brief extent of the shape's bounding-box in world-space
+  /// @brief Extent of the shape's bounding-box in world-space
   f32x2 bbox_extent = {};
 
-  /// @brief radii of the shape
+  /// @brief Radii of the shape
   f32x4 radii = {};
 
-  /// @brief shading method to use for the shape
+  /// @brief Shading method to use for the shape
   ShadeType shade = ShadeType::Flood;
 
-  /// @brief thickness of the feather to apply
+  /// @brief Thickness of the feather to apply
   f32 feather = 0;
 
   /// @brief Linear Color gradient to use as tint
   ColorGradient tint = {};
 
-  /// @brief sampler to use in rendering the shape
+  /// @brief Sampler to use in rendering the shape
   SamplerIndex sampler = SamplerIndex::LinearEdgeClampBlackFloat;
 
-  /// @brief the set / group the textures are sourced from
+  /// @brief The set / group the textures are sourced from
   TextureSet texture_set = sampled_textures;
 
-  /// @brief texture to use in rendering the shape
+  /// @brief Texture to use in rendering the shape
   TextureIndex map = TextureIndex::White;
 
-  /// @brief the sampler to use for sampling the signed distance map
+  /// @brief The sampler to use for sampling the signed distance map
   SamplerIndex sdf_sampler = SamplerIndex::LinearBorderClampBlackFloat;
 
-  /// @brief index of the signed distance map in the texture set
+  /// @brief Index of the signed distance map in the texture set
   TextureIndex sdf_map = TextureIndex::White;
 
   constexpr CRect bbox() const
@@ -152,16 +170,16 @@ struct Shape
 
 struct CornerColors
 {
-  /// @brief top-left
+  /// @brief Top-left
   f32x4 tl = {};
 
-  /// @brief top-right
+  /// @brief Top-right
   f32x4 tr = {};
 
-  /// @brief bottom-left
+  /// @brief Bottom-left
   f32x4 bl = {};
 
-  /// @brief bottom-right
+  /// @brief Bottom-right
   f32x4 br = {};
 };
 
@@ -228,11 +246,13 @@ struct TriangleSetInfo
 
   gpu::CullMode cull_mode = gpu::CullMode::None;
 
+  gpu::FrontFace front_face = gpu::FrontFace::CounterClockWise;
+
   TextureSet texture_set = sampled_textures;
 
   TextureIndex map = TextureIndex::White;
 
-  Span<shader::TriangleVertex const> vertices = {};
+  Span<f32x2 const> vertices = {};
 
   Span<u32 const> indices = {};
 
@@ -285,101 +305,23 @@ struct NineSliceInfo
 
   // [ ] is this correct? right name, right specification?
 
-  f32x2 top_left[2] = {};
+  CRect top_left = {};
 
-  f32x2 top_center[2] = {};
+  CRect top_center = {};
 
-  f32x2 top_right[2] = {};
+  CRect top_right = {};
 
-  f32x2 mid_left[2] = {};
+  CRect mid_left = {};
 
-  f32x2 mid_center[2] = {};
+  CRect mid_center = {};
 
-  f32x2 mid_right[2] = {};
+  CRect mid_right = {};
 
-  f32x2 bottom_left[2] = {};
+  CRect bottom_left = {};
 
-  f32x2 bottom_center[2] = {};
+  CRect bottom_center = {};
 
-  f32x2 bottom_right[2] = {};
-
-  SamplerIndex sampler = SamplerIndex::LinearBorderClampBlackFloat;
-
-  TextureSet texture_set = sampled_textures;
-
-  TextureIndex map = TextureIndex::White;
-
-  constexpr CRect bbox() const
-  {
-    return CRect{area.center, bbox_extent};
-  }
-
-  constexpr f32x2 center() const
-  {
-    return area.center;
-  }
-};
-
-enum class ContourEdgeType : u8
-{
-  Line            = 0,
-  Arc             = 1,
-  QuadraticBezier = 2,
-  CubicBezier     = 3
-};
-
-enum class ContourMethod : u8
-{
-  StencilThenCover = 0,
-  BezierStencil    = 1
-};
-
-struct ContourInfo
-{
-  f32x4x4 world_transform = f32x4x4::identity();
-
-  CRect area = {};
-
-  f32x2 bbox_extent = {};
-
-  ContourMethod method = ContourMethod::StencilThenCover;
-
-  Span<f32x2 const> control_points = {};
-
-  Span<ContourEdgeType const> contour_types = {};
-
-  Span<u16 const> segments = {};
-
-  FillRule fill_rule = FillRule::EvenOdd;
-
-  constexpr CRect bbox() const
-  {
-    return CRect{area.center, bbox_extent};
-  }
-
-  constexpr f32x2 center() const
-  {
-    return area.center;
-  }
-};
-
-struct CurveLineInfo
-{
-  f32x4x4 world_transform = f32x4x4::identity();
-
-  f32x4x4 uv_transform = f32x4x4::identity();
-
-  CRect area = {};
-
-  f32x2 bbox_extent = {};
-
-  f32 thickness = 1;
-
-  Span<shader::TriangleVertex const> vertices = {};
-
-  Span<ContourEdgeType const> segment_types = {};
-
-  Span<u16 const> segments = {};
+  CRect bottom_right = {};
 
   SamplerIndex sampler = SamplerIndex::LinearBorderClampBlackFloat;
 
@@ -427,6 +369,97 @@ struct QuadInfo
   }
 };
 
+struct LineInfo
+{
+  f32x4x4 world_transform = f32x4x4::identity();
+
+  f32x4x4 uv_transform = f32x4x4::identity();
+
+  CRect area = {};
+
+  f32x2 bbox_extent = {};
+
+  f32 thickness = 1;
+
+  LineCap cap = LineCap::Square;
+
+  ColorGradient tint = {};
+
+  Span<f32x2 const> vertices = {};
+
+  Span<CurveType const> segment_types = {};
+
+  Span<u32 const> subdivisions = {};
+
+  SamplerIndex sampler = SamplerIndex::LinearBorderClampBlackFloat;
+
+  TextureSet texture_set = sampled_textures;
+
+  TextureIndex map = TextureIndex::White;
+
+  constexpr CRect bbox() const
+  {
+    return CRect{area.center, bbox_extent};
+  }
+
+  constexpr f32x2 center() const
+  {
+    return area.center;
+  }
+};
+
+struct FeatherInfo
+{
+  f32 width = 1;
+
+  f32 inset = 0.5F;
+
+  u32 tesselation = 32;
+
+  ColorGradient tint = {};
+};
+
+struct PathInfo
+{
+  f32x4x4 world_transform = f32x4x4::identity();
+
+  f32x4x4 uv_transform = f32x4x4::identity();
+
+  CRect area = {};
+
+  f32x2 bbox_extent = {};
+
+  Span<f32x2 const> control_points = {};
+
+  Span<CurveType const> segment_types = {};
+
+  Span<u32 const> subdivisions = {};
+
+  FillRule fill_rule = FillRule::EvenOdd;
+
+  gpu::FrontFace front_face = gpu::FrontFace::CounterClockWise;
+
+  ColorGradient tint = {};
+
+  SamplerIndex sampler = SamplerIndex::LinearEdgeClampBlackFloat;
+
+  TextureSet texture_set = sampled_textures;
+
+  TextureIndex map = TextureIndex::White;
+
+  Option<FeatherInfo> feather = none;
+
+  constexpr CRect bbox() const
+  {
+    return CRect{area.center, bbox_extent};
+  }
+
+  constexpr f32x2 center() const
+  {
+    return area.center;
+  }
+};
+
 typedef struct ICanvas * Canvas;
 
 enum class CanvasState : u8
@@ -445,7 +478,7 @@ inline constexpr CRect MAX_CLIP{.center = f32x2::splat(0),
 
 struct ICanvas
 {
-  static constexpr u32 DEFAULT_NUM_IMAGE_SLOTS = 4;
+  static constexpr u32 DEFAULT_NUM_IMAGE_SLOTS = 6;
 
   CanvasState state_;
 
@@ -614,33 +647,35 @@ struct ICanvas
 
   void encode_(QuadEncoder::Item const & item);
 
-  void encode_(FillStencilEncoder::Item const & item);
-
-  void encode_(BezierStencilEncoder::Item const & item);
-
-  void encode_(PbrEncoder::Item const & item);
-
   void render_(TextureSet const & texture_set, Shape const & shape,
                SdfShapeType type);
 
   void render_noise_(TextureSet const & texture_set, Shape const & shape,
                      SdfShapeType type);
 
-  void render_(TextureSet const & texture_set, MeshGradientInfo const & shape);
+  void render_(TextureSet const & texture_set, MeshGradientInfo const & info);
 
-  void render_(TextureSet const & texture_set, TriangleSetInfo const & shape,
+  void render_(TextureSet const & texture_set, TriangleSetInfo const & info,
                bool indexed);
 
-  void render_(TextureSet const & texture_set, QuadInfo const & shape);
+  void render_(TextureSet const & texture_set, QuadInfo const & info);
+
+  void render_(TextureSet const & texture_set, LineInfo const & info);
 
   void render_blur_(Shape const & info);
 
-  // [ ] Rendering Lines
   // [ ] Handling Self-Intersection; Fill Rules; STC
-  // [ ] filling or lines; line caps; line joints;
-  // [ ] batch multiple contour stencil passes so we can perform them in a single write, different write masks. rect-allocation?
-  void render_stencil_(u32 depth_stencil, u32 write_mask,
-                       ContourInfo const & shape, bool invert);
+
+  void render_paths_stencil_then_cover_(Span<PathInfo const> paths,
+                                        bool                 has_overlaps);
+
+  void render_paths_bezier_stencil_(Span<PathInfo const> paths,
+                                    bool                 has_overlaps);
+
+  void render_paths_vector_feathering_(Span<PathInfo const> paths,
+                                       bool                 has_overlaps);
+
+  void render_paths_(Span<PathInfo const> paths, bool has_overlaps);
 
   ICanvas & push_clip();
 
@@ -658,46 +693,54 @@ struct ICanvas
 
   ICanvas & pop_stencil_op();
 
-  /// @brief render a circle
+  /// @brief Render a circle
   ICanvas & circle(Shape const & shape);
 
-  /// @brief render a rectangle
+  /// @brief Render a rectangle
   ICanvas & rect(Shape const & shape);
 
-  /// @brief render a rounded rectangle
+  /// @brief Render a rounded rectangle
   ICanvas & rrect(Shape const & shape);
 
-  /// @brief render a squircle (triangulation based)
+  /// @brief Render a squircle (triangulation based)
   ICanvas & squircle(Shape const & shape);
 
-  /// @brief render an SDF texture
+  /// @brief Render an SDF texture
   ICanvas & sdf_map(Shape const & shape);
 
-  /// @brief render a noise-grained shape
-  ICanvas & noise(Shape const & shape);
+  /// @brief Render a noise-grained shape
+  ICanvas & noise_tint(Shape const & shape);
 
-  /// @brief render a mesh-gradient rrect
+  /// @brief Render a mesh-gradient rrect
   ICanvas & mesh_gradient(MeshGradientInfo const & info);
 
-  /// @brief draw a nine-sliced image
+  /// @brief Draw a nine-sliced image
   ICanvas & nine_slice(NineSliceInfo const & info);
 
-  /// @brief render indexed triangles
+  /// @brief Render indexed triangles
   ICanvas & indexed_triangles(TriangleSetInfo const & info);
 
-  /// @brief render un-indexed triangles
+  /// @brief Render un-indexed triangles
   ICanvas & unindexed_triangles(TriangleSetInfo const & info);
 
-  /// @brief render a segmented line
-  ICanvas & line(CurveLineInfo const & info);
+  /// @brief Render a segmented line
+  ICanvas & line(LineInfo const & info);
 
-  /// @brief perform a canvas-space blur
+  /// @brief Perform a canvas-space blur
   ICanvas & blur(Shape const & info);
 
-  /// @brief render a quad using a custom shader
-  ICanvas & quad(QuadInfo const & quad);
+  /// @brief Render a quad using a custom shader
+  ICanvas & quad(QuadInfo const & info);
 
-  ICanvas & text(TextBlockRenderInfo const & info);
+  /// @brief Render a vector path
+  ICanvas & paths(Span<PathInfo const> info, bool has_overlaps);
+
+  /// @brief Render a text block
+  ICanvas & text(TextPlacementInfo const & info);
+
+  ICanvas & bloom();
+
+  ICanvas & crt();
 };
 
 }    // namespace ash
