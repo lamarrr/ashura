@@ -51,9 +51,10 @@ void SdfEncoder::submit(GpuFramePlan plan)
                                     .world_to_ndc = world_to_ndc,
                                     .items        = items,
                                     .states       = states,
-                                    .state_runs   = state_runs};
+                                    .state_runs   = state_runs,
+                                    .variant      = variant};
 
-    sys.pipeline->sdf().encode(enc, params, variant);
+    sys.pipeline->sdf().encode(enc, params);
   });
 }
 
@@ -92,9 +93,10 @@ void QuadEncoder::submit(GpuFramePlan plan)
                                        .world_to_ndc = world_to_ndc,
                                        .quads        = quads,
                                        .states       = states,
-                                       .state_runs   = state_runs};
+                                       .state_runs   = state_runs,
+                                       .variant      = variant};
 
-      sys.pipeline->quad().encode(enc, params, variant);
+      sys.pipeline->quad().encode(enc, params);
     });
 }
 
@@ -147,9 +149,10 @@ void TriangleFillEncoder::submit(GpuFramePlan plan)
                                    .indices      = indices,
                                    .index_runs   = index_runs,
                                    .states       = states,
-                                   .state_runs   = state_runs};
+                                   .state_runs   = state_runs,
+                                   .variant      = variant};
 
-      sys.pipeline->triangle_fill().encode(enc, params, variant);
+      sys.pipeline->triangle_fill().encode(enc, params);
     });
 }
 
@@ -404,9 +407,10 @@ void PbrEncoder::submit(GpuFramePlan plan)
                                       .lights       = lights,
                                       .num_indices  = num_indices,
                                       .cull_mode    = cull_mode,
-                                      .front_face   = front_face};
+                                      .front_face   = front_face,
+                                      .variant      = variant};
 
-      sys.pipeline->pbr().encode(enc, params, variant);
+      sys.pipeline->pbr().encode(enc, params);
     });
 }
 

@@ -37,7 +37,7 @@ void MemoryTraceSink::trace(TraceEvent event, Span<TraceRecord const> records)
 void MemoryTraceSink::flush()
 {
   LockGuard guard{mutex_};
-  for (auto & [event, records] : traces_)
+  for (auto [event, records] : traces_)
   {
     upstream_->trace(event, records);
     records.clear();

@@ -24,6 +24,7 @@ struct SdfPipelineParams
   GpuBufferSpan      items;
   Span<State const>  states;
   Span<u32 const>    state_runs;
+  PipelineVariantId  variant;
 };
 
 struct SdfPipeline final : IPipeline
@@ -56,8 +57,7 @@ struct SdfPipeline final : IPipeline
 
   PipelineVariantId get_variant_id(Str label);
 
-  void encode(gpu::CommandEncoder encoder, SdfPipelineParams const & params,
-              PipelineVariantId variant);
+  void encode(gpu::CommandEncoder encoder, SdfPipelineParams const & params);
 };
 
 }    // namespace ash

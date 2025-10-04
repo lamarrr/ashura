@@ -24,6 +24,7 @@ struct PBRPipelineParams
   u32                     num_indices;
   gpu::CullMode           cull_mode;
   gpu::FrontFace          front_face;
+  PipelineVariantId       variant;
 };
 
 struct PBRPipeline final : IPipeline
@@ -59,8 +60,7 @@ struct PBRPipeline final : IPipeline
 
   PipelineVariantId get_variant_id(GpuFramePlan plan, Str label);
 
-  void encode(gpu::CommandEncoder encoder, PBRPipelineParams const & params,
-              PipelineVariantId variant);
+  void encode(gpu::CommandEncoder encoder, PBRPipelineParams const & params);
 };
 
 }    // namespace ash

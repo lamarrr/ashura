@@ -11,7 +11,7 @@ static const f32x2 VERTEX_BUFFER[] = {
 };
 
 [[vk::push_constant]]
-ConstantBuffer<u32x4> attachment_extent;
+ConstantBuffer<VectorPathCfg> cfg;
 
 [[vk::binding(0, 0)]]
 SamplerState samplers[];
@@ -56,7 +56,8 @@ f32x4 frag(VertexOutput in, f32x4 coord : SV_FragCoord)
 {
   var   item        = items[in.instance];
   u32x2 pixel       = u32x2(coord.xy);
-  u32   texel_index = tiled_index(pixel, attachment_extent);
+  u32   texel_index = tiled_flat_offset(pixel, cfg.tile_extent_log2,
+                                        cfg.tile_texel_count, cfg.tile_count);
   f32   alpha_mask  = f32(alpha_masks[0][texel_index]);
   u32   fill_id     = fill_ids[0][texel_index];
 

@@ -127,8 +127,7 @@ void QuadPipeline::remove_variant(GpuFramePlan plan, PipelineVariantId id)
 }
 
 void QuadPipeline::encode(gpu::CommandEncoder        e,
-                          QuadPipelineParams const & params,
-                          PipelineVariantId          variant)
+                          QuadPipelineParams const & params)
 {
   InplaceVec<gpu::RenderingAttachment, 1> color;
 
@@ -171,7 +170,7 @@ void QuadPipeline::encode(gpu::CommandEncoder        e,
                        .depth_attachment   = {},
                        .stencil_attachment = stencil};
 
-  auto pipeline = variants_[(usize) variant].v0.v1;
+  auto pipeline = variants_[(usize) params.variant].v0.v1;
 
   e->begin_rendering(info);
   e->bind_graphics_pipeline(pipeline);

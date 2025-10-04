@@ -24,6 +24,7 @@ struct QuadPipelineParams
   GpuBufferSpan      quads;
   Span<State const>  states;
   Span<u32 const>    state_runs;
+  PipelineVariantId  variant;
 };
 
 struct QuadPipeline final : IPipeline
@@ -52,8 +53,7 @@ struct QuadPipeline final : IPipeline
 
   PipelineVariantId get_variant_id(Str label);
 
-  void encode(gpu::CommandEncoder encoder, QuadPipelineParams const & params,
-              PipelineVariantId variant);
+  void encode(gpu::CommandEncoder encoder, QuadPipelineParams const & params);
 };
 
 }    // namespace ash

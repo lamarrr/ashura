@@ -29,6 +29,7 @@ struct TriangleFillPipelineParams
   Span<u32 const>    index_runs;
   Span<State const>  states;
   Span<u32 const>    state_runs;
+  PipelineVariantId  variant;
 };
 
 struct TriangleFillPipeline final : IPipeline
@@ -58,8 +59,7 @@ struct TriangleFillPipeline final : IPipeline
   PipelineVariantId get_variant_id(Str label);
 
   void encode(gpu::CommandEncoder                encoder,
-              TriangleFillPipelineParams const & params,
-              PipelineVariantId                  variant);
+              TriangleFillPipelineParams const & params);
 };
 
 }    // namespace ash

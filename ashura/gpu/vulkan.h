@@ -266,7 +266,6 @@ struct BindLocation
 };
 
 /// @brief An allocated block of memory that can be aliased by multiple resources.
-
 struct IAlias
 {
   AliasId       id             = AliasId::Undefined;
@@ -355,12 +354,12 @@ struct IDescriptorSetLayout
 
   u32 num_variable_length = 0;
 
-  bool is_mutating = false;
+  bool is_readonly = false;
 };
 
-using SyncResources =
-  Enum<None, SmallVec<Buffer, 4, 0>, SmallVec<BufferView, 4, 0>,
-       SmallVec<ImageView, 4, 0>>;
+using SyncResources = Enum<None, SmallVec<Option<IBuffer &>, 4, 0>,
+                           SmallVec<Option<IBufferView &>, 4, 0>,
+                           SmallVec<Option<IImageView &>, 4, 0>>;
 
 struct DescriptorBinding
 {
@@ -381,7 +380,7 @@ struct IDescriptorSet
 
   DescriptorSetId id = DescriptorSetId::Undefined;
 
-  bool is_mutating = false;
+  bool is_readonly = false;
 
   SmallVec<DescriptorBinding, 1, 0> bindings = {};
 

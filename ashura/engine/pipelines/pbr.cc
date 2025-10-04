@@ -145,8 +145,7 @@ void PBRPipeline::remove_variant(GpuFramePlan plan, PipelineVariantId id)
 }
 
 void PBRPipeline::encode(gpu::CommandEncoder       e,
-                         PBRPipelineParams const & params,
-                         PipelineVariantId         variant)
+                         PBRPipelineParams const & params)
 {
   InplaceVec<gpu::RenderingAttachment, 1> color;
 
@@ -200,7 +199,7 @@ void PBRPipeline::encode(gpu::CommandEncoder       e,
 
   e->begin_rendering(info);
 
-  auto pipelines = variants_[(usize) variant].v0.v1;
+  auto pipelines = variants_[(usize) params.variant].v0.v1;
 
   auto pipeline = pipelines.fill;
 

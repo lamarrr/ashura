@@ -138,6 +138,15 @@ struct VectorPathFillItem
   QuadGradientMaterial material;
 };
 
+struct VectorPathCfg
+{
+  u32x2 tile_count;
+  u32x2 tile_texel_count;
+  u32x2 tile_extent_log2;
+  u32   sample_count;
+  u32   sample_count_log2;
+};
+
 struct BezierStencilItem
 {
   f32x4x4 world_transform;

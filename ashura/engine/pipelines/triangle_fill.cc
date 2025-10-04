@@ -132,8 +132,7 @@ void TriangleFillPipeline::remove_variant(GpuFramePlan      plan,
 }
 
 void TriangleFillPipeline::encode(gpu::CommandEncoder                e,
-                                  TriangleFillPipelineParams const & params,
-                                  PipelineVariantId                  variant)
+                                  TriangleFillPipelineParams const & params)
 {
   InplaceVec<gpu::RenderingAttachment, 1> color;
 
@@ -179,7 +178,7 @@ void TriangleFillPipeline::encode(gpu::CommandEncoder                e,
 
   e->begin_rendering(info);
 
-  auto pipeline = pipelines_[(usize) variant].v0.v1;
+  auto pipeline = pipelines_[(usize) params.variant].v0.v1;
 
   e->bind_graphics_pipeline(pipeline);
   e->bind_descriptor_sets(

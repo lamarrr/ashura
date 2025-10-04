@@ -390,6 +390,15 @@ struct VectorPathFillItem
   QuadGradientMaterial material;
 };
 
+struct VectorPathCfg
+{
+  alignas(8) u32x2 tile_count;
+  alignas(8) u32x2 tile_texel_count;
+  alignas(8) u32x2 tile_extent_log2;
+  alignas(4) u32 sample_count;
+  alignas(4) u32 sample_count_log2;
+};
+
 struct BezierStencilItem
 {
   alignas(16) f32x4x4 world_transform;

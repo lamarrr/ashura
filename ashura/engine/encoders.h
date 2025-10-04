@@ -635,7 +635,6 @@ struct FillPathEncoder final : ICanvasEncoder
   FillStencilEncoder stencil_;
   SdfEncoder         fill_;
 
-  // [ ] use &-op of the stencil attachment and the scratch stencil bits if there's a stencil attachment
   FillPathEncoder(Allocator allocator, Attachments const & attachment,
                   Item const & item) :
     ICanvasEncoder{
@@ -758,6 +757,7 @@ struct VectorPathEncoder final : ICanvasEncoder
     Span<shader::VectorPathVertex const>   vertices;
     Span<u32 const>                        indices;
     Span<shader::VectorPathFillItem const> fill_items;
+    PipelineVariantId                      variant;
 
     State state() const
     {
@@ -803,6 +803,8 @@ struct VectorPathEncoder final : ICanvasEncoder
 
   Vec<u8> fill_items_;
 
+  PipelineVariantId variant_;
+
   explicit VectorPathEncoder(Allocator           allocator,
                              Attachments const & attachments,
                              Item const &        item) :
@@ -820,7 +822,8 @@ struct VectorPathEncoder final : ICanvasEncoder
     vertices_{allocator},
     indices_{allocator},
     coverage_items_{allocator},
-    fill_items_{allocator}
+    fill_items_{allocator},
+    variant_{item.variant}
   {
     push_(item.state(), item.world_transform, item.vertices, item.indices,
           item.fill_items);
@@ -853,7 +856,8 @@ struct VectorPathEncoder final : ICanvasEncoder
 
   [[nodiscard]] bool push(Item const & item)
   {
-    auto mergeable = obj::byte_eq(Tuple{texture_set_}, Tuple{texture_set_});
+    auto mergeable = obj::byte_eq(Tuple{texture_set_, variant_},
+                                  Tuple{item.texture_set, item.variant});
 
     if (!mergeable)
     {

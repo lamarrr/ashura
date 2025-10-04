@@ -6,15 +6,18 @@
 namespace ash
 {
 
-/// @param begin where the memory block begins
-/// @param end one byte past the block
-/// @param offset end of the last allocation, must be set to {begin}
-/// @param alignment actual alignment requested from allocator
 struct Arena final : IAllocator
 {
-  u8 *  begin;
-  u8 *  end;
-  u8 *  offset;
+  /// @brief where the memory block begins
+  u8 * begin;
+
+  /// @brief one byte past the block
+  u8 * end;
+
+  /// @brief end of the last allocation, must be set to {begin}
+  u8 * offset;
+
+  /// @brief actual alignment requested from allocator
   usize allocated;
 
   constexpr Arena() :
@@ -45,21 +48,29 @@ struct Arena final : IAllocator
   {
   }
 
-  constexpr Arena(Span<u8> buffer) : Arena{buffer.pbegin(), buffer.pend()}
+  /// @brief Create arena using pre-allocated memory block
+  /// @param buffer memory to block to use
+  constexpr Arena(Span<u8> memory) : Arena{memory.pbegin(), memory.pend()}
   {
   }
 
-  constexpr Arena(Span<i8> buffer) : Arena{buffer.pbegin(), buffer.pend()}
+  /// @brief Create arena using pre-allocated memory block
+  /// @param buffer memory to block to use
+  constexpr Arena(Span<i8> memory) : Arena{memory.pbegin(), memory.pend()}
   {
   }
 
+  /// @brief Create arena using pre-allocated memory block
+  /// @param buffer memory to block to use
   template <usize N>
-  constexpr Arena(u8 (&buffer)[N]) : Arena{buffer, buffer + N}
+  constexpr Arena(u8 (&memory)[N]) : Arena{memory, memory + N}
   {
   }
 
+  /// @brief Create arena using pre-allocated memory block
+  /// @param buffer memory to block to use
   template <usize N>
-  constexpr Arena(i8 (&buffer)[N]) : Arena{buffer, buffer + N}
+  constexpr Arena(i8 (&memory)[N]) : Arena{memory, memory + N}
   {
   }
 
@@ -69,40 +80,51 @@ struct Arena final : IAllocator
   constexpr Arena & operator=(Arena &&)      = delete;
   constexpr ~Arena()                         = default;
 
+  /// @brief Total capacity of the arena in bytes
   [[nodiscard]] constexpr usize capacity() const
   {
     return end - begin;
   }
 
+  /// @brief total bytes used in the arena
   [[nodiscard]] constexpr usize used() const
   {
     return offset - begin;
   }
 
+  /// @brief total bytes available in the arena
   [[nodiscard]] constexpr usize available() const
   {
     return end - offset;
   }
 
+  /// @brief force reclaim all allocated memory
   constexpr void reclaim()
   {
     offset    = begin;
     allocated = 0;
   }
 
-  constexpr void try_reclaim()
+  /// @brief try to reclaim all allocated memory if there's no active allocation
+  /// @returns true if successful
+  constexpr bool try_reclaim()
   {
-    if (allocated == 0)
+    if (allocated != 0)
     {
-      reclaim();
+      return false;
     }
+
+    reclaim();
+    return true;
   }
 
+  /// @brief check if the arena contains a memory region
   constexpr bool contains(Layout layout, u8 * mem) const
   {
     return (begin <= mem) && (end >= (mem + layout.size));
   }
 
+  /// @copydoc IAllocator::alloc
   [[nodiscard]] virtual bool alloc(Layout layout, u8 *& mem) override
   {
     if (layout.size == 0)
@@ -125,6 +147,7 @@ struct Arena final : IAllocator
     return true;
   }
 
+  /// @copydoc IAllocator::zalloc
   [[nodiscard]] virtual bool zalloc(Layout layout, u8 *& mem) override
   {
     if (!alloc(layout, mem))
@@ -138,6 +161,7 @@ struct Arena final : IAllocator
     return true;
   }
 
+  /// @copydoc IAllocator::realloc
   [[nodiscard]] virtual bool realloc(Layout layout, usize new_size,
                                      u8 *& mem) override
   {
@@ -164,6 +188,7 @@ struct Arena final : IAllocator
     return true;
   }
 
+  /// @copydoc IAllocator::dealloc
   virtual void dealloc(Layout layout, u8 * mem) override
   {
     // best-case: stack allocation, we can free memory by adjusting to the
@@ -183,36 +208,50 @@ struct Arena final : IAllocator
   }
 };
 
-/// @max_num_arenas: maximum number of arenas that can be allocated
-/// @min_arena_size: minimum size of each arena allocation, recommended >= 16KB
-/// bytes (approx 1 huge memory page). allocations having sizes higher than that
-/// will have a dedicated arena.
-/// @max_total_size: total maximum size of all allocations performed.
-///
 struct ArenaPoolCfg
 {
-  usize max_num_arenas  = USIZE_MAX;
-  usize min_arena_size  = PAGE_SIZE;
-  usize max_arena_size  = USIZE_MAX;
-  usize max_total_size  = USIZE_MAX;
+  /// @brief maximum number of arenas that can be allocated
+  usize max_num_arenas = USIZE_MAX;
+
+  /// @brief minimum size of each arena allocation
+  usize min_arena_size = PAGE_SIZE;
+
+  /// @brief minimum size of each arena allocation, recommended >= 16KB
+  /// bytes (approx 1 huge memory page). allocations having sizes higher than that
+  /// will have a dedicated arena.
+  usize max_arena_size = USIZE_MAX;
+
+  /// @brief total maximum size of all allocations performed.
+  usize max_total_size = USIZE_MAX;
+
+  /// @brief alignment of each arena allocation
   usize arena_alignment = MAX_STANDARD_ALIGNMENT;
 };
 
-/// An Arena Pool is a collection of arenas. All allocations are reset/free-d at
-/// once. Allocation, Reallocation, Deallocation, and Reclamation.
+/// @brief An Arena Pool is a collection of arenas. All allocations are reset/free-d at
+/// once.
 /// Memory can be reclaimed in rare cases. i.e. when `realloc` is called with
 /// the last allocated memory on the block and the allocation can easily be
 /// extended.
 ///
-/// @source: allocation memory source
 struct ArenaPool final : IAllocator
 {
-  Allocator    source        = {};
-  Arena *      arenas        = nullptr;
-  usize        num_arenas    = 0;
-  usize        current_arena = 0;
-  ArenaPoolCfg cfg           = {};
+  /// @brief allocation memory source
+  Allocator source = {};
 
+  /// @brief allocated arenas
+  Arena * arenas     = nullptr;
+  usize   num_arenas = 0;
+
+  /// @brief currently active arena
+  usize current_arena = 0;
+
+  /// @brief configuration of the arena
+  ArenaPoolCfg cfg = {};
+
+  /// @brief Create an arena pool from an upstream memory source and its configuration
+  /// @param source upstream memory allocator
+  /// @param cfg the pool memory configuration
   explicit ArenaPool(Allocator source = {}, ArenaPoolCfg const & cfg = {}) :
     IAllocator{},
     source{source},
@@ -233,6 +272,7 @@ struct ArenaPool final : IAllocator
     uninit();
   }
 
+  /// @brief force-reclaim all allocated memory on the pool
   void reclaim()
   {
     for (usize i = 0; i < num_arenas; i++)
@@ -243,6 +283,7 @@ struct ArenaPool final : IAllocator
     current_arena = 0;
   }
 
+  /// @brief get the total capacity of the pool
   [[nodiscard]] usize capacity() const
   {
     usize s = 0;
@@ -254,6 +295,7 @@ struct ArenaPool final : IAllocator
     return s;
   }
 
+  /// @brief get the total memory usage of the pool out of its capacity
   [[nodiscard]] usize used() const
   {
     usize s = 0;
@@ -265,6 +307,7 @@ struct ArenaPool final : IAllocator
     return s;
   }
 
+  /// @brief get the available capacity of the pool
   [[nodiscard]] usize available() const
   {
     usize s = 0;
@@ -287,6 +330,7 @@ struct ArenaPool final : IAllocator
     source->ndealloc(num_arenas, arenas);
   }
 
+  /// @brief reset all allocations and free all memory
   void reset()
   {
     uninit();
@@ -295,6 +339,7 @@ struct ArenaPool final : IAllocator
     current_arena = 0;
   }
 
+  /// @copydoc IAllocator::alloc
   [[nodiscard]] virtual bool alloc(Layout layout, u8 *& mem) override
   {
     if (layout.size == 0)
@@ -362,6 +407,7 @@ struct ArenaPool final : IAllocator
     return true;
   }
 
+  /// @copydoc IAllocator::zalloc
   [[nodiscard]] virtual bool zalloc(Layout layout, u8 *& mem) override
   {
     if (!alloc(layout, mem))
@@ -372,6 +418,7 @@ struct ArenaPool final : IAllocator
     return true;
   }
 
+  /// @copydoc IAllocator::realloc
   [[nodiscard]] virtual bool realloc(Layout layout, usize new_size,
                                      u8 *& mem) override
   {
@@ -420,6 +467,7 @@ struct ArenaPool final : IAllocator
     return true;
   }
 
+  /// @copydoc IAllocator::dealloc
   virtual void dealloc(Layout layout, u8 * mem) override
   {
     if (mem == nullptr || layout.size == 0 || num_arenas == 0)
@@ -456,11 +504,19 @@ struct ArenaPool final : IAllocator
   }
 };
 
+/// @brief An allocator that attempts to use a fast-path allocator if possible,
+/// but falls back to an upstream and possibly slow-path allocator otherwise.
 struct FallbackAllocator : IAllocator
 {
+  /// @brief pre-allocated arena to allocate on the fast path for
   Arena     arena;
+  /// @brief the fallback upstream allocator
   Allocator fallback;
 
+  /// @brief Construct a `FallbackAllocator` from a preallocated memory block
+  /// and a fallback allocator
+  /// @param arena pre-allocated arena to allocate on the fast path for
+  /// @param fallback the fallback upstream allocator
   constexpr FallbackAllocator(Span<u8> arena, Allocator fallback) :
     IAllocator{},
     arena{arena},
@@ -474,6 +530,7 @@ struct FallbackAllocator : IAllocator
   constexpr FallbackAllocator & operator=(FallbackAllocator &&)      = delete;
   constexpr ~FallbackAllocator()                                     = default;
 
+  /// @copydoc IAllocator::alloc
   virtual bool alloc(Layout layout, u8 *& mem) override
   {
     if (arena.alloc(layout, mem))
@@ -484,6 +541,7 @@ struct FallbackAllocator : IAllocator
     return fallback->alloc(layout, mem);
   }
 
+  /// @copydoc IAllocator::zalloc
   virtual bool zalloc(Layout layout, u8 *& mem) override
   {
     if (!arena.zalloc(layout, mem))
@@ -494,6 +552,7 @@ struct FallbackAllocator : IAllocator
     return fallback->zalloc(layout, mem);
   }
 
+  /// @copydoc IAllocator::realloc
   virtual bool realloc(Layout layout, usize new_size, u8 *& mem) override
   {
     if (mem == nullptr)
@@ -533,6 +592,7 @@ struct FallbackAllocator : IAllocator
     }
   }
 
+  /// @copydoc IAllocator::dealloc
   virtual void dealloc(Layout layout, u8 * mem) override
   {
     if (mem == nullptr || layout.size == 0)

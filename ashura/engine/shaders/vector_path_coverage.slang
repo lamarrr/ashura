@@ -6,7 +6,7 @@
 // https://github.com/rive-app/rive-runtime/blob/4d6675c0ff635c8b0038846397945da56cff2fe6/renderer/src/shaders/draw_clockwise_path.glsl#L1
 // https://www.youtube.com/watch?v=64DDqMQRF9o&t=100s
 [[vk::push_constant]]
-ConstantBuffer<u32x4> attachment_extent;
+ConstantBuffer<VectorPathCfg> cfg;
 
 [[vk::binding(0, 0)]]
 ConstantBuffer<f32x4x4> world_to_ndc;
@@ -39,7 +39,7 @@ struct VertexOutput
 // paint id 1: Feather Joint
 // paint id 2: Feather
 // paint id 3: Material
-// depth attachment: overdraw_buffer; default = 0
+// alpha mask; default = 0
 // stencil buffer: winding_buffer; default = 0
 //
 // inner triangles will have alpha mask 1
@@ -68,7 +68,8 @@ VertexOutput vert(u32 instance : SV_InstanceID, u32 vertex : SV_VertexID)
 void frag(VertexOutput in)
 {
   var pixel       = u32x2(in.screen_pos.xy);
-  var texel_index = tiled_index(pixel, attachment_extent);
+  u32 texel_index = tiled_flat_offset(pixel, cfg.tile_extent_log2,
+                                      cfg.tile_texel_count, cfg.tile_count);
   InterlockedExchange(alpha_masks[0][texel_index], in.alpha_mask);
   InterlockedExchange(fill_ids[0][texel_index], in.fill_id);
 }
