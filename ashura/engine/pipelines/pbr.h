@@ -10,19 +10,21 @@ namespace ash
 
 struct PBRPipelineParams
 {
-  Framebuffer             framebuffer  = {};
-  Option<PipelineStencil> stencil      = none;
-  RectU                   scissor      = {};
-  gpu::Viewport           viewport     = {};
-  gpu::PolygonMode        polygon_mode = gpu::PolygonMode::Fill;
-  gpu::DescriptorSet      samplers     = nullptr;
-  gpu::DescriptorSet      textures     = nullptr;
-  GpuBufferSpan           vertices     = {};
-  GpuBufferSpan           indices      = {};
-  GpuBufferSpan           items        = {};
-  GpuBufferSpan           lights       = {};
-  u32                     num_indices  = 0;
-  gpu::CullMode           cull_mode    = gpu::CullMode::None;
+  Framebuffer             framebuffer;
+  Option<PipelineStencil> stencil;
+  RectU                   scissor;
+  gpu::Viewport           viewport;
+  gpu::PolygonMode        polygon_mode;
+  gpu::DescriptorSet      samplers;
+  gpu::DescriptorSet      textures;
+  GpuBufferSpan           vertices;
+  GpuBufferSpan           indices;
+  GpuBufferSpan           items;
+  GpuBufferSpan           lights;
+  u32                     num_indices;
+  gpu::CullMode           cull_mode;
+  gpu::FrontFace          front_face;
+  PipelineVariantId       variant;
 };
 
 struct PBRPipeline final : IPipeline
@@ -58,8 +60,7 @@ struct PBRPipeline final : IPipeline
 
   PipelineVariantId get_variant_id(GpuFramePlan plan, Str label);
 
-  void encode(gpu::CommandEncoder encoder, PBRPipelineParams const & params,
-              PipelineVariantId variant);
+  void encode(gpu::CommandEncoder encoder, PBRPipelineParams const & params);
 };
 
 }    // namespace ash

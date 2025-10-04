@@ -1262,6 +1262,11 @@ struct [[nodiscard]] InplaceVec
   {
   }
 
+  constexpr InplaceVec(InitList<T> list) : InplaceVec{}
+  {
+    extend(span(list)).unwrap();
+  }
+
   constexpr InplaceVec(InplaceVec const & other) : size_{other.size()}
   {
     obj::copy_construct(other.view(), data());

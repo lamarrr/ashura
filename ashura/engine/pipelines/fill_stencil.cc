@@ -91,20 +91,12 @@ void FillStencilPipeline::acquire(GpuFramePlan plan)
 void FillStencilPipeline::encode(gpu::CommandEncoder               e,
                                  FillStencilPipelineParams const & params)
 {
-  auto stencil =
-    gpu::RenderingAttachment{.view         = params.stencil.stencil_view,
-                             .resolve      = nullptr,
-                             .resolve_mode = gpu::ResolveModes::None,
-                             .load_op      = gpu::LoadOp::Load,
-                             .store_op     = gpu::StoreOp::Store,
-                             .clear        = {}};
-
   auto info =
-    gpu::RenderingInfo{.render_area{.extent = params.stencil.extent().xy()},
+    gpu::RenderingInfo{.render_area        = params.render_area,
                        .num_layers         = 1,
                        .color_attachments  = {},
                        .depth_attachment   = {},
-                       .stencil_attachment = stencil};
+                       .stencil_attachment = params.stencil_attachment};
 
   e->begin_rendering(info);
 
@@ -124,22 +116,32 @@ void FillStencilPipeline::encode(gpu::CommandEncoder               e,
       params.indices.slice.as_u32().offset,             // 3: indices
     }));
 
-  u32 first_index = 0;
-  for (auto [i, index_count, write_mask] :
-       zip(range(size32(params.index_counts)), params.index_counts,
-           params.write_masks))
+  CHECK(size32(params.states) > 0, "");
+  CHECK(size32(params.state_runs) == (size32(params.states) + 1), "");
+  CHECK(size32(params.index_runs) > 1, "");
+  auto num_states = size32(params.states);
+
+  for (auto i : range(num_states))
   {
+    auto & state = params.states[i];
+
     auto [front_stencil, back_stencil] =
-      fill_rule_stencil(params.fill_rule, params.invert, write_mask);
+      fill_rule_stencil(state.fill_rule, state.invert, state.write_mask);
+
     e->set_graphics_state(
-      gpu::GraphicsState{.scissor             = params.scissor,
-                         .viewport            = params.viewport,
+      gpu::GraphicsState{.scissor             = state.scissor,
+                         .viewport            = state.viewport,
                          .stencil_test_enable = false,
                          .front_face_stencil  = front_stencil,
                          .back_face_stencil   = back_stencil,
-                         .front_face          = params.front_face});
-    e->draw({first_index, index_count}, {i, 1});
-    first_index += index_count;
+                         .front_face          = state.front_face});
+
+    for (auto i :
+         range(Slice32::range(params.state_runs[i], params.state_runs[i + 1])))
+    {
+      e->draw(Slice32::range(params.index_runs[i], params.index_runs[i + 1]),
+              {i, 1});
+    }
   }
 
   e->end_rendering();

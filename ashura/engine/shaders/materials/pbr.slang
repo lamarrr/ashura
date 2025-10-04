@@ -40,6 +40,8 @@ struct PbrShading
     radiance =
       pbr::fresnel_coat(clearcoat_normal, ior, clearcoat, radiance,
                         f32x3(clearcoat_brdf), dot(clearcoat_normal, V));
+
+    return radiance;
   }
 };
 

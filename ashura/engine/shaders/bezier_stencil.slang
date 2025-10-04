@@ -39,8 +39,8 @@ static const f32x2 BARYCENTRIC_COORDS[3] = {
   var   item       = items[instance];
   f32x4 world_pos  = mul(item.world_transform, f32x4(rel_pos, 0.0, 1.0));
   f32x4 screen_pos = mul(world_to_ndc, world_pos);
-  var   region = item.first_bezier_vertex >= vertex ? BezierRegions::Inside :
-                                                      BezierRegions::All;
+  var   region     = item.first_bezier_index >= vertex ? BezierRegions::Inside :
+                                                         BezierRegions::All;
   return VertexOutput(screen_pos, uv, region);
 }
 

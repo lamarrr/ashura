@@ -3,6 +3,7 @@
 #include "ashura/engine/shader_system.h"
 #include "ashura/engine/systems.h"
 #include "ashura/std/math.h"
+#include "ashura/std/range.h"
 #include "ashura/std/sformat.h"
 
 namespace ash
@@ -126,8 +127,7 @@ void QuadPipeline::remove_variant(GpuFramePlan plan, PipelineVariantId id)
 }
 
 void QuadPipeline::encode(gpu::CommandEncoder        e,
-                          QuadPipelineParams const & params,
-                          PipelineVariantId          variant)
+                          QuadPipelineParams const & params)
 {
   InplaceVec<gpu::RenderingAttachment, 1> color;
 
@@ -154,14 +154,13 @@ void QuadPipeline::encode(gpu::CommandEncoder        e,
         .unwrap();
     });
 
-  auto stencil = params.stencil.map([&](PipelineStencil const &) {
-    return gpu::RenderingAttachment{
-      .view         = params.framebuffer.depth_stencil.stencil_view,
-      .resolve      = nullptr,
-      .resolve_mode = gpu::ResolveModes::None,
-      .load_op      = gpu::LoadOp::Load,
-      .store_op     = gpu::StoreOp::None,
-      .clear        = {}};
+  auto stencil = params.framebuffer.depth_stencil.map([&](auto const & s) {
+    return gpu::RenderingAttachment{.view         = s.stencil_view,
+                                    .resolve      = nullptr,
+                                    .resolve_mode = gpu::ResolveModes::None,
+                                    .load_op      = gpu::LoadOp::Load,
+                                    .store_op     = gpu::StoreOp::None,
+                                    .clear        = {}};
   });
 
   auto info =
@@ -171,18 +170,10 @@ void QuadPipeline::encode(gpu::CommandEncoder        e,
                        .depth_attachment   = {},
                        .stencil_attachment = stencil};
 
-  auto pipeline = variants_[(usize) variant].v0.v1;
+  auto pipeline = variants_[(usize) params.variant].v0.v1;
 
   e->begin_rendering(info);
   e->bind_graphics_pipeline(pipeline);
-  e->set_graphics_state(gpu::GraphicsState{
-    .scissor             = params.scissor,
-    .viewport            = params.viewport,
-    .stencil_test_enable = params.stencil.is_some(),
-    .front_face_stencil =
-      params.stencil.map([](auto s) { return s.front; }).unwrap_or(),
-    .back_face_stencil =
-      params.stencil.map([](auto s) { return s.back; }).unwrap_or()});
   e->bind_descriptor_sets(
     span({
       params.samplers,                                   // 0: samplers
@@ -194,7 +185,28 @@ void QuadPipeline::encode(gpu::CommandEncoder        e,
       params.world_to_ndc.slice.as_u32().offset,    // 2: world_to_ndc
       params.quads.slice.as_u32().offset            // 3: quads
     }));
-  e->draw({0, 4}, params.instances);
+
+  CHECK(size32(params.states) > 0, "");
+  CHECK(size32(params.state_runs) == (size32(params.states) + 1), "");
+  auto num_states = size32(params.states);
+
+  for (auto i : range(num_states))
+  {
+    auto & state = params.states[i];
+
+    e->set_graphics_state(gpu::GraphicsState{
+      .scissor             = state.scissor,
+      .viewport            = state.viewport,
+      .stencil_test_enable = state.stencil.is_some(),
+      .front_face_stencil =
+        state.stencil.map([](auto s) { return s.front; }).unwrap_or(),
+      .back_face_stencil =
+        state.stencil.map([](auto s) { return s.back; }).unwrap_or()});
+
+    e->draw({0, 4},
+            Slice32::range(params.state_runs[i], params.state_runs[i + 1]));
+  }
+
   e->end_rendering();
 }
 

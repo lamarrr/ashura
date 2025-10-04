@@ -6,6 +6,7 @@
 #include "ashura/std/allocator.h"
 #include "ashura/std/cfg.h"
 #include "ashura/std/dyn.h"
+#include "ashura/std/enum.h"
 #include "ashura/std/error.h"
 #include "ashura/std/mem.h"
 #include "ashura/std/option.h"
@@ -81,6 +82,9 @@ inline void sleepy_backoff(u64 poll, nanoseconds sleep)
 
 typedef struct IFutex * Futex;
 
+/// @brief Fast user-space mutex suitable for non-deterministic critical sections.
+// The mutex is paced to minimize cache invalidation and make CPU usage efficient.
+///
 struct IFutex
 {
   usize flag_ = false;
@@ -119,6 +123,8 @@ struct IFutex
 
 typedef struct ISpinLock * SpinLock;
 
+/// @brief Fast user-space spinlock suitable for deterministic and short critical sections.
+/// The spinlock is unpaced and can cause cache invalidation and inefficient CPU usage, use with caution.
 struct ISpinLock
 {
   usize flag_ = false;
@@ -176,11 +182,12 @@ struct LockGuard
   }
 };
 
+template <typename UpstreamLock>
 struct ReadWriteLock
 {
-  SpinLock lock_{};
-  usize    num_writers_ = 0;
-  usize    num_readers_ = 0;
+  UpstreamLock lock_{};
+  usize        num_writers_ = 0;
+  usize        num_readers_ = 0;
 
   void lock_read()
   {
@@ -228,11 +235,12 @@ struct ReadWriteLock
   }
 };
 
+template <typename RWLock>
 struct ReadGuard
 {
-  ReadWriteLock * lock_;
+  RWLock * lock_;
 
-  explicit ReadGuard(ReadWriteLock & lock) : lock_{&lock}
+  explicit ReadGuard(RWLock & lock) : lock_{&lock}
   {
     lock_->lock_read();
   }
@@ -251,11 +259,12 @@ struct ReadGuard
   }
 };
 
+template <typename RWLock>
 struct WriteGuard
 {
-  ReadWriteLock * lock_;
+  RWLock * lock_;
 
-  explicit WriteGuard(ReadWriteLock & lock) : lock_{&lock}
+  explicit WriteGuard(RWLock & lock) : lock_{&lock}
   {
     lock_->lock_write();
   }
@@ -324,6 +333,8 @@ struct AtomicInit
     }
   }
 
+  /// @brief Attempt to initialize the value
+  /// @return true if the object has not been initialized yet
   template <typename... Args>
   [[nodiscard]] bool init(Args &&... args)
   {
@@ -359,17 +370,17 @@ struct AtomicInit
   }
 };
 
-template <typename T>
+template <typename T, typename RWLock>
 struct [[nodiscard]] Sync
 {
-  T data_;
+  RWLock lock_;
 
-  ReadWriteLock lock_;
+  T data_;
 
   template <typename... Args>
   constexpr Sync(Args &&... args) :
-    data_{static_cast<Args &&>(args)...},
-    lock_{}
+    lock_{},
+    data_{static_cast<Args &&>(args)...}
   {
   }
 
@@ -398,11 +409,7 @@ struct [[nodiscard]] Sync
   }
 };
 
-template <typename T>
-Sync(T &&) -> Sync<T>;
-
-template <typename T>
-Sync(T const &) -> Sync<T>;
+typedef struct ISemaphore * Semaphore;
 
 /// @brief A CPU Timeline Semaphore used for synchronization in multi-stage cooperative multitasking jobs.
 /// Unlike typical Binary/Counting Semaphores, A timeline semaphore is a monotonic counter
@@ -411,10 +418,9 @@ Sync(T const &) -> Sync<T>;
 /// - Scatter-gather operations only require one primitive
 /// - Primitive can encode state of multiple operations and also be awaited by
 /// multiple operations at once.
-/// - Task ordering is established by the `state` which describes the number of
-/// steps needed to complete a task, and can be awaited by other tasks.
-/// - It is use and increment once, hence no deadlocks can occur. This also
-/// enables cooperative synchronization between systems processing different
+/// - Task ordering is established by the `stage` which describes the number of
+/// current active stage being worked on, and can be awaited by other tasks.
+/// - No deadlocks can occur when synchronization is done using this. This also enables cooperative synchronization between systems processing different
 /// stages of an operation without explicit sync between them.
 ///
 /// Semaphore can only move from state `i` to state `i+n` where n > 1.
@@ -422,9 +428,9 @@ Sync(T const &) -> Sync<T>;
 /// Semaphore should ideally not be destroyed before completion as there could
 /// possibly be other tasks awaiting it.
 ///
-/// Semaphores never overflow. so it can have a maximum of U64_MAX stages.
-typedef struct ISemaphore * Semaphore;
-
+/// Semaphores never overflow.
+/// It can have a maximum of U64_MAX stages.
+/// U64_MAX is often used to denote that all operations are completed.
 struct ISemaphore
 {
   u64 stage_;
@@ -439,8 +445,7 @@ struct ISemaphore
 
   /// @brief Get the current semaphore stage. This represents the current stage
   /// being worked on.
-  /// @param sem non-null
-  /// @return
+  /// @return the current active stage
   [[nodiscard]] u64 stage()
   {
     std::atomic_ref stage{stage_};
@@ -449,8 +454,6 @@ struct ISemaphore
 
   /// @brief Returns true if the semaphore has been completed. i.e. reached its
   /// last declared stage.
-  /// @param sem non-null
-  /// @return
   [[nodiscard]] bool is_completed()
   {
     std::atomic_ref stage{stage_};
@@ -465,6 +468,7 @@ struct ISemaphore
     return current == U64_MAX || current > poll_stage;
   }
 
+  /// @brief force completion of all stages on the semaphore
   [[nodiscard]] bool complete()
   {
     std::atomic_ref stage{stage_};
@@ -498,7 +502,7 @@ struct ISemaphore
     return true;
   }
 
-  /// @brief
+  /// @brief Increment the semaphore by `inc` number of stages
   /// @param inc stage increment of semaphore. increment of >= num_stages is
   /// equivalent to driving it to completion.
   [[nodiscard]] u64 increment(u64 inc)
@@ -516,6 +520,9 @@ struct ISemaphore
     return current;
   }
 
+  /// @brief Await completion of this semaphore at stage `stage` for `timeout` duration
+  /// @param stage stage to wait for
+  /// @param timeout duration to wait for
   [[nodiscard]] bool await(u64 stage, nanoseconds timeout);
 };
 
@@ -523,18 +530,8 @@ typedef Rc<Semaphore> RcSemaphore;
 
 typedef Dyn<Semaphore> DynSemaphore;
 
-///
 /// @brief Create an independently allocated semaphore object
-///
-/// @param num_stages: number of stages represented by this semaphore
-/// @return Semaphore
-///
-inline Result<RcSemaphore> semaphore(Allocator allocator)
-{
-  return rc<ISemaphore>(inplace, allocator);
-}
-
-inline Result<RcSemaphore> semaphore(Allocator allocator, u64 initial_stage)
+inline Result<RcSemaphore> semaphore(Allocator allocator, u64 initial_stage = 0)
 {
   return rc<ISemaphore>(inplace, allocator, initial_stage);
 }
@@ -1051,7 +1048,7 @@ struct [[nodiscard]] AwaitFutures
 {
   AnyFuture futures[N];
 
-  bool operator()() const
+  [[nodiscard]] bool operator()() const
   {
     return await_futures(futures, 0ns);
   }
@@ -1066,7 +1063,7 @@ struct [[nodiscard]] Delay
 
   nanoseconds delay = 0ns;
 
-  constexpr bool operator()() const
+  [[nodiscard]] constexpr bool operator()() const
   {
     if (delay == 0ns)
     {
@@ -1079,18 +1076,49 @@ struct [[nodiscard]] Delay
 
 struct [[nodiscard]] Ready
 {
-  constexpr bool operator()() const
+  [[nodiscard]] constexpr bool operator()() const
   {
     return true;
   }
 };
 
-enum class ThreadId : u32
+enum class WorkerThread : u32
 {
-  FirstDedicated = 0,
-  Main           = U32_MAX - 2,
-  AnyWorker      = U32_MAX - 1,
-  Undefined      = U32_MAX
+  Any = U32_MAX
+};
+
+enum class DedicatedThread : u32
+{
+  First = 0
+};
+
+enum class MainThread : u32
+{
+  Main = 0
+};
+
+inline constexpr MainThread main_thread = MainThread::Main;
+
+using Thread = Enum<WorkerThread, DedicatedThread, MainThread>;
+
+typedef struct IScheduler * Scheduler;
+
+struct SchedulerInfo
+{
+  /// @brief thread-safe allocator to allocate tasks from, must be able to allocate page-sized allocations
+  Allocator allocator = {};
+
+  /// @brief max sleep time for the dedicated threads.
+  /// enables responsiveness. `.size()` represents the number of dedicated
+  /// threads to create.
+  Span<nanoseconds const> dedicated_thread_sleep = {};
+
+  /// @brief maximum sleep time for the worker threads.
+  /// enables responsiveness. `.size()` represents the number of worker threads
+  /// to create.
+  Span<nanoseconds const> worker_thread_sleep = {};
+
+  std::thread::id main_thread_id = {};
 };
 
 /// @brief Static Thread Pool Scheduler.
@@ -1110,26 +1138,6 @@ enum class ThreadId : u32
 /// @note work submitted to the main thread MUST be extremely light-weight and
 /// non-blocking.
 ///
-typedef struct IScheduler * Scheduler;
-
-struct SchedulerInfo
-{
-  // thread-safe allocator to allocate tasks from, must be able to allocate page-sized allocations
-  Allocator allocator = {};
-
-  /// max sleep time for the dedicated threads.
-  /// enables responsiveness. `.size()` represents the number of dedicated
-  /// threads to create.
-  Span<nanoseconds const> dedicated_thread_sleep = {};
-
-  /// maximum sleep time for the worker threads.
-  /// enables responsiveness. `.size()` represents the number of worker threads
-  /// to create.
-  Span<nanoseconds const> worker_thread_sleep = {};
-
-  std::thread::id main_thread_id = {};
-};
-
 struct IScheduler
 {
   /// @brief Create a Scheduler
@@ -1142,16 +1150,16 @@ struct IScheduler
   /// task queue.
   virtual void shutdown() = 0;
 
-  virtual u32 num_dedicated() = 0;
+  [[nodiscard]] virtual u32 num_dedicated() = 0;
 
-  virtual u32 num_workers() = 0;
+  [[nodiscard]] virtual u32 num_workers() = 0;
 
   /// @brief Schedule task to a specific thread
   /// @param info Task frame information
   /// @param thread the index of the thread to schedule to. If none is specified,
   /// the task is scheduled to the main thread.
   virtual void schedule(TaskInfo const & info,
-                        ThreadId         thread = ThreadId::AnyWorker) = 0;
+                        Thread           thread = WorkerThread::Any) = 0;
 
   /// @brief Execute work on the main thread queue
   /// @param grace_period minimum time (within duration) to wait for tasks when
@@ -1159,10 +1167,21 @@ struct IScheduler
   /// @param duration maximum timeout to spend executing tasks
   virtual void run_main_loop(nanoseconds duration, nanoseconds poll_max) = 0;
 
-  virtual Semaphore get_drain_semaphore(ThreadId thread) = 0;
+  /// @brief Request that all threads shutdown once all work on the threads are finished executing and there's no more
+  /// work left to do
+  virtual void request_drain() = 0;
 
+  /// @brief Await all threads to be drained of work
+  virtual bool await_drain(nanoseconds timeout) = 0;
+
+  /// @brief Get the drain semaphore of the specified thread
+  /// @param thread the index of the thread to get the semaphore of
+  virtual Semaphore get_drain_semaphore(Thread thread) = 0;
+
+  /// @brief Schedule a task to run
+  /// @param thread the thread to run the task on
   template <TaskFrame F>
-  void schedule(F && task, ThreadId thread = ThreadId::AnyWorker)
+  void schedule(F && task, Thread thread = WorkerThread::Any)
   {
     schedule(to_task_info(task), thread);
   }
@@ -1174,7 +1193,7 @@ struct IScheduler
   /// @param poll Poller functor that returns true when ready
   /// @param schedule How to schedule the task
   template <Callable F, Poll P = Ready>
-  void once(F fn, P poll = {}, ThreadId thread = ThreadId::AnyWorker)
+  void once(F fn, P poll = {}, Thread thread = WorkerThread::Any)
   {
     this->schedule(TaskBody{static_cast<P &&>(poll),
                             [fn = static_cast<F &&>(fn)]() mutable -> bool {
@@ -1185,8 +1204,7 @@ struct IScheduler
   }
 
   template <Callable F, Callable... F1, Poll P = Ready>
-  void once(Tuple<F, F1...> fns, P poll = {},
-            ThreadId thread = ThreadId::AnyWorker)
+  void once(Tuple<F, F1...> fns, P poll = {}, Thread thread = WorkerThread::Any)
   {
     this->schedule(
       TaskBody{static_cast<P &&>(poll),
@@ -1205,7 +1223,7 @@ struct IScheduler
   /// @param schedule How to schedule the task
   template <Callable F, Poll P = Ready>
   requires (Convertible<CallResult<F>, bool>)
-  void loop(F fn, P poll = {}, ThreadId thread = ThreadId::AnyWorker)
+  void loop(F fn, P poll = {}, Thread thread = WorkerThread::Any)
   {
     this->schedule(
       TaskBody{static_cast<P &&>(poll),
@@ -1224,7 +1242,7 @@ struct IScheduler
   template <Callable<u64> F, Poll P = Ready>
   requires (Same<CallResult<F, u64>, void> ||
             Convertible<CallResult<F, u64>, bool>)
-  void repeat(F fn, u64 n, P poll = {}, ThreadId thread = ThreadId::AnyWorker)
+  void repeat(F fn, u64 n, P poll = {}, Thread thread = WorkerThread::Any)
   {
     if (n == 0)
     {
@@ -1262,7 +1280,7 @@ struct IScheduler
   /// @param schedule How to schedule the shards
   template <typename State, Poll P = Ready>
   void shard(Rc<State> state, Fn<void(TaskInstance, State)> fn, u64 n,
-             P poll = {}, ThreadId thread = ThreadId::AnyWorker)
+             P poll = {}, Thread thread = WorkerThread::Any)
   {
     if (n == 0)
     {

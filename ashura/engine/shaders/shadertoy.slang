@@ -1,7 +1,7 @@
 /// SPDX-License-Identifier: MIT
 
 #pragma once
-#include "types.slang"
+#include "modules/types.slang"
 
 struct Inputs
 {

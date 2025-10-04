@@ -65,8 +65,7 @@ struct ILogger
     num_sinks_ = sinks.size();
   }
 
-  constexpr ILogger(std::initializer_list<LogSink const> sinks) :
-    ILogger{span(sinks)}
+  constexpr ILogger(InitList<LogSink const> sinks) : ILogger{span(sinks)}
   {
   }
 

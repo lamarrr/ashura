@@ -18,7 +18,7 @@ namespace ash
 namespace vk
 {
 
-#define SCRATCH_STACK_RESERVE_SIZE 1_KB
+#define SCRATCH_STACK_RESERVE_SIZE 16_KB
 #define SCRATCH_ALLOCATOR(upstream)                              \
   u8                scratch_memory_[SCRATCH_STACK_RESERVE_SIZE]; \
   FallbackAllocator scratch_                                     \
@@ -333,11 +333,11 @@ void IDescriptorSet::update_link(u32 ibinding, u32 first_element,
 
   for (auto [i, buffer] : enumerate<u32>(buffers))
   {
-    auto    element = first_element + i;
-    auto *& current = sync_resources[element];
-    auto *  next    = (Buffer) buffer.buffer;
+    auto   element = first_element + i;
+    auto & current = sync_resources[element];
+    auto   next    = Option<IBuffer &>::from_ptr((Buffer) buffer.buffer);
 
-    if (current == next)
+    if (current.ptr() == next.ptr())
     {
       continue;
     }
@@ -345,12 +345,12 @@ void IDescriptorSet::update_link(u32 ibinding, u32 first_element,
     auto loc =
       BindLocation{.set = this, .binding = ibinding, .element = element};
 
-    if (current != nullptr)
+    if (current.is_some())
     {
-      remove_bind_loc(current->bind_locations, loc);
+      IDescriptorSet::remove_bind_loc(current->bind_locations, loc);
     }
 
-    if (next != nullptr)
+    if (next.is_some())
     {
       next->bind_locations.push(loc).unwrap();
     }
@@ -367,11 +367,11 @@ void IDescriptorSet::update_link(u32 ibinding, u32 first_element,
 
   for (auto [i, buffer_view] : enumerate<u32>(buffer_views))
   {
-    auto    element = first_element + i;
-    auto *& current = sync_resources[element];
-    auto *  next    = (BufferView) buffer_view;
+    auto   element = first_element + i;
+    auto & current = sync_resources[element];
+    auto   next    = Option<IBufferView &>::from_ptr((BufferView) buffer_view);
 
-    if (current == next)
+    if (current.ptr() == next.ptr())
     {
       continue;
     }
@@ -379,12 +379,12 @@ void IDescriptorSet::update_link(u32 ibinding, u32 first_element,
     auto loc =
       BindLocation{.set = this, .binding = ibinding, .element = element};
 
-    if (current != nullptr)
+    if (current.is_some())
     {
-      remove_bind_loc(current->bind_locations, loc);
+      IDescriptorSet::remove_bind_loc(current->bind_locations, loc);
     }
 
-    if (next != nullptr)
+    if (next.is_some())
     {
       next->bind_locations.push(loc).unwrap();
     }
@@ -401,11 +401,11 @@ void IDescriptorSet::update_link(u32 ibinding, u32 first_element,
 
   for (auto [i, image] : enumerate<u32>(images))
   {
-    auto    element = first_element + i;
-    auto *& current = sync_resources[element];
-    auto *  next    = (ImageView) image.image_view;
+    auto   element = first_element + i;
+    auto & current = sync_resources[element];
+    auto   next = Option<IImageView &>::from_ptr((ImageView) image.image_view);
 
-    if (current == next)
+    if (current.ptr() == next.ptr())
     {
       continue;
     }
@@ -413,12 +413,12 @@ void IDescriptorSet::update_link(u32 ibinding, u32 first_element,
     auto loc =
       BindLocation{.set = this, .binding = ibinding, .element = element};
 
-    if (current != nullptr)
+    if (current.is_some())
     {
-      remove_bind_loc(current->bind_locations, loc);
+      IDescriptorSet::remove_bind_loc(current->bind_locations, loc);
     }
 
-    if (next != nullptr)
+    if (next.is_some())
     {
       next->bind_locations.push(loc).unwrap();
     }
@@ -659,7 +659,7 @@ void HazardBarriers::barrier(IImage const & image, MemAccess old_access,
 {
   this->image(
     old_access.stages, new_access.stages,
-    {
+    VkImageMemoryBarrier{
       .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
       .pNext               = nullptr,
       .srcAccessMask       = old_access.access,
@@ -709,35 +709,37 @@ void HazardBarriers::discard_barrier(IImage const & image, MemAccess old_access,
 void HazardBarriers::barrier(IBuffer const & buffer, MemAccess old_access,
                              MemAccess new_access)
 {
-  this->buffer(old_access.stages, new_access.stages,
-               {.sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-                .pNext               = nullptr,
-                .srcAccessMask       = old_access.access,
-                .dstAccessMask       = new_access.access,
-                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .buffer              = buffer.vk,
-                .offset              = 0,
-                .size                = VK_WHOLE_SIZE});
+  this->buffer(
+    old_access.stages, new_access.stages,
+    VkBufferMemoryBarrier{.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+                          .pNext = nullptr,
+                          .srcAccessMask       = old_access.access,
+                          .dstAccessMask       = new_access.access,
+                          .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                          .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                          .buffer              = buffer.vk,
+                          .offset              = 0,
+                          .size                = VK_WHOLE_SIZE});
 }
 
 void HazardBarriers::discard_barrier(IBuffer const & buffer,
                                      MemAccess old_access, MemAccess new_access)
 {
-  this->buffer(old_access.stages, new_access.stages,
-               VkMemoryBarrier{.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
-                               .pNext = nullptr,
-                               .srcAccessMask = old_access.access,
-                               .dstAccessMask = new_access.access},
-               {.sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-                .pNext               = nullptr,
-                .srcAccessMask       = VK_ACCESS_NONE,
-                .dstAccessMask       = new_access.access,
-                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .buffer              = buffer.vk,
-                .offset              = 0,
-                .size                = VK_WHOLE_SIZE});
+  this->buffer(
+    old_access.stages, new_access.stages,
+    VkMemoryBarrier{.sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+                    .pNext         = nullptr,
+                    .srcAccessMask = old_access.access,
+                    .dstAccessMask = new_access.access},
+    VkBufferMemoryBarrier{.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+                          .pNext = nullptr,
+                          .srcAccessMask       = VK_ACCESS_NONE,
+                          .dstAccessMask       = new_access.access,
+                          .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                          .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                          .buffer              = buffer.vk,
+                          .offset              = 0,
+                          .size                = VK_WHOLE_SIZE});
 }
 
 constexpr bool has_read_access(VkAccessFlags access)
@@ -821,19 +823,19 @@ void EncoderResourceStates::access(IImage const &    image,
     alias_.dense.v1.set_bit(alias_.to_index(alias));
   };
 
-  auto discard = [&]() {
+  auto discard_barrier = [&]() {
     barriers.discard_barrier(image, hazard.latest, access, layout);
     mark(HazardType::Write, {});
   };
 
   hazard.state.match(
     [&](None) {
-      discard();
+      discard_barrier();
       return;
     },
     [&](BufferMemState const &) {
       // hard memory barrier for aliasing
-      discard();
+      discard_barrier();
       return;
     },
     [&](ImageMemState const & h) {
@@ -847,7 +849,7 @@ void EncoderResourceStates::access(IImage const &    image,
 
       if (h.element != element)
       {
-        discard();
+        discard_barrier();
         return;
       }
 
@@ -1046,7 +1048,7 @@ void EncoderResourceStates::access(IBuffer const &   buffer,
     alias_.dense.v1.set_bit(alias_.to_index(alias));
   };
 
-  auto discard = [&]() {
+  auto discard_barrier = [&]() {
     barriers.discard_barrier(buffer, hazard.latest, access);
 
     mark(HazardType::Write, {});
@@ -1054,7 +1056,7 @@ void EncoderResourceStates::access(IBuffer const &   buffer,
 
   hazard.state.match(
     [&](None) {
-      discard();
+      discard_barrier();
       return;
     },
     [&](BufferMemState const & h) {
@@ -1064,7 +1066,7 @@ void EncoderResourceStates::access(IBuffer const &   buffer,
 
       if (h.element != element)
       {
-        discard();
+        discard_barrier();
         return;
       }
 
@@ -1205,7 +1207,7 @@ void EncoderResourceStates::access(IBuffer const &   buffer,
       }
     },
     [&](ImageMemState const &) {
-      discard();
+      discard_barrier();
       return;
     });
 }
@@ -1217,7 +1219,7 @@ void EncoderResourceStates::access(IDescriptorSet const & set, u32 pass,
   auto [last_accessed] = descriptor_sets_[set.id];
 
   /// if it is a read-only descriptor set we don't need to synchronize after the first synchronization pass; resources can be in only one state for a pass
-  if (!set.is_mutating && pass != 0 && last_accessed != U32_MAX &&
+  if (set.is_readonly && pass != 0 && last_accessed != U32_MAX &&
       (last_accessed == (pass - 1)))
   {
     last_accessed = pass;
@@ -1234,27 +1236,27 @@ void EncoderResourceStates::access(IDescriptorSet const & set, u32 pass,
     binding.sync_resources.match(
       [](None) {},
       [&](auto & buffers) {
-        for (Buffer buffer : buffers)
+        for (auto buffer : buffers)
         {
-          if (buffer != nullptr)
+          if (buffer.is_some())
           {
             access(*buffer, acc, pass, barriers);
           }
         }
       },
       [&](auto & buffer_views) {
-        for (BufferView buffer_view : buffer_views)
+        for (auto buffer_view : buffer_views)
         {
-          if (buffer_view != nullptr)
+          if (buffer_view.is_some())
           {
             access(*buffer_view->buffer, acc, pass, barriers);
           }
         }
       },
       [&](auto & image_views) {
-        for (ImageView image_view : image_views)
+        for (auto image_view : image_views)
         {
-          if (image_view != nullptr)
+          if (image_view.is_some())
           {
             auto layout = descriptor_image_layout(binding.type);
             access(*image_view->image, acc, layout, pass, barriers);
@@ -1304,7 +1306,7 @@ u32 CommandTracker::begin_pass()
 {
   auto index = size32(passes_);
 
-  if (passes_.is_empty())
+  if (passes_.is_empty()) [[unlikely]]
   {
     passes_.push(Entry{}).unwrap();
   }
@@ -3116,15 +3118,15 @@ constexpr VkDescriptorType to_vk(gpu::DescriptorType type)
   }
 }
 
-bool is_mutating_binding(gpu::DescriptorBindingInfo const & binding)
+bool is_readonly_binding(gpu::DescriptorBindingInfo const & binding)
 {
   auto access_flags = descriptor_access(binding.type);
-  return has_write_access(access_flags);
+  return !has_write_access(access_flags);
 }
 
-bool is_mutating_set(Span<gpu::DescriptorBindingInfo const> bindings)
+bool is_readonly_set(Span<gpu::DescriptorBindingInfo const> bindings)
 {
-  return any_is(bindings, is_mutating_binding);
+  return all_is(bindings, is_readonly_binding);
 }
 
 Result<gpu::DescriptorSetLayout, Status> IDevice::create_descriptor_set_layout(
@@ -3251,12 +3253,12 @@ Result<gpu::DescriptorSetLayout, Status> IDevice::create_descriptor_set_layout(
   SmallVec<gpu::DescriptorBindingInfo, 1, 0> bindings{allocator_};
   bindings.extend(info.bindings).unwrap();
 
-  auto is_mutating = is_mutating_set(info.bindings);
+  auto is_readonly = is_readonly_set(info.bindings);
 
   new (layout) IDescriptorSetLayout{.vk                  = vk,
                                     .bindings            = std::move(bindings),
                                     .num_variable_length = num_variable_length,
-                                    .is_mutating         = is_mutating};
+                                    .is_readonly         = is_readonly};
 
   vk = nullptr;
 
@@ -3401,19 +3403,20 @@ Result<gpu::DescriptorSet, Status>
       case SyncResourceType::Buffer:
       {
         binding.sync_resources =
-          SmallVec<Buffer, 4, 0>::make(size, allocator_).unwrap();
+          SmallVec<Option<IBuffer &>, 4, 0>::make(size, allocator_).unwrap();
       }
       break;
       case SyncResourceType::BufferView:
       {
         binding.sync_resources =
-          SmallVec<BufferView, 4, 0>::make(size, allocator_).unwrap();
+          SmallVec<Option<IBufferView &>, 4, 0>::make(size, allocator_)
+            .unwrap();
       }
       break;
       case SyncResourceType::ImageView:
       {
         binding.sync_resources =
-          SmallVec<ImageView, 4, 0>::make(size, allocator_).unwrap();
+          SmallVec<Option<IImageView &>, 4, 0>::make(size, allocator_).unwrap();
       }
       break;
     }
@@ -3431,7 +3434,7 @@ Result<gpu::DescriptorSet, Status>
   new (set) IDescriptorSet{.vk          = vk,
                            .vk_pool     = vk_pool,
                            .id          = id,
-                           .is_mutating = layout->is_mutating,
+                           .is_readonly = layout->is_readonly,
                            .bindings    = std::move(bindings)};
 
   vk_pool = nullptr;
@@ -4485,8 +4488,7 @@ void IDevice::uninit(gpu::Buffer buffer_)
 
   for (auto loc : buffer->bind_locations)
   {
-    loc.set->bindings[loc.binding].sync_resources[v1][loc.element] =
-      (Buffer) nullptr;
+    loc.set->bindings[loc.binding].sync_resources[v1][loc.element] = none;
   }
 
   if (buffer->memory.alias != nullptr)
@@ -4521,8 +4523,7 @@ void IDevice::uninit(gpu::BufferView buffer_view_)
 
   for (auto & loc : buffer_view->bind_locations)
   {
-    loc.set->bindings[loc.binding].sync_resources[v2][loc.element] =
-      (BufferView) nullptr;
+    loc.set->bindings[loc.binding].sync_resources[v2][loc.element] = none;
   }
 
   table_.DestroyBufferView(vk_dev_, buffer_view->vk, nullptr);
@@ -4578,8 +4579,7 @@ void IDevice::uninit(gpu::ImageView image_view_)
 
   for (auto loc : image_view->bind_locations)
   {
-    loc.set->bindings[loc.binding].sync_resources[v3][loc.element] =
-      (ImageView) nullptr;
+    loc.set->bindings[loc.binding].sync_resources[v3][loc.element] = none;
   }
 
   table_.DestroyImageView(vk_dev_, image_view->vk, nullptr);
@@ -4647,7 +4647,7 @@ void IDevice::uninit(gpu::DescriptorSet set_)
       [&](auto & buffers) {
         for (auto [i, buffer] : enumerate<u32>(buffers))
         {
-          if (buffer != nullptr)
+          if (buffer.is_some())
           {
             IDescriptorSet::remove_bind_loc(
               buffer->bind_locations,
@@ -4658,7 +4658,7 @@ void IDevice::uninit(gpu::DescriptorSet set_)
       [&](auto & buffer_views) {
         for (auto [i, buffer_view] : enumerate<u32>(buffer_views))
         {
-          if (buffer_view != nullptr)
+          if (buffer_view.is_some())
           {
             IDescriptorSet::remove_bind_loc(
               buffer_view->bind_locations,
@@ -4669,7 +4669,7 @@ void IDevice::uninit(gpu::DescriptorSet set_)
       [&](auto & image_views) {
         for (auto [i, image_view] : enumerate<u32>(image_views))
         {
-          if (image_view != nullptr)
+          if (image_view.is_some())
           {
             IDescriptorSet::remove_bind_loc(
               image_view->bind_locations,
@@ -4849,7 +4849,7 @@ Result<Void, Status> IDevice::invalidate_mapped_memory(gpu::Buffer buffer_,
   {
     return Err{(Status) result};
   }
-  return Ok{Void{}};
+  return Ok{};
 }
 
 Result<Void, Status> IDevice::flush_mapped_memory(gpu::Buffer buffer_,
@@ -4870,7 +4870,7 @@ Result<Void, Status> IDevice::flush_mapped_memory(gpu::Buffer buffer_,
   {
     return Err{(Status) result};
   }
-  return Ok{Void{}};
+  return Ok{};
 }
 
 Result<usize, Status> IDevice::get_pipeline_cache_size(gpu::PipelineCache cache)
@@ -4938,7 +4938,7 @@ Result<Void, Status>
   {
     return Err{(Status) result};
   }
-  return Ok{Void{}};
+  return Ok{};
 }
 
 void IDevice::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
@@ -5137,7 +5137,7 @@ Result<Void, Status> IDevice::await_idle()
     return Err{(Status) result};
   }
 
-  return Ok{Void{}};
+  return Ok{};
 }
 
 Result<Void, Status> IDevice::await_queue_idle()
@@ -5148,7 +5148,7 @@ Result<Void, Status> IDevice::await_queue_idle()
     return Err{(Status) result};
   }
 
-  return Ok{Void{}};
+  return Ok{};
 }
 
 Result<Void, Status>
@@ -5605,7 +5605,9 @@ void ICommandEncoder::reset_timestamp_query(gpu::TimestampQuery query,
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
 
+  tracker_.begin_pass();
   CMD(ResetTimestampQuery{.query = (VkQueryPool) query, .range = range});
+  tracker_.end_pass();
 }
 
 void ICommandEncoder::reset_statistics_query(gpu::StatisticsQuery query,
@@ -5614,7 +5616,9 @@ void ICommandEncoder::reset_statistics_query(gpu::StatisticsQuery query,
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
 
+  tracker_.begin_pass();
   CMD(ResetStatisticsQuery{.query = (VkQueryPool) query, .range = range});
+  tracker_.end_pass();
 }
 
 void ICommandEncoder::write_timestamp(gpu::TimestampQuery query,
@@ -5623,9 +5627,11 @@ void ICommandEncoder::write_timestamp(gpu::TimestampQuery query,
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
 
+  tracker_.begin_pass();
   CMD(WriteTimestamp{.query  = (VkQueryPool) query,
                      .stages = (VkPipelineStageFlagBits) stage,
                      .index  = index});
+  tracker_.end_pass();
 }
 
 void ICommandEncoder::begin_statistics(gpu::StatisticsQuery query, u32 index)
@@ -5633,7 +5639,9 @@ void ICommandEncoder::begin_statistics(gpu::StatisticsQuery query, u32 index)
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
 
+  tracker_.begin_pass();
   CMD(BeginStatistics{.query = (VkQueryPool) query, .index = index});
+  tracker_.end_pass();
 }
 
 void ICommandEncoder::end_statistics(gpu::StatisticsQuery query, u32 index)
@@ -5641,7 +5649,9 @@ void ICommandEncoder::end_statistics(gpu::StatisticsQuery query, u32 index)
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
 
+  tracker_.begin_pass();
   CMD(EndStatistics{.query = (VkQueryPool) query, .index = index});
+  tracker_.end_pass();
 }
 
 void ICommandEncoder::begin_debug_marker(Str region_name_, f32x4 color)
@@ -5656,6 +5666,7 @@ void ICommandEncoder::begin_debug_marker(Str region_name_, f32x4 color)
     .color       = {color.x(), color.y(), color.z(), color.w()}
   };
 
+  tracker_.begin_pass();
   CMD(BeginDebugMarker{.info = info});
 
   Vec<char, 0> region_name{arena_};
@@ -5665,6 +5676,7 @@ void ICommandEncoder::begin_debug_marker(Str region_name_, f32x4 color)
 
   region_name.last()    = '\0';
   cmd->info.pMarkerName = region_name.leak().data();
+  tracker_.end_pass();
 }
 
 void ICommandEncoder::end_debug_marker()
@@ -5672,9 +5684,9 @@ void ICommandEncoder::end_debug_marker()
   PRELUDE();
   CHECK(pass_ == Pass::None, "");
 
-  // [ ] how are commands matched to the passes?
-  // [ ] begin pass is being called after cmd insertion
+  tracker_.begin_pass();
   CMD(EndDebugMarker{});
+  tracker_.end_pass();
 }
 
 void ICommandEncoder::fill_buffer(gpu::Buffer dst_, Slice64 range, u32 data)
@@ -5687,9 +5699,8 @@ void ICommandEncoder::fill_buffer(gpu::Buffer dst_, Slice64 range, u32 data)
   CHECK(has_bits(dst->usage, gpu::BufferUsage::TransferDst), "");
   CHECK(is_valid_buffer_access(dst->size, range, 4, 4), "");
 
-  CMD(FillBuffer{.dst = dst->vk, .range = range, .data = data});
-
   tracker_.begin_pass();
+  CMD(FillBuffer{.dst = dst->vk, .range = range, .data = data});
   tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                  VK_ACCESS_TRANSFER_WRITE_BIT);
   tracker_.end_pass();
@@ -5716,6 +5727,7 @@ void ICommandEncoder::copy_buffer(gpu::Buffer src_, gpu::Buffer dst_,
           "");
   }
 
+  tracker_.begin_pass();
   CMD(CopyBuffer{.src = src->vk, .dst = dst->vk, .copies{}});
 
   Vec<VkBufferCopy, 0> copies{arena_};
@@ -5731,7 +5743,6 @@ void ICommandEncoder::copy_buffer(gpu::Buffer src_, gpu::Buffer dst_,
 
   cmd->copies = copies.leak();
 
-  tracker_.begin_pass();
   tracker_.track(src, VK_PIPELINE_STAGE_TRANSFER_BIT,
                  VK_ACCESS_TRANSFER_READ_BIT);
   tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -5753,6 +5764,7 @@ void ICommandEncoder::update_buffer(Span<u8 const> src_, u64 dst_offset,
   CHECK(is_valid_buffer_access(dst->size, Slice64{dst_offset, copy_size}, 4, 4),
         "");
 
+  tracker_.begin_pass();
   CMD(UpdateBuffer{.src = {}, .dst_offset = dst_offset, .dst = dst->vk});
 
   Vec<u8, 0> src{arena_};
@@ -5761,7 +5773,6 @@ void ICommandEncoder::update_buffer(Span<u8 const> src_, u64 dst_offset,
 
   cmd->src = src.leak();
 
-  tracker_.begin_pass();
   tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                  VK_ACCESS_TRANSFER_WRITE_BIT);
   tracker_.end_pass();
@@ -5787,6 +5798,7 @@ void ICommandEncoder::clear_color_image(
           "");
   }
 
+  tracker_.begin_pass();
   CMD(ClearColorImage{
     .dst        = dst->vk,
     .dst_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -5809,7 +5821,6 @@ void ICommandEncoder::clear_color_image(
 
   cmd->ranges = ranges.leak();
 
-  tracker_.begin_pass();
   tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                  VK_ACCESS_TRANSFER_WRITE_BIT,
                  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
@@ -5839,6 +5850,8 @@ void ICommandEncoder::clear_depth_stencil_image(
   VkClearDepthStencilValue vk_depth_stencil{.depth   = value.depth,
                                             .stencil = value.stencil};
 
+  tracker_.begin_pass();
+
   CMD(ClearDepthStencilImage{.dst        = dst->vk,
                              .dst_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                              .value      = vk_depth_stencil,
@@ -5860,7 +5873,6 @@ void ICommandEncoder::clear_depth_stencil_image(
 
   cmd->ranges = ranges.leak();
 
-  tracker_.begin_pass();
   tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                  VK_ACCESS_TRANSFER_WRITE_BIT,
                  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
@@ -5915,6 +5927,8 @@ void ICommandEncoder::copy_image(gpu::Image src_, gpu::Image dst_,
           "");
   }
 
+  tracker_.begin_pass();
+
   CMD(CopyImage{.src        = src->vk,
                 .src_layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                 .dst        = dst->vk,
@@ -5954,7 +5968,6 @@ void ICommandEncoder::copy_image(gpu::Image src_, gpu::Image dst_,
 
   cmd->copies = copies.leak();
 
-  tracker_.begin_pass();
   tracker_.track(src, VK_PIPELINE_STAGE_TRANSFER_BIT,
                  VK_ACCESS_TRANSFER_READ_BIT,
                  VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
@@ -6001,6 +6014,8 @@ void ICommandEncoder::copy_buffer_to_image(
     CHECK(copy.image_area.end().z() <= dst_extent.z(), "");
   }
 
+  tracker_.begin_pass();
+
   CMD(CopyBufferToImage{.src        = src->vk,
                         .dst        = dst->vk,
                         .dst_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -6033,7 +6048,6 @@ void ICommandEncoder::copy_buffer_to_image(
 
   cmd->copies = copies.leak();
 
-  tracker_.begin_pass();
   tracker_.track(src, VK_PIPELINE_STAGE_TRANSFER_BIT,
                  VK_ACCESS_TRANSFER_READ_BIT);
   tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -6086,6 +6100,8 @@ void ICommandEncoder::blit_image(gpu::Image src_, gpu::Image dst_,
     CHECK(blit.dst_area.end().z() <= dst_extent.z(), "");
   }
 
+  tracker_.begin_pass();
+
   CMD(BlitImage{.src        = src->vk,
                 .src_layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                 .dst        = dst->vk,
@@ -6129,13 +6145,13 @@ void ICommandEncoder::blit_image(gpu::Image src_, gpu::Image dst_,
 
   cmd->blits = blits.leak();
 
-  tracker_.begin_pass();
   tracker_.track(src, VK_PIPELINE_STAGE_TRANSFER_BIT,
                  VK_ACCESS_TRANSFER_READ_BIT,
                  VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
   tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                  VK_ACCESS_TRANSFER_WRITE_BIT,
                  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
   tracker_.end_pass();
 }
 
@@ -6191,6 +6207,8 @@ void ICommandEncoder::resolve_image(gpu::Image src_, gpu::Image dst_,
           "");
   }
 
+  tracker_.begin_pass();
+
   CMD(ResolveImage{.src        = src->vk,
                    .src_layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                    .dst        = dst->vk,
@@ -6231,7 +6249,6 @@ void ICommandEncoder::resolve_image(gpu::Image src_, gpu::Image dst_,
 
   cmd->resolves = resolves.leak();
 
-  tracker_.begin_pass();
   tracker_.track(src, VK_PIPELINE_STAGE_TRANSFER_BIT,
                  VK_ACCESS_TRANSFER_READ_BIT,
                  VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
@@ -6353,6 +6370,8 @@ void ICommandEncoder::begin_rendering(gpu::RenderingInfo const & info)
     validate_attachment(stencil, gpu::ImageAspects::Stencil,
                         gpu::ImageUsage::DepthStencilAttachment);
   });
+
+  tracker_.begin_pass();
 
   CMD(BeginRendering{
     .info = VkRenderingInfoKHR{
@@ -6511,8 +6530,6 @@ void ICommandEncoder::begin_rendering(gpu::RenderingInfo const & info)
 
   ctx_.depth_attachment   = info.depth_attachment;
   ctx_.stencil_attachment = info.stencil_attachment;
-
-  tracker_.begin_pass();
 
   for (auto & attachment : info.color_attachments)
   {
