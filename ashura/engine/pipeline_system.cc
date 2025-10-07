@@ -8,6 +8,7 @@
 #include "ashura/engine/pipelines/quad.h"
 #include "ashura/engine/pipelines/sdf.h"
 #include "ashura/engine/pipelines/triangle_fill.h"
+#include "ashura/engine/pipelines/vector_path.h"
 #include "ashura/engine/systems.h"
 
 namespace ash
@@ -25,6 +26,8 @@ void IPipelineSys::init(Allocator allocator)
     dyn<BezierStencilPipeline>(inplace, allocator, allocator).unwrap();
   Dyn blur = dyn<BlurPipeline>(inplace, allocator, allocator).unwrap();
   Dyn pbr  = dyn<PBRPipeline>(inplace, allocator, allocator).unwrap();
+  Dyn vector_path =
+    dyn<VectorPathPipeline>(inplace, allocator, allocator).unwrap();
 
   auto p_sdf            = sdf.get();
   auto p_quad           = quad.get();
@@ -33,6 +36,7 @@ void IPipelineSys::init(Allocator allocator)
   auto p_bezier_stencil = bezier_stencil.get();
   auto p_blur           = blur.get();
   auto p_pbr            = pbr.get();
+  auto p_vector_path    = vector_path.get();
 
   Vec<Dyn<Pipeline>> all{allocator};
 
@@ -51,6 +55,7 @@ void IPipelineSys::init(Allocator allocator)
   bezier_stencil_ = p_bezier_stencil;
   blur_           = p_blur;
   pbr_            = p_pbr;
+  vector_path_    = p_vector_path;
   all_            = std::move(all);
 
   for (auto & pass : all)
@@ -100,6 +105,11 @@ BlurPipeline & IPipelineSys::blur() const
 PBRPipeline & IPipelineSys::pbr() const
 {
   return *pbr_;
+}
+
+VectorPathPipeline & IPipelineSys::vector_path() const
+{
+  return *vector_path_;
 }
 
 void IPipelineSys::add_pipeline(Dyn<Pipeline> pipeline)
