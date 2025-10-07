@@ -501,42 +501,45 @@ struct TexelBufferUnion
       TextureIndex::Default;
   };
 
-  // [ ] The texel will not fit all image types? it'll make the memory usage 4x larger than necessary; i.e.
-  // aliased image is R8G8B8A8_UNORM and TEXEL will always have R32G32B32A32_SFLOAT
-  static constexpr gpu::Format FORMATS[] = {gpu::Format::R8_UNORM,
-                                            gpu::Format::R8_SNORM,
-                                            gpu::Format::R8_UINT,
-                                            gpu::Format::R8_SINT,
-                                            gpu::Format::R8G8B8A8_UNORM,
-                                            gpu::Format::R8G8B8A8_SNORM,
-                                            gpu::Format::R8G8B8A8_UINT,
-                                            gpu::Format::R8G8B8A8_SINT,
-                                            gpu::Format::R16_UINT,
-                                            gpu::Format::R16_SINT,
-                                            gpu::Format::R16_SFLOAT,
-                                            gpu::Format::R16G16_UINT,
-                                            gpu::Format::R16G16_SINT,
-                                            gpu::Format::R16G16_SFLOAT,
-                                            gpu::Format::R32_UINT,
-                                            gpu::Format::R32_SINT,
-                                            gpu::Format::R32_SFLOAT,
-                                            gpu::Format::R32G32_UINT,
-                                            gpu::Format::R32G32_SINT,
-                                            gpu::Format::R32G32_SFLOAT,
-                                            gpu::Format::R32G32B32A32_UINT,
-                                            gpu::Format::R32G32B32A32_SINT,
-                                            gpu::Format::R32G32B32A32_SFLOAT};
+  static constexpr gpu::Format ALL_FORMATS[] = {
+    gpu::Format::R8_UNORM,
+    gpu::Format::R8_SNORM,
+    gpu::Format::R8_UINT,
+    gpu::Format::R8_SINT,
+    gpu::Format::R8G8B8A8_UNORM,
+    gpu::Format::R8G8B8A8_SNORM,
+    gpu::Format::R8G8B8A8_UINT,
+    gpu::Format::R8G8B8A8_SINT,
+    gpu::Format::R16_UINT,
+    gpu::Format::R16_SINT,
+    gpu::Format::R16_SFLOAT,
+    gpu::Format::R16G16_UINT,
+    gpu::Format::R16G16_SINT,
+    gpu::Format::R16G16_SFLOAT,
+    gpu::Format::R32_UINT,
+    gpu::Format::R32_SINT,
+    gpu::Format::R32_SFLOAT,
+    gpu::Format::R32G32_UINT,
+    gpu::Format::R32G32_SINT,
+    gpu::Format::R32G32_SFLOAT,
+    gpu::Format::R32G32B32A32_UINT,
+    gpu::Format::R32G32B32A32_SINT,
+    gpu::Format::R32G32B32A32_SFLOAT};
 
-  static constexpr u32 NUM_VIEWS = 23;
-
-  gpu::Buffer            buffer = {};
-  Array<View, NUM_VIEWS> views  = {};
+  gpu::Buffer                              buffer           = {};
+  u32x2                                    tile_texel_count = {1, 1};
+  u32x2                                    tile_count       = {0, 0};
+  u32x2                                    extent           = {0, 0};
+  u32                                      sample_count     = 1;
+  InplaceVec<View, std::size(ALL_FORMATS)> views            = {};
 
   View interpret(gpu::Format format) const;
 
   void uninit(gpu::Device device);
 
-  static TexelBufferUnion create(GpuSys sys, u32x2 target_size, Str label,
+  static TexelBufferUnion create(GpuSys sys, u32x2 target_extent,
+                                 u32 sample_count, u32x2 tile_texel_count,
+                                 Span<gpu::Format const> formats, Str label,
                                  Allocator scratch);
 };
 
@@ -549,7 +552,7 @@ struct ImageUnion
 
   void uninit(gpu::Device device);
 
-  static ImageUnion create(GpuSys sys, u32x2 target_size,
+  static ImageUnion create(GpuSys sys, u32x2 target_extent,
                            gpu::Format color_format,
                            gpu::Format depth_stencil_format, Str label,
                            Allocator scratch);
@@ -561,7 +564,7 @@ struct ScratchImages
 
   void uninit(gpu::Device device);
 
-  static ScratchImages create(GpuSys sys, u32 num_scratch, u32x2 target_size,
+  static ScratchImages create(GpuSys sys, u32 num_scratch, u32x2 target_extent,
                               gpu::Format color_format,
                               gpu::Format depth_stencil_format, Str label,
                               Allocator allocator, Allocator scratch);
@@ -813,7 +816,7 @@ struct IGpuSys
 
   Scheduler scheduler_;
 
-  ThreadId thread_id_;
+  Option<Thread> thread_;
 
   IGpuSys() :
     initialized_{false},
@@ -838,7 +841,7 @@ struct IGpuSys
     frames_{},
     plans_{},
     scheduler_{nullptr},
-    thread_id_{ThreadId::Undefined}
+    thread_{}
   {
   }
 
@@ -856,7 +859,7 @@ struct IGpuSys
   void init(Allocator allocator, gpu::Device device,
             Span<u8 const> pipeline_cache_data, gpu::Surface surface,
             GpuSysPreferences const & preferences, Scheduler scheduler,
-            ThreadId thread_id);
+            Thread thread);
 
   SamplerIndex create_cached_sampler(gpu::SamplerInfo const & info);
 

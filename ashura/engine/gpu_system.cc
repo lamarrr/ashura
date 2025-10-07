@@ -570,10 +570,20 @@ void TexelBufferUnion::uninit(gpu::Device device)
   device->uninit(buffer);
 }
 
-TexelBufferUnion TexelBufferUnion::create(GpuSys sys, u32x2 target_size,
+TexelBufferUnion TexelBufferUnion::create(GpuSys sys, u32x2 target_extent,
+                                          u32   sample_count,
+                                          u32x2 tile_texel_count,
+                                          Span<gpu::Format const> formats,
                                           Str label, Allocator scratch)
 {
-  static_assert(size(FORMATS) == NUM_VIEWS, "");
+  CHECK(!tile_texel_count.any_zero(), "");
+  CHECK(is_pow2(tile_texel_count.x()) && is_pow2(tile_texel_count.y()), "");
+  CHECK(sample_count == 1, "");
+
+  for (auto format : formats)
+  {
+    CHECK(!find(span(ALL_FORMATS), format).is_empty(), "");
+  }
 
   auto tag = [&](Str component) {
     return sformat(scratch, "{} / {}"_str, label, component).unwrap();
@@ -585,18 +595,26 @@ TexelBufferUnion TexelBufferUnion::create(GpuSys sys, u32x2 target_size,
 
   auto buffer_tag = tag("Texel Buffer"_str);
 
+  auto tiled_size =
+    u32x2{align_offset_up(tile_texel_count.x(), target_extent.x()),
+          align_offset_up(tile_texel_count.y(), target_extent.y())};
+
+  auto tile_texel_count_log2 = log2(tile_texel_count);
+  auto tile_count            = tiled_size >> tile_texel_count_log2;
+
   auto buffer = sys->dev_
                   ->create_buffer(gpu::BufferInfo{
                     .label       = buffer_tag,
-                    .size        = sizeof(f32x4) * target_size.product<u64>(),
+                    .size        = sizeof(f32x4) * tiled_size.product<u64>(),
                     .usage       = TexelBufferUnion::USAGE,
                     .memory_type = gpu::MemoryType::Aliased,
                     .host_mapped = true})
                   .unwrap();
 
-  Array<View, NUM_VIEWS> views{};
+  decltype(TexelBufferUnion::views) views{};
+  views.resize_uninit(size32(formats)).unwrap();
 
-  for (auto [i, format, view] : zip(range(size32(FORMATS)), FORMATS, views))
+  for (auto [i, format, view] : zip(range(size32(formats)), formats, views))
   {
     auto buffer_view_tag = itag("View"_str, i);
     auto buffer_view =
@@ -651,7 +669,12 @@ TexelBufferUnion TexelBufferUnion::create(GpuSys sys, u32x2 target_size,
                 .storage_texel_buffers = storage_texel_buffers};
   }
 
-  return TexelBufferUnion{.buffer = buffer, .views = views};
+  return TexelBufferUnion{.buffer           = buffer,
+                          .tile_texel_count = tile_texel_count,
+                          .tile_count       = tile_count,
+                          .extent           = target_extent,
+                          .sample_count     = sample_count,
+                          .views            = views};
 }
 
 void ImageUnion::uninit(gpu::Device device)
@@ -662,7 +685,7 @@ void ImageUnion::uninit(gpu::Device device)
   device->uninit(alias);
 }
 
-ImageUnion ImageUnion::create(GpuSys sys, u32x2 target_size,
+ImageUnion ImageUnion::create(GpuSys sys, u32x2 target_extent,
                               gpu::Format color_format,
                               gpu::Format depth_stencil_format, Str label,
                               Allocator scratch)
@@ -679,7 +702,7 @@ ImageUnion ImageUnion::create(GpuSys sys, u32x2 target_size,
                                    .format       = color_format,
                                    .usage        = ColorImage::USAGE,
                                    .aspects      = gpu::ImageAspects::Color,
-                                   .extent       = target_size.append(1),
+                                   .extent       = target_extent.append(1),
                                    .mip_levels   = 1,
                                    .array_layers = 1,
                                    .sample_count = gpu::SampleCount::C1,
@@ -773,7 +796,7 @@ ImageUnion ImageUnion::create(GpuSys sys, u32x2 target_size,
      .format       = depth_stencil_format,
      .usage        = DepthStencilImage::USAGE,
      .aspects      = gpu::ImageAspects::Depth | gpu::ImageAspects::Stencil,
-     .extent       = target_size.append(1),
+     .extent       = target_extent.append(1),
      .mip_levels   = 1,
      .array_layers = 1,
      .sample_count = gpu::SampleCount::C1,
@@ -880,7 +903,24 @@ ImageUnion ImageUnion::create(GpuSys sys, u32x2 target_size,
                       .depth_storage_textures  = depth_storage_texture,
                       .depth_input_attachments = depth_input_attachment};
 
-  auto texel_union = TexelBufferUnion::create(sys, target_size, label, scratch);
+  // only enable support for the 32-bit formats to minimize memory waste.
+  // enabling support for f32x4 formats for example would consume 4x the memory in the case
+  // where we only use RGBA8 formats, which is the most common case.
+  static constexpr gpu::Format FORMATS[] = {
+    gpu::Format::R8_UNORM,       gpu::Format::R8_SNORM,
+    gpu::Format::R8_UINT,        gpu::Format::R8_SINT,
+    gpu::Format::R8G8B8A8_UNORM, gpu::Format::R8G8B8A8_SNORM,
+    gpu::Format::R8G8B8A8_UINT,  gpu::Format::R8G8B8A8_SINT,
+    gpu::Format::R16_UINT,       gpu::Format::R16_SINT,
+    gpu::Format::R16_SFLOAT,     gpu::Format::R16G16_UINT,
+    gpu::Format::R16G16_SINT,    gpu::Format::R16G16_SFLOAT,
+    gpu::Format::R32_UINT,       gpu::Format::R32_SINT,
+    gpu::Format::R32_SFLOAT};
+
+  static constexpr u32x2 TILE_TEXEL_COUNT = u32x2{32, 32};
+
+  auto texel_union = TexelBufferUnion::create(
+    sys, target_extent, 1, TILE_TEXEL_COUNT, FORMATS, label, scratch);
 
   auto alias_label = tag("Alias"_str);
   auto alias       = sys->dev_
@@ -906,7 +946,8 @@ void ScratchImages::uninit(gpu::Device device)
 }
 
 ScratchImages ScratchImages::create(GpuSys sys, u32 num_scratch,
-                                    u32x2 target_size, gpu::Format color_format,
+                                    u32x2       target_extent,
+                                    gpu::Format color_format,
                                     gpu::Format depth_stencil_format, Str label,
                                     Allocator allocator, Allocator scratch)
 {
@@ -916,7 +957,7 @@ ScratchImages ScratchImages::create(GpuSys sys, u32 num_scratch,
   {
     auto union_label = sformat(scratch, "{} / {}"_str, label, i).unwrap();
     auto union_image =
-      ImageUnion::create(sys, target_size, color_format, depth_stencil_format,
+      ImageUnion::create(sys, target_extent, color_format, depth_stencil_format,
                          union_label, scratch);
     images.push(union_image).unwrap();
   }
@@ -1367,7 +1408,7 @@ gpu::Swapchain create_surface_swapchain(
 
 void IGpuSys::uninit(Vec<u8> & cache)
 {
-  auto drain_semaphore = scheduler_->get_drain_semaphore(thread_id_);
+  auto drain_semaphore = scheduler_->get_drain_semaphore(thread_.v());
   CHECK(drain_semaphore->complete(0), "");
   CHECK(drain_semaphore->await(1ULL, nanoseconds::max()), "");
   dev_->await_idle().unwrap();
@@ -1601,7 +1642,7 @@ void create_default_textures(GpuSys sys)
 void IGpuSys::init(Allocator allocator, gpu::Device device,
                    Span<u8 const> pipeline_cache_data, gpu::Surface surface,
                    GpuSysPreferences const & preferences, Scheduler scheduler,
-                   ThreadId thread_id)
+                   Thread thread)
 {
   u8                scratch_buffer_[1_KB];
   FallbackAllocator scratch{scratch_buffer_, allocator_};
@@ -1694,7 +1735,7 @@ void IGpuSys::init(Allocator allocator, gpu::Device device,
 
   plans_       = std::move(plans);
   scheduler_   = scheduler;
-  thread_id_   = thread_id;
+  thread_      = thread;
   initialized_ = true;
 
   create_default_textures(this);
@@ -1848,18 +1889,34 @@ void IGpuSys::submit_frame()
   auto * frame = frames_[frame_ring_index_].get();
   auto * plan  = plans_[frame_ring_index_].get();
 
-  scheduler_->once(
-    [frame, plan] {
-      frame->await(nanoseconds::max());
-      frame->reset();
-      frame->begin();
-      frame->cmd(plan);
-      frame->end();
-      frame->submit();
+  scheduler_->loop(
+    [frame, plan, is_submitted = false] mutable {
+      // the scheduler executes the tasks in order of submission so we don't need to synchronize
+      // the plan schedules.
 
-      // [ ] complete????; will need to be in order
+      if (!is_submitted)
+      {
+        // wait on the frame to be available
+        if (!frame->await(nanoseconds::zero()))
+        {
+          return true;
+        }
+        // submit the frame
+        frame->reset();
+        frame->begin();
+        frame->cmd(plan);
+        frame->end();
+        frame->submit();
+        is_submitted = true;
+        return true;
+      }
+      else
+      {
+        // the frame was already submitted, try to complete it
+        return !frame->try_complete(nanoseconds::zero());
+      }
     },
-    Ready{}, thread_id_);
+    Ready{}, thread_.v());
 
   frame_ring_index_ = (frame_ring_index_ + 1) % buffering_;
 
@@ -1880,37 +1937,6 @@ void GpuSys::frame(gpu::Swapchain swapchain)
   auto & enc = encoder();
 
   queries_[ring_index()].begin_frame(*dev_, enc);
-
-  auto clear_color = [&](gpu::Image image) {
-    enc.clear_color_image(
-      image,
-      gpu::Color{
-    },
-      span({gpu::ImageSubresourceRange{.aspects = gpu::ImageAspects::Color,
-                                       .first_mip_level   = 0,
-                                       .num_mip_levels    = 1,
-                                       .first_array_layer = 0,
-                                       .num_array_layers  = 1}}));
-  };
-
-  auto clear_depth = [&](gpu::Image image) {
-    enc.clear_depth_stencil_image(
-      image,
-      gpu::DepthStencil{
-    },
-      span({gpu::ImageSubresourceRange{.aspects = gpu::ImageAspects::Depth |
-                                                  gpu::ImageAspects::Stencil,
-                                       .first_mip_level   = 0,
-                                       .num_mip_levels    = 1,
-                                       .first_array_layer = 0,
-                                       .num_array_layers  = 1}}));
-  };
-
-  clear_color(fb_.color.image);
-  fb_.color_msaa.match([&](auto & c) { clear_color(c.image); });
-  clear_depth(fb_.depth_stencil.image);
-
-  frame_graph_.execute(*this);
 
   if (swapchain != nullptr)
   {
