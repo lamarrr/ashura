@@ -781,6 +781,9 @@ struct ref
 template <typename T>
 ref(T &) -> ref<T>;
 
+template <typename T>
+using InitList = std::initializer_list<T>;
+
 /// @brief A slice is a pair of integers: `offset` and `span` that represent a range of elements in any container.
 /// .offset can range from 0-`S::MAX`, `S::MAX` means the end of the range.
 /// .span can range from 0-`S::MAX`, `S::MAX` means to the end of the range.
@@ -1406,7 +1409,7 @@ template <SpanContainer C>
 Span(C & container) -> Span<std::remove_pointer_t<decltype(data(container))>>;
 
 template <typename T>
-constexpr Span<T const> span(std::initializer_list<T> list)
+constexpr Span<T const> span(InitList<T> list)
 {
   return Span<T const>{list.begin(), list.size()};
 }
@@ -2508,6 +2511,12 @@ struct Inplace
 };
 
 inline constexpr Inplace inplace{};
+
+struct FromParts
+{
+};
+
+inline constexpr FromParts from_parts{};
 
 /// @brief Uninitialized storage
 template <usize Alignment, usize Capacity>

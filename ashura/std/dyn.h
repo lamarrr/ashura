@@ -9,7 +9,7 @@ namespace ash
 
 typedef Fn<void(Allocator)> DynUninit;
 
-/// @brief A dynamically allocated object. It is always valid. Dyn represents a resource using its handle.
+/// @brief A dynamically allocated object. It is always valid. Dyn represents a resource using the handle type `H`.
 template <typename H>
 requires (TriviallyCopyable<H>)
 struct [[nodiscard]] Dyn
