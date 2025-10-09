@@ -10,15 +10,21 @@ namespace ash
 
 struct SdfPipelineParams
 {
-  Framebuffer             framebuffer  = {};
-  Option<PipelineStencil> stencil      = none;
-  RectU                   scissor      = {};
-  gpu::Viewport           viewport     = {};
-  gpu::DescriptorSet      samplers     = nullptr;
-  gpu::DescriptorSet      textures     = nullptr;
-  GpuBufferSpan           world_to_ndc = {};
-  GpuBufferSpan           items        = {};
-  Slice32                 instances    = {};
+  struct State
+  {
+    Option<PipelineStencil> stencil;
+    RectU                   scissor;
+    gpu::Viewport           viewport;
+  };
+
+  Framebuffer        framebuffer;
+  gpu::DescriptorSet samplers;
+  gpu::DescriptorSet textures;
+  GpuBufferSpan      world_to_ndc;
+  GpuBufferSpan      items;
+  Span<State const>  states;
+  Span<u32 const>    state_runs;
+  PipelineVariantId  variant;
 };
 
 struct SdfPipeline final : IPipeline
@@ -51,8 +57,7 @@ struct SdfPipeline final : IPipeline
 
   PipelineVariantId get_variant_id(Str label);
 
-  void encode(gpu::CommandEncoder encoder, SdfPipelineParams const & params,
-              PipelineVariantId variant);
+  void encode(gpu::CommandEncoder encoder, SdfPipelineParams const & params);
 };
 
 }    // namespace ash

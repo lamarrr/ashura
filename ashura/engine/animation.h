@@ -502,6 +502,8 @@ struct AnimationState
   {
     CHECK(!timeline.is_empty(), "");
 
+    // [ ] first check current slot; if not in, binary search through the next ones
+
     /// add 1ns so result of modulo operation would be between 0ns and timeline-duration
     auto const timeline_end = timeline.duration() + 1ns;
 

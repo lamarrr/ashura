@@ -14,9 +14,9 @@ u32x3 ColorImage::extent() const
 
 void ColorImage::uninit(gpu::Device device)
 {
-  device->uninit(sampled_texture);
-  device->uninit(storage_texture);
-  device->uninit(input_attachment);
+  device->uninit(sampled_textures);
+  device->uninit(storage_textures);
+  device->uninit(input_attachments);
   device->uninit(view);
   device->uninit(image);
 }
@@ -44,9 +44,9 @@ u32x3 DepthStencilImage::extent() const
 
 void DepthStencilImage::uninit(gpu::Device device)
 {
-  device->uninit(depth_sampled_texture);
-  device->uninit(depth_storage_texture);
-  device->uninit(depth_input_attachment);
+  device->uninit(depth_sampled_textures);
+  device->uninit(depth_storage_textures);
+  device->uninit(depth_input_attachments);
   device->uninit(depth_view);
   device->uninit(stencil_view);
   device->uninit(image);
@@ -61,7 +61,7 @@ void Framebuffer::uninit(gpu::Device device)
 {
   color.uninit(device);
   color_msaa.match([&](auto & c) { c.uninit(device); });
-  depth_stencil.uninit(device);
+  depth_stencil.match([&](auto & s) { s.uninit(device); });
 }
 
 void GpuBuffer::uninit(gpu::Device device)
@@ -272,6 +272,32 @@ GpuDescriptorsLayout GpuDescriptorsLayout::create(gpu::Device device, Str label,
   })
       .unwrap();
 
+  auto uniform_texel_buffers_label = tag("Uniform Texel Buffers"_str);
+  auto uniform_texel_buffers =
+    device
+      ->create_descriptor_set_layout(gpu::DescriptorSetLayoutInfo{
+        .label    = uniform_texel_buffers_label,
+        .bindings = span({gpu::DescriptorBindingInfo{
+          .type               = gpu::DescriptorType::UniformTexelBuffer,
+          .count              = cfg.bindless_uniform_texel_buffers_capacity,
+          .is_variable_length = true}}
+          )
+  })
+      .unwrap();
+
+  auto storage_texel_buffers_label = tag("Storage Texel Buffers"_str);
+  auto storage_texel_buffers =
+    device
+      ->create_descriptor_set_layout(gpu::DescriptorSetLayoutInfo{
+        .label    = storage_texel_buffers_label,
+        .bindings = span({gpu::DescriptorBindingInfo{
+          .type               = gpu::DescriptorType::UniformTexelBuffer,
+          .count              = cfg.bindless_uniform_texel_buffers_capacity,
+          .is_variable_length = true}}
+          )
+  })
+      .unwrap();
+
   auto uniform_buffers_label = tag("Uniform Buffers"_str);
   auto uniform_buffers =
     device
@@ -325,12 +351,18 @@ GpuDescriptorsLayout GpuDescriptorsLayout::create(gpu::Device device, Str label,
       .unwrap();
 
   return GpuDescriptorsLayout{
-    .samplers                      = samplers,
-    .samplers_capacity             = cfg.bindless_samplers_capacity,
-    .sampled_textures              = sampled_textures,
-    .sampled_textures_capacity     = cfg.bindless_sampled_textures_capacity,
-    .storage_textures              = storage_textures,
-    .storage_textures_capacity     = cfg.bindless_storage_textures_capacity,
+    .samplers                  = samplers,
+    .samplers_capacity         = cfg.bindless_samplers_capacity,
+    .sampled_textures          = sampled_textures,
+    .sampled_textures_capacity = cfg.bindless_sampled_textures_capacity,
+    .storage_textures          = storage_textures,
+    .storage_textures_capacity = cfg.bindless_storage_textures_capacity,
+    .uniform_texel_buffers     = uniform_texel_buffers,
+    .uniform_texel_buffers_capacity =
+      cfg.bindless_uniform_texel_buffers_capacity,
+    .storage_texel_buffers = storage_texel_buffers,
+    .storage_texel_buffers_capacity =
+      cfg.bindless_storage_texel_buffers_capacity,
     .uniform_buffer                = uniform_buffer,
     .read_storage_buffer           = read_storage_buffer,
     .read_write_storage_buffer     = read_write_storage_buffer,
@@ -447,7 +479,7 @@ CpuBufferId IGpuFramePlan::push_cpu(Span<u8 const> data)
   CHECK(cpu_buffer_data_.size() <= U32_MAX, "");
   cpu_buffer_entries_.push(offset, size).unwrap();
   auto aligned_size =
-    align_offset<usize>(SIMD_ALIGNMENT, cpu_buffer_data_.size());
+    align_offset_up<usize>(SIMD_ALIGNMENT, cpu_buffer_data_.size());
   cpu_buffer_data_.resize_uninit(aligned_size).unwrap();
   return CpuBufferId{(u32) idx};
 }
@@ -461,8 +493,8 @@ GpuBufferId IGpuFramePlan::push_gpu(Span<u8 const> data)
   auto idx  = gpu_buffer_entries_.size();
   CHECK(gpu_buffer_data_.size() <= U32_MAX, "");
   gpu_buffer_entries_.push(offset, size).unwrap();
-  auto aligned_size =
-    align_offset<usize>(gpu::BUFFER_OFFSET_ALIGNMENT, gpu_buffer_data_.size());
+  auto aligned_size = align_offset_up<usize>(gpu::BUFFER_OFFSET_ALIGNMENT,
+                                             gpu_buffer_data_.size());
   gpu_buffer_data_.resize_uninit(aligned_size).unwrap();
 
   return GpuBufferId{(u32) idx};
@@ -516,14 +548,144 @@ bool IGpuFramePlan::await(nanoseconds timeout)
   return semaphore_->await(submission_stage_, timeout);
 }
 
+TexelBufferUnion::View TexelBufferUnion::interpret(gpu::Format format) const
+{
+  auto view = find(views.view(), format, [&](auto & view, auto format) {
+    return view.format == format;
+  });
+
+  CHECK(!view.is_empty(), "");
+
+  return view[0];
+}
+
+void TexelBufferUnion::uninit(gpu::Device device)
+{
+  for (auto & view : views)
+  {
+    device->uninit(view.uniform_texel_buffers);
+    device->uninit(view.storage_texel_buffers);
+    device->uninit(view.view);
+  }
+  device->uninit(buffer);
+}
+
+TexelBufferUnion TexelBufferUnion::create(GpuSys sys, u32x2 target_extent,
+                                          u32   sample_count,
+                                          u32x2 tile_texel_count,
+                                          Span<gpu::Format const> formats,
+                                          Str label, Allocator scratch)
+{
+  CHECK(!tile_texel_count.any_zero(), "");
+  CHECK(is_pow2(tile_texel_count.x()) && is_pow2(tile_texel_count.y()), "");
+  CHECK(sample_count == 1, "");
+
+  for (auto format : formats)
+  {
+    CHECK(!find(span(ALL_FORMATS), format).is_empty(), "");
+  }
+
+  auto tag = [&](Str component) {
+    return sformat(scratch, "{} / {}"_str, label, component).unwrap();
+  };
+
+  auto itag = [&](Str component, u32 i) {
+    return sformat(scratch, "{} / {} / {}"_str, label, component, i).unwrap();
+  };
+
+  auto buffer_tag = tag("Texel Buffer"_str);
+
+  auto tiled_size =
+    u32x2{align_offset_up(tile_texel_count.x(), target_extent.x()),
+          align_offset_up(tile_texel_count.y(), target_extent.y())};
+
+  auto tile_texel_count_log2 = log2(tile_texel_count);
+  auto tile_count            = tiled_size >> tile_texel_count_log2;
+
+  auto buffer = sys->dev_
+                  ->create_buffer(gpu::BufferInfo{
+                    .label       = buffer_tag,
+                    .size        = sizeof(f32x4) * tiled_size.product<u64>(),
+                    .usage       = TexelBufferUnion::USAGE,
+                    .memory_type = gpu::MemoryType::Aliased,
+                    .host_mapped = true})
+                  .unwrap();
+
+  decltype(TexelBufferUnion::views) views{};
+  views.resize_uninit(size32(formats)).unwrap();
+
+  for (auto [i, format, view] : zip(range(size32(formats)), formats, views))
+  {
+    auto buffer_view_tag = itag("View"_str, i);
+    auto buffer_view =
+      sys->dev_
+        ->create_buffer_view(gpu::BufferViewInfo{.label  = buffer_view_tag,
+                                                 .buffer = buffer,
+                                                 .format = format,
+                                                 .slice  = Slice64::all()})
+        .unwrap();
+
+    auto uniform_tag =
+      sformat(scratch, "{} / {}"_str, buffer_view_tag, "Uniform"_str).unwrap();
+
+    auto uniform_texel_buffers =
+      sys->dev_
+        ->create_descriptor_set(gpu::DescriptorSetInfo{
+          .label            = uniform_tag,
+          .layout           = sys->descriptors_layout().uniform_texel_buffers,
+          .variable_lengths = span({1U})})
+        .unwrap();
+
+    sys->dev_->update_descriptor_set(
+      gpu::DescriptorSetUpdate{.set           = uniform_texel_buffers,
+                               .binding       = 0,
+                               .first_element = 0,
+                               .images        = {},
+                               .texel_buffers = span({buffer_view}),
+                               .buffers       = {}});
+
+    auto storage_tag =
+      sformat(scratch, "{} / {}"_str, buffer_view_tag, "Storage"_str).unwrap();
+
+    auto storage_texel_buffers =
+      sys->dev_
+        ->create_descriptor_set(gpu::DescriptorSetInfo{
+          .label            = storage_tag,
+          .layout           = sys->descriptors_layout().storage_texel_buffers,
+          .variable_lengths = span({1U})})
+        .unwrap();
+
+    sys->dev_->update_descriptor_set(
+      gpu::DescriptorSetUpdate{.set           = storage_texel_buffers,
+                               .binding       = 0,
+                               .first_element = 0,
+                               .images        = {},
+                               .texel_buffers = span({buffer_view}),
+                               .buffers       = {}});
+
+    view = View{.view                  = buffer_view,
+                .format                = format,
+                .uniform_texel_buffers = uniform_texel_buffers,
+                .storage_texel_buffers = storage_texel_buffers};
+  }
+
+  return TexelBufferUnion{.buffer           = buffer,
+                          .tile_texel_count = tile_texel_count,
+                          .tile_count       = tile_count,
+                          .extent           = target_extent,
+                          .sample_count     = sample_count,
+                          .views            = views};
+}
+
 void ImageUnion::uninit(gpu::Device device)
 {
   color.uninit(device);
   depth_stencil.uninit(device);
+  texel.uninit(device);
   device->uninit(alias);
 }
 
-ImageUnion ImageUnion::create(GpuSys sys, u32x2 target_size,
+ImageUnion ImageUnion::create(GpuSys sys, u32x2 target_extent,
                               gpu::Format color_format,
                               gpu::Format depth_stencil_format, Str label,
                               Allocator scratch)
@@ -540,7 +702,7 @@ ImageUnion ImageUnion::create(GpuSys sys, u32x2 target_size,
                                    .format       = color_format,
                                    .usage        = ColorImage::USAGE,
                                    .aspects      = gpu::ImageAspects::Color,
-                                   .extent       = target_size.append(1),
+                                   .extent       = target_extent.append(1),
                                    .mip_levels   = 1,
                                    .array_layers = 1,
                                    .sample_count = gpu::SampleCount::C1,
@@ -619,13 +781,13 @@ ImageUnion ImageUnion::create(GpuSys sys, u32x2 target_size,
     .texel_buffers = {},
     .buffers       = {}});
 
-  auto color = ColorImage{.info             = color_info,
-                          .view_info        = color_view_info,
-                          .image            = color_image,
-                          .view             = color_image_view,
-                          .sampled_texture  = color_sampled_texture,
-                          .storage_texture  = color_storage_texture,
-                          .input_attachment = color_input_attachment};
+  auto color = ColorImage{.info              = color_info,
+                          .view_info         = color_view_info,
+                          .image             = color_image,
+                          .view              = color_image_view,
+                          .sampled_textures  = color_sampled_texture,
+                          .storage_textures  = color_storage_texture,
+                          .input_attachments = color_input_attachment};
 
   auto depth_stencil_label = tag("Depth Stencil Image"_str);
   auto depth_stencil_info  = gpu::ImageInfo{
@@ -634,7 +796,7 @@ ImageUnion ImageUnion::create(GpuSys sys, u32x2 target_size,
      .format       = depth_stencil_format,
      .usage        = DepthStencilImage::USAGE,
      .aspects      = gpu::ImageAspects::Depth | gpu::ImageAspects::Stencil,
-     .extent       = target_size.append(1),
+     .extent       = target_extent.append(1),
      .mip_levels   = 1,
      .array_layers = 1,
      .sample_count = gpu::SampleCount::C1,
@@ -731,26 +893,47 @@ ImageUnion ImageUnion::create(GpuSys sys, u32x2 target_size,
     .buffers       = {}});
 
   auto depth_stencil =
-    DepthStencilImage{.info                   = depth_stencil_info,
-                      .depth_view_info        = depth_view_info,
-                      .stencil_view_info      = stencil_view_info,
-                      .image                  = depth_stencil_image,
-                      .depth_view             = depth_image_view,
-                      .stencil_view           = stencil_image_view,
-                      .depth_sampled_texture  = depth_sampled_texture,
-                      .depth_storage_texture  = depth_storage_texture,
-                      .depth_input_attachment = depth_input_attachment};
+    DepthStencilImage{.info                    = depth_stencil_info,
+                      .depth_view_info         = depth_view_info,
+                      .stencil_view_info       = stencil_view_info,
+                      .image                   = depth_stencil_image,
+                      .depth_view              = depth_image_view,
+                      .stencil_view            = stencil_image_view,
+                      .depth_sampled_textures  = depth_sampled_texture,
+                      .depth_storage_textures  = depth_storage_texture,
+                      .depth_input_attachments = depth_input_attachment};
+
+  // only enable support for the 32-bit formats to minimize memory waste.
+  // enabling support for f32x4 formats for example would consume 4x the memory in the case
+  // where we only use RGBA8 formats, which is the most common case.
+  static constexpr gpu::Format FORMATS[] = {
+    gpu::Format::R8_UNORM,       gpu::Format::R8_SNORM,
+    gpu::Format::R8_UINT,        gpu::Format::R8_SINT,
+    gpu::Format::R8G8B8A8_UNORM, gpu::Format::R8G8B8A8_SNORM,
+    gpu::Format::R8G8B8A8_UINT,  gpu::Format::R8G8B8A8_SINT,
+    gpu::Format::R16_UINT,       gpu::Format::R16_SINT,
+    gpu::Format::R16_SFLOAT,     gpu::Format::R16G16_UINT,
+    gpu::Format::R16G16_SINT,    gpu::Format::R16G16_SFLOAT,
+    gpu::Format::R32_UINT,       gpu::Format::R32_SINT,
+    gpu::Format::R32_SFLOAT};
+
+  static constexpr u32x2 TILE_TEXEL_COUNT = u32x2{32, 32};
+
+  auto texel_union = TexelBufferUnion::create(
+    sys, target_extent, 1, TILE_TEXEL_COUNT, FORMATS, label, scratch);
 
   auto alias_label = tag("Alias"_str);
   auto alias       = sys->dev_
                  ->create_alias(gpu::AliasInfo{
                    .label     = alias_label,
                    .resources = span<Enum<gpu::Buffer, gpu::Image>>(
-                     {color_image, depth_stencil_image})})
+                     {color_image, depth_stencil_image, texel_union.buffer})})
                  .unwrap();
 
-  return ImageUnion{
-    .color = color, .depth_stencil = depth_stencil, .alias = alias};
+  return ImageUnion{.color         = color,
+                    .depth_stencil = depth_stencil,
+                    .texel         = texel_union,
+                    .alias         = alias};
 }
 
 void ScratchImages::uninit(gpu::Device device)
@@ -763,7 +946,8 @@ void ScratchImages::uninit(gpu::Device device)
 }
 
 ScratchImages ScratchImages::create(GpuSys sys, u32 num_scratch,
-                                    u32x2 target_size, gpu::Format color_format,
+                                    u32x2       target_extent,
+                                    gpu::Format color_format,
                                     gpu::Format depth_stencil_format, Str label,
                                     Allocator allocator, Allocator scratch)
 {
@@ -773,7 +957,7 @@ ScratchImages ScratchImages::create(GpuSys sys, u32 num_scratch,
   {
     auto union_label = sformat(scratch, "{} / {}"_str, label, i).unwrap();
     auto union_image =
-      ImageUnion::create(sys, target_size, color_format, depth_stencil_format,
+      ImageUnion::create(sys, target_extent, color_format, depth_stencil_format,
                          union_label, scratch);
     images.push(union_image).unwrap();
   }
@@ -919,13 +1103,6 @@ Span<ImageUnion const> IGpuFrame::get_scratch_images() const
   return resources_.scratch_images.images;
 }
 
-ImageUnion IGpuFrame::get_scratch_image(u32 index) const
-{
-  CHECK(state_ == GpuFrameState::Recording, "");
-  CHECK(index < resources_.scratch_images.images.size(), "");
-  return resources_.scratch_images.images[index];
-}
-
 Span<GpuBuffer const> IGpuFrame::get_scratch_buffers() const
 {
   CHECK(state_ == GpuFrameState::Recording, "");
@@ -956,17 +1133,17 @@ gpu::DescriptorSet IGpuFrame::get(TextureSet tex)
       switch (s.type)
       {
         case ash::ScratchTexureType::SampledColor:
-          return img.color.sampled_texture;
+          return img.color.sampled_textures;
         case ash::ScratchTexureType::StorageColor:
-          return img.color.storage_texture;
+          return img.color.storage_textures;
         case ash::ScratchTexureType::InputAttachmentColor:
-          return img.color.input_attachment;
+          return img.color.input_attachments;
         case ash::ScratchTexureType::SampledDepthStencil:
-          return img.depth_stencil.depth_sampled_texture;
+          return img.depth_stencil.depth_sampled_textures;
         case ash::ScratchTexureType::StorageDepthStencil:
-          return img.depth_stencil.depth_storage_texture;
+          return img.depth_stencil.depth_storage_textures;
         case ash::ScratchTexureType::InputAttachmentDepthStencil:
-          return img.depth_stencil.depth_input_attachment;
+          return img.depth_stencil.depth_input_attachments;
         default:
           ASH_UNREACHABLE;
       }
@@ -1231,7 +1408,7 @@ gpu::Swapchain create_surface_swapchain(
 
 void IGpuSys::uninit(Vec<u8> & cache)
 {
-  auto drain_semaphore = scheduler_->get_drain_semaphore(thread_id_);
+  auto drain_semaphore = scheduler_->get_drain_semaphore(thread_.v());
   CHECK(drain_semaphore->complete(0), "");
   CHECK(drain_semaphore->await(1ULL, nanoseconds::max()), "");
   dev_->await_idle().unwrap();
@@ -1465,7 +1642,7 @@ void create_default_textures(GpuSys sys)
 void IGpuSys::init(Allocator allocator, gpu::Device device,
                    Span<u8 const> pipeline_cache_data, gpu::Surface surface,
                    GpuSysPreferences const & preferences, Scheduler scheduler,
-                   ThreadId thread_id)
+                   Thread thread)
 {
   u8                scratch_buffer_[1_KB];
   FallbackAllocator scratch{scratch_buffer_, allocator_};
@@ -1558,7 +1735,7 @@ void IGpuSys::init(Allocator allocator, gpu::Device device,
 
   plans_       = std::move(plans);
   scheduler_   = scheduler;
-  thread_id_   = thread_id;
+  thread_      = thread;
   initialized_ = true;
 
   create_default_textures(this);
@@ -1712,18 +1889,34 @@ void IGpuSys::submit_frame()
   auto * frame = frames_[frame_ring_index_].get();
   auto * plan  = plans_[frame_ring_index_].get();
 
-  scheduler_->once(
-    [frame, plan] {
-      frame->await(nanoseconds::max());
-      frame->reset();
-      frame->begin();
-      frame->cmd(plan);
-      frame->end();
-      frame->submit();
+  scheduler_->loop(
+    [frame, plan, is_submitted = false] mutable {
+      // the scheduler executes the tasks in order of submission so we don't need to synchronize
+      // the plan schedules.
 
-      // [ ] complete????; will need to be in order
+      if (!is_submitted)
+      {
+        // wait on the frame to be available
+        if (!frame->await(nanoseconds::zero()))
+        {
+          return true;
+        }
+        // submit the frame
+        frame->reset();
+        frame->begin();
+        frame->cmd(plan);
+        frame->end();
+        frame->submit();
+        is_submitted = true;
+        return true;
+      }
+      else
+      {
+        // the frame was already submitted, try to complete it
+        return !frame->try_complete(nanoseconds::zero());
+      }
     },
-    Ready{}, thread_id_);
+    Ready{}, thread_.v());
 
   frame_ring_index_ = (frame_ring_index_ + 1) % buffering_;
 
@@ -1744,37 +1937,6 @@ void GpuSys::frame(gpu::Swapchain swapchain)
   auto & enc = encoder();
 
   queries_[ring_index()].begin_frame(*dev_, enc);
-
-  auto clear_color = [&](gpu::Image image) {
-    enc.clear_color_image(
-      image,
-      gpu::Color{
-    },
-      span({gpu::ImageSubresourceRange{.aspects = gpu::ImageAspects::Color,
-                                       .first_mip_level   = 0,
-                                       .num_mip_levels    = 1,
-                                       .first_array_layer = 0,
-                                       .num_array_layers  = 1}}));
-  };
-
-  auto clear_depth = [&](gpu::Image image) {
-    enc.clear_depth_stencil_image(
-      image,
-      gpu::DepthStencil{
-    },
-      span({gpu::ImageSubresourceRange{.aspects = gpu::ImageAspects::Depth |
-                                                  gpu::ImageAspects::Stencil,
-                                       .first_mip_level   = 0,
-                                       .num_mip_levels    = 1,
-                                       .first_array_layer = 0,
-                                       .num_array_layers  = 1}}));
-  };
-
-  clear_color(fb_.color.image);
-  fb_.color_msaa.match([&](auto & c) { clear_color(c.image); });
-  clear_depth(fb_.depth_stencil.image);
-
-  frame_graph_.execute(*this);
 
   if (swapchain != nullptr)
   {

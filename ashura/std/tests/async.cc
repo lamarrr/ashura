@@ -13,9 +13,11 @@ TEST(AsyncTest, Basic)
 
   RcSemaphore sem = semaphore({}).unwrap();
 
-  Dyn<Scheduler> sched =
-    IScheduler::create({}, std::this_thread::get_id(),
-                       span<nanoseconds>({1ns, 2ns}), span({2ns, 5ns}));
+  Dyn<Scheduler> sched = IScheduler::create(
+    SchedulerInfo{.allocator              = default_allocator,
+                  .dedicated_thread_sleep = span({1ns, 2ns}),
+                  .worker_thread_sleep    = span({2ns, 5ns}),
+                  .main_thread_id         = std::this_thread::get_id()});
 
   hook_scheduler(sched);
 
@@ -61,5 +63,6 @@ TEST(AsyncTest, Basic)
     },
     10);
 
-  std::this_thread::sleep_for(500ms);
+  sched->request_drain();
+  sched->await_drain(nanoseconds::max());
 }

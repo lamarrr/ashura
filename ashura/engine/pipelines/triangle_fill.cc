@@ -132,8 +132,7 @@ void TriangleFillPipeline::remove_variant(GpuFramePlan      plan,
 }
 
 void TriangleFillPipeline::encode(gpu::CommandEncoder                e,
-                                  TriangleFillPipelineParams const & params,
-                                  PipelineVariantId                  variant)
+                                  TriangleFillPipelineParams const & params)
 {
   InplaceVec<gpu::RenderingAttachment, 1> color;
 
@@ -160,15 +159,15 @@ void TriangleFillPipeline::encode(gpu::CommandEncoder                e,
         .unwrap();
     });
 
-  auto stencil = params.stencil.map([&](PipelineStencil const &) {
-    return gpu::RenderingAttachment{
-      .view         = params.framebuffer.depth_stencil.stencil_view,
-      .resolve      = nullptr,
-      .resolve_mode = gpu::ResolveModes::None,
-      .load_op      = gpu::LoadOp::Load,
-      .store_op     = gpu::StoreOp::None,
-      .clear        = {}};
-  });
+  auto stencil =
+    params.framebuffer.depth_stencil.map([&](DepthStencilImage const & img) {
+      return gpu::RenderingAttachment{.view         = img.stencil_view,
+                                      .resolve      = nullptr,
+                                      .resolve_mode = gpu::ResolveModes::None,
+                                      .load_op      = gpu::LoadOp::Load,
+                                      .store_op     = gpu::StoreOp::None,
+                                      .clear        = {}};
+    });
 
   auto info =
     gpu::RenderingInfo{.render_area{.extent = params.framebuffer.extent().xy()},
@@ -179,7 +178,7 @@ void TriangleFillPipeline::encode(gpu::CommandEncoder                e,
 
   e->begin_rendering(info);
 
-  auto pipeline = pipelines_[(usize) variant].v0.v1;
+  auto pipeline = pipelines_[(usize) params.variant].v0.v1;
 
   e->bind_graphics_pipeline(pipeline);
   e->bind_descriptor_sets(
@@ -197,21 +196,32 @@ void TriangleFillPipeline::encode(gpu::CommandEncoder                e,
       params.vertices.slice.as_u32().offset,        //
       params.indices.slice.as_u32().offset          //
     }));
-  e->set_graphics_state(gpu::GraphicsState{
-    .scissor             = params.scissor,
-    .viewport            = params.viewport,
-    .stencil_test_enable = params.stencil.is_some(),
-    .front_face_stencil =
-      params.stencil.map([](auto s) { return s.front; }).unwrap_or(),
-    .back_face_stencil =
-      params.stencil.map([](auto s) { return s.back; }).unwrap_or(),
-    .cull_mode = params.cull_mode});
 
-  u32 first_index = 0;
-  for (auto [i, index_count] : enumerate<u32>(params.index_counts))
+  CHECK(size32(params.states) > 0, "");
+  CHECK(size32(params.state_runs) == (size32(params.states) + 1), "");
+  CHECK(size32(params.index_runs) > 1, "");
+  auto num_states = size32(params.states);
+
+  for (u32 i = 0; i < num_states; i++)
   {
-    e->draw({first_index, index_count}, {i, 1});
-    first_index += index_count;
+    auto & state = params.states[i];
+    e->set_graphics_state(gpu::GraphicsState{
+      .scissor             = state.scissor,
+      .viewport            = state.viewport,
+      .stencil_test_enable = state.stencil.is_some(),
+      .front_face_stencil =
+        state.stencil.map([](auto s) { return s.front; }).unwrap_or(),
+      .back_face_stencil =
+        state.stencil.map([](auto s) { return s.back; }).unwrap_or(),
+      .cull_mode  = state.cull_mode,
+      .front_face = state.front_face});
+
+    for (auto i :
+         range(Slice32::range(params.state_runs[i], params.state_runs[i + 1])))
+    {
+      e->draw(Slice32::range(params.index_runs[i], params.index_runs[i + 1]),
+              {i, 1});
+    }
   }
 
   e->end_rendering();

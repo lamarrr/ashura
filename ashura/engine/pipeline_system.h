@@ -16,6 +16,7 @@ struct FillStencilPipeline;
 struct BezierStencilPipeline;
 struct BlurPipeline;
 struct PBRPipeline;
+struct VectorPathPipeline;
 
 struct IPipelineSys
 {
@@ -26,6 +27,7 @@ struct IPipelineSys
   BezierStencilPipeline * bezier_stencil_;
   BlurPipeline *          blur_;
   PBRPipeline *           pbr_;
+  VectorPathPipeline *    vector_path_;
   Vec<Dyn<Pipeline>>      all_;
 
   IPipelineSys() :
@@ -36,6 +38,7 @@ struct IPipelineSys
     bezier_stencil_{nullptr},
     blur_{nullptr},
     pbr_{nullptr},
+    vector_path_{nullptr},
     all_{}
   {
   }
@@ -63,6 +66,8 @@ struct IPipelineSys
   BlurPipeline & blur() const;
 
   PBRPipeline & pbr() const;
+
+  VectorPathPipeline & vector_path() const;
 
   void add_pipeline(Dyn<Pipeline> pipeline);
 

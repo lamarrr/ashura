@@ -70,6 +70,15 @@ constexpr IndexRange<I> range(I min, I max)
   return IndexRange<I>{.min_ = min, .max_ = max};
 }
 
+// [ ] make these more concrete
+// [ ] create view types of runs
+// [ ] prefix, suffix
+template <typename I>
+constexpr IndexRange<I> range(CoreSlice<I> slice)
+{
+  return IndexRange<I>{.min_ = slice.begin(), .max_ = slice.end()};
+}
+
 /// @param inc_ non-zero increment
 template <typename I>
 struct SkipIndexIter
@@ -831,6 +840,7 @@ constexpr T exclusive_scan(Span<I const> in, Span<O> out, T init = {},
   return init;
 }
 
+// [ ] add tests
 /// @details structured to break loop-dependence, we read from the indices arrays once
 template <typename Index, typename... T>
 struct RunIter

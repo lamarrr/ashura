@@ -48,7 +48,7 @@ Flex & Flex::item_frame(Frame f)
   return *this;
 }
 
-Flex & Flex::items(std::initializer_list<ref<View>> list)
+Flex & Flex::items(InitList<ref<View>> list)
 {
   return items(span(list));
 }

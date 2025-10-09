@@ -14,14 +14,14 @@ using ImageSrc = Enum<None, ImageId, Future<Result<ImageId, ImageLoadErr>>>;
 
 enum class ImageFit : u8
 {
-  /// @brief try to contain the image within the frame
+  /// @brief Try to contain the image within the frame
   /// without distorting it (preserving aspect ratio)
   Contain = 0,
 
-  /// @brief crop the image to fit within the frame
+  /// @brief Crop the image to fit within the frame
   Crop = 1,
 
-  /// @brief distort the image to fill the frame
+  /// @brief Distort the image to fill the frame
   Fit = 2
 };
 

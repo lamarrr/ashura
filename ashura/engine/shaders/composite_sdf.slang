@@ -200,7 +200,6 @@ StructuredBuffer<ITEM_TYPE> composites;
       return material.flood(frag, edge_signed_dist, edge_mask, samplers,
                             textures);
     }
-    break;
     case SdfShadeType::Softened:
     {
       f32 edge_mask = sdf::antialiased_mask(edge_signed_dist);
@@ -211,7 +210,6 @@ StructuredBuffer<ITEM_TYPE> composites;
                              soften_signed_dist, soften_alpha, samplers,
                              textures);
     }
-    break;
     case SdfShadeType::Feathered:
     {
       f32 edge_mask           = sdf::antialiased_mask(edge_signed_dist);
@@ -221,7 +219,6 @@ StructuredBuffer<ITEM_TYPE> composites;
                               feather_signed_dist, feather_alpha, samplers,
                               textures);
     }
-    break;
     case SdfShadeType::Stroked:
     {
       f32 edge_mask = sdf::antialiased_mask(edge_signed_dist);
@@ -231,7 +228,6 @@ StructuredBuffer<ITEM_TYPE> composites;
       return material.stroke(frag, edge_signed_dist, edge_mask,
                              ring_signed_dist, ring_mask, samplers, textures);
     }
-    break;
     default:
       return f32x4(0);
   }

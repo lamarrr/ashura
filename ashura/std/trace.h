@@ -9,7 +9,18 @@
 
 namespace ash
 {
+/// Functional Requirements
+///
+/// - Record function scopes and time entry points or additional scope-related meta-data
+/// - Record component values: strings, floats, integers, booleans, blobs, meta-data
+/// - Re-play scalar values in-memory for visualizers
+/// - Save traces to disk
+/// - Thread-safe, fast, 0-overhead
+/// - Configurable frame size, clear time-interval
+///
 
+// [ ] separate: attributes based with each being in a different data frame
+// [ ] string arena
 struct TraceRecord
 {
   Str label = {};

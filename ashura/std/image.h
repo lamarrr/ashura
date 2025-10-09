@@ -10,7 +10,7 @@ namespace ash
 
 constexpr u64 pixel_size_bytes(u32x2 extent, u32 bytes_per_pixel)
 {
-  return (u64) extent.x() * (u64) extent.y() * (u64) bytes_per_pixel;
+  return extent.product<u64>() * bytes_per_pixel;
 }
 
 /// @brief A dense, multi-channel, and row-major image span, format insensitive.
@@ -92,7 +92,7 @@ struct ImageLayerSpan
   constexpr ImageSpan<R, C> layer(u32 layer) const
   {
     u64 data_offset = (u64) layer * (u64) extent.x() * (u64) extent.y() * C;
-    u64 data_span   = (u64) extent.x() * (u64) extent.y() * C;
+    u64 data_span   = extent.product<u64>() * C;
     return ImageSpan<R, C>{.channels = channels.slice(data_offset, data_span),
                            .extent   = extent,
                            .stride   = extent.x()};

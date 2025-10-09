@@ -1,7 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/engine/text.h"
-#include "ashura/engine/canvas.h"
 #include "ashura/engine/font.h"
+#include "ashura/engine/font_system_impl.h"
 #include "ashura/engine/systems.h"
 #include "ashura/std/range.h"
 
@@ -427,61 +427,50 @@ constexpr HighlightSpan highlight_test(Span<Slice const> highlights,
   return s;
 }
 
-void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
-                        TextBlock const & block, TextBlockStyle const & style,
-                        Span<Slice const> highlights, Span<usize const> carets,
-                        CRect const & clip, AllocatorRef upstream) const
+void TextLayout::render(TextRenderer renderer, TextRenderInfo const & info,
+                        Allocator scratch) const
 {
-  // [ ] merge highlight rects
+  // [ ] merge highlight rects; highlight rect type with merging, next line, close?
   CHECK(laid_out, "");
-  CHECK((style.runs.is_empty() && block.runs.is_empty()) ||
-          ((style.runs.size() + 1) == block.runs.size()),
-        "");
-  CHECK(style.runs.size() == block.fonts.size(), "");
+  CHECK(info.style.runs.size() == info.block.fonts.size(), "");
 
-  auto const  block_width = max(extent.x(), style.align_width);
+  auto const  block_width = max(extent.x(), info.style.align_width);
   f32x2 const block_extent{block_width, extent.y()};
 
-  char scratch[512];
+  Vec<CaretPlacement> caret_placements{scratch};
 
-  FallbackAllocator allocator{Arena::from(scratch), upstream};
-
-  Vec<CaretPlacement> caret_placements{allocator};
-
-  for (auto caret : carets)
+  for (auto caret : info.carets)
   {
     caret_placements.push(get_caret_placement(caret)).unwrap();
   }
 
-  Vec<TextRenderInfo> infos{allocator};
-  Vec<TextLayer>      layers{allocator};
-  Vec<ShapeInfo>      shapes{allocator};
-
-  auto push = [&](ShapeInfo const & s, TextLayer l, TextRenderInfo const & i) {
-    shapes.push(s).unwrap();
-    layers.push(l).unwrap();
-    infos.push(i).unwrap();
-  };
+  Vec<TextPlacement::Block>         blocks{scratch};
+  Vec<TextPlacement::Line>          lines{scratch};
+  Vec<TextPlacement::Background>    backgrounds{scratch};
+  Vec<TextPlacement::GlyphShadow>   glyph_shadows{scratch};
+  Vec<TextPlacement::Glyph>         glyphs{scratch};
+  Vec<TextPlacement::Underline>     underlines{scratch};
+  Vec<TextPlacement::Strikethrough> strikethroughs{scratch};
+  Vec<TextPlacement::Highlight>     highlights{scratch};
+  Vec<TextPlacement::Caret>         carets{scratch};
 
   f32 ln_top = -(0.5F * block_extent.y());
 
-  push(
-    ShapeInfo{
-      .area{.center = info.area.center, .extent = block_extent},
-      .transform = info.transform * translate3d(f32x3::splat(0)),
-      .clip      = clip
-  },
-    TextLayer::Block, TextRenderInfo{});
+  blocks
+    .push(TextPlacement::Block{
+      .bbox{.center = {}, .extent = block_extent}
+  })
+    .unwrap();
 
-  for (auto [iln, ln] : enumerate(lines))
+  for (auto [iln, ln] : enumerate(this->lines))
   {
     auto const ln_bottom = ln_top + ln.metrics.height;
     auto const baseline =
       ln_bottom - (ln.metrics.leading() + ln.metrics.descent);
     auto const direction = ln.metrics.direction();
     // flip the alignment axis direction if it is an RTL line
-    auto const alignment =
-      style.alignment * ((direction == TextDirection::LeftToRight) ? 1 : -1);
+    auto const alignment = info.style.alignment *
+                           ((direction == TextDirection::LeftToRight) ? 1 : -1);
     f32x2 const ln_extent{ln.metrics.width, ln.metrics.height};
     f32x2 const ln_center{space_align(block_width, ln_extent.x(), alignment),
                           ln_top + 0.5F * ln_extent.y()};
@@ -491,73 +480,67 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
       .center = ln_center, .extent{ln.metrics.width, ln.metrics.height}
     };
 
-    if (!clip.overlaps(CRect{.center = info.area.center + ln_rect.center,
-                             .extent = ln_rect.extent}))
+    if (!info.clip.overlaps(
+          CRect{.center = info.center, .extent = ln_rect.extent}.transform(
+            transform3d_to_2d(info.transform) * translate2d(ln_rect.center))))
     {
       goto next_line;
     }
 
     {
-      if (!style.caret.is_none())
+      if (!info.style.caret.is_none())
       {
-        Vec2 center{cursor, ln_top + 0.5F * ln.metrics.height};
-        Vec2 extent{style.caret.thickness, ln.metrics.height};
+        f32x2 center{cursor, ln_top + 0.5F * ln.metrics.height};
+        f32x2 extent{info.style.caret.thickness, ln.metrics.height};
 
         for (auto const & p : caret_placements)
         {
           if (p.glyph.is_none() && p.line == iln)
           {
-            push(
-              {
-                .area{.center = info.area.center, .extent = extent},
-                .transform    = info.transform * translate3d(vec3(center, 0)),
-                .corner_radii = style.caret.corner_radii,
-                .tint         = style.caret.color,
-                .sampler      = info.sampler,
-                .edge_smoothness = info.edge_smoothness,
-                .clip            = clip
-            },
-              TextLayer::Caret,
-              {.line = iln, .column = 0, .caret = ln.carets.first()});
+            carets
+              .push(TextPlacement::Caret{
+                .bbox{.center = center, .extent = extent},
+                .line   = iln,
+                .column = 0, // [ ] fill
+                .caret  = ln.carets.first(),
+            })
+              .unwrap();
           }
         }
       }
 
-      auto ln_highlight_span = highlight_test(highlights, ln.carets);
+      auto ln_highlight_span = highlight_test(info.highlights, ln.carets);
 
       if (ln_highlight_span == HighlightSpan::Full)
       {
-        Vec2 extent{min(max(ln_rect.extent.x,
-                            block.font_scale * style.min_highlight_width),
-                        block_width),
-                    ln_rect.extent.y};
-        Vec2 center{space_align(block_width, extent.x, alignment), ln_center.y};
+        f32x2 extent{
+          min(max(ln_rect.extent.x(),
+                  info.block.font_scale * info.style.min_highlight_width),
+              block_width),
+          ln_rect.extent.y()};
+        f32x2 center{space_align(block_width, extent.x(), alignment),
+                     ln_center.y()};
 
-        push(
-          {
-            .area{.center = info.area.center, .extent = extent},
-            .transform    = info.transform * translate3d(vec3(center, 0)),
-            .corner_radii = style.highlight.corner_radii,
-            .stroke       = style.highlight.stroke,
-            .thickness    = Vec2::splat(style.highlight.thickness),
-            .tint         = style.highlight.color,
-            .clip         = clip
-        },
-          TextLayer::Highlight, {.line = iln});
+        highlights
+          .push(TextPlacement::Highlight{
+            .bbox{.center = center, .extent = extent},
+            .line = iln
+        })
+          .unwrap();
       }
 
       for (auto [i, run] : enumerate(runs.view().slice(ln.runs)))
       {
         auto const   irun        = ln.runs.offset + i;
-        auto const & font_style  = block.fonts[run.style];
-        auto const & run_style   = style.runs[run.style];
-        auto const   font        = sys->font.get(font_style.font);
-        auto const & atlas       = font.gpu_atlas.v();
-        auto const   font_height = block.font_scale * run.font_height;
+        auto const & font_style  = info.block.fonts[run.style];
+        auto const & run_style   = info.style.runs[run.style];
+        auto const   font        = sys.font->get(font_style.font);
+        auto const   font_height = info.block.font_scale * run.font_height;
         auto const   metrics     = run.metrics.resolve(font_height);
         auto const   run_width =
-          metrics.advance +
-          (run.is_spacing() ? 0 : (block.font_scale * font_style.word_spacing));
+          metrics.advance + (run.is_spacing() ? 0 :
+                                                (info.block.font_scale *
+                                                 font_style.word_spacing));
         auto const direction = run.direction();
 
         auto glyph_cursor = cursor;
@@ -568,92 +551,80 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
           f32x2 const center{cursor + extent.x() * 0.5F,
                              baseline - metrics.ascent + extent.y() * 0.5F};
 
-          push(
-            {
-              .area{.center = info.area.center, .extent = extent},
-              .transform    = info.transform * translate3d(vec3(center, 0)),
-              .corner_radii = run_style.corner_radii,
-              .tint         = run_style.background,
-              .clip         = clip
-          },
-            TextLayer::Background,
-            {.line = iln, .column = i, .run = irun, .run_style = run.style});
+          backgrounds
+            .push(TextPlacement::Background{
+              .bbox      = {.center = center, .extent = extent},
+              .line      = iln,
+              .column    = i,
+              .run       = irun,
+              .run_style = run.style
+          })
+            .unwrap();
         }
 
         HighlightSpan run_highlight_span = HighlightSpan::None;
 
         if (ln_highlight_span == HighlightSpan::Partial)
         {
-          run_highlight_span =
-            highlight_test(highlights, run.carets(ln.carets, ln.codepoints));
+          run_highlight_span = highlight_test(
+            info.highlights, run.carets(ln.carets, ln.codepoints));
 
           if (run_highlight_span == HighlightSpan::Full)
           {
             f32x2 const extent{run_width, metrics.height()};
             f32x2 const center = f32x2{cursor, ln_top} + 0.5F * extent;
 
-            push(
-              {
-                .area{.center = info.area.center, .extent = extent},
-                .transform    = info.transform * translate3d(vec3(center, 0)),
-                .corner_radii = style.highlight.corner_radii,
-                .stroke       = style.highlight.stroke,
-                .thickness    = Vec2::splat(style.highlight.thickness),
-                .tint         = style.highlight.color,
-                .clip         = clip
-            },
-              TextLayer::Highlight,
-              {.line = iln, .run = irun, .run_style = run.style});
+            highlights
+              .push(TextPlacement::Highlight{
+                .bbox{.center = center, .extent = extent},
+                .line = iln
+            })
+              .unwrap();
           }
         }
 
         if (run_style.strikethrough_thickness != 0)
         {
-          f32x2 const extent{run_width, block.font_scale *
+          f32x2 const extent{run_width, info.block.font_scale *
                                           run_style.strikethrough_thickness};
           f32x2 const center =
             f32x2{cursor, baseline - metrics.ascent * 0.5F} + extent * 0.5F;
 
-          push(
-            {
-              .area{.center = info.area.center, .extent = extent},
-              .transform       = info.transform * translate3d(vec3(center, 0)),
-              .tint            = run_style.strikethrough,
-              .sampler         = info.sampler,
-              .edge_smoothness = info.edge_smoothness,
-              .clip            = clip
-          },
-            TextLayer::Strikethrough,
-            {.line = iln, .column = i, .run = irun, .run_style = run.style});
+          strikethroughs
+            .push(TextPlacement::Strikethrough{
+              .bbox{.center = center, .extent = extent},
+              .line      = iln,
+              .column    = i,
+              .run       = irun,
+              .run_style = run.style
+          })
+            .unwrap();
         }
 
         if (run_style.underline_thickness != 0)
         {
-          f32x2 const extent{run_width,
-                             block.font_scale * run_style.underline_thickness};
+          f32x2 const extent{run_width, info.block.font_scale *
+                                          run_style.underline_thickness};
           f32x2 const center =
-            f32x2{cursor,
-                  baseline + block.font_scale * run_style.underline_offset} +
+            f32x2{cursor, baseline + info.block.font_scale *
+                                       run_style.underline_offset} +
             extent * 0.5F;
 
-          push(
-            {
-              .area{.center = info.area.center, .extent = extent},
-              .transform       = info.transform * translate3d(vec3(center, 0)),
-              .tint            = run_style.underline,
-              .sampler         = info.sampler,
-              .edge_smoothness = info.edge_smoothness,
-              .clip            = clip
-          },
-            TextLayer::Underline,
-            {.line = iln, .column = i, .run = irun, .run_style = run.style});
+          underlines
+            .push(TextPlacement::Underline{
+              .bbox{.center = center, .extent = extent},
+              .line      = iln,
+              .column    = i,
+              .run       = irun,
+              .run_style = run.style
+          })
+            .unwrap();
         }
 
-        for (auto [i, sh] : enumerate(glyphs.view().slice(run.glyphs)))
+        for (auto [i, sh] : enumerate(this->glyphs.view().slice(run.glyphs)))
         {
           auto const           iglyph = run.glyphs.offset + i;
           GlyphMetrics const & m      = font.glyphs[sh.glyph];
-          AtlasGlyph const &   agl    = atlas.glyphs[sh.glyph];
           f32x2 const          extent = au_to_px(m.extent, font_height);
           f32x2 const          center = f32x2{glyph_cursor, baseline} +
                                au_to_px(m.bearing, font_height) +
@@ -668,87 +639,68 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
           {
             f32x2 const shadow_extent = extent * run_style.shadow_scale;
             f32x2 const shadow_center =
-              center + block.font_scale * run_style.shadow_offset;
+              center + info.block.font_scale * run_style.shadow_offset;
 
-            push(
-              {
-                .area{.center = info.area.center, .extent = shadow_extent},
-                .transform =
-                  info.transform * translate3d(vec3(shadow_center, 0)),
-                .tint            = run_style.shadow,
-                .sampler         = info.sampler,
-                .texture         = atlas.textures[agl.layer],
-                .uv              = {agl.uv[0],                  agl.uv[1]              },
-                .edge_smoothness = info.edge_smoothness,
-                .clip            = clip
-            },
-              TextLayer::GlyphShadows,
-              {.line      = iln,
-               .column    = i,
-               .run       = irun,
-               .run_style = run.style,
-               .glyph     = iglyph,
-               .cluster   = sh.cluster});
+            glyph_shadows
+              .push(TextPlacement::GlyphShadow{
+                .bbox{shadow_center, shadow_extent},
+                .line      = iln,
+                .column    = i,
+                .run       = irun,
+                .run_style = run.style,
+                .glyph     = iglyph,
+                .cluster   = sh.cluster
+            })
+              .unwrap();
           }
 
           if (run_style.has_color())
           {
-            push(
-              {
-                .area{.center = info.area.center, .extent = extent},
-                .transform = info.transform * translate3d(vec3(center, 0)),
-                .tint      = agl.has_color ? colors::WHITE : run_style.color,
-                .sampler   = info.sampler,
-                .texture   = atlas.textures[agl.layer],
-                .uv        = {agl.uv[0],                  agl.uv[1]       },
-                .edge_smoothness = info.edge_smoothness,
-                .clip            = clip
-            },
-              TextLayer::Glyphs,
-              {.line      = iln,
-               .column    = i,
-               .run       = irun,
-               .run_style = run.style,
-               .glyph     = iglyph,
-               .cluster   = sh.cluster});
+            glyphs
+              .push(TextPlacement::Glyph{
+                .bbox{center, extent},
+                .line      = iln,
+                .column    = i,
+                .run       = irun,
+                .run_style = run.style,
+                .glyph     = iglyph,
+                .cluster   = sh.cluster
+            })
+              .unwrap();
           }
 
-          if (!style.caret.is_none())
+          if (!info.style.caret.is_none())
           {
             auto const glyph_left  = glyph_cursor;
             auto const glyph_right = glyph_cursor + advance;
 
-            for (auto const [c, p] : zip(carets, caret_placements))
+            for (auto const [c, p] : zip(info.carets, caret_placements))
             {
               if (p.glyph == iglyph)
               {
-                f32x2 extent{style.caret.thickness, ln.metrics.height};
+                f32x2 extent{info.style.caret.thickness, ln.metrics.height};
                 f32x2 center;
 
                 if ((direction == TextDirection::LeftToRight && p.after) ||
                     (direction == TextDirection::RightToLeft && !p.after))
                 {
-                  center.x = glyph_right;
+                  center.x() = glyph_right;
                 }
                 else
                 {
-                  center.x = glyph_left;
+                  center.x() = glyph_left;
                 }
 
-                center.y = ln_top + 0.5F * ln.metrics.height;
+                center.y() = ln_top + 0.5F * ln.metrics.height;
 
-                push(
-                  {
-                    .area{.center = info.area.center, .extent = extent},
-                    .transform = info.transform * translate3d(vec3(center, 0)),
-                    .corner_radii    = style.caret.corner_radii,
-                    .tint            = style.caret.color,
-                    .sampler         = info.sampler,
-                    .edge_smoothness = info.edge_smoothness,
-                    .clip            = clip
-                },
-                  TextLayer::Caret,
-                  {.line = iln, .column = c - ln.carets.first(), .caret = c});
+                carets
+                  .push(TextPlacement::Caret{
+                    .bbox{center, extent},
+                    .line   = iln,
+                    .column = c - ln.carets.first(),
+                    .caret  = c
+                })
+                  .unwrap();
               }
             }
           }
@@ -756,29 +708,19 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
           if (run_highlight_span == HighlightSpan::Partial)
           {
             auto glyph_highlight_span =
-              highlight_test(highlights, glyph_carets);
+              highlight_test(info.highlights, glyph_carets);
 
             if (glyph_highlight_span != HighlightSpan::None)
             {
               f32x2 const extent{advance, metrics.height()};
               f32x2 const center = f32x2{glyph_cursor, ln_top} + 0.5F * extent;
 
-              push(
-                {
-                  .area{.center = info.area.center, .extent = extent},
-                  .transform    = info.transform * translate3d(vec3(center, 0)),
-                  .corner_radii = style.highlight.corner_radii,
-                  .stroke       = style.highlight.stroke,
-                  .thickness    = Vec2::splat(style.highlight.thickness),
-                  .tint         = style.highlight.color,
-                  .clip         = clip
-              },
-                TextLayer::Highlight,
-                {.line      = iln,
-                 .run       = irun,
-                 .run_style = run.style,
-                 .glyph     = iglyph,
-                 .cluster   = sh.cluster});
+              highlights
+                .push(TextPlacement::Highlight{
+                  .bbox{.center = center, .extent = extent},
+                  .line = iln
+              })
+                .unwrap();
             }
           }
 
@@ -793,13 +735,17 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
     ln_top = ln_bottom;
   }
 
-  Vec<usize> sorted{allocator};
-  sorted.resize_uninit(layers.size()).unwrap();
-  iota(sorted, (usize) 0);
-  indirect_sort(sorted.view(),
-                [&](auto a, auto b) { return layers[a] < layers[b]; });
+  auto placement = TextPlacement{.blocks         = blocks,
+                                 .lines          = lines,
+                                 .backgrounds    = backgrounds,
+                                 .glyph_shadows  = glyph_shadows,
+                                 .glyphs         = glyphs,
+                                 .underlines     = underlines,
+                                 .strikethroughs = strikethroughs,
+                                 .highlights     = highlights,
+                                 .carets         = carets};
 
-  renderer(layers, shapes, infos, sorted);
+  renderer(info, placement);
 }
 
 }    // namespace ash

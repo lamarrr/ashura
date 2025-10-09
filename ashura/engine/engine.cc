@@ -8,7 +8,7 @@
 namespace ash
 {
 
-Result<EngineCfg> EngineCfg::parse(AllocatorRef allocator, Vec<u8> & json)
+Result<EngineCfg> EngineCfg::parse(Allocator allocator, Vec<u8> & json)
 {
   EngineCfg out{.shaders{allocator},
                 .fonts{allocator},
@@ -284,7 +284,7 @@ static void window_event_listener(Engine * engine, WindowEvent const & event)
     });
 }
 
-Dyn<Engine *> Engine::create(AllocatorRef allocator, Str config_path,
+Dyn<Engine *> Engine::create(Allocator allocator, Str config_path,
                              Str working_dir)
 {
   Dyn<Logger *> logger =
@@ -324,7 +324,7 @@ Dyn<Engine *> Engine::create(AllocatorRef allocator, Str config_path,
 
   GpuSystem gpu_sys = GpuSystem::create(
     allocator, *device, pipeline_cache, cfg.gpu.hdr, cfg.gpu.buffering,
-    cfg.gpu.msaa_level, Vec2U{cfg.window.width, cfg.window.height});
+    cfg.gpu.msaa_level, u32x2{cfg.window.width, cfg.window.height});
 
   ImageSystem image_sys{allocator};
 
@@ -344,7 +344,7 @@ Dyn<Engine *> Engine::create(AllocatorRef allocator, Str config_path,
   }
   else
   {
-    window_sys->set_extent(window, Vec2U{cfg.window.width, cfg.window.height});
+    window_sys->set_extent(window, u32x2{cfg.window.width, cfg.window.height});
   }
 
   if (cfg.window.full_screen)
@@ -542,115 +542,6 @@ void Engine::shutdown()
   trace("Engine Uninitialized"_str);
 }
 
-void Engine::recreate_swapchain_()
-{
-  gpu::SurfaceCapabilities capabilities =
-    device->get_surface_capabilities(surface).unwrap();
-  CHECK(has_bits(capabilities.image_usage, gpu::ImageUsage::TransferDst |
-                                             gpu::ImageUsage::ColorAttachment),
-        "");
-
-  Vec<gpu::SurfaceFormat> formats{allocator};
-  device->get_surface_formats(surface, formats).unwrap();
-
-  Vec<gpu::PresentMode> present_modes{allocator};
-  device->get_surface_present_modes(surface, present_modes).unwrap();
-
-  Vec2U surface_extent = window_sys->get_surface_extent(window);
-  surface_extent.x     = max(surface_extent.x, 1U);
-  surface_extent.y     = max(surface_extent.y, 1U);
-
-  gpu::ColorSpace preferred_color_spaces[] = {
-    gpu::ColorSpace::DCI_P3_NONLINEAR,
-    gpu::ColorSpace::DISPLAY_P3_NONLINEAR,
-    gpu::ColorSpace::DISPLAY_P3_LINEAR,
-    gpu::ColorSpace::ADOBERGB_LINEAR,
-    gpu::ColorSpace::ADOBERGB_NONLINEAR,
-    gpu::ColorSpace::SRGB_NONLINEAR,
-    gpu::ColorSpace::EXTENDED_SRGB_LINEAR,
-    gpu::ColorSpace::EXTENDED_SRGB_NONLINEAR,
-    gpu::ColorSpace::DOLBYVISION,
-    gpu::ColorSpace::HDR10_ST2084,
-    gpu::ColorSpace::HDR10_HLG,
-    gpu::ColorSpace::BT709_LINEAR,
-    gpu::ColorSpace::BT709_NONLINEAR,
-    gpu::ColorSpace::BT2020_LINEAR,
-    gpu::ColorSpace::PASS_THROUGH};
-
-  gpu::PresentMode preferred_present_modes[] = {
-    present_mode_preference, gpu::PresentMode::Immediate,
-    gpu::PresentMode::Mailbox, gpu::PresentMode::Fifo,
-    gpu::PresentMode::FifoRelaxed};
-
-  bool               found_format = false;
-  gpu::SurfaceFormat format;
-
-  for (gpu::ColorSpace cp : preferred_color_spaces)
-  {
-    Span sel = find_if(formats.view(), [&](gpu::SurfaceFormat a) {
-      return a.color_space == cp;
-    });
-    if (!sel.is_empty())
-    {
-      found_format = true;
-      format       = sel[0];
-      break;
-    }
-  }
-
-  CHECK(found_format, "");
-
-  gpu::PresentMode present_mode       = gpu::PresentMode::Immediate;
-  bool             found_present_mode = false;
-
-  for (gpu::PresentMode pm : preferred_present_modes)
-  {
-    if (!find(present_modes.view(), pm).is_empty())
-    {
-      found_present_mode = true;
-      present_mode       = pm;
-      break;
-    }
-  }
-
-  CHECK(found_present_mode, "");
-
-  gpu::CompositeAlpha alpha             = gpu::CompositeAlpha::None;
-  gpu::CompositeAlpha alpha_spec        = gpu::CompositeAlpha::Opaque;
-  gpu::CompositeAlpha preferred_alpha[] = {alpha_spec,
-                                           gpu::CompositeAlpha::Opaque,
-                                           gpu::CompositeAlpha::Inherit,
-                                           gpu::CompositeAlpha::Inherit,
-                                           gpu::CompositeAlpha::PreMultiplied,
-                                           gpu::CompositeAlpha::PostMultiplied};
-  for (gpu::CompositeAlpha a : preferred_alpha)
-  {
-    if (has_bits(capabilities.composite_alpha, a))
-    {
-      alpha = a;
-      break;
-    }
-  }
-
-  gpu::SwapchainInfo info{.label  = "Window Swapchain"_str,
-                          .format = format,
-                          .usage  = gpu::ImageUsage::TransferDst |
-                                   gpu::ImageUsage::ColorAttachment,
-                          .preferred_buffering = gpu_sys.buffering_,
-                          .present_mode        = present_mode,
-                          .preferred_extent    = surface_extent,
-                          .composite_alpha     = alpha};
-
-  if (swapchain == nullptr)
-  {
-    swapchain = device->create_swapchain(surface, info).unwrap();
-  }
-  else
-  {
-    device->invalidate_swapchain(swapchain, info).unwrap();
-  }
-}
-
 time_point Engine::get_inputs_(time_point prev_frame_end)
 {
   ScopeTrace poll_trace{
@@ -672,7 +563,7 @@ time_point Engine::get_inputs_(time_point prev_frame_end)
   auto [mouse_btns, mouse_pos, mouse_window] = window_sys->get_mouse_state();
   input_state.mouse.focused                  = (mouse_window == window);
   input_state.mouse.position =
-    mouse_pos - 0.5F * as_vec2(input_state.window.extent);
+    mouse_pos - 0.5F * static_cast<f32x2>(input_state.window.extent);
   input_state.mouse.states = mouse_btns;
 
   auto [kb_mods, kb_window] = window_sys->get_keyboard_state(
@@ -700,6 +591,8 @@ void Engine::run(ui::View & view, Fn<void(ui::Ctx const &)> loop)
 
   window_sys->set_cursor(cursor);
 
+  auto spread = f32x2::splat(4.5);
+
   while (running)
   {
     ScopeTrace frame_trace{{"frame"_str}};
@@ -714,34 +607,56 @@ void Engine::run(ui::View & view, Fn<void(ui::Ctx const &)> loop)
     ScopeTrace record_trace{{"frame.record"_str}};
 
     canvas.begin_recording(
+      1 + GpuSystem::NUM_SCRATCH_COLOR_TEXTURES,
+      1 + GpuSystem::NUM_SCRATCH_DEPTH_TEXTURES,
       gpu::Viewport{
         .offset{0, 0},
-        .extent    = as_vec2(input_state.window.surface_extent),
+        .extent    = static_cast<f32x2>(input_state.window.surface_extent),
         .min_depth = 0,
         .max_depth = 1
     },
-      as_vec2(input_state.window.extent), input_state.window.surface_extent);
+      static_cast<f32x2>(input_state.window.extent),
+      input_state.window.surface_extent);
 
     running = ui_sys.tick(input_state, view, canvas, loop);
 
     {
-      // [ ] squircle for blur shape
-      // [ ] masks for blur shape
-      canvas.squircle(ShapeInfo{
+      /* canvas.squircle(ShapeInfo{
         .area{{0, 0}, {200, 200}},
-        .corner_radii = Vec4::splat(5),
+        .corner_radii = f32x4::splat(5),
         .tint         = ColorGradient{ios::DARK_GREEN}
-      });
+      });*/
 
-      // [ ] blur should not use alpha
-      // [ ] clear the blur scratch buffer!
-      // [ ] sample rect needs tol span the blur radius, it is currently not doing that and leading to artefacts across the edges
-      // [ ] the rect (unrounded) blur's rectangle coordinates are incorrects and are below the expected position
-      canvas.blur(
-        CRect{
-          .extent{400, 400}
-      },
-        Vec2::splat(2), Vec4::splat(100));
+      /*      if (input_state.mouse.down(MouseButton::A1))
+      {
+        spread = spread + 1;
+      }
+      else if (input_state.mouse.down(MouseButton::A2))
+      {
+        spread = spread - 1;
+      }*/
+
+      // [ ] always-on borderless windows
+      // [ ] ** add grain effect with uv shift; additive blend of the noise with the region: https://www.shadertoy.com/view/DdcfzH
+      canvas.blur({
+        .area{.center = input_state.mouse.position.unwrap_or(),
+              .extent{875, 450}},
+        .transform    = translate3d(vec3(f32x2::splat(200), 0.0F)),
+        .corner_radii = f32x4::splat(25),
+        .thickness    = spread,
+        .tint         = f32x4::splat(0.75F)
+      });
+      // [ ] fix feathering
+      canvas.rrect({
+        .area{.center = input_state.mouse.position.unwrap_or(),
+              .extent{875, 450}},
+        .transform    = translate3d(f32x2::splat(200).append(0.0F)).to_mat(),
+        .corner_radii = f32x4::splat(100),
+        .stroke       = 0.0F,
+        .thickness    = f32x2::splat(5.F),
+        .tint         = mdc::GRAY_500,
+        .feathering   = 15
+      });
     }
 
     auto current_cursor = ui_sys.cursor;

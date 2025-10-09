@@ -266,7 +266,6 @@ struct BindLocation
 };
 
 /// @brief An allocated block of memory that can be aliased by multiple resources.
-
 struct IAlias
 {
   AliasId       id             = AliasId::Undefined;
@@ -355,12 +354,12 @@ struct IDescriptorSetLayout
 
   u32 num_variable_length = 0;
 
-  bool is_mutating = false;
+  bool is_readonly = false;
 };
 
-using SyncResources =
-  Enum<None, SmallVec<Buffer, 4, 0>, SmallVec<BufferView, 4, 0>,
-       SmallVec<ImageView, 4, 0>>;
+using SyncResources = Enum<None, SmallVec<Option<IBuffer &>, 4, 0>,
+                           SmallVec<Option<IBufferView &>, 4, 0>,
+                           SmallVec<Option<IImageView &>, 4, 0>>;
 
 struct DescriptorBinding
 {
@@ -381,7 +380,7 @@ struct IDescriptorSet
 
   DescriptorSetId id = DescriptorSetId::Undefined;
 
-  bool is_mutating = false;
+  bool is_readonly = false;
 
   SmallVec<DescriptorBinding, 1, 0> bindings = {};
 
@@ -981,7 +980,7 @@ struct DeviceResourceStates
                 >
     descriptor_sets_;
 
-  ReadWriteLock lock_;
+  ReadWriteLock<IFutex> lock_;
 
   DeviceResourceStates(Allocator allocator) :
     alias_{allocator},
@@ -1199,18 +1198,20 @@ struct ICommandEncoder final : gpu::ICommandEncoder
   ICommandEncoder & operator=(ICommandEncoder &&)      = delete;
   ~ICommandEncoder()                                   = default;
 
-  template <typename Cmd>
-  Cmd * push(Cmd const & cmd)
+  template <typename CmdImpl>
+  CmdImpl * push(CmdImpl const & cmd)
   {
-    Cmd * p_cmd;
+    CmdImpl * p_cmd;
     if (!arena_.nalloc(1, p_cmd))
     {
       return nullptr;
     }
 
-    new (p_cmd) Cmd{cmd};
+    new (p_cmd) CmdImpl{cmd};
 
-    tracker_.command(p_cmd);
+    tracker_.command((cmd::Cmd *) p_cmd);
+
+    return p_cmd;
   }
 
   virtual void begin() override;

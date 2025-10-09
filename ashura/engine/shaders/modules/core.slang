@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "types.slang"
+#include "modules/types.slang"
 
 f32 pow2(f32 x)
 {
@@ -322,3 +322,30 @@ BezierRegions bezier_region(f32x2 texture_coord)
 }
 
 }    // namespace bary
+
+// [ ] use multi-sampling sample count as part of the tiling computation
+u32 tiled_flat_offset(u32x2 offset, u32x2 tile_extent_log2, u32x2 tile_extent,
+                      u32x2 num_tiles)
+{
+  u32x2 tile             = offset >> tile_extent_log2;
+  u32x2 tile_offset      = offset & (tile_extent - 1);
+  u32   flat_tile        = tile.y * num_tiles.x + tile.x;
+  u32   flat_tile_offset = tile_offset.y * tile_extent.y + tile_offset.x;
+  u32   flat_offset =
+    tile_extent.x * tile_extent.y * flat_tile + flat_tile_offset;
+  return flat_offset;
+}
+
+f32x3 refract(f32x3 v, f32x3 n, f32 r)
+{
+  f32 dot = dot(v, n);
+  f32 d   = 1.0F - r * r * (1.0F - dot * dot);
+
+  if (d >= 0.0F)
+  {
+    d = sqrt(d);
+    return r * v - (r * dot + d) * n;
+  }
+
+  return f32x3(0);
+}

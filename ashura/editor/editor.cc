@@ -43,7 +43,6 @@ int main()
   ui::Radio      radio;
   ui::ScalarBox  scalar;
   ui::Space      space;
-  ui::ScrollView scroll{space};
   ui::Combo      combo;
   ui::Image      img;
   ui::Image      img2;
@@ -61,7 +60,7 @@ int main()
 
   // [ ] drag box cursor
 
-  btn.text(U"doc_text_search ADD TO PLAYLIST"_str)
+  btn.text(U"doc_text_search camera_viewfinder ADD TO PLAYLIST"_str)
     .run({.color = colors::WHITE}, {.font        = RobotoMono,
                                     .height      = ui::theme.body_font_height,
                                     .line_height = 1})
@@ -70,20 +69,25 @@ int main()
           .height      = ui::theme.body_font_height,
           .line_height = 1},
          0, 15)
-    .padding({5, 5})
+    .run({.color = colors::WHITE},
+         {.font        = CupertinoIcons,
+          .height      = ui::theme.body_font_height,
+          .line_height = 1},
+         16, 17)
+    .padding(ui::Padding::all(5))
     .rrect(ui::CornerRadii::all(15));
 
-  img.source(sys->image.get("birdie"_str).v().id)
-    .frame({200, 200})
+  img.source(sys->image.get("goku"_str).v().id)
+    .frame(ui::Frame{}.abs(500, 500))
     .corner_radii(ui::CornerRadii::all(25));
   img2.source(sys->image.get("mountains"_str).v().id)
-    .frame({400, 400})
+    .frame(ui::Frame{}.abs(400, 400))
     .corner_radii(ui::CornerRadii::all(400));
   img3.source(sys->image.get("bankside"_str).v().id)
-    .frame({400, 400})
+    .frame(ui::Frame{}.abs(400, 400))
     .corner_radii(ui::CornerRadii::all(25));
   img4.source(sys->image.get("sunset"_str).v().id)
-    .frame({400, 400})
+    .frame(ui::Frame{}.abs(400, 400))
     .corner_radii(ui::CornerRadii::all(25));
 
   scalar.format("Distance: {.2}m"_str);
@@ -92,7 +96,7 @@ int main()
 
   flex
     .items({stack, text, input, btn, check_box, slider, switch_box, radio,
-            scalar, space, scroll, combo, img, img2, img3, img4, focus_view})
+            scalar, space, combo, img, img2, img3, img4, focus_view})
     .axis(Axis::X)
     .cross_align(0)
     .main_align(ui::MainAlign::SpaceBetween);
@@ -104,7 +108,7 @@ int main()
   ui::ProgressBar progress;
 
   list.generator(
-    [](AllocatorRef allocator, usize i) -> Option<Dyn<ui::View *>> {
+    [](Allocator allocator, usize i) -> Option<Dyn<ui::View *>> {
       if (i >= 20)
       {
         return none;
@@ -117,12 +121,16 @@ int main()
 
   auto animation = StaggeredAnimation<f32>::make(4, 8, RippleStagger{});
 
-  animation.timelines().v0.frame(100, 1'920, 800ms, easing::out());
+  animation.timelines().v0.frame(500, 1'920, 150ms, easing::out());
 
   auto loop = [&](ui::Ctx const & ctx) {
     animation.tick(ctx.timedelta);
-    flex.frame({animation.animate(0).v0, 500});
+    flex.frame(ui::Frame{}.abs({animation.animate(0).v0, 500}));
   };
 
-  engine->run(flex, &loop);
+  ui::ScrollView scroll{flex};
+
+  scroll.view_frame(ui::Frame{}.abs(1'920, 1'080));
+
+  engine->run(scroll, &loop);
 }

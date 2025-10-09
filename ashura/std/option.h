@@ -510,6 +510,10 @@ struct [[nodiscard]] Option<T &>
   {
   }
 
+  constexpr Option(FromParts, T * repr) : repr_{repr}
+  {
+  }
+
   template <typename... Args>
   explicit constexpr Option(V<0>, T & some) : repr_{&some}
   {
@@ -517,6 +521,11 @@ struct [[nodiscard]] Option<T &>
 
   constexpr Option(None) : repr_{nullptr}
   {
+  }
+
+  static constexpr Option from_ptr(T * ptr)
+  {
+    return Option{from_parts, ptr};
   }
 
   constexpr Option & operator=(T & other)
@@ -660,6 +669,11 @@ struct [[nodiscard]] Option<T &>
   constexpr T & operator*() const
   {
     return v();
+  }
+
+  constexpr T * ptr() const
+  {
+    return repr_;
   }
 };
 

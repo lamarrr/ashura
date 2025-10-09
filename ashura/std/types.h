@@ -442,6 +442,8 @@ constexpr Max   max;
 constexpr Swap  swap;
 constexpr Clamp clamp;
 
+// [ ] default eq, neq, lt, gt, leq overridable
+
 constexpr u8 sat_add(u8 a, u8 b)
 {
   return ((a + b) < a) ? U8_MAX : (a + b);
@@ -780,6 +782,9 @@ struct ref
 
 template <typename T>
 ref(T &) -> ref<T>;
+
+template <typename T>
+using InitList = std::initializer_list<T>;
 
 /// @brief A slice is a pair of integers: `offset` and `span` that represent a range of elements in any container.
 /// .offset can range from 0-`S::MAX`, `S::MAX` means the end of the range.
@@ -1187,6 +1192,8 @@ template <usize Alignment, typename T>
     return static_cast<T *>(__builtin_assume_aligned(ptr, Alignment));
   }
 }
+
+// [ ] should slice types be span only?
 template <typename T>
 struct [[nodiscard]] Span
 {
@@ -1406,7 +1413,7 @@ template <SpanContainer C>
 Span(C & container) -> Span<std::remove_pointer_t<decltype(data(container))>>;
 
 template <typename T>
-constexpr Span<T const> span(std::initializer_list<T> list)
+constexpr Span<T const> span(InitList<T> list)
 {
   return Span<T const>{list.begin(), list.size()};
 }
@@ -2508,6 +2515,12 @@ struct Inplace
 };
 
 inline constexpr Inplace inplace{};
+
+struct FromParts
+{
+};
+
+inline constexpr FromParts from_parts{};
 
 /// @brief Uninitialized storage
 template <usize Alignment, usize Capacity>

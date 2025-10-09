@@ -116,7 +116,7 @@ struct TaskAllocator
   /// arenas.
   struct alignas(CACHELINE_ALIGNMENT)
   {
-    SpinLock        lock{};
+    IFutex          lock{};
     List<TaskArena> list{};
 
     TaskArena * pop()
@@ -134,7 +134,7 @@ struct TaskAllocator
   /// allocate a new arena and make it the current arena.
   struct alignas(CACHELINE_ALIGNMENT)
   {
-    SpinLock    lock{};
+    IFutex      lock{};
     TaskArena * node = nullptr;
 
   } current_arena{};
@@ -292,7 +292,7 @@ struct TaskAllocator
 /// @brief FIFO task queue backed by a linked list
 struct TaskQueue
 {
-  SpinLock      lock{};
+  ISpinLock     lock{};
   List<Task>    tasks{};
   TaskAllocator allocator;
 
@@ -376,6 +376,8 @@ struct alignas(CACHELINE_ALIGNMENT) TaskThread
 /// @param current_arena current arena being allocated from
 struct ASH_DLL_EXPORT SchedulerImpl final : IScheduler
 {
+  Allocator allocator_;
+
   Vec<Dyn<TaskThread *>> dedicated_threads_;
 
   Vec<Dyn<TaskThread *>> worker_threads_;
@@ -389,6 +391,7 @@ struct ASH_DLL_EXPORT SchedulerImpl final : IScheduler
   std::thread::id main_thread_id_;
 
   explicit SchedulerImpl(Allocator allocator, std::thread::id main_thread_id) :
+    allocator_{allocator},
     dedicated_threads_{allocator},
     worker_threads_{allocator},
     main_queue_{allocator},
@@ -582,40 +585,18 @@ struct ASH_DLL_EXPORT SchedulerImpl final : IScheduler
     return size32(worker_threads_);
   }
 
-  virtual void schedule(TaskInfo const & info, ThreadId thread) override
+  virtual void schedule(TaskInfo const & info, Thread thread) override
   {
-    switch (thread)
-    {
-      case ThreadId::Main:
-      case ThreadId::AnyWorker:
-        break;
-
-      case ThreadId::Undefined:
-        CHECK(false, "Cannot schedule to undefined thread id");
-        break;
-
-      default:
-        CHECK((u32) thread < num_dedicated(), "Invalid thread id");
-        break;
-    }
-
-    switch (thread)
-    {
-      case ThreadId::Main:
-        main_queue_.push_task(info);
-        break;
-
-      case ThreadId::AnyWorker:
+    thread.match(
+      [&](WorkerThread t) {
+        CHECK(t == WorkerThread::Any, "Invalid worker thread id");
         worker_queue_.push_task(info);
-        break;
-
-      case ThreadId::Undefined:
-        break;
-
-      default:
-        dedicated_threads_[(u32) thread]->queue.push_task(info);
-        break;
-    }
+      },
+      [&](DedicatedThread t) {
+        CHECK((u32) t < num_dedicated(), "Invalid dedicated thread id");
+        dedicated_threads_[(u32) t]->queue.push_task(info);
+      },
+      [&](MainThread) { main_queue_.push_task(info); });
   }
 
   virtual void run_main_loop(nanoseconds duration,
@@ -624,7 +605,58 @@ struct ASH_DLL_EXPORT SchedulerImpl final : IScheduler
     main_thread_loop(main_queue_.allocator, main_queue_, duration, poll_max);
   }
 
-  virtual Semaphore get_drain_semaphore(ThreadId thread) override;
+  virtual void request_drain() override
+  {
+    for (auto & t : dedicated_threads_)
+    {
+      (void) t->drain_semaphore.complete(0);
+    }
+    for (auto & t : worker_threads_)
+    {
+      (void) t->drain_semaphore.complete(0);
+    }
+  }
+
+  virtual bool await_drain(nanoseconds timeout) override
+  {
+    u8                buffer_[512];
+    FallbackAllocator scratch{buffer_, allocator_};
+    Vec<Semaphore>    semaphores{scratch};
+    Vec<u64>          stages{scratch};
+
+    semaphores.reserve(dedicated_threads_.size() + worker_threads_.size())
+      .unwrap();
+    stages.reserve(dedicated_threads_.size() + worker_threads_.size()).unwrap();
+
+    for (auto & t : dedicated_threads_)
+    {
+      semaphores.push(&t->drain_semaphore).unwrap();
+      stages.push(1ULL).unwrap();
+    }
+
+    for (auto & t : worker_threads_)
+    {
+      semaphores.push(&t->drain_semaphore).unwrap();
+      stages.push(1ULL).unwrap();
+    }
+
+    return await_semaphores(semaphores, stages, timeout);
+  }
+
+  virtual Semaphore get_drain_semaphore(Thread thread) override
+  {
+    return thread.match(
+      [&](WorkerThread) -> Semaphore {
+        CHECK(false, "Worker threads do not have individual drain semaphores");
+      },
+      [&](DedicatedThread t) -> Semaphore {
+        CHECK((u32) t < num_dedicated(), "Invalid dedicated thread id");
+        return &dedicated_threads_[(u32) t]->drain_semaphore;
+      },
+      [&](MainThread) -> Semaphore {
+        CHECK(false, "Main thread does not have a drain semaphore");
+      });
+  }
 };
 
 Dyn<Scheduler> IScheduler::create(SchedulerInfo const & info)

@@ -96,26 +96,11 @@ struct TriangleSetItem<MaterialType : TriangleSetMaterial>
   MaterialType material;
 };
 
-typedef TriangleSetItem<TriangleSetTextureMaterial> TriangleSetGradientItem;
+typedef TriangleSetItem<TriangleSetGradientMaterial> TriangleSetGradientItem;
 
-struct TriangleVertex
+struct Vertex2D
 {
-  f32 x;
-  f32 y;
-  f32 r;
-  f32 g;
-  f32 b;
-  f32 a;
-
-  f32x2 pos()
-  {
-    return f32x2(x, y);
-  }
-
-  f32x4 color()
-  {
-    return f32x4(r, g, b, a);
-  }
+  f32x2 pos;
 };
 
 struct PbrItem<MaterialType : PbrMaterial>
@@ -131,29 +116,39 @@ struct PbrItem<MaterialType : PbrMaterial>
 
 typedef PbrItem<PbrCoreMaterial> CorePbrItem;
 
-struct PathVertex
+struct VectorPathVertex
 {
   f32x2 position;
   f32   alpha_mask;
-  u32   paint_id;
+  u32   fill_id;
 };
 
-struct PathCoverageItem
+struct VectorPathCoverageItem
 {
   f32x4x4 world_transform;
 };
 
-struct PathPaintItem
+struct VectorPathFillItem
 {
   f32x4x4              world_transform;
-  u32                  paint_id;
+  f32x4x4              uv_transform;
+  u32                  fill_id;
   f32                  feather_min;
   f32                  feather_max;
   QuadGradientMaterial material;
 };
 
+struct VectorPathCfg
+{
+  u32x2 tile_count;
+  u32x2 tile_texel_count;
+  u32x2 tile_extent_log2;
+  u32   sample_count;
+  u32   sample_count_log2;
+};
+
 struct BezierStencilItem
 {
   f32x4x4 world_transform;
-  u32     first_bezier_vertex;
+  u32     first_bezier_index;
 };

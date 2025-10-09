@@ -1,7 +1,7 @@
 {
   "$schema": "./config.schema.json",
   "version": "0.0.1",
-  "gpu.validation": false,
+  "gpu.validation": true,
   "gpu.vsync": true,
   "gpu.preferences": [
     "dgpu",
@@ -23,7 +23,7 @@
   "window.height": 1080,
   "shaders": {
     "Blur": "assets/shaders/blur.slang.spv",
-    "Ngon": "assets/shaders/ngon.slang.spv",
+    "TriangleFill": "assets/shaders/triangle_fill.slang.spv",
     "PBR": "assets/shaders/pbr.slang.spv",
     "RRect": "assets/shaders/rrect.slang.spv",
     "Squircle": "assets/shaders/squircle.slang.spv"

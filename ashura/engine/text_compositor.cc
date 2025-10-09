@@ -330,13 +330,13 @@ static inline Option<isize> translate_caret(TextLayout const & layout,
 
 void TextCompositor::command(RenderText & rendered, TextCommand cmd,
                              Str32 keyboard_input, ClipBoard & clipboard,
-                             usize lines_per_page, usize tab_width, Vec2 center,
-                             f32 aligned_width, Vec2 pos,
-                             Mat4 const & transform,
-                             AllocatorRef scratch_allocator)
+                             usize lines_per_page, usize tab_width,
+                             f32x2 center, f32 aligned_width, f32x2 pos,
+                             f32x4x4 const & transform,
+                             Allocator       scratch_allocator)
 {
   u8                tmp[512];
-  FallbackAllocator tmp_allocator{Arena::from(tmp), scratch_allocator};
+  FallbackAllocator tmp_allocator{tmp, scratch_allocator};
 
   auto & layout = rendered.get_layout();
   auto & text   = rendered.text_;
@@ -424,7 +424,7 @@ void TextCompositor::command(RenderText & rendered, TextCommand cmd,
       {
         if (auto carets = cursor_.selection(); !carets.is_empty())
         {
-          // [ ] process replace correctly
+          // [ ] process replace correctly; whilst accounting for line-breaking
           // [ ] hit span starts with the last hit, sometimes not ideal
           auto selection = layout.get_caret_selection(carets);
           push_record(TextEditRecordType::Replace, selection.offset,

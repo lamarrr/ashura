@@ -3,7 +3,6 @@
 
 #include "ashura/engine/canvas.h"
 #include "ashura/engine/input.h"
-#include "ashura/engine/renderer.h"
 #include "ashura/std/math.h"
 #include "ashura/std/range.h"
 #include "ashura/std/types.h"
@@ -649,6 +648,7 @@ struct Theme
   void * user_data        = nullptr;
 };
 
+// [ ] better theming
 extern Theme theme;
 
 struct Layout
@@ -697,6 +697,10 @@ struct LayerStack
 };
 
 inline constexpr LayerStack LAYERS;
+
+// [ ] hook object; register, unregister, etc.
+// [ ] always attached to the views
+// using HookObject = Dyn<Fn<void()>>;
 
 // [ ] Message-oriented architecture, fn-state hook for message querying + message queue? or just hashmap. state hook can modify0
 // [ ] fn-style and state hooks for renderers?

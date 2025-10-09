@@ -172,30 +172,10 @@ constexpr f32 invsqrt(f32 x)
 
 /// @brief Calculate log base 2 of an unsigned integer. Undefined behaviour if
 /// value is 0
-constexpr u32 ulog2(u8 value)
+template <Unsigned T>
+constexpr T log2(T value)
 {
-  return 7 - std::countl_zero(value);
-}
-
-/// @brief Calculate log base 2 of an unsigned integer. Undefined behaviour if
-/// value is 0
-constexpr u32 ulog2(u16 value)
-{
-  return 15 - std::countl_zero(value);
-}
-
-/// @brief Calculate log base 2 of an unsigned integer. Undefined behaviour if
-/// value is 0
-constexpr u32 ulog2(u32 value)
-{
-  return 31 - std::countl_zero(value);
-}
-
-/// @brief Calculate log base 2 of an unsigned integer. Undefined behaviour if
-/// value is 0
-constexpr u32 ulog2(u64 value)
-{
-  return 63 - std::countl_zero(value);
+  return (sizeof(T) * 8 - 1) - std::countl_zero(value);
 }
 
 constexpr u32 mip(u32 a, u32 level)
@@ -205,7 +185,7 @@ constexpr u32 mip(u32 a, u32 level)
 
 constexpr auto mips(Unsigned auto a)
 {
-  return (a == 0) ? 0 : ulog2(a);
+  return (a == 0) ? 0 : log2(a);
 }
 
 /// @brief Linearly interpolate between points `low` and `high` given
@@ -962,6 +942,118 @@ struct vec
     return *this;
   }
 
+  constexpr vec operator>>(vec b) const requires (Unsigned<T>)
+  {
+    vec c;
+#pragma unroll
+    for (usize i = 0; i < N; i++)
+    {
+      c.v[i] = v[i] >> b.v[i];
+    }
+    return c;
+  }
+
+  constexpr vec & operator>>=(vec b) requires (Unsigned<T>)
+  {
+    *this = *this >> b;
+    return *this;
+  }
+
+  constexpr vec operator>>(Type b) const requires (Unsigned<T>)
+  {
+    return *this >> splat(b);
+  }
+
+  constexpr vec & operator>>=(Type b) requires (Unsigned<T>)
+  {
+    *this = *this >> b;
+    return *this;
+  }
+
+  constexpr vec operator<<(vec b) const requires (Unsigned<T>)
+  {
+    vec c;
+#pragma unroll
+    for (usize i = 0; i < N; i++)
+    {
+      c.v[i] = v[i] << b.v[i];
+    }
+    return c;
+  }
+
+  constexpr vec & operator<<=(vec b) requires (Unsigned<T>)
+  {
+    *this = *this << b;
+    return *this;
+  }
+
+  constexpr vec operator<<(Type b) const requires (Unsigned<T>)
+  {
+    return *this << splat(b);
+  }
+
+  constexpr vec & operator<<=(Type b) requires (Unsigned<T>)
+  {
+    *this = *this << b;
+    return *this;
+  }
+
+  constexpr vec operator&(vec b) const requires (Unsigned<T>)
+  {
+    vec c;
+#pragma unroll
+    for (usize i = 0; i < N; i++)
+    {
+      c.v[i] = v[i] & b.v[i];
+    }
+    return c;
+  }
+
+  constexpr vec & operator&=(vec b) requires (Unsigned<T>)
+  {
+    *this = *this & b;
+    return *this;
+  }
+
+  constexpr vec operator&(Type b) const requires (Unsigned<T>)
+  {
+    return *this & splat(b);
+  }
+
+  constexpr vec & operator&=(Type b) requires (Unsigned<T>)
+  {
+    *this = *this & b;
+    return *this;
+  }
+
+  constexpr vec operator|(vec b) const requires (Unsigned<T>)
+  {
+    vec c;
+#pragma unroll
+    for (usize i = 0; i < N; i++)
+    {
+      c.v[i] = v[i] | b.v[i];
+    }
+    return c;
+  }
+
+  constexpr vec & operator|=(vec b) requires (Unsigned<T>)
+  {
+    *this = *this | b;
+    return *this;
+  }
+
+  constexpr vec operator|(Type b) const requires (Unsigned<T>)
+  {
+    return *this | splat(b);
+  }
+
+  constexpr vec & operator|=(Type b) requires (Unsigned<T>)
+  {
+    *this = *this | b;
+    return *this;
+  }
+
   constexpr vec sat_add(vec b) const requires (Integral<T>)
   {
     vec c;
@@ -1010,28 +1102,6 @@ struct vec
     return sat_mul(splat(b));
   }
 
-  constexpr vec operator|(vec b) const requires (Unsigned<T>)
-  {
-    vec c;
-#pragma unroll
-    for (usize i = 0; i < N; i++)
-    {
-      c.v[i] = v[i] | b.v[i];
-    }
-    return c;
-  }
-
-  constexpr vec operator&(vec b) const requires (Unsigned<T>)
-  {
-    vec c;
-#pragma unroll
-    for (usize i = 0; i < N; i++)
-    {
-      c.v[i] = v[i] & b.v[i];
-    }
-    return c;
-  }
-
   constexpr Type sum() const
   {
     Type sum = 0;
@@ -1043,6 +1113,18 @@ struct vec
     return sum;
   }
 
+  template <typename U>
+  constexpr U sum() const
+  {
+    U sum = 0;
+#pragma unroll
+    for (usize i = 0; i < N; i++)
+    {
+      sum += static_cast<U>(v[i]);
+    }
+    return sum;
+  }
+
   constexpr Type product() const
   {
     Type product = 1;
@@ -1050,6 +1132,18 @@ struct vec
     for (usize i = 0; i < N; i++)
     {
       product *= v[i];
+    }
+    return product;
+  }
+
+  template <typename U>
+  constexpr U product() const
+  {
+    U product = 1;
+#pragma unroll
+    for (usize i = 0; i < N; i++)
+    {
+      product *= static_cast<U>(v[i]);
     }
     return product;
   }
@@ -1120,6 +1214,11 @@ struct vec
       return {y() * b.z() - z() * b.y(), z() * b.x() - x() * b.z(),
               x() * b.y() - y() * b.x()};
     }
+  }
+
+  constexpr f32 scalar_cross(vec b) const requires (Signed<T> && N == 2)
+  {
+    return x() * b.y() - y() * b.x();
   }
 
   constexpr Type length() const requires (FloatingPoint<T>)
@@ -1985,6 +2084,19 @@ using affinef32x4 = math::affine<f32, 4>;
 
 using affinef64x3 = math::affine<f64, 3>;
 using affinef64x4 = math::affine<f64, 4>;
+
+template <Unsigned T, usize N>
+constexpr math::vec<T, N> log2(math::vec<T, N> x)
+{
+  math::vec<T, N> result;
+
+#pragma unroll
+  for (usize i = 0; i < N; i++)
+  {
+    result[i] = ash::log2(x.v[i]);
+  }
+  return result;
+}
 
 constexpr f32x4 norm(u8x4 color)
 {
@@ -2954,7 +3066,6 @@ constexpr affinef32x3 translate_scale_inv2d(affinef32x3 const & t)
   };
 }
 
-// [ ] implement for shader?
 inline f32x3 refract(f32x3 v, f32x3 n, f32 r)
 {
   f32 dot = v.dot(n);
@@ -2967,6 +3078,30 @@ inline f32x3 refract(f32x3 v, f32x3 n, f32 r)
   }
 
   return f32x3::splat(0);
+}
+
+constexpr f32 triangle_signed_area(f32x2 a, f32x2 b, f32x2 c)
+{
+  return (b - a).scalar_cross(c - a);
+}
+
+constexpr Tuple<u32x2, u32x2> tiled_offset(u32x2 offset, u32x2 tile_extent_log2,
+                                           u32x2 tile_extent)
+{
+  auto tile        = offset >> tile_extent_log2;
+  auto tile_offset = offset & (tile_extent - 1);
+  return {tile, tile_offset};
+}
+
+constexpr u64 tiled_flat_offset(u32x2 offset, u32x2 tile_extent_log2,
+                                u32x2 tile_extent, u32x2 num_tiles)
+{
+  auto [tile, tile_offset] =
+    tiled_offset(offset, tile_extent_log2, tile_extent);
+  auto flat_tile        = tile.y() * num_tiles.x() + tile.x();
+  auto flat_tile_offset = tile_offset.y() * tile_extent.y() + tile_offset.x();
+  auto flat_offset = tile_extent.product<u64>() * flat_tile + flat_tile_offset;
+  return flat_offset;
 }
 
 }    // namespace ash

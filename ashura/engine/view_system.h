@@ -6,8 +6,8 @@
 
 namespace ash
 {
-namespace ui
-{
+
+// [ ] do we need dynamic insertion/removal of views?
 
 struct RootView : ui::View
 {
@@ -52,12 +52,8 @@ struct RootView : ui::View
     return 0;
   }
 
-  constexpr virtual void render(Canvas                 canvas,
-                                ui::RenderInfo const & info) override
+  constexpr virtual void render(Canvas, ui::RenderInfo const &) override
   {
-    // [ ] Body
-    canvas->rect(ShapeInfo{
-      .area = info.canvas_region, .tint = mdc::GRAY_900, .clip = info.clip});
   }
 
   constexpr virtual Cursor cursor(f32x2, f32x2) override

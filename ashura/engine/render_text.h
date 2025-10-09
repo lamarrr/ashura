@@ -1,10 +1,8 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 
-#include "ashura/engine/canvas.h"
 #include "ashura/engine/text.h"
-#include "ashura/std/error.h"
-#include "ashura/std/text.h"
+#include "ashura/std/math.h"
 #include "ashura/std/types.h"
 
 namespace ash
@@ -18,10 +16,10 @@ namespace ash
 /// @param runs  Run-End encoded sequences of the runs
 struct RenderText
 {
-  static constexpr hash64 HASH_CLEAN = U64_MAX;
-  static constexpr hash64 HASH_DIRTY = 0;
+  static constexpr usize HASH_CLEAN = USIZE_MAX;
+  static constexpr usize HASH_DIRTY = 0;
 
-  hash64             hash_;
+  usize              hash_;
   bool               wrap_;
   bool               use_kerning_   : 1;
   bool               use_ligatures_ : 1;
@@ -29,7 +27,7 @@ struct RenderText
   f32                alignment_;
   f32                font_scale_;
   Vec<c32>           text_;
-  Vec<usize>         runs_;
+  Vec<usize>         run_indices_;
   Vec<TextStyle>     styles_;
   Vec<FontStyle>     fonts_;
   Str                language_;
@@ -48,7 +46,7 @@ struct RenderText
     alignment_{ALIGNMENT_LEFT},
     font_scale_{1},
     text_{allocator},
-    runs_{allocator},
+    run_indices_{allocator},
     styles_{allocator},
     fonts_{allocator},
     language_{},

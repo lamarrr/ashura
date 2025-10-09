@@ -111,7 +111,7 @@ struct AtlasGlyph
   bool16 has_color = false;
   u16    layer     = 0;
   RectU  area      = {};
-  f32x2  uv[2]     = {};
+  CRect  uv        = {};
 };
 
 struct CpuFontAtlas
@@ -172,6 +172,8 @@ struct FontInfo
   Option<CpuFontAtlas const &> cpu_atlas         = none;
   Option<GpuFontAtlas const &> gpu_atlas         = none;
 };
+
+// [ ] font variations?; the user would resolve them; how to represent variations? same metrics or different ones?
 
 typedef struct IFont * Font;
 

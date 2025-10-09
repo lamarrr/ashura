@@ -1262,6 +1262,11 @@ struct [[nodiscard]] InplaceVec
   {
   }
 
+  constexpr InplaceVec(InitList<T> list) : InplaceVec{}
+  {
+    extend(span(list)).unwrap();
+  }
+
   constexpr InplaceVec(InplaceVec const & other) : size_{other.size()}
   {
     obj::copy_construct(other.view(), data());
@@ -1962,6 +1967,7 @@ template <typename R, usize MinBitCapacity = 64>
 using SmallBitVec = CoreBitVec<SmallVec<R, atom_size_for<R>(MinBitCapacity)>>;
 
 // [ ] separate timestamp log type? modifiable, sync-able, updatable across servers
+// [ ] Make this interface more egonormic
 
 /// @brief Sparse Vector (a.k.a Sparse Set) are used for stable ID-tagging of
 /// objects in high-perf scenarious i.e. ECS, where a stable identity is needed

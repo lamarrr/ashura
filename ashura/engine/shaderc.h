@@ -1,6 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 
+#include "ashura/engine/errors.h"
 #include "ashura/std/log.h"
 #include "ashura/std/types.h"
 #include "ashura/std/vec.h"
@@ -14,17 +15,6 @@ enum class ShaderType : u32
   Vertex   = 1,
   Fragment = 2,
   Mesh     = 3
-};
-
-enum class ShaderLoadErr : u32
-{
-  OutOfMemory           = 0,
-  InvalidPath           = 1,
-  IOErr                 = 2,
-  CompileFailed         = 3,
-  LinkFailed            = 4,
-  SpirvConversionFailed = 5,
-  InitErr               = 6
 };
 
 struct ShaderCompileInfo
@@ -44,6 +34,6 @@ struct ShaderCompileInfo
 
 Result<Void, ShaderLoadErr> compile_shader(ShaderCompileInfo const & info,
                                            Vec<u32> &                spirv,
-                                           Allocator              allocator);
+                                           Allocator                 allocator);
 
 }    // namespace ash

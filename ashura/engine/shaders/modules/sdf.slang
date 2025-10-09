@@ -3,7 +3,7 @@
 #pragma once
 
 #include "core.slang"
-#include "types.slang"
+#include "modules/types.slang"
 
 namespace sdf
 {

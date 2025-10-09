@@ -95,4 +95,39 @@ inline constexpr SpanHash     span_hash;
 inline constexpr BitHash      bit_hash;
 inline constexpr IdentityHash identity_hash;
 
+inline constexpr auto hash(Integral auto i)
+{
+  return identity_hash(i);
+}
+
+inline constexpr auto hash(FloatingPoint auto f)
+{
+  return identity_hash(f);
+}
+
+template <typename T>
+inline constexpr auto hash(T const & obj) -> decltype(obj.hash())
+{
+  return obj.hash();
+}
+
+template <typename T>
+concept Hashable = requires (T const & obj) {
+  { static_cast<usize>(hash(obj)) };
+};
+
+struct DefaultHasher
+{
+  template <Hashable T>
+  inline constexpr auto operator()(T const & obj)
+  {
+    return hash(obj);
+  }
+};
+
+template <typename Hasher, typename T>
+concept HashableWith = requires (T const & obj, Hasher const & hasher) {
+  { static_cast<usize>(hasher(obj)) };
+};
+
 }    // namespace ash
