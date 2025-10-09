@@ -71,7 +71,7 @@ struct List : View
 
   Allocator allocator_;
 
-  List(Generator    generator = DEFAULT_GENERATOR,
+  List(Generator generator = DEFAULT_GENERATOR,
        Allocator allocator = default_allocator);
 
   List & generator(Generator generator);

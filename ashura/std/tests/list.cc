@@ -8,7 +8,7 @@ TEST(ListTest, Insertion)
 {
   using namespace ash;
   u8    storage[512];
-  Arena arena = Arena::from(storage);
+  Arena arena{storage};
 
   struct Node
   {
@@ -19,8 +19,8 @@ TEST(ListTest, Insertion)
   List<Node> l;
   Node *     x;
   Node *     y;
-  CHECK(arena.nalloc(1, x),"");
-  CHECK(arena.nalloc(1, y),"");
+  CHECK(arena.nalloc(1, x), "");
+  CHECK(arena.nalloc(1, y), "");
 
   EXPECT_EQ(l.head(), nullptr);
   l.push_front(x);

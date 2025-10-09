@@ -1,5 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/engine/canvas.h"
+#include "ashura/engine/font_system_impl.h"
 #include "ashura/engine/pipeline_system.h"
 #include "ashura/engine/pipelines/blur.h"
 #include "ashura/engine/pipelines/sdf.h"
@@ -672,7 +673,8 @@ RectU ICanvas::clip_to_scissor(CRect const & clip) const
 TextRenderer ICanvas::default_text_renderer()
 {
   return TextRenderer{
-    this, [](Canvas c, TextPlacementInfo const & text) { c->text(text); }};
+    this, [](Canvas c, TextRenderInfo const & render,
+             TextPlacement const & placement) { c->text(render, placement); }};
 }
 
 void ICanvas::begin(gpu::Viewport const & viewport, f32x2 extent,
@@ -721,6 +723,8 @@ void ICanvas::begin(gpu::Viewport const & viewport, f32x2 extent,
   image_slots_.view().set_bit(color_);
 
   state_ = CanvasState::Recording;
+
+  clear_color(color_, gpu::Color{});
 }
 
 void ICanvas::end()
@@ -862,33 +866,50 @@ constexpr f32x4x4 unit_object_to_world(f32x4x4 const & transform,
          scale3d(area.extent.append(1));
 }
 
-#define ENCODER_NEW(EncType)                                             \
-  auto enc =                                                             \
-    dyn<EncType##Encoder>(inplace, encoder_arena_, encoder_arena_, item) \
-      .unwrap();                                                         \
-  encoders_.push(cast<CanvasEncoder>(std::move(enc))).unwrap();
-
-#define ENCODER_PUSH(EncType)                                       \
-  if (encoders_.is_empty() ||                                       \
-      encoders_.last()->type() != CanvasEncoderType::EncType ||     \
-      !((EncType##Encoder *) (encoders_.last().get()))->push(item)) \
-  {                                                                 \
-    ENCODER_NEW(EncType)                                            \
-  }
-
 void ICanvas::encode_(SdfEncoder::Item const & item)
 {
-  // ENCODER_PUSH(Sdf);
+  if (encoders_.is_empty() ||
+      encoders_.last()->type() != CanvasEncoderType::Sdf ||
+      !((SdfEncoder *) (encoders_.last().get()))->push(item))
+  {
+    auto attachments =
+      SdfEncoder::Attachments{.color = color_, .depth_stencil = depth_stencil_};
+    auto enc = dyn<SdfEncoder>(inplace, encoder_arena_, encoder_arena_,
+                               attachments, item)
+                 .unwrap();
+    encoders_.push(cast<CanvasEncoder>(std::move(enc))).unwrap();
+  }
 }
 
 void ICanvas::encode_(TriangleFillEncoder::Item const & item)
 {
-  // ENCODER_PUSH(TriangleFill);
+  if (encoders_.is_empty() ||
+      encoders_.last()->type() != CanvasEncoderType::TriangleFill ||
+      !((TriangleFillEncoder *) (encoders_.last().get()))->push(item))
+    [[unlikely]]
+  {
+    auto attachments = TriangleFillEncoder::Attachments{
+      .color = color_, .depth_stencil = depth_stencil_};
+    auto enc = dyn<TriangleFillEncoder>(inplace, encoder_arena_, encoder_arena_,
+                                        attachments, item)
+                 .unwrap();
+    encoders_.push(cast<CanvasEncoder>(std::move(enc))).unwrap();
+  }
 }
 
 void ICanvas::encode_(QuadEncoder::Item const & item)
 {
-  // ENCODER_PUSH(Quad);
+  if (encoders_.is_empty() ||
+      encoders_.last()->type() != CanvasEncoderType::Quad ||
+      !((QuadEncoder *) (encoders_.last().get()))->push(item)) [[unlikely]]
+  {
+    auto attachments = QuadEncoder::Attachments{
+      .color = color_, .depth_stencil = depth_stencil_};
+    auto enc = dyn<QuadEncoder>(inplace, encoder_arena_, encoder_arena_,
+                                attachments, item)
+                 .unwrap();
+    encoders_.push(cast<CanvasEncoder>(std::move(enc))).unwrap();
+  }
 }
 
 void ICanvas::render_(TextureSet const & texture_set, Shape const & shape,
@@ -1601,8 +1622,6 @@ void ICanvas::render_paths_bezier_stencil_(Span<PathInfo const> paths,
   });
 }
 
-// [ ] color image needs to be cleared when just beginning rendering
-
 void ICanvas::render_paths_vector_feathering_(Span<PathInfo const> paths,
                                               bool                 has_overlaps)
 {
@@ -1820,7 +1839,8 @@ void ICanvas::render_paths_vector_feathering_(Span<PathInfo const> paths,
                                         .world_transform = path.world_transform,
                                         .vertices        = path_vertices,
                                         .indices         = path_indices,
-                                        .fill_items      = fill_items};
+                                        .fill_items      = fill_items,
+                                        .variant = PipelineVariantId::Base};
 
     if (is_batched)
     {
@@ -2036,14 +2056,16 @@ ICanvas & ICanvas::paths(Span<PathInfo const> info, bool has_overlaps)
   return *this;
 }
 
-ICanvas & ICanvas::text(TextPlacementInfo const & info)
+ICanvas & ICanvas::text(TextRenderInfo const & info,
+                        TextPlacement const &  placement)
 {
   push_clip();
-  set_clip(info.clip);
+  set_clip(info.clip.intersect(this->clip_));
   defer clip_{[&] { pop_clip(); }};
 
-  for (auto & b : info.blocks)
+  for (auto & b : placement.backgrounds)
   {
+    auto & style = info.style.runs[b.run_style];
     rect(Shape{.world_transform = info.transform,
                .uv_transform    = f32x4x4::identity(),
                .area            = b.bbox,
@@ -2051,7 +2073,7 @@ ICanvas & ICanvas::text(TextPlacementInfo const & info)
                .radii           = f32x4::zero(),
                .shade           = ShadeType::Flood,
                .feather         = 0,
-               .tint            = {},    // [ ]
+               .tint            = style.background,
                .sampler         = SamplerIndex::LinearEdgeClampBlackFloat,
                .texture_set     = sampled_textures,
                .map             = TextureIndex::White,
@@ -2059,55 +2081,121 @@ ICanvas & ICanvas::text(TextPlacementInfo const & info)
                .sdf_map         = TextureIndex::White});
   }
 
-  // [ ] implement
-  for (auto & b : info.lines)
+  for (auto & b : placement.glyph_shadows)
   {
+    auto & style = info.style.runs[b.run_style];
+    rect(Shape{.world_transform = info.transform,
+               .uv_transform    = f32x4x4::identity(),
+               .area            = b.bbox,
+               .bbox_extent     = b.bbox.extent,
+               .radii           = f32x4::zero(),
+               .shade           = ShadeType::Flood,
+               .feather         = 0,
+               .tint            = style.shadow,
+               .sampler         = SamplerIndex::LinearEdgeClampBlackFloat,
+               .texture_set     = sampled_textures,
+               .map             = TextureIndex::White,
+               .sdf_sampler     = SamplerIndex::LinearBorderClampBlackFloat,
+               .sdf_map         = TextureIndex::White});
   }
 
-  for (auto & b : info.backgrounds)
+  for (auto & b : placement.glyphs)
   {
+    // [ ] if retrieving the font for each glyph ends up being slow, we can consider using run-end encoding.
+    // of the runs and their glyphs.
+
+    auto & style         = info.style.runs[b.run_style];
+    auto & font          = info.block.fonts[b.run_style];
+    auto   font_info     = sys.font->get(font.font);
+    auto & atlas         = font_info.gpu_atlas.v();
+    auto & atlas_glyph   = atlas.glyphs[b.glyph];
+    auto   texture_index = atlas.textures[atlas_glyph.layer];
+    auto   uv_transform =
+      translate2d(atlas_glyph.uv.center) * scale2d(atlas_glyph.uv.extent);
+
+    rect(Shape{.world_transform = info.transform,
+               .uv_transform    = transform2d_to_3d(uv_transform).to_mat(),
+               .area            = b.bbox,
+               .bbox_extent     = b.bbox.extent,
+               .radii           = f32x4::zero(),
+               .shade           = ShadeType::Flood,
+               .feather         = 0,
+               .tint            = style.foreground,
+               .sampler         = SamplerIndex::LinearEdgeClampBlackFloat,
+               .texture_set     = sampled_textures,
+               .map             = texture_index,
+               .sdf_sampler     = SamplerIndex::LinearBorderClampBlackFloat,
+               .sdf_map         = TextureIndex::White});
   }
 
-  for (auto & b : info.glyph_shadows)
+  for (auto & b : placement.underlines)
   {
+    auto & style = info.style.runs[b.run_style];
+    rect(Shape{.world_transform = info.transform,
+               .uv_transform    = f32x4x4::identity(),
+               .area            = b.bbox,
+               .bbox_extent     = b.bbox.extent,
+               .radii           = f32x4::zero(),
+               .shade           = ShadeType::Flood,
+               .feather         = 0,
+               .tint            = style.underline,
+               .sampler         = SamplerIndex::LinearEdgeClampBlackFloat,
+               .texture_set     = sampled_textures,
+               .map             = TextureIndex::White,
+               .sdf_sampler     = SamplerIndex::LinearBorderClampBlackFloat,
+               .sdf_map         = TextureIndex::White});
   }
 
-  // [ ] should contain font object
-  for (auto & b : info.glyphs)
+  for (auto & b : placement.strikethroughs)
   {
+    auto & style = info.style.runs[b.run_style];
+    rect(Shape{.world_transform = info.transform,
+               .uv_transform    = f32x4x4::identity(),
+               .area            = b.bbox,
+               .bbox_extent     = b.bbox.extent,
+               .radii           = f32x4::zero(),
+               .shade           = ShadeType::Flood,
+               .feather         = 0,
+               .tint            = style.strikethrough,
+               .sampler         = SamplerIndex::LinearEdgeClampBlackFloat,
+               .texture_set     = sampled_textures,
+               .map             = TextureIndex::White,
+               .sdf_sampler     = SamplerIndex::LinearBorderClampBlackFloat,
+               .sdf_map         = TextureIndex::White});
   }
 
-  for (auto & b : info.underlines)
+  for (auto & b : placement.highlights)
   {
+    rect(Shape{.world_transform = info.transform,
+               .uv_transform    = f32x4x4::identity(),
+               .area            = b.bbox,
+               .bbox_extent     = b.bbox.extent,
+               .radii           = info.style.highlight.corner_radii,
+               .shade           = ShadeType::Flood,
+               .feather         = 0,
+               .tint            = info.style.highlight.color,
+               .sampler         = SamplerIndex::LinearEdgeClampBlackFloat,
+               .texture_set     = sampled_textures,
+               .map             = TextureIndex::White,
+               .sdf_sampler     = SamplerIndex::LinearBorderClampBlackFloat,
+               .sdf_map         = TextureIndex::White});
   }
 
-  for (auto & b : info.strikethroughs)
+  for (auto & b : placement.carets)
   {
-  }
-
-  for (auto & b : info.highlights)
-  {
-  }
-
-  for (auto & b : info.carets)
-  {
-  }
-
-  for (auto i : sorted)
-  {
-    auto layer = layers[i];
-    auto shape = shapes[i];
-
-    switch (layer)
-    {
-      case TextLayer::Glyphs:
-      case TextLayer::GlyphShadows:
-        rect(shape);
-        break;
-      default:
-        rrect(shape);
-        break;
-    }
+    rect(Shape{.world_transform = info.transform,
+               .uv_transform    = f32x4x4::identity(),
+               .area            = b.bbox,
+               .bbox_extent     = b.bbox.extent,
+               .radii           = info.style.caret.corner_radii,
+               .shade           = ShadeType::Flood,
+               .feather         = 0,
+               .tint            = info.style.caret.color,
+               .sampler         = SamplerIndex::LinearEdgeClampBlackFloat,
+               .texture_set     = sampled_textures,
+               .map             = TextureIndex::White,
+               .sdf_sampler     = SamplerIndex::LinearBorderClampBlackFloat,
+               .sdf_map         = TextureIndex::White});
   }
 
   return *this;

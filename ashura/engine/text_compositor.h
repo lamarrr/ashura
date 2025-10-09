@@ -105,13 +105,16 @@ struct TextCompositor
   static constexpr c32   DEFAULT_WORD_SYMBOLS[] = {U' ', U'\t'};
   static constexpr c32   DEFAULT_LINE_SYMBOLS[] = {U'\n', 0x2029};
 
+  typedef Fn<void(Slice)> OnErase;
+  typedef Fn<void(Slice)> OnInsert;
+
   TextCursor          cursor_;
   CaretXAlignment     caret_alignment_;
   Vec<c32>            buffer_;
   Vec<TextEditRecord> records_;
   Span<c32 const>     word_symbols_;
 
-  /// @brief record representing the current text composition state;
+  /// @brief Record representing the current text composition state;
   /// the base state is always at index 0
   usize state_;
 
@@ -141,10 +144,10 @@ struct TextCompositor
 
   Slice buffer_slice(Slice records) const;
 
-  /// @brief pop the first `num` earliest records
+  /// @brief Pop the first `num` earliest records
   void pop_records(usize num);
 
-  /// @brief truncate all records from `state + 1` to last record
+  /// @brief Truncate all records from `state + 1` to last record
   /// i.e. when editing from a present state, all redo history from that point is cleared.
   void truncate_records();
 
@@ -164,8 +167,9 @@ struct TextCompositor
   /// @param zoom the zoom that was applied to the text
   void command(RenderText & text, TextCommand cmd, Str32 input,
                ClipBoard & clipboard, usize lines_per_page, usize tab_width,
-               Vec2 center, f32 aligned_width, Vec2 pos, Mat4 const & transform,
-               AllocatorRef scratch_allocator);
+               f32x2 center, f32 aligned_width, f32x2 pos,
+               f32x4x4 const & transform, OnErase on_erase, OnInsert on_insert,
+               Allocator scratch_allocator);
 };
 
 }    // namespace ash

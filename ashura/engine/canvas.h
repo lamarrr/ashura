@@ -273,6 +273,8 @@ enum class NineSliceScaling : u8
   Tile    = 1
 };
 
+// [ ] liquid metal shader
+
 /// ┏━━━━━━━━━━━━━━━━━┑
 /// ┃  0  ┃  1  ┃  2  ┃
 /// ┃╸╸╸╸╸┃╸╸╸╸╸┃╸╸╸╸╸┃
@@ -736,10 +738,12 @@ struct ICanvas
   ICanvas & paths(Span<PathInfo const> info, bool has_overlaps);
 
   /// @brief Render a text block
-  ICanvas & text(TextPlacementInfo const & info);
+  ICanvas & text(TextRenderInfo const & info, TextPlacement const & placement);
 
+  // [ ] implement
   ICanvas & bloom();
 
+  // [ ] implement
   ICanvas & crt();
 };
 

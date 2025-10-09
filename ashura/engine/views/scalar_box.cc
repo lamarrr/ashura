@@ -1,6 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/engine/views/scalar_box.h"
 #include "ashura/engine/engine.h"
+#include "ashura/std/sformat.h"
 
 namespace ash
 {
@@ -49,7 +50,7 @@ void ScalarDragBox::scalar_parse(Str32 text, ScalarInfo const & spec,
 void ScalarDragBox::format_()
 {
   u8                buffer[1'024];
-  FallbackAllocator allocator{Arena::from(buffer), default_allocator};
+  FallbackAllocator allocator{buffer, default_allocator};
   sformat(allocator, style_.format, state_.scalar)
     .match([&](auto & text) { input_.content(text.view().as_c8()); },
            [&](auto &) { input_.content(U"[Truncated]"_str); });

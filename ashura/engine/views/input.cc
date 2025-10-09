@@ -123,7 +123,7 @@ ui::State Input::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
 
   u8 buffer[512];
 
-  FallbackAllocator allocator{Arena::from(buffer), allocator_};
+  FallbackAllocator allocator{buffer, allocator_};
 
   Vec<c32> input_u32{allocator};
 

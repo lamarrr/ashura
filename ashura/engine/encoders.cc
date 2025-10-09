@@ -305,70 +305,99 @@ void VectorPathEncoder::submit(GpuFramePlan plan)
   auto i_fill_states         = plan->push_cpu(fill_states);
   auto i_fill_state_runs     = plan->push_cpu(fill_state_runs);
 
-  plan->add_pass(
-    [attachments = this->attachments_, texture_set = this->texture_set_,
-     i_index_runs, i_coverage_states, i_coverage_state_runs, i_fill_states,
-     i_fill_state_runs, i_world_to_ndc, i_vertices, i_indices, i_coverage_items,
-     i_fill_items](GpuFrame frame, gpu::CommandEncoder enc) {
-      auto world_to_ndc        = frame->get(i_world_to_ndc);
-      auto vertices            = frame->get(i_vertices);
-      auto indices             = frame->get(i_indices);
-      auto coverage_items      = frame->get(i_coverage_items);
-      auto fill_items          = frame->get(i_fill_items);
-      auto index_runs          = frame->get<u32>(i_index_runs);
-      auto coverage_states     = frame->get<State>(i_coverage_states);
-      auto coverage_state_runs = frame->get<u32>(i_coverage_state_runs);
-      auto fill_states         = frame->get<State>(i_fill_states);
-      auto fill_state_runs     = frame->get<u32>(i_fill_state_runs);
-      auto images              = frame->get_scratch_images();
+  plan->add_pass([attachments = this->attachments_,
+                  texture_set = this->texture_set_, variant = this->variant_,
+                  i_index_runs, i_coverage_states, i_coverage_state_runs,
+                  i_fill_states, i_fill_state_runs, i_world_to_ndc, i_vertices,
+                  i_indices, i_coverage_items,
+                  i_fill_items](GpuFrame frame, gpu::CommandEncoder enc) {
+    auto world_to_ndc        = frame->get(i_world_to_ndc);
+    auto vertices            = frame->get(i_vertices);
+    auto indices             = frame->get(i_indices);
+    auto coverage_items      = frame->get(i_coverage_items);
+    auto fill_items          = frame->get(i_fill_items);
+    auto index_runs          = frame->get<u32>(i_index_runs);
+    auto coverage_states     = frame->get<State>(i_coverage_states);
+    auto coverage_state_runs = frame->get<u32>(i_coverage_state_runs);
+    auto fill_states         = frame->get<State>(i_fill_states);
+    auto fill_state_runs     = frame->get<u32>(i_fill_state_runs);
+    auto images              = frame->get_scratch_images();
 
-      {
-        auto coverage_params = VectorPathCoveragePipelineParams{
-          .stencil = images[attachments.scratch_depth_stencil].depth_stencil,
-          .write_alpha_masks = images[attachments.scratch_alpha_mask]
-                                 .texel.interpret(gpu::Format::R32_SFLOAT)
-                                 .storage_texel_buffers,
-          .write_fill_ids = images[attachments.scratch_fill_id]
-                              .texel.interpret(gpu::Format::R32_UINT)
-                              .storage_texel_buffers,
-          .world_to_ndc   = world_to_ndc,
-          .vertices       = vertices,
-          .indices        = indices,
-          .coverage_items = coverage_items,
-          .index_runs     = index_runs,
-          .states         = coverage_states,
-          .state_runs     = coverage_state_runs};
+    auto scratch_stencil =
+      images[attachments.scratch_depth_stencil].depth_stencil;
+    auto scratch_alpha_masks_buffer =
+      images[attachments.scratch_alpha_mask].texel;
+    auto scratch_fill_ids_buffer = images[attachments.scratch_fill_id].texel;
 
-        sys.pipeline->vector_path().encode(enc, coverage_params,
-                                           PipelineVariantId::Base);
-      }
+    auto scratch_alpha_masks =
+      scratch_alpha_masks_buffer.interpret(gpu::Format::R32_SFLOAT);
+    auto scratch_fill_ids =
+      scratch_fill_ids_buffer.interpret(gpu::Format::R32_UINT);
 
-      {
-        auto framebuffer =
-          Framebuffer{.color         = images[attachments.color].color,
-                      .color_msaa    = none,
-                      .depth_stencil = attachments.depth_stencil.map(
-                        [&](auto s) { return images[s].depth_stencil; })};
+    {
+      enc->clear_depth_stencil_image(
+        scratch_stencil.image,
+        gpu::DepthStencil{
+          .stencil = 0
+      },
+        span({gpu::ImageSubresourceRange{.aspects = gpu::ImageAspects::Stencil,
+                                         .mip_levels   = Slice32::all(),
+                                         .array_layers = Slice32::all()}}));
 
-        auto fill_params = VectorPathFillPipelineParams{
-          .framebuffer      = framebuffer,
-          .samplers         = sys.gpu->samplers(),
-          .textures         = frame->get(texture_set),
-          .read_alpha_masks = images[attachments.scratch_alpha_mask]
-                                .texel.interpret(gpu::Format::R32_SFLOAT)
-                                .uniform_texel_buffers,
-          .read_fill_ids = images[attachments.scratch_fill_id]
-                             .texel.interpret(gpu::Format::R32_UINT)
-                             .uniform_texel_buffers,
-          .world_to_ndc = world_to_ndc,
-          .fill_items   = fill_items,
-          .states       = fill_states,
-          .state_runs   = fill_state_runs};
+      // clear to 0.0F
+      enc->fill_buffer(scratch_alpha_masks_buffer.buffer, Slice64::all(), 0);
 
-        sys.pipeline->vector_path().encode(enc, fill_params,
-                                           PipelineVariantId::Base);
-      }
-    });
+      // clear to paint ID 0
+      enc->fill_buffer(scratch_fill_ids_buffer.buffer, Slice64::all(), 0);
+    }
+
+    auto cfg = shader::VectorPathCfg{
+      .tile_count        = scratch_alpha_masks_buffer.tile_count,
+      .tile_texel_count  = scratch_alpha_masks_buffer.tile_texel_count,
+      .tile_extent_log2  = log2(scratch_alpha_masks_buffer.tile_texel_count),
+      .sample_count      = scratch_alpha_masks_buffer.sample_count,
+      .sample_count_log2 = log2(scratch_alpha_masks_buffer.sample_count)};
+
+    {
+      auto coverage_params = VectorPathCoveragePipelineParams{
+        .stencil           = scratch_stencil,
+        .cfg               = cfg,
+        .write_alpha_masks = scratch_alpha_masks.storage_texel_buffers,
+        .write_fill_ids    = scratch_fill_ids.storage_texel_buffers,
+        .world_to_ndc      = world_to_ndc,
+        .vertices          = vertices,
+        .indices           = indices,
+        .coverage_items    = coverage_items,
+        .index_runs        = index_runs,
+        .states            = coverage_states,
+        .state_runs        = coverage_state_runs};
+
+      sys.pipeline->vector_path().encode(enc, coverage_params);
+    }
+
+    {
+      // [ ] use &-op of the stencil attachment and the scratch stencil bits if there's a stencil attachment
+
+      auto framebuffer = Framebuffer{.color = images[attachments.color].color,
+                                     .color_msaa    = none,
+                                     .depth_stencil = scratch_stencil};
+
+      auto fill_params = VectorPathFillPipelineParams{
+        .framebuffer      = framebuffer,
+        .cfg              = cfg,
+        .samplers         = sys.gpu->samplers(),
+        .textures         = frame->get(texture_set),
+        .read_alpha_masks = scratch_alpha_masks.uniform_texel_buffers,
+        .read_fill_ids    = scratch_fill_ids.uniform_texel_buffers,
+        .world_to_ndc     = world_to_ndc,
+        .fill_items       = fill_items,
+        .states           = fill_states,
+        .state_runs       = fill_state_runs,
+        .variant          = variant};
+
+      sys.pipeline->vector_path().encode(enc, fill_params);
+    }
+  });
 }
 
 void PbrEncoder::submit(GpuFramePlan plan)

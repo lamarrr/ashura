@@ -442,6 +442,8 @@ constexpr Max   max;
 constexpr Swap  swap;
 constexpr Clamp clamp;
 
+// [ ] default eq, neq, lt, gt, leq overridable
+
 constexpr u8 sat_add(u8 a, u8 b)
 {
   return ((a + b) < a) ? U8_MAX : (a + b);
@@ -1190,6 +1192,8 @@ template <usize Alignment, typename T>
     return static_cast<T *>(__builtin_assume_aligned(ptr, Alignment));
   }
 }
+
+// [ ] should slice types be span only?
 template <typename T>
 struct [[nodiscard]] Span
 {

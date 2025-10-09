@@ -10,6 +10,7 @@ option(ASH_EXCLUDE_ENGINE "" OFF)
 option(ASH_EXCLUDE_EDITOR "" OFF)
 option(ASH_EXCLUDE_TESTS "" OFF)
 option(ASH_EXCLUDE_BENCHMARKS "" OFF)
+option(ASH_BUILD_DOC "Build documentation" OFF)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -151,7 +152,7 @@ FetchContent_Declare(
 FetchContent_Declare(
   slang
   GIT_REPOSITORY https://github.com/shader-slang/slang.git
-  GIT_TAG ${ASH_VULKAN_SDK_VERSION})
+  GIT_TAG v2025.18)
 
 FetchContent_Declare(
   VulkanMemoryAllocator
@@ -221,6 +222,10 @@ FetchContent_Declare(
 find_package(FFMPEG REQUIRED)
 find_package(JPEG REQUIRED)
 find_package(Threads REQUIRED)
+
+if(ASH_BUILD_DOC)
+  find_package(Doxygen REQUIRED)
+endif()
 
 FetchContent_MakeAvailable(VulkanHeaders)
 FetchContent_MakeAvailable(VulkanUtilityLibraries)
@@ -325,15 +330,30 @@ target_link_options(ashura_std PUBLIC ${ASH_LINK_OPTIONS})
 if(NOT ASH_EXCLUDE_TESTS)
   add_executable(
     ashura_std_tests
+    ashura/std/tests/allocators.cc
     ashura/std/tests/async.cc
-    ashura/std/tests/enum.cc
+    ashura/std/tests/buffer.cc
+    ashura/std/tests/constraint.cc
+    ashura/std/tests/dyn.cc
     ashura/std/tests/dict.cc
+    ashura/std/tests/enum.cc
+    ashura/std/tests/format.cc
+    ashura/std/tests/lambda.cc
     ashura/std/tests/list.cc
     ashura/std/tests/main.cc
+    ashura/std/tests/math.cc
     ashura/std/tests/option.cc
+    ashura/std/tests/option_span.cc
+    ashura/std/tests/panic.cc
     ashura/std/tests/range.cc
     ashura/std/tests/result.cc
-    ashura/std/tests/sparse_vec.cc)
+    ashura/std/tests/sformat.cc
+    ashura/std/tests/sparse_vec.cc
+    ashura/std/tests/str.cc
+    ashura/std/tests/super.cc
+    ashura/std/tests/text.cc
+    ashura/std/tests/types.cc
+    ashura/std/tests/vec.cc)
 
   target_link_libraries(ashura_std_tests ashura_std GTest::gtest
                         GTest::gtest_main)
@@ -369,27 +389,64 @@ endif()
 if(NOT ASH_EXCLUDE_ENGINE)
   add_library(
     ashura_engine STATIC
+    # ENGINE CORE
+    ashura/engine/animation_system.cc
     ashura/engine/animation.cc
+    ashura/engine/audio_system.cc
     ashura/engine/canvas.cc
+    ashura/engine/encoders.cc
     ashura/engine/engine.cc
-    ashura/engine/font_impl.cc
+    ashura/engine/file_system.cc
     ashura/engine/font_system_impl.cc
+    ashura/engine/font_system.cc
     ashura/engine/font.cc
     ashura/engine/gpu_system.cc
     ashura/engine/image_decoder.cc
     ashura/engine/input.cc
-    ashura/engine/passes.cc
+    ashura/engine/pipeline_system.cc
+    ashura/engine/pipeline.cc
     ashura/engine/render_text.cc
-    ashura/engine/renderer.cc
     ashura/engine/scene.cc
-    ashura/engine/shader.cc
+    ashura/engine/shader_system.cc
+    ashura/engine/shaderc.cc
     ashura/engine/systems.cc
     ashura/engine/text_compositor.cc
     ashura/engine/text.cc
+    ashura/engine/video_system.cc
     ashura/engine/view_system.cc
     ashura/engine/view.cc
-    ashura/engine/views.cc
-    ashura/engine/window.cc)
+    ashura/engine/window_system.cc
+    # PIPELINES
+    ashura/engine/pipelines/bezier_stencil.cc
+    ashura/engine/pipelines/bloom.cc
+    ashura/engine/pipelines/blur.cc
+    ashura/engine/pipelines/fill_stencil.cc
+    ashura/engine/pipelines/pbr.cc
+    ashura/engine/pipelines/quad.cc
+    ashura/engine/pipelines/sdf.cc
+    ashura/engine/pipelines/triangle_fill.cc
+    # VIEWS
+    ashura/engine/views/button.cc
+    ashura/engine/views/check_box.cc
+    ashura/engine/views/color_picker.cc
+    ashura/engine/views/combo.cc
+    ashura/engine/views/flex.cc
+    ashura/engine/views/focus_view.cc
+    ashura/engine/views/icon.cc
+    ashura/engine/views/image.cc
+    ashura/engine/views/input.cc
+    ashura/engine/views/list.cc
+    ashura/engine/views/modal.cc
+    ashura/engine/views/plot.cc
+    ashura/engine/views/radio.cc
+    ashura/engine/views/scalar_box.cc
+    ashura/engine/views/scroll_view.cc
+    ashura/engine/views/slider.cc
+    ashura/engine/views/space.cc
+    ashura/engine/views/stack.cc
+    ashura/engine/views/switch.cc
+    ashura/engine/views/table.cc
+    ashura/engine/views/text.cc)
 
   target_link_libraries(
     ashura_engine
@@ -497,28 +554,46 @@ function(compile_shader shader_file)
     COMMAND ${SLANGC_EXECUTABLE} -target spirv ${SLANG_FLAGS} ${input} -o
             ${output_spv} -I ${SLANG_INCLUDE_DIR}
     DEPENDS ${input}
-    COMMENT "Compiling ${shader_file} -> SPIR-V")
+    COMMENT "Compiling ${shader_file} -> ${shader_file}.spv")
 
   add_custom_command(
     OUTPUT ${output_asm}
     COMMAND ${SLANGC_EXECUTABLE} -target spirv-asm ${SLANG_FLAGS} ${input} -o
             ${output_asm} -I ${SLANG_INCLUDE_DIR}
     DEPENDS ${input}
-    COMMENT "Compiling ${shader_file} -> SPIR-V ASM")
+    COMMENT "Compiling ${shader_file} -> ${shader_file}.spv-asm")
 
   add_custom_target(${shader_file}_shaders ALL DEPENDS ${output_spv}
                                                        ${output_asm})
 endfunction()
 
 set(SHADER_FILES
+    bezier_stencil.slang
     blur.slang
-    ngon.slang
+    composite_sdf.slang
+    fill_stencil.slang
     pbr.slang
-    rrect.slang
-    squircle.slang
-    contour_cover.slang
-    contour_stencil.slang)
+    quad.slang
+    sdf.slang
+    triangle_fill.slang
+    vector_path_coverage.slang
+    vector_path_fill.slang
+    )
 
 foreach(shader ${SHADER_FILES})
   compile_shader(${shader})
 endforeach()
+
+if(ASH_BUILD_DOC)
+  set(DOXYGEN_IN ${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in)
+  set(DOXYGEN_OUT ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile)
+
+  configure_file(${DOXYGEN_IN} ${DOXYGEN_OUT} @ONLY)
+
+  add_custom_target(
+    ashura_docs ALL
+    COMMAND ${DOXYGEN_EXECUTABLE} ${DOXYGEN_OUT}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    COMMENT "Generating API documentation with Doxygen"
+    VERBATIM)
+endif()

@@ -255,7 +255,7 @@ Combo & Combo::on_selected(Fn<void(Option<usize>)> style)
   return *this;
 }
 
-Combo & Combo::items(std::initializer_list<ref<ComboItem>> list)
+Combo & Combo::items(InitList<ref<ComboItem>> list)
 {
   return items(span(list));
 }

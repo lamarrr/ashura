@@ -30,7 +30,7 @@ Stack & Stack::frame(Frame f)
   return *this;
 }
 
-Stack & Stack::items(std::initializer_list<ref<View>> list)
+Stack & Stack::items(InitList<ref<View>> list)
 {
   items(span(list));
   return *this;

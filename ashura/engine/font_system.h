@@ -22,7 +22,7 @@ struct IFontSys
 
   virtual void shutdown() = 0;
 
-  /// @brief rasterize the font at the specified font height. Note: raster is
+  /// @brief Rasterize the font at the specified font height. Note: raster is
   /// stored as alpha values.
   /// @note rasterizing mutates the font's internal data, not thread-safe
   /// @param font_height the font height at which the texture should be
@@ -30,6 +30,7 @@ struct IFontSys
   /// @param allocator scratch allocator to use for storing intermediates
   virtual Result<> rasterize(Font font, u32 font_height) = 0;
 
+  // [ ] text layout should be partial; i.e layout segments
   virtual void layout_text(TextBlock const & block, f32 max_width,
                            TextLayout & layout) = 0;
 

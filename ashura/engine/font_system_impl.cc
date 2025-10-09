@@ -382,14 +382,16 @@ Result<> FontSysImpl::rasterize(Font font_, u32 font_height)
         g.area.offset = (r.pos + GLYPH_PADDING).to<u32>();
       }
 
-      g.uv[0] = g.area.offset.to<f32>() * inv_atlas_extent;
-      g.uv[1] = g.area.end().to<f32>() * inv_atlas_extent;
+      auto center = g.area.offset.to<f32>() + 0.5F * g.area.extent.to<f32>();
+      auto extent = g.area.extent.to<f32>();
+
+      g.uv.center = norm_to_axis(center * inv_atlas_extent);
+      g.uv.extent = extent * inv_atlas_extent;
     }
   }
 
-  u64 const atlas_layer_size =
-    (u64) atlas_extent.x() * (u64) atlas_extent.y() * 4;
-  u64 const atlas_size = atlas_layer_size * num_layers;
+  auto const atlas_layer_size = atlas_extent.product<u64>() * 4;
+  u64 const  atlas_size       = atlas_layer_size * num_layers;
 
   if (!atlas.channels.resize(atlas_size))
   {
@@ -928,19 +930,19 @@ void FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
   layout.clear();
 
   auto const text_size = block.text.size();
-  CHECK(block.runs.size() == (block.fonts.size() + 1), "");
-  CHECK(!block.runs.is_empty(), "No run styling provided for text");
-  CHECK(block.runs.last() >= text_size,
+  CHECK(block.run_indices.size() == (block.fonts.size() + 1), "");
+  CHECK(!block.run_indices.is_empty(), "No run styling provided for text");
+  CHECK(block.run_indices.last() >= text_size,
         "Text runs need to span the entire text");
 
   segments_.clear();
   segments_.resize(text_size).unwrap();
 
   {
-    for (usize irun = 0; irun < (block.runs.size() - 1); irun++)
+    for (usize irun = 0; irun < (block.run_indices.size() - 1); irun++)
     {
-      auto const run_start = min(block.runs[irun], text_size);
-      auto const run_end   = min(block.runs[irun + 1], text_size);
+      auto const run_start = min(block.run_indices[irun], text_size);
+      auto const run_end   = min(block.run_indices[irun + 1], text_size);
       for (usize i = run_start; i < run_end; i++)
       {
         segments_[i].style = irun;
