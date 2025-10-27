@@ -37,10 +37,6 @@ struct [[nodiscard]] Vec
   {
   }
 
-  constexpr Vec() : Vec{default_allocator}
-  {
-  }
-
   constexpr Vec(Allocator allocator, Type * storage, usize capacity,
                 usize size) :
     storage_{storage},
@@ -635,10 +631,6 @@ struct [[nodiscard]] SmallVec
     capacity_{0},
     allocator_{allocator},
     inline_{}
-  {
-  }
-
-  constexpr SmallVec() : SmallVec{default_allocator}
   {
   }
 
@@ -1671,10 +1663,6 @@ struct [[nodiscard]] CoreBitVec
   {
   }
 
-  constexpr CoreBitVec() : CoreBitVec{default_allocator}
-  {
-  }
-
   constexpr CoreBitVec(CoreBitVec const &) = delete;
 
   constexpr CoreBitVec & operator=(CoreBitVec const &) = delete;
@@ -2065,10 +2053,6 @@ struct CoreSparseMap
     id_to_index_{allocator},
     dense{V{allocator}...},
     free_id_head_{STUB}
-  {
-  }
-
-  constexpr CoreSparseMap() : CoreSparseMap{default_allocator}
   {
   }
 

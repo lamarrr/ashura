@@ -143,8 +143,7 @@ struct [[nodiscard]] Dict
   Hasher     hasher_;
   KeyCmp     cmp_;
 
-  constexpr Dict(Allocator allocator = {}, Hasher hasher = {},
-                 KeyCmp cmp = {}) :
+  constexpr Dict(Allocator allocator, Hasher hasher = {}, KeyCmp cmp = {}) :
     probe_dists_{nullptr},
     probes_{nullptr},
     num_probes_{0},

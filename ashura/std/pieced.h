@@ -43,10 +43,6 @@ struct Pieced
   {
   }
 
-  constexpr Pieced() : Pieced{default_allocator, default_allocator}
-  {
-  }
-
   void erase(Slice range)
   {
     if (run_offsets_.is_empty() || range.is_empty()) [[unlikely]]
@@ -66,10 +62,10 @@ struct Pieced
     auto first_run = (usize) (first.pbegin() - run_offsets_.view().pbegin()) - 1;
     auto last_run  = (usize) (last.pbegin() - run_offsets_.view().pbegin()) - 1;
 
-    if(run_offsets_[first_run] == range.begin())
+    if(run_offsets_[first_run] == range.begin() && run_offsets_[last_run + 1] == range.end())
     {
     }
-    else if(run_offsets_[last_run + 1] == range.end())
+    else if()
     {
     }
     else

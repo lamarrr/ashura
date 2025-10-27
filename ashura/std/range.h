@@ -933,6 +933,8 @@ constexpr auto suffix_run(I start, Span<Index const> runs, Span<T>... data)
 
 /// @brief Given an ordered range, find first value in the range that satisfies `cmp(x)`.
 /// @warning each element in the range must be ordered relative to `cmp` or be equal.
+
+// [ ] return Option<T&>
 template <typename T, typename Cmp>
 constexpr Span<T> binary_find(Span<T> span, Cmp && cmp)
 {

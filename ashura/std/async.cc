@@ -54,9 +54,7 @@ struct Task
 
   typedef void (*Uninit)(void *);
 
-  typedef bool (*Poll)(void *);
-
-  typedef bool (*Runner)(void *);
+  typedef TaskTickState (*Tick)(void *);
 
   Task * next = nullptr;
 
@@ -64,9 +62,7 @@ struct Task
 
   Layout frame_layout{};
 
-  Poll poll = [](void *) { return true; };
-
-  Runner runner = [](void *) { return false; };
+  Tick tick = [](void *) { return TaskTickState::Completed; };
 
   Uninit uninit = noop;
 
@@ -229,8 +225,7 @@ struct TaskAllocator
     auto [task, ctx] = flex.unpack(stack);
 
     out = new (task.data()) Task{.frame_layout = info.frame_layout,
-                                 .poll         = info.poll,
-                                 .runner       = info.runner,
+                                 .tick         = info.tick,
                                  .uninit       = info.uninit,
                                  .arena        = &arena};
 
@@ -479,28 +474,40 @@ struct ASH_DLL_EXPORT SchedulerImpl final : IScheduler
 
       auto [_, frame] = Task::flex(task->frame_layout).unpack(task);
 
-      bool const ready = task->poll(frame.data());
+      auto state = task->tick(frame.data());
 
-      if (!ready) [[unlikely]]
+      switch (state)
       {
-        q.push_task(task);
-        continue;
+        case TaskTickState::Pending:
+        {
+          // add to the back of the queue
+          q.push_task(task);
+        }
+        break;
+
+        case TaskTickState::Repeat:
+        {
+          // finally gotten a ready task, reset poll counter
+          poll = 0;
+
+          // add to the back of the queue, giving pending tasks the opportunity to
+          // run
+          q.push_task(task);
+        }
+        break;
+
+        case TaskTickState::Completed:
+        {
+          // finally gotten a ready task, reset poll counter
+          poll = 0;
+
+          a.release_task(task);
+        }
+        break;
+
+        default:
+          ASH_UNREACHABLE;
       }
-
-      // finally gotten a ready task, reset poll counter
-      poll = 0;
-
-      bool const repeat = task->runner(frame.data());
-
-      if (repeat) [[unlikely]]
-      {
-        // add to the back of the queue, giving pending tasks the opportunity to
-        // run
-        q.push_task(task);
-        continue;
-      }
-
-      a.release_task(task);
     }
 
     // run loop done. purge pending tasks
@@ -550,28 +557,41 @@ struct ASH_DLL_EXPORT SchedulerImpl final : IScheduler
 
       auto [_, frame] = Task::flex(task->frame_layout).unpack(task);
 
-      bool const ready = task->poll(frame.data());
+      auto state = task->tick(frame.data());
 
-      if (!ready) [[unlikely]]
+      switch (state)
       {
-        q.push_task(task);
-        continue;
+        case TaskTickState::Pending:
+        {
+          // add to the back of the queue
+          q.push_task(task);
+        }
+        break;
+
+        case TaskTickState::Repeat:
+        {
+          // advance poll timer, since we've gotten a ready task
+          poll_start = now;
+
+          // add to the back of the queue, giving pending tasks the opportunity to
+          // run
+
+          q.push_task(task);
+        }
+        break;
+
+        case TaskTickState::Completed:
+        {
+          // advance poll timer, since we've gotten a ready task
+          poll_start = now;
+
+          a.release_task(task);
+        }
+        break;
+
+        default:
+          ASH_UNREACHABLE;
       }
-
-      // advance poll timer, since we've gotten a ready task
-      poll_start = now;
-
-      bool const repeat = task->runner(frame.data());
-
-      if (repeat) [[unlikely]]
-      {
-        // add to the back of the queue, giving pending tasks the opportunity to
-        // run
-        q.push_task(task);
-        continue;
-      }
-
-      a.release_task(task);
     }
   }
 

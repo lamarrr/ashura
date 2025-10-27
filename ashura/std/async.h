@@ -158,6 +158,18 @@ struct ISpinLock
   }
 };
 
+typedef struct ITicketLock * TicketLock;
+
+// [ ] impl
+struct ITicketLock
+{
+  void lock();
+
+  [[nodiscard]] bool try_lock();
+
+  void unlock();
+};
+
 template <typename L>
 struct LockGuard
 {
@@ -905,47 +917,42 @@ concept TaskFrame = requires (F f) {
   { !f.run() };
 } && (sizeof(F) <= MAX_TASK_FRAME_SIZE);
 
-/// @brief Task Frame layout and dynamic dispatch thunks
-/// @param frame_layout memory layout of the task's frame.
-/// @param init function to initialize the context data associated with the task
-/// to a task stack.
-/// @param uninit function to uninitialize the task and the associated data
-/// context upon completion of the task.
-/// @param poll function to poll for readiness of the task, must be extremely
-/// light-weight and non-blocking. it is never called again once it returns
-/// true.
-/// @param run task to be executed on the executor. must return true if it
-/// should be re-queued onto the executor.
-/// @param instances number of instances of the task to spawn. all instances
-/// share the same state/stack. multi-instanced tasks can not be re-queued for
-/// execution. and must return false in their body (unchecked).
-/// @note Cancelation is handled within the task itself, as various tasks have
-/// various methods/techniques of reacting to cancelation.
+enum class TaskTickState : u8
+{
+  /// @brief The task is not yet ready to execute
+  Pending   = 0,
+  /// @brief The task needs to be re-scheduled for execution
+  Repeat    = 1,
+  /// @brief The task has completed execution
+  Completed = 2
+};
+
 struct [[nodiscard]] TaskInfo
 {
   typedef Fn<void(void *)> Init;
 
   typedef void (*Uninit)(void *);
 
-  typedef bool (*Poll)(void *);
+  typedef TaskTickState (*Tick)(void *);
 
-  typedef bool (*Runner)(void *);
-
+  /// @brief Nemory layout of the task's frame object.
   Layout frame_layout{};
 
+  /// @brief Function to initialize the task to a memory placement.
   Init init = noop;
 
+  /// @brief Function to uninitialize the task from its memory placement
   Uninit uninit = noop;
 
-  Poll poll = [](void *) { return true; };
-
-  Runner runner = [](void *) { return false; };
+  /// @brief The task's main body and ticker. It handles task scheduling state flow.
+  /// It also determines task readiness, repetition and continuation.
+  Tick tick = [](void *) { return TaskTickState::Completed; };
 };
 
 /// @brief Wrap a Task frame
 /// @return TaskInfo struct to be passed to the scheduler for execution
 template <TaskFrame F>
-TaskInfo to_task_info(F & frame)
+constexpr TaskInfo to_task_info(F & frame)
 {
   Fn init{&frame, +[](F * frame, void * mem) {
             new (mem) F{static_cast<F &&>(*frame)};
@@ -956,21 +963,28 @@ TaskInfo to_task_info(F & frame)
     frame->~F();
   };
 
-  TaskInfo::Poll poll = [](void * f) -> bool {
-    F * frame = reinterpret_cast<F *>(f);
-    return frame->poll();
+  TaskInfo::Tick tick = [](void * f) mutable -> TaskTickState {
+    F *  frame = reinterpret_cast<F *>(f);
+    bool ready = frame->poll();
+    if (!ready)
+    {
+      return TaskTickState::Pending;
+    }
+
+    bool repeat = frame->run();
+
+    if (repeat)
+    {
+      return TaskTickState::Repeat;
+    }
+    else
+    {
+      return TaskTickState::Completed;
+    }
   };
 
-  TaskInfo::Runner runner = [](void * f) -> bool {
-    F * frame = reinterpret_cast<F *>(f);
-    return frame->run();
-  };
-
-  return TaskInfo{.frame_layout = layout_of<F>,
-                  .init         = init,
-                  .uninit       = uninit,
-                  .poll         = poll,
-                  .runner       = runner};
+  return TaskInfo{
+    .frame_layout = layout_of<F>, .init = init, .uninit = uninit, .tick = tick};
 }
 
 template <typename P>
@@ -995,7 +1009,7 @@ struct TaskBody
 
 struct TaskInstance
 {
-  u64 n   = 1;
+  u64 dim = 1;
   u64 idx = 0;
 };
 
@@ -1275,14 +1289,14 @@ struct IScheduler
   /// @tparam F Shard functor type
   /// @tparam P Poller Functor type
   /// @param fn Shard body
-  /// @param n Number of shard instances of the task to launch
+  /// @param dim Number of shard instances of the task to launch
   /// @param poll Poller functor that returns true when ready
   /// @param schedule How to schedule the shards
   template <typename State, Poll P = Ready>
-  void shard(Rc<State> state, Fn<void(TaskInstance, State)> fn, u64 n,
+  void shard(Rc<State> state, Fn<void(TaskInstance, State)> fn, u64 dim,
              P poll = {}, Thread thread = WorkerThread::Any)
   {
-    if (n == 0)
+    if (dim == 0)
     {
       return;
     }
@@ -1293,16 +1307,21 @@ struct IScheduler
     // type) but that's really not a good idea for a generic type. we also need
     // the dispatch as we don't expect the polling function to be thread-safe when
     // called across all instances.
+    //
+    //
+    // [ ] use metadata to optimize Ready pollers
+    //
+    //
     this->schedule(
       TaskBody{
         static_cast<P &&>(poll),
-        [fn, state = std::move(state), thread, n, this]() mutable -> bool {
-          for (u64 i = 0; i < n; i++)
+        [fn, state = std::move(state), thread, dim, this]() mutable -> bool {
+          for (u64 i = 0; i < dim; i++)
           {
             this->schedule(
               TaskBody{Ready{},
-                       [fn, i, n, state = state.alias()]() mutable -> bool {
-                         fn(TaskInstance{.n = n, .idx = i}, state.get());
+                       [fn, i, dim, state = state.alias()]() mutable -> bool {
+                         fn(TaskInstance{.dim = dim, .idx = i}, state.get());
                          return false;
                        }},
               thread);
