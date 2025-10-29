@@ -54,7 +54,7 @@ struct Task
 
   typedef void (*Uninit)(void *);
 
-  typedef TaskTickState (*Tick)(void *);
+  typedef TaskState (*Tick)(void *);
 
   Task * next = nullptr;
 
@@ -62,7 +62,7 @@ struct Task
 
   Layout frame_layout{};
 
-  Tick tick = [](void *) { return TaskTickState::Completed; };
+  Tick tick = [](void *) { return TaskState::Finished; };
 
   Uninit uninit = noop;
 
@@ -478,14 +478,14 @@ struct ASH_DLL_EXPORT SchedulerImpl final : IScheduler
 
       switch (state)
       {
-        case TaskTickState::Pending:
+        case TaskState::NotReady:
         {
           // add to the back of the queue
           q.push_task(task);
         }
         break;
 
-        case TaskTickState::Repeat:
+        case TaskState::Again:
         {
           // finally gotten a ready task, reset poll counter
           poll = 0;
@@ -496,7 +496,7 @@ struct ASH_DLL_EXPORT SchedulerImpl final : IScheduler
         }
         break;
 
-        case TaskTickState::Completed:
+        case TaskState::Finished:
         {
           // finally gotten a ready task, reset poll counter
           poll = 0;
@@ -561,14 +561,14 @@ struct ASH_DLL_EXPORT SchedulerImpl final : IScheduler
 
       switch (state)
       {
-        case TaskTickState::Pending:
+        case TaskState::NotReady:
         {
           // add to the back of the queue
           q.push_task(task);
         }
         break;
 
-        case TaskTickState::Repeat:
+        case TaskState::Again:
         {
           // advance poll timer, since we've gotten a ready task
           poll_start = now;
@@ -580,7 +580,7 @@ struct ASH_DLL_EXPORT SchedulerImpl final : IScheduler
         }
         break;
 
-        case TaskTickState::Completed:
+        case TaskState::Finished:
         {
           // advance poll timer, since we've gotten a ready task
           poll_start = now;

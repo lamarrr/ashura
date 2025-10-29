@@ -19,7 +19,7 @@ TYPED_TEST_SUITE(VecTest, Types);
 
 TYPED_TEST(VecTest, Push)
 {
-  TypeParam a;
+  TypeParam a{default_allocator};
 
   for (auto i : range<i32>(256))
   {
@@ -36,7 +36,7 @@ TYPED_TEST(VecTest, Push)
 
 TEST(MemVecTest, Leak)
 {
-  Vec<f32> a;
+  Vec<f32> a{default_allocator};
   a.resize(200).unwrap();
 
   auto prev = a.view();

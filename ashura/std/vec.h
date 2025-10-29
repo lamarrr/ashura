@@ -151,6 +151,11 @@ struct [[nodiscard]] Vec
     return sizeof(Type) * capacity();
   }
 
+  constexpr Layout storage_layout() const
+  {
+    return layout_of<Type>.array(capacity()).align_to(ALIGNMENT);
+  }
+
   constexpr auto begin() const
   {
     return Iter{.iter_ = data(), .end_ = data() + size()};
@@ -766,6 +771,11 @@ struct [[nodiscard]] SmallVec
   constexpr usize capacity_bytes() const
   {
     return sizeof(Type) * capacity();
+  }
+
+  constexpr Layout storage_layout() const
+  {
+    return layout_of<Type>.array(capacity()).align_to(ALIGNMENT);
   }
 
   static constexpr bool can_inline(usize target_capacity)

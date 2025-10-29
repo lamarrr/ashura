@@ -51,7 +51,7 @@ TEST(SparseVecTest, Start)
   ASSERT_EQ(f.data(), nullptr);
   ASSERT_EQ(f.capacity(), 0);
 
-  CoreSparseVec<Vec<u64>, Vec<u64>, BitVec<u64>> set;
+  CoreSparseVec<Vec<u64>, Vec<u64>, BitVec<u64>> set{default_allocator};
 
   for (auto [a, b, c] : set)
   {

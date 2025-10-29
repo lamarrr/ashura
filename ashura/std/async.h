@@ -909,7 +909,17 @@ struct [[nodiscard]] AnyFuture
   }
 };
 
-inline constexpr usize MAX_TASK_FRAME_SIZE = 2_KB;
+inline constexpr usize MAX_TASK_FRAME_SIZE = 4_KB;
+
+template <typename P>
+concept Poll = requires (P p) {
+  { p() && true };
+};
+
+template <typename R>
+concept Runner = requires (R r) {
+  { r() && true };
+};
 
 template <typename F>
 concept TaskFrame = requires (F f) {
@@ -917,14 +927,14 @@ concept TaskFrame = requires (F f) {
   { !f.run() };
 } && (sizeof(F) <= MAX_TASK_FRAME_SIZE);
 
-enum class TaskTickState : u8
+enum class TaskState : u8
 {
   /// @brief The task is not yet ready to execute
-  Pending   = 0,
+  NotReady = 0,
   /// @brief The task needs to be re-scheduled for execution
-  Repeat    = 1,
+  Again   = 1,
   /// @brief The task has completed execution
-  Completed = 2
+  Finished = 2
 };
 
 struct [[nodiscard]] TaskInfo
@@ -933,7 +943,7 @@ struct [[nodiscard]] TaskInfo
 
   typedef void (*Uninit)(void *);
 
-  typedef TaskTickState (*Tick)(void *);
+  typedef TaskState (*Tick)(void *);
 
   /// @brief Nemory layout of the task's frame object.
   Layout frame_layout{};
@@ -946,7 +956,7 @@ struct [[nodiscard]] TaskInfo
 
   /// @brief The task's main body and ticker. It handles task scheduling state flow.
   /// It also determines task readiness, repetition and continuation.
-  Tick tick = [](void *) { return TaskTickState::Completed; };
+  Tick tick = [](void *) { return TaskState::Finished; };
 };
 
 /// @brief Wrap a Task frame
@@ -963,39 +973,30 @@ constexpr TaskInfo to_task_info(F & frame)
     frame->~F();
   };
 
-  TaskInfo::Tick tick = [](void * f) mutable -> TaskTickState {
+  TaskInfo::Tick tick = [](void * f) -> TaskState {
     F *  frame = reinterpret_cast<F *>(f);
     bool ready = frame->poll();
+
     if (!ready)
     {
-      return TaskTickState::Pending;
+      return TaskState::NotReady;
     }
 
     bool repeat = frame->run();
 
     if (repeat)
     {
-      return TaskTickState::Repeat;
+      return TaskState::Again;
     }
     else
     {
-      return TaskTickState::Completed;
+      return TaskState::Finished;
     }
   };
 
   return TaskInfo{
     .frame_layout = layout_of<F>, .init = init, .uninit = uninit, .tick = tick};
 }
-
-template <typename P>
-concept Poll = requires (P p) {
-  { p() && true };
-};
-
-template <typename R>
-concept Runner = requires (R r) {
-  { r() && true };
-};
 
 template <Poll P, Runner R>
 struct TaskBody

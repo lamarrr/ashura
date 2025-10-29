@@ -14,10 +14,10 @@ namespace ash
 struct IAllocator
 {
   constexpr IAllocator()                               = default;
-  constexpr IAllocator(IAllocator const &)             = delete;
-  constexpr IAllocator(IAllocator &&)                  = delete;
-  constexpr IAllocator & operator=(IAllocator const &) = delete;
-  constexpr IAllocator & operator=(IAllocator &&)      = delete;
+  constexpr IAllocator(IAllocator &&)                  = default;
+  constexpr IAllocator & operator=(IAllocator &&)      = default;
+  constexpr IAllocator(IAllocator const &)             = default;
+  constexpr IAllocator & operator=(IAllocator const &) = default;
   constexpr ~IAllocator()                              = default;
 
   /// @brief allocate aligned memory. returns false if failed and sets the
@@ -102,10 +102,10 @@ struct IAllocator
 struct NoopAllocator final : IAllocator
 {
   constexpr NoopAllocator()                                  = default;
+  constexpr NoopAllocator(NoopAllocator &&)                  = default;
+  constexpr NoopAllocator & operator=(NoopAllocator &&)      = default;
   constexpr NoopAllocator(NoopAllocator const &)             = delete;
-  constexpr NoopAllocator(NoopAllocator &&)                  = delete;
   constexpr NoopAllocator & operator=(NoopAllocator const &) = delete;
-  constexpr NoopAllocator & operator=(NoopAllocator &&)      = delete;
   constexpr ~NoopAllocator()                                 = default;
 
   /// @copydoc alloc
@@ -138,10 +138,10 @@ struct NoopAllocator final : IAllocator
 struct HeapAllocator final : IAllocator
 {
   constexpr HeapAllocator()                                  = default;
+  constexpr HeapAllocator(HeapAllocator &&)                  = default;
+  constexpr HeapAllocator & operator=(HeapAllocator &&)      = default;
   constexpr HeapAllocator(HeapAllocator const &)             = delete;
-  constexpr HeapAllocator(HeapAllocator &&)                  = delete;
   constexpr HeapAllocator & operator=(HeapAllocator const &) = delete;
-  constexpr HeapAllocator & operator=(HeapAllocator &&)      = delete;
   constexpr ~HeapAllocator()                                 = default;
 
   /// @copydoc alloc

@@ -59,7 +59,7 @@ TEST(AsyncTest, Basic)
     [](TaskInstance shard, int * pcount) {
       std::atomic_ref count_ref{*pcount};
       int             count = count_ref.fetch_add(1);
-      info("shard: {}  of {}, sync i: {}", shard.idx, shard.n, count);
+      info("shard: {}  of {}, sync i: {}", shard.idx, shard.dim, count);
     },
     10);
 

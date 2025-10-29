@@ -14,10 +14,10 @@ struct Arena final : IAllocator
   /// @brief one byte past the block
   u8 * end;
 
-  /// @brief end of the last allocation, must be set to {begin}
+  /// @brief end of the last allocation
   u8 * offset;
 
-  /// @brief actual alignment requested from allocator
+  /// @brief total allocated bytes
   usize allocated;
 
   constexpr Arena() :
@@ -26,6 +26,15 @@ struct Arena final : IAllocator
     end{nullptr},
     offset{nullptr},
     allocated{0}
+  {
+  }
+
+  constexpr Arena(u8 * begin, u8 * end, u8 * offset, usize allocated) :
+    IAllocator{},
+    begin{begin},
+    end{end},
+    offset{offset},
+    allocated{allocated}
   {
   }
 
@@ -75,10 +84,37 @@ struct Arena final : IAllocator
   }
 
   constexpr Arena(Arena const &)             = delete;
-  constexpr Arena(Arena &&)                  = delete;
   constexpr Arena & operator=(Arena const &) = delete;
-  constexpr Arena & operator=(Arena &&)      = delete;
-  constexpr ~Arena()                         = default;
+
+  constexpr Arena(Arena && other) :
+    Arena{other.begin, other.end, other.offset, other.allocated}
+  {
+    other.begin     = nullptr;
+    other.end       = nullptr;
+    other.offset    = nullptr;
+    other.allocated = 0;
+  }
+
+  constexpr Arena & operator=(Arena && other)
+  {
+    if (this == &other) [[unlikely]]
+    {
+      return *this;
+    }
+
+    this->~Arena();
+
+    new (this) Arena{static_cast<Arena &&>(other)};
+
+    other.begin     = nullptr;
+    other.end       = nullptr;
+    other.offset    = nullptr;
+    other.allocated = 0;
+
+    return *this;
+  }
+
+  constexpr ~Arena() = default;
 
   /// @brief Total capacity of the arena in bytes
   [[nodiscard]] constexpr usize capacity() const

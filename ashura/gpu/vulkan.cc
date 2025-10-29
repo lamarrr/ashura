@@ -3183,7 +3183,7 @@ Result<gpu::DescriptorSetLayout, Status> IDevice::create_descriptor_set_layout(
   }
 
   Vec<VkDescriptorSetLayoutBinding, 0> vk_bindings{scratch_};
-  Vec<VkDescriptorBindingFlagsEXT, 0>  vk_binding_flags;
+  Vec<VkDescriptorBindingFlagsEXT, 0>  vk_binding_flags{scratch_};
 
   for (auto [i, binding] : enumerate<u32>(info.bindings))
   {
@@ -4179,21 +4179,21 @@ Result<gpu::Swapchain, Status>
   }};
 
   new (shim) ISwapchain{
-    .vk                 = nullptr,
-    .vk_surface         = nullptr,
-    .images             = {},
-    .acquire_semaphores = {},
-    .current_image      = none,
-    .current_semaphore  = none,
-    .is_deferred        = false,
-    .is_out_of_date     = false,
-    .is_optimal         = true,
-    .format             = info.format,
-    .usage              = info.usage,
-    .present_mode       = info.present_mode,
-    .extent             = {0, 0},
-    .composite_alpha    = info.composite_alpha,
-    .preference         = std::move(pref)
+    .vk         = nullptr,
+    .vk_surface = nullptr,
+    .images{allocator_},
+    .acquire_semaphores{allocator_},
+    .current_image     = none,
+    .current_semaphore = none,
+    .is_deferred       = false,
+    .is_out_of_date    = false,
+    .is_optimal        = true,
+    .format            = info.format,
+    .usage             = info.usage,
+    .present_mode      = info.present_mode,
+    .extent            = {0, 0},
+    .composite_alpha   = info.composite_alpha,
+    .preference        = std::move(pref)
   };
 
   auto result = recreate_swapchain(shim);

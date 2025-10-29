@@ -306,20 +306,20 @@ using BindLocations = SmallVec<BindLocation, 8, 0>;
 
 struct IBuffer
 {
-  VkBuffer         vk             = nullptr;
-  gpu::BufferUsage usage          = gpu::BufferUsage::None;
-  bool             host_mapped    = false;
-  u64              size           = 0;
-  MemoryInfo       memory         = {};
-  BindLocations    bind_locations = {};
+  VkBuffer         vk          = nullptr;
+  gpu::BufferUsage usage       = gpu::BufferUsage::None;
+  bool             host_mapped = false;
+  u64              size        = 0;
+  MemoryInfo       memory      = {};
+  BindLocations    bind_locations;
 };
 
 struct IBufferView
 {
-  VkBufferView  vk             = nullptr;
-  Buffer        buffer         = nullptr;
-  Slice64       slice          = {};
-  BindLocations bind_locations = {};
+  VkBufferView  vk     = nullptr;
+  Buffer        buffer = nullptr;
+  Slice64       slice  = {};
+  BindLocations bind_locations;
 };
 
 struct IImage
@@ -338,19 +338,19 @@ struct IImage
 
 struct IImageView
 {
-  VkImageView   vk             = nullptr;
-  Image         image          = nullptr;
-  gpu::Format   format         = gpu::Format::Undefined;
-  Slice32       mip_levels     = {};
-  Slice32       array_layers   = {};
-  BindLocations bind_locations = {};
+  VkImageView   vk           = nullptr;
+  Image         image        = nullptr;
+  gpu::Format   format       = gpu::Format::Undefined;
+  Slice32       mip_levels   = {};
+  Slice32       array_layers = {};
+  BindLocations bind_locations;
 };
 
 struct IDescriptorSetLayout
 {
   VkDescriptorSetLayout vk = nullptr;
 
-  SmallVec<gpu::DescriptorBindingInfo, 1, 0> bindings = {};
+  SmallVec<gpu::DescriptorBindingInfo, 1, 0> bindings;
 
   u32 num_variable_length = 0;
 
@@ -382,7 +382,7 @@ struct IDescriptorSet
 
   bool is_readonly = false;
 
-  SmallVec<DescriptorBinding, 1, 0> bindings = {};
+  SmallVec<DescriptorBinding, 1, 0> bindings;
 
   static void remove_bind_loc(BindLocations &      locations,
                               BindLocation const & loc);
@@ -418,7 +418,7 @@ struct IGraphicsPipeline
 
   u32 num_sets = 0;
 
-  SmallVec<gpu::Format, 8, 0> color_fmts = {};
+  SmallVec<gpu::Format, 8, 0> color_fmts;
 
   Option<gpu::Format> depth_fmt = none;
 
@@ -485,7 +485,7 @@ struct IPhysicalDevice
 
 struct SwapchainPreference
 {
-  Vec<char>           label               = {};
+  Vec<char>           label;
   gpu::Surface        surface             = nullptr;
   gpu::SurfaceFormat  format              = {};
   gpu::ImageUsage     usage               = gpu::ImageUsage::None;
@@ -505,9 +505,9 @@ struct ISwapchain
 
   VkSurfaceKHR vk_surface = nullptr;
 
-  SmallVec<Image, 8, 0> images = {};
+  SmallVec<Image, 8, 0> images;
 
-  SmallVec<VkSemaphore, 8, 0> acquire_semaphores = {};
+  SmallVec<VkSemaphore, 8, 0> acquire_semaphores;
 
   u32 ring_index = 0;
 
@@ -531,7 +531,7 @@ struct ISwapchain
 
   gpu::CompositeAlpha composite_alpha = gpu::CompositeAlpha::None;
 
-  SwapchainPreference preference = {};
+  SwapchainPreference preference;
 };
 
 #define ASH_VK_CAST(Handle)                            \
@@ -1128,15 +1128,15 @@ struct PassContext
 
   Option<IComputePipeline &> compute_pipeline = none;
 
-  SmallVec<gpu::RenderingAttachment, 8, 0> color_attachments = {};
+  SmallVec<gpu::RenderingAttachment, 8, 0> color_attachments;
 
   Option<gpu::RenderingAttachment> depth_attachment = none;
 
   Option<gpu::RenderingAttachment> stencil_attachment = none;
 
-  SmallVec<DescriptorSet, 8, 0> descriptor_sets = {};
+  SmallVec<DescriptorSet, 8, 0> descriptor_sets;
 
-  SmallVec<Buffer, 8, 0> vertex_buffers = {};
+  SmallVec<Buffer, 8, 0> vertex_buffers;
 
   Option<IBuffer &> index_buffer = none;
 
