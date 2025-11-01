@@ -5,19 +5,21 @@
 #include "ashura/std/rc.h"
 #include "ashura/std/types.h"
 #include "ashura/std/vec.h"
-#include "ashura/std/range.h"
 
 namespace ash
 {
 
 template <typename Str>
+struct Piece
+{
+  Rc<Str> buffer{};
+  Slice   slice{};
+};
+
+template <typename Str>
 struct PieceTable
 {
-  struct Piece
-  {
-    Rc<Str> buffer{};
-    Slice   slice{};
-  };
+  using Piece = ash::Piece<Str>;
 
   struct CharIter
   {
@@ -242,7 +244,7 @@ struct PieceTable
     }
 
     template <typename Out>
-    constexpr Result<> copy(Slice range, Out & out) const
+    constexpr Result<> compact(Slice range, Out & out) const
     {
       for (auto iter = piece_begin(range); iter != piece_end(); iter++)
       {
@@ -296,79 +298,70 @@ struct PieceTable
 
   constexpr void erase(Slice erase)
   {
-    if (erase.span == 0) [[unlikely]]
+    auto old = Slice{0, pieces_.size()};
+
+    pieces_.reserve_extend(pieces_.size() + 8).unwrap();
+
+    usize offset = 0;
+
+    for (auto & piece : pieces_)
     {
-      return;
-    }
+      auto piece_size = piece.slice.span;
+      auto range      = Slice{offset, piece_size};
+      bool intersects = erase.intersects(range);
 
-    Option<Tuple<usize, Slice>> first_piece = none;
-    Option<Tuple<usize, Slice>> last_piece  = none;
-    usize                       offset      = 0;
-
-    for (auto [i, piece] : enumerate(pieces_))
-    {
-      auto current    = Slice{offset, piece.slice.span};
-      bool intersects = current.intersects(erase);
-
-      if (first_piece.is_none() && intersects)
+      if (!intersects)
       {
-        first_piece = Tuple{i, current};
+        pieces_.push(std::move(piece)).unwrap();
+      }
+      else if (erase.contains(range))
+      {
+      }
+      else if (range.contains(erase))
+      {
+        auto left_range = Slice::offsets(range.begin(), erase.begin());
+
+        auto left_slice =
+          Slice{piece.slice.offset + (left_range.begin() - range.begin()),
+                left_range.span};
+
+        auto right_range = Slice::offsets(erase.end(), range.end());
+
+        auto right_slice =
+          Slice{piece.slice.offset + (right_range.begin() - range.begin()),
+                right_range.span};
+
+        auto left_buffer  = std::move(piece.buffer);
+        auto right_buffer = left_buffer.alias();
+
+        if (!left_slice.is_empty())
+        {
+          pieces_.push(std::move(left_buffer), left_slice).unwrap();
+        }
+        if (!right_slice.is_empty())
+        {
+          pieces_.push(std::move(right_buffer), right_slice).unwrap();
+        }
+      }
+      else if (range.begin() > erase.begin())
+      {
+        auto result = Slice::offsets(erase.end(), range.end());
+        auto slice  = Slice{result.offset - range.begin(), result.span};
+        slice.offset += piece.slice.offset;
+        pieces_.push(std::move(piece.buffer), slice).unwrap();
+      }
+      else
+      {
+        auto result = Slice::offsets(range.begin(), erase.begin());
+        auto slice  = Slice{result.offset - range.begin(), result.span};
+        slice.offset += piece.slice.offset;
+        pieces_.push(std::move(piece.buffer), slice).unwrap();
       }
 
-      if (intersects)
-      {
-        last_piece = Tuple{i, current};
-      }
-      else if (last_piece.is_some())
-      {
-        break;
-      }
-
-      offset = current.end();
+      offset = range.end();
     }
 
-    if (first_piece.is_none())
-    {
-      return;
-    }
-
-    auto [first_idx, first_range] = first_piece.unwrap();
-    auto [last_idx, last_range]   = last_piece.unwrap();
-
-    if (erase.contains(first_range) && erase.contains(last_range))
-    {
-      pieces_.erase(Slice::elements(first_idx, last_idx));
-    }
-    else if (erase.contains(last_range))
-    {
-      pieces_.erase(Slice::elements(first_idx + 1, last_idx));
-      auto & piece     = pieces_[first_idx];
-      auto   new_range = Slice::range(first_range.begin(), erase.begin());
-      piece.slice.span = new_range.span;
-    }
-    else if (erase.contains(first_range))
-    {
-      pieces_.erase(Slice::elements(first_idx, last_idx - 1));
-      auto & piece     = pieces_[first_idx];
-      auto   new_range = Slice::range(erase.end(), last_range.end());
-      piece.slice.offset += erase.end() - last_range.begin();
-      piece.slice.span = new_range.span;
-    }
-    else
-    {
-      pieces_.erase(Slice::elements(first_idx + 1, last_idx - 1));
-      auto & first = pieces_[first_idx];
-      {
-        auto new_range   = Slice::range(first_range.begin(), erase.begin());
-        first.slice.span = new_range.span;
-      }
-      auto & last = pieces_[first_idx + 1];
-      {
-        auto new_range = Slice::range(erase.end(), last_range.end());
-        last.slice.offset += erase.end() - last_range.begin();
-        last.slice.span = new_range.span;
-      }
-    }
+    pieces_.erase(old);
   }
 
   constexpr Result<> insert(usize pos, Piece text)
@@ -403,7 +396,7 @@ struct PieceTable
     auto   offset     = pos - piece_pos;
     auto   left_range = Slice{0, offset};
     left_range.offset += piece.slice.offset;
-    auto right_range = Slice::range(offset, piece.slice.span);
+    auto right_range = Slice::offsets(offset, piece.slice.span);
     right_range.offset += piece.slice.offset;
 
     auto & left    = piece;
@@ -476,16 +469,10 @@ struct PieceTable
   }
 
   template <typename Out>
-  constexpr Result<> copy(Slice range, Out & out) const
+  constexpr Result<> compact(Slice range, Out & out) const
   {
-    return view().copy(range, out);
+    return view().compact(range, out);
   }
-};
-
-template <typename Str>
-struct IsTriviallyRelocatable<PieceTable<Str>>
-{
-  static constexpr bool value = TriviallyRelocatable<Str>;
 };
 
 using Piece8  = PieceTable<Str8>;

@@ -805,7 +805,7 @@ struct [[nodiscard]] CoreSlice
   S offset = 0;
   S span   = 0;
 
-  static constexpr CoreSlice range(S begin, S end)
+  static constexpr CoreSlice offsets(S begin, S end)
   {
     return CoreSlice{.offset = begin, .span = static_cast<S>(end - begin)};
   }
@@ -847,13 +847,13 @@ struct [[nodiscard]] CoreSlice
 
   constexpr CoreSlice operator()(S size) const
   {
-    return CoreSlice::range(min(offset, size),
-                            min(sat_add(offset, span), size));
+    return CoreSlice::offsets(min(offset, size),
+                              min(sat_add(offset, span), size));
   }
 
   constexpr CoreSlice operator()() const
   {
-    return CoreSlice::range(offset, sat_add(offset, span));
+    return CoreSlice::offsets(offset, sat_add(offset, span));
   }
 
   constexpr bool is_empty() const
@@ -868,15 +868,14 @@ struct [[nodiscard]] CoreSlice
 
   constexpr bool intersects(CoreSlice other) const
   {
-    return (begin() <= other.begin() && end() > other.begin()) ||
-           (begin() < other.end() && end() >= other.end());
+    return max(begin(), other.begin()) < min(end(), other.end());
   }
 
   constexpr CoreSlice intersection(CoreSlice other) const
   {
     auto m0 = max(begin(), other.begin());
     auto m1 = min(end(), other.end());
-    return m0 > m1 ? CoreSlice::slice(0, 0) : CoreSlice::range(m0, m1);
+    return m0 > m1 ? CoreSlice::slice(0, 0) : CoreSlice::offsets(m0, m1);
   }
 
   constexpr bool contains(S item) const
@@ -1216,7 +1215,6 @@ template <usize Alignment, typename T>
   }
 }
 
-// [ ] should slice types be span only?
 template <typename T>
 struct [[nodiscard]] Span
 {

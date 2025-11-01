@@ -3,9 +3,6 @@
 
 #include "ashura/std/piece_table.h"
 
-
-#include <print>
-
 using namespace ash;
 
 TEST(PieceTableTest, Extend)
@@ -18,7 +15,7 @@ TEST(PieceTableTest, Extend)
 
   Vec<c8> result{default_allocator};
 
-  piece.copy(Slice::all(), result).unwrap();
+  piece.compact(Slice::all(), result).unwrap();
 
   EXPECT_EQ(result.size(), 18);
   EXPECT_TRUE(mem::eq(result.view(), u8"AB 12\n676967 12345"_str));
@@ -33,7 +30,7 @@ TEST(PieceTableTest, Insert)
   {
     Vec<c8> result{default_allocator};
 
-    piece.copy(Slice::all(), result).unwrap();
+    piece.compact(Slice::all(), result).unwrap();
 
     EXPECT_TRUE(mem::eq(result.view(), u8"AB 12"_str));
   }
@@ -42,7 +39,7 @@ TEST(PieceTableTest, Insert)
 
   {
     Vec<c8> result{default_allocator};
-    piece.copy(Slice::all(), result).unwrap();
+    piece.compact(Slice::all(), result).unwrap();
     EXPECT_TRUE(mem::eq(result.view(), u8"AB 123456"_str));
   }
 
@@ -51,7 +48,7 @@ TEST(PieceTableTest, Insert)
   {
     Vec<c8> result{default_allocator};
 
-    piece.copy(Slice::all(), result).unwrap();
+    piece.compact(Slice::all(), result).unwrap();
     EXPECT_TRUE(mem::eq(result.view(), u8"ABCDEFGH 123456"_str));
   }
 }
@@ -64,17 +61,80 @@ TEST(PieceTableTest, Erase)
   piece.extend(static_rc(u8"CDEFGH"_str)).unwrap();
   piece.extend(static_rc(u8"IJKLM"_str)).unwrap();
 
-  piece.erase(Slice::slice(3, 2));
   {
+    Piece8 p{default_allocator};
+
+    piece.clone(Slice::all(), p).unwrap();
+
+    p.erase(Slice::slice(3, 2));
     Vec<c8> result{default_allocator};
 
-    piece.copy(Slice::all(), result).unwrap();
+    p.compact(Slice::all(), result).unwrap();
     EXPECT_TRUE(mem::eq(result.view(), u8"ABCFGHIJKLM"_str));
-    std::println("{}", std::string_view{ (char const *) result.view().data(), result.size() });
+  }
+
+  {
+    Piece8 p{default_allocator};
+
+    piece.clone(Slice::all(), p).unwrap();
+
+    p.erase(Slice::slice(1, 2));
+    Vec<c8> result{default_allocator};
+
+    p.compact(Slice::all(), result).unwrap();
+    EXPECT_TRUE(mem::eq(result.view(), u8"ADEFGHIJKLM"_str));
+  }
+
+  {
+    Piece8 p{default_allocator};
+
+    piece.clone(Slice::all(), p).unwrap();
+
+    p.erase(Slice::slice(1, 7));
+    Vec<c8> result{default_allocator};
+
+    p.compact(Slice::all(), result).unwrap();
+    EXPECT_TRUE(mem::eq(result.view(), u8"AIJKLM"_str));
+  }
+
+  {
+    Piece8 p{default_allocator};
+
+    piece.clone(Slice::all(), p).unwrap();
+
+    p.erase(Slice::slice(1, 8));
+    Vec<c8> result{default_allocator};
+
+    p.compact(Slice::all(), result).unwrap();
+    EXPECT_TRUE(mem::eq(result.view(), u8"AJKLM"_str));
+  }
+
+  {
+    Piece8 p{default_allocator};
+
+    piece.clone(Slice::all(), p).unwrap();
+
+    p.erase(Slice::slice(2, 6));
+    Vec<c8> result{default_allocator};
+
+    p.compact(Slice::all(), result).unwrap();
+    EXPECT_TRUE(mem::eq(result.view(), u8"ABIJKLM"_str));
+  }
+
+  {
+    Piece8 p{default_allocator};
+
+    piece.clone(Slice::all(), p).unwrap();
+
+    p.erase(Slice::all());
+    Vec<c8> result{default_allocator};
+
+    p.compact(Slice::all(), result).unwrap();
+    EXPECT_TRUE(mem::eq(result.view(), u8""_str));
   }
 }
 
-TEST(PieceTableTest, Copy)
+TEST(PieceTableTest, Compact)
 {
   Piece8 piece{default_allocator};
 
@@ -91,14 +151,14 @@ TEST(PieceTableTest, Copy)
   {
     Vec<c8> result{default_allocator};
 
-    piece.copy(Slice::slice(0, 5), result).unwrap();
+    piece.compact(Slice::slice(0, 5), result).unwrap();
     EXPECT_TRUE(mem::eq(result.view(), u8"ABCDE"_str));
   }
 
   {
     Vec<c8> result{default_allocator};
 
-    piece.copy(Slice::slice(4, 5), result).unwrap();
+    piece.compact(Slice::slice(4, 5), result).unwrap();
     EXPECT_TRUE(mem::eq(result.view(), u8"EFGHI"_str));
   }
 }
@@ -122,7 +182,7 @@ TEST(PieceTableTest, Clone)
     piece.clone(Slice::slice(4, 10), clone).unwrap();
 
     Vec<c8> result{default_allocator};
-    clone.copy(Slice::all(), result).unwrap();
+    clone.compact(Slice::all(), result).unwrap();
     EXPECT_TRUE(mem::eq(result.view(), u8"EFGHIJKLMN"_str));
   }
 }

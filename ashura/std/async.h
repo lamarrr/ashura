@@ -158,16 +158,47 @@ struct ISpinLock
   }
 };
 
-typedef struct ITicketLock * TicketLock;
+typedef struct IFairSpinLock * FairSpinLock;
 
-// [ ] impl
-struct ITicketLock
+struct IFairSpinLock
 {
-  void lock();
+  usize front_ = 0;
+  usize back_  = 0;
 
-  [[nodiscard]] bool try_lock();
+  void lock()
+  {
+    std::atomic_ref front{front_};
+    std::atomic_ref back{back_};
 
-  void unlock();
+    auto ticket = back.fetch_add(1, std::memory_order_relaxed) - 1;
+
+    while (true)
+    {
+      auto front_val = front.load(std::memory_order_acquire);
+
+      if (front_val == ticket)
+      {
+        return;
+      }
+    }
+  }
+
+  [[nodiscard]] bool try_lock()
+  {
+    std::atomic_ref front{front_};
+    std::atomic_ref back{back_};
+
+    auto ticket    = back.fetch_add(1, std::memory_order_relaxed) - 1;
+    auto front_val = front.load(std::memory_order_acquire);
+
+    return front_val == ticket;
+  }
+
+  void unlock()
+  {
+    std::atomic_ref front{front_};
+    front.fetch_add(1, std::memory_order_release);
+  }
 };
 
 template <typename L>
@@ -932,7 +963,7 @@ enum class TaskState : u8
   /// @brief The task is not yet ready to execute
   NotReady = 0,
   /// @brief The task needs to be re-scheduled for execution
-  Again   = 1,
+  Again    = 1,
   /// @brief The task has completed execution
   Finished = 2
 };

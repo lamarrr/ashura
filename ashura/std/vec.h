@@ -151,6 +151,11 @@ struct [[nodiscard]] Vec
     return sizeof(Type) * capacity();
   }
 
+  constexpr Allocator allocator() const
+  {
+    return allocator_;
+  }
+
   constexpr Layout storage_layout() const
   {
     return layout_of<Type>.array(capacity()).align_to(ALIGNMENT);
@@ -334,15 +339,19 @@ struct [[nodiscard]] Vec
   constexpr void erase(Slice slice)
   {
     slice = slice(size_);
-    if constexpr (TriviallyRelocatable<Type>)
+    if constexpr (TriviallyMoveConstructible<Type> &&
+                  TriviallyDestructible<Type>)
     {
       mem::move(Span{data() + slice.end(), size_ - slice.end()},
                 data() + slice.begin());
     }
     else
     {
-      obj::move_assign(Span{data() + slice.end(), size_ - slice.end()},
-                       data() + slice.begin());
+      for (usize dst = slice.begin(), src = slice.end(); src < size_;
+           dst++, src++)
+      {
+        data()[dst] = std::move(data()[src]);
+      }
 
       obj::destruct(Span{data() + size_ - slice.span, slice.span});
     }
@@ -391,7 +400,8 @@ struct [[nodiscard]] Vec
       return Err{};
     }
 
-    if constexpr (TriviallyRelocatable<Type>)
+    if constexpr (TriviallyMoveConstructible<Type> &&
+                  TriviallyDestructible<Type>)
     {
       // potentially overlapping
       mem::move(Span{data() + first, size_ - first}, data() + first + distance);
@@ -773,6 +783,11 @@ struct [[nodiscard]] SmallVec
     return sizeof(Type) * capacity();
   }
 
+  constexpr Allocator allocator() const
+  {
+    return allocator_;
+  }
+
   constexpr Layout storage_layout() const
   {
     return layout_of<Type>.array(capacity()).align_to(ALIGNMENT);
@@ -998,15 +1013,19 @@ struct [[nodiscard]] SmallVec
   constexpr void erase(Slice slice)
   {
     slice = slice(size_);
-    if constexpr (TriviallyRelocatable<Type>)
+    if constexpr (TriviallyMoveConstructible<Type> &&
+                  TriviallyDestructible<Type>)
     {
       mem::move(Span{data() + slice.end(), size_ - slice.end()},
                 data() + slice.begin());
     }
     else
     {
-      obj::move_assign(Span{data() + slice.end(), size_ - slice.end()},
-                       data() + slice.begin());
+      for (usize dst = slice.begin(), src = slice.end(); src < size_;
+           dst++, src++)
+      {
+        data()[dst] = std::move(data()[src]);
+      }
 
       obj::destruct(Span{data() + size_ - slice.span, slice.span});
     }
@@ -1409,20 +1428,22 @@ struct [[nodiscard]] InplaceVec
   constexpr void erase(Slice slice)
   {
     slice = slice(size_);
-
-    if constexpr (TriviallyRelocatable<Type>)
+    if constexpr (TriviallyMoveConstructible<Type> &&
+                  TriviallyDestructible<Type>)
     {
       mem::move(Span{data() + slice.end(), size_ - slice.end()},
                 data() + slice.begin());
     }
     else
     {
-      obj::move_assign(Span{data() + slice.end(), size_ - slice.end()},
-                       data() + slice.begin());
+      for (usize dst = slice.begin(), src = slice.end(); src < size_;
+           dst++, src++)
+      {
+        data()[dst] = std::move(data()[src]);
+      }
 
       obj::destruct(Span{data() + size_ - slice.span, slice.span});
     }
-
     size_ -= slice.span;
   }
 
