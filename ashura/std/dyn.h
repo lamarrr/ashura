@@ -9,6 +9,11 @@ namespace ash
 
 typedef Fn<void(Allocator)> DynUninit;
 
+static constexpr void dyn_noop(Allocator allocator)
+{
+  (void) allocator;
+}
+
 /// @brief A dynamically allocated object. It is always valid. Dyn represents a resource using the handle type `H`.
 template <typename H>
 requires (TriviallyCopyable<H>)
@@ -158,6 +163,12 @@ constexpr Result<Dyn<Fn>, Void> dyn_lambda(Allocator allocator,
   auto dyn_lambda = dyn(allocator, static_cast<Lambda &&>(lambda)).unwrap();
   Fn   func{lambda.get()};
   return transmute(std::move(lambda), func);
+}
+
+template <typename Handle>
+constexpr Dyn<Handle> static_dyn(Handle handle)
+{
+  return Dyn<Handle>{handle, noop_allocator, dyn_noop};
 }
 
 }    // namespace ash

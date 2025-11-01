@@ -289,6 +289,9 @@ struct IViewSys
     layers{allocator},
     canvas_xfm{allocator},
     canvas_inv_xfm{allocator},
+    canvas_centers{allocator},
+    canvas_extents{allocator},
+    clips{allocator},
     z_ord{allocator},
     focus_ord{allocator},
     focus_idx{allocator},
@@ -307,9 +310,9 @@ struct IViewSys
   }
 
   IViewSys(IViewSys const &)             = delete;
-  IViewSys(IViewSys &&)                  = default;
+  IViewSys(IViewSys &&)                  = delete;
   IViewSys & operator=(IViewSys const &) = delete;
-  IViewSys & operator=(IViewSys &&)      = default;
+  IViewSys & operator=(IViewSys &&)      = delete;
   ~IViewSys()                            = default;
 
   void clear_frame();

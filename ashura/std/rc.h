@@ -8,12 +8,19 @@
 namespace ash
 {
 
-typedef Fn<usize(Allocator, i32)> AliasOp;
+enum class RcOp : u8
+{
+  GetCount = 0,
+  Alias    = 1,
+  Unalias  = 2
+};
+
+typedef Fn<usize(Allocator, RcOp)> AliasOp;
 
 /// @param allocator the allocator used to allocate the object
 /// @param direction the reference operation, 0 (get ref count), 1 (increase ref count), -1 (decrease ref count)
 /// @returns the previous alias count
-static constexpr usize rc_noop(Allocator allocator, i32 op)
+static constexpr usize rc_noop(Allocator allocator, RcOp op)
 {
   (void) allocator;
   (void) op;
@@ -86,7 +93,7 @@ struct [[nodiscard]] Rc
 
   constexpr void uninit() const
   {
-    alias_(allocator_, -1);
+    alias_(allocator_, RcOp::Unalias);
   }
 
   constexpr void reset()
@@ -97,13 +104,13 @@ struct [[nodiscard]] Rc
 
   constexpr Rc alias() const
   {
-    alias_(allocator_, 1);
+    alias_(allocator_, RcOp::Alias);
     return Rc{handle_, allocator_, alias_};
   }
 
   constexpr usize num_aliases() const
   {
-    return alias_(allocator_, 0);
+    return alias_(allocator_, RcOp::GetCount);
   }
 
   constexpr H get() const
@@ -146,15 +153,19 @@ struct AtomicRcObject
   T                v0;
 
   static constexpr usize rc_op(AtomicRcObject * obj, Allocator allocator,
-                               i32 op)
+                               RcOp op)
   {
     switch (op)
     {
-      case 0:
+      case RcOp::GetCount:
       {
         return obj->alias_count.count();
       }
-      case -1:
+      case RcOp::Alias:
+      {
+        return obj->alias_count.alias();
+      }
+      case RcOp::Unalias:
       {
         auto const old = obj->alias_count.unalias();
         if (old == 0)
@@ -163,10 +174,6 @@ struct AtomicRcObject
           allocator->ndealloc(1, obj);
         }
         return old;
-      }
-      case 1:
-      {
-        return obj->alias_count.alias();
       }
       default:
         ASH_UNREACHABLE;
@@ -180,15 +187,19 @@ struct RcObject
   AliasCount alias_count{};
   T          v0;
 
-  static constexpr usize rc_op(RcObject * obj, Allocator allocator, i32 op)
+  static constexpr usize rc_op(RcObject * obj, Allocator allocator, RcOp op)
   {
     switch (op)
     {
-      case 0:
+      case RcOp::GetCount:
       {
         return obj->alias_count.count();
       }
-      case -1:
+      case RcOp::Alias:
+      {
+        return obj->alias_count.alias();
+      }
+      case RcOp::Unalias:
       {
         auto const old = obj->alias_count.unalias();
         if (old == 0)
@@ -197,10 +208,6 @@ struct RcObject
           allocator->ndealloc(1, obj);
         }
         return old;
-      }
-      case 1:
-      {
-        return obj->alias_count.alias();
       }
       default:
         ASH_UNREACHABLE;
@@ -246,6 +253,12 @@ template <typename To, typename From>
 constexpr Rc<To> cast(Rc<From> from)
 {
   return transmute((Rc<From> &&) from, static_cast<To>(from.get()));
+}
+
+template <typename Handle>
+constexpr Rc<Handle> static_rc(Handle handle)
+{
+  return Rc<Handle>{handle, noop_allocator, rc_noop};
 }
 
 }    // namespace ash

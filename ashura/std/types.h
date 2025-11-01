@@ -810,6 +810,16 @@ struct [[nodiscard]] CoreSlice
     return CoreSlice{.offset = begin, .span = static_cast<S>(end - begin)};
   }
 
+  static constexpr CoreSlice elements(S first, S last)
+  {
+    return CoreSlice{.offset = first, .span = static_cast<S>(last - first + 1)};
+  }
+
+  static constexpr CoreSlice slice(S offset, S span)
+  {
+    return CoreSlice{.offset = offset, .span = span};
+  }
+
   static constexpr CoreSlice all()
   {
     return CoreSlice{.offset = 0, .span = END};
@@ -854,6 +864,19 @@ struct [[nodiscard]] CoreSlice
   constexpr bool contains(CoreSlice other) const
   {
     return begin() <= other.begin() && end() >= other.end();
+  }
+
+  constexpr bool intersects(CoreSlice other) const
+  {
+    return (begin() <= other.begin() && end() > other.begin()) ||
+           (begin() < other.end() && end() >= other.end());
+  }
+
+  constexpr CoreSlice intersection(CoreSlice other) const
+  {
+    auto m0 = max(begin(), other.begin());
+    auto m1 = min(end(), other.end());
+    return m0 > m1 ? CoreSlice::slice(0, 0) : CoreSlice::range(m0, m1);
   }
 
   constexpr bool contains(S item) const
@@ -1457,6 +1480,9 @@ constexpr Span<u8> as_u8_span(T & obj)
 typedef Span<char const> Str;
 typedef Span<char>       MutStr;
 
+typedef Span<c16 const> Str16;
+typedef Span<c16>       MutStr16;
+
 typedef Span<c8 const> Str8;
 typedef Span<c8>       MutStr8;
 
@@ -1474,6 +1500,11 @@ constexpr Str operator""_str(char const * lit, usize n)
 constexpr Str8 operator""_str(c8 const * lit, usize n)
 {
   return Str8{lit, n};
+}
+
+constexpr Str16 operator""_str(c16 const * lit, usize n)
+{
+  return Str16{lit, n};
 }
 
 constexpr Str32 operator""_str(c32 const * lit, usize n)

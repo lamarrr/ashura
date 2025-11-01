@@ -2498,8 +2498,8 @@ constexpr bool contains_point(f32x2 begin, f32x2 end, f32x2 point)
          end.x() >= point.x() && end.y() >= point.y();
 }
 
-constexpr Tuple<f32x2, f32x2> intersect(f32x2 a_begin, f32x2 a_end,
-                                        f32x2 b_begin, f32x2 b_end)
+constexpr Tuple<f32x2, f32x2> intersection(f32x2 a_begin, f32x2 a_end,
+                                           f32x2 b_begin, f32x2 b_end)
 {
   if (!overlaps(a_begin, a_end, b_begin, b_end))
   {
@@ -2566,9 +2566,9 @@ struct Rect
     return ash::overlaps(begin(), end(), r.begin(), r.end());
   }
 
-  constexpr Rect intersect(Rect const & r) const
+  constexpr Rect intersection(Rect const & r) const
   {
-    auto [b, e] = ash::intersect(begin(), end(), r.begin(), r.end());
+    auto [b, e] = ash::intersection(begin(), end(), r.begin(), r.end());
     return Rect::range(b, e);
   }
 };
@@ -2665,9 +2665,9 @@ struct CRect
     return ash::overlaps(begin(), end(), r.begin(), r.end());
   }
 
-  constexpr auto intersect(CRect const & r) const
+  constexpr auto intersection(CRect const & r) const
   {
-    auto [b, e] = ash::intersect(begin(), end(), r.begin(), r.end());
+    auto [b, e] = ash::intersection(begin(), end(), r.begin(), r.end());
     return CRect::range(b, e);
   }
 
