@@ -345,6 +345,7 @@ if(NOT ASH_EXCLUDE_TESTS)
     ashura/std/tests/option.cc
     ashura/std/tests/option_span.cc
     ashura/std/tests/panic.cc
+    ashura/std/tests/piece_table.cc
     ashura/std/tests/range.cc
     ashura/std/tests/result.cc
     ashura/std/tests/sformat.cc
@@ -577,8 +578,7 @@ set(SHADER_FILES
     sdf.slang
     triangle_fill.slang
     vector_path_coverage.slang
-    vector_path_fill.slang
-    )
+    vector_path_fill.slang)
 
 foreach(shader ${SHADER_FILES})
   compile_shader(${shader})
