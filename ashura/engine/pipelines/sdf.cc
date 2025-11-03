@@ -213,7 +213,7 @@ void SdfPipeline::encode(gpu::CommandEncoder       e,
         state.stencil.map([](auto s) { return s.back; }).unwrap_or()});
 
     e->draw({0, 4},
-            Slice32::range(params.state_runs[i], params.state_runs[i + 1]));
+            Slice32::offsets(params.state_runs[i], params.state_runs[i + 1]));
   }
   e->end_rendering();
 }
