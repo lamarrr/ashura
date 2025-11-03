@@ -479,4 +479,11 @@ using Piece8  = PieceTable<Str8>;
 using Piece16 = PieceTable<Str16>;
 using Piece32 = PieceTable<Str32>;
 
+template <typename Str>
+using PieceView = typename PieceTable<Str>::View;
+
+using PieceView8  = PieceView<Str8>;
+using PieceView16 = PieceView<Str16>;
+using PieceView32 = PieceView<Str32>;
+
 }    // namespace ash

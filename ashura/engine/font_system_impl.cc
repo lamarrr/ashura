@@ -1028,7 +1028,7 @@ void FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
         FontImpl const &  f = (FontImpl const &) *fonts_[(usize) s.font].v0;
 
         auto const paragraph =
-          block.text.slice(Slice::range(paragraph_begin, paragraph_end));
+          block.text.slice(Slice::offsets(paragraph_begin, paragraph_end));
         Slice const paragraph_subset{run_begin - paragraph_begin,
                                      i - run_begin};
 
@@ -1040,7 +1040,7 @@ void FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
                                                     HB_DIRECTION_RTL,
                 language, block.use_kerning, block.use_ligatures);
 
-        Slice const codepoints = Slice::range(run_begin, i);
+        Slice const codepoints = Slice::offsets(run_begin, i);
 
         insert_run(layout, s, codepoints, paragraph_begin, f.metrics,
                    base_segment, infos, positions);
@@ -1066,9 +1066,9 @@ void FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
 
       layout.paragraphs
         .push(Paragraph{
-          .runs       = Slice::range(paragraph_runs_begin, paragraph_runs_end),
-          .codepoints = Slice::range(paragraph_begin, paragraph_end),
-          .break_codepoints = Slice::range(break_begin, break_end)})
+          .runs = Slice::offsets(paragraph_runs_begin, paragraph_runs_end),
+          .codepoints       = Slice::offsets(paragraph_begin, paragraph_end),
+          .break_codepoints = Slice::offsets(break_begin, break_end)})
         .unwrap();
 
     } while (p < text_size);
@@ -1125,9 +1125,9 @@ void FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
 
       auto const & last_run = layout.runs[i - 1];
       auto const   codepoints =
-        Slice::range(first_run.codepoints.offset, last_run.codepoints.end());
+        Slice::offsets(first_run.codepoints.offset, last_run.codepoints.end());
 
-      Slice const runs = Slice::range(first, i);
+      Slice const runs = Slice::offsets(first, i);
 
       auto const num_carets = codepoints.span + 1;
       auto const carets     = Slice{caret_iter, num_carets};
@@ -1153,7 +1153,7 @@ void FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
     }
 
     auto const lines_end = layout.lines.size();
-    paragraph.lines      = Slice::range(lines_begin, lines_end);
+    paragraph.lines      = Slice::offsets(lines_begin, lines_end);
   }
 
   layout.max_width      = max_width;

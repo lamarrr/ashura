@@ -1152,7 +1152,7 @@ typedef struct IScheduler * Scheduler;
 struct SchedulerInfo
 {
   /// @brief thread-safe allocator to allocate tasks from, must be able to allocate page-sized allocations
-  Allocator allocator = {};
+  Allocator allocator;
 
   /// @brief max sleep time for the dedicated threads.
   /// enables responsiveness. `.size()` represents the number of dedicated

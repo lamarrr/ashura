@@ -201,9 +201,9 @@ struct GpuQueries
 
   gpu::StatisticsQuery statistics = nullptr;
 
-  Vec<u64> cpu_timestamps;
+  Vec<u64> cpu_timestamps{noop_allocator};
 
-  Vec<gpu::PipelineStatistics> cpu_statistics;
+  Vec<gpu::PipelineStatistics> cpu_statistics{noop_allocator};
 
   void uninit(gpu::Device device);
 
@@ -318,11 +318,11 @@ struct GpuDescriptors
 {
   gpu::DescriptorSet samplers = nullptr;
 
-  BitVec<u64> samplers_slots = {};
+  BitVec<u64> samplers_slots{noop_allocator};
 
   gpu::DescriptorSet sampled_textures = nullptr;
 
-  BitVec<u64> sampled_textures_slots = {};
+  BitVec<u64> sampled_textures_slots{noop_allocator};
 
   void uninit(gpu::Device device);
 
@@ -406,7 +406,7 @@ struct IGpuFramePlan
     state_{GpuFramePlanState::Reset},
     semaphore_{std::move(semaphore)},
     submission_stage_{0},
-    arena_{allocator}
+    arena_{allocator, ArenaPoolCfg{}}
   {
   }
 
@@ -560,7 +560,7 @@ struct ImageUnion
 
 struct ScratchImages
 {
-  Vec<ImageUnion> images;
+  Vec<ImageUnion> images{noop_allocator};
 
   void uninit(gpu::Device device);
 
@@ -572,7 +572,7 @@ struct ScratchImages
 
 struct ScratchBuffers
 {
-  Vec<GpuBuffer> buffers;
+  Vec<GpuBuffer> buffers{noop_allocator};
 
   void uninit(gpu::Device device);
 
@@ -585,10 +585,10 @@ struct ScratchBuffers
 
 struct GpuFrameResources
 {
-  GpuBuffer      buffer          = {};
-  ScratchBuffers scratch_buffers = {};
-  ScratchImages  scratch_images  = {};
-  GpuQueries     queries         = {};
+  GpuBuffer      buffer;
+  ScratchBuffers scratch_buffers;
+  ScratchImages  scratch_images;
+  GpuQueries     queries;
 
   void uninit(gpu::Device device);
 };
@@ -820,7 +820,7 @@ struct IGpuSys
 
   IGpuSys() :
     initialized_{false},
-    allocator_{},
+    allocator_{noop_allocator},
     dev_{nullptr},
     surface_{nullptr},
     cfg_{},
@@ -833,13 +833,13 @@ struct IGpuSys
     swapchain_{nullptr},
     queue_scope_{nullptr},
     resources_lock_{},
-    sampler_cache_{},
+    sampler_cache_{noop_allocator},
     descriptors_{},
     default_image_{nullptr},
     default_image_views_{},
     frame_ring_index_{0},
-    frames_{},
-    plans_{},
+    frames_{noop_allocator},
+    plans_{noop_allocator},
     scheduler_{nullptr},
     thread_{}
   {

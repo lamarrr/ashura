@@ -293,13 +293,13 @@ static constexpr Slice span_boundary(Str32 text, usize pos, Fn && pred)
     auto neg   = [&](auto cp) { return !pred(cp); };
     auto begin = seek(text, pos, true, neg).unwrap_or(USIZE_MAX) + 1;
     auto end   = seek(text, pos, false, neg).unwrap_or(text.size());
-    return Slice::range(begin, end);
+    return Slice::offsets(begin, end);
   }
   else
   {
     auto begin = seek(text, pos, true, pred).unwrap_or(USIZE_MAX) + 1;
     auto end   = seek(text, pos, false, pred).unwrap_or(text.size());
-    return Slice::range(begin, end);
+    return Slice::offsets(begin, end);
   }
 }
 

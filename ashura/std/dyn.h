@@ -32,7 +32,10 @@ struct [[nodiscard]] Dyn
   {
   }
 
-  explicit constexpr Dyn() : handle_{}, allocator_{}, uninit_{noop}
+  explicit constexpr Dyn() :
+    handle_{},
+    allocator_{noop_allocator},
+    uninit_{noop}
   {
   }
 

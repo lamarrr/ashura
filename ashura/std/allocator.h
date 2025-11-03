@@ -165,8 +165,7 @@ struct [[nodiscard]] Allocator
 {
   IAllocator * self;
 
-  constexpr Allocator(IAllocator & allocator = heap_allocator_impl) :
-    self{&allocator}
+  constexpr Allocator(IAllocator & allocator) : self{&allocator}
   {
   }
 
@@ -201,6 +200,6 @@ inline constexpr Allocator heap_allocator{heap_allocator_impl};
 
 inline constexpr Allocator noop_allocator{noop_allocator_impl};
 
-inline constexpr Allocator default_allocator{};
+inline constexpr Allocator default_allocator = heap_allocator;
 
 }    // namespace ash

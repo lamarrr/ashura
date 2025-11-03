@@ -107,8 +107,8 @@ Slice TextLayout::get_caret_selection(Slice carets) const
   auto line0_begin = carets.begin() - line0[0].carets.begin();
   auto line1_end   = carets.end() - line1[0].carets.begin();
 
-  return Slice::range(line0[0].codepoints.offset + line0_begin,
-                      line1[0].codepoints.offset + line1_end);
+  return Slice::offsets(line0[0].codepoints.offset + line0_begin,
+                        line1[0].codepoints.offset + line1_end);
 }
 
 Slice TextLayout::to_caret_selection(Slice codepoints) const
@@ -133,7 +133,7 @@ Slice TextLayout::to_caret_selection(Slice codepoints) const
 
   CHECK(last >= first, "");
 
-  return Slice::range((usize) first, (usize) (last + 1));
+  return Slice::offsets((usize) first, (usize) (last + 1));
 }
 
 CaretCodepoint TextLayout::get_caret_codepoint(usize caret) const

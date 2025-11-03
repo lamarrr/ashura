@@ -273,25 +273,25 @@ struct ArenaPoolCfg
 struct ArenaPool final : IAllocator
 {
   /// @brief allocation memory source
-  Allocator source = {};
+  Allocator source_;
 
   /// @brief allocated arenas
-  Arena * arenas     = nullptr;
-  usize   num_arenas = 0;
+  Arena * arenas_     = nullptr;
+  usize   num_arenas_ = 0;
 
   /// @brief currently active arena
-  usize current_arena = 0;
+  usize current_arena_ = 0;
 
   /// @brief configuration of the arena
-  ArenaPoolCfg cfg = {};
+  ArenaPoolCfg cfg_ = {};
 
   /// @brief Create an arena pool from an upstream memory source and its configuration
   /// @param source upstream memory allocator
   /// @param cfg the pool memory configuration
-  explicit ArenaPool(Allocator source = {}, ArenaPoolCfg const & cfg = {}) :
+  explicit ArenaPool(Allocator source, ArenaPoolCfg const & cfg) :
     IAllocator{},
-    source{source},
-    cfg{cfg}
+    source_{source},
+    cfg_{cfg}
   {
   }
 
@@ -311,21 +311,21 @@ struct ArenaPool final : IAllocator
   /// @brief force-reclaim all allocated memory on the pool
   void reclaim()
   {
-    for (usize i = 0; i < num_arenas; i++)
+    for (usize i = 0; i < num_arenas_; i++)
     {
-      arenas[i].reclaim();
+      arenas_[i].reclaim();
     }
 
-    current_arena = 0;
+    current_arena_ = 0;
   }
 
   /// @brief get the total capacity of the pool
   [[nodiscard]] usize capacity() const
   {
     usize s = 0;
-    for (usize i = 0; i < num_arenas; i++)
+    for (usize i = 0; i < num_arenas_; i++)
     {
-      s += arenas[i].capacity();
+      s += arenas_[i].capacity();
     }
 
     return s;
@@ -335,9 +335,9 @@ struct ArenaPool final : IAllocator
   [[nodiscard]] usize used() const
   {
     usize s = 0;
-    for (usize i = 0; i < num_arenas; i++)
+    for (usize i = 0; i < num_arenas_; i++)
     {
-      s += arenas[i].used();
+      s += arenas_[i].used();
     }
 
     return s;
@@ -347,9 +347,9 @@ struct ArenaPool final : IAllocator
   [[nodiscard]] usize available() const
   {
     usize s = 0;
-    for (usize i = 0; i < num_arenas; i++)
+    for (usize i = 0; i < num_arenas_; i++)
     {
-      s += arenas[i].available();
+      s += arenas_[i].available();
     }
 
     return s;
@@ -357,22 +357,22 @@ struct ArenaPool final : IAllocator
 
   void uninit()
   {
-    for (usize i = num_arenas; i-- > 0;)
+    for (usize i = num_arenas_; i-- > 0;)
     {
-      source->dealloc(
-        Layout{.alignment = cfg.arena_alignment, .size = arenas[i].capacity()},
-        arenas[i].begin);
+      source_->dealloc(
+        Layout{.alignment = cfg_.arena_alignment, .size = arenas_[i].capacity()},
+        arenas_[i].begin);
     }
-    source->ndealloc(num_arenas, arenas);
+    source_->ndealloc(num_arenas_, arenas_);
   }
 
   /// @brief reset all allocations and free all memory
   void reset()
   {
     uninit();
-    arenas        = nullptr;
-    num_arenas    = 0;
-    current_arena = 0;
+    arenas_        = nullptr;
+    num_arenas_    = 0;
+    current_arena_ = 0;
   }
 
   /// @copydoc IAllocator::alloc
@@ -384,30 +384,30 @@ struct ArenaPool final : IAllocator
       return true;
     }
 
-    if (layout.size > cfg.max_arena_size)
+    if (layout.size > cfg_.max_arena_size)
     {
       mem = nullptr;
       return false;
     }
 
-    for (usize i = current_arena; i < num_arenas; i++)
+    for (usize i = current_arena_; i < num_arenas_; i++)
     {
-      if (arenas[i].alloc(layout, mem))
+      if (arenas_[i].alloc(layout, mem))
       {
         return true;
       }
     }
 
-    if (num_arenas == cfg.max_num_arenas)
+    if (num_arenas_ == cfg_.max_num_arenas)
     {
       mem = nullptr;
       return false;
     }
 
-    Layout arena_layout{cfg.arena_alignment,
-                        max(layout.size, cfg.min_arena_size)};
+    Layout arena_layout{cfg_.arena_alignment,
+                        max(layout.size, cfg_.min_arena_size)};
 
-    if ((capacity() + arena_layout.size) > cfg.max_total_size)
+    if ((capacity() + arena_layout.size) > cfg_.max_total_size)
     {
       mem = nullptr;
       return false;
@@ -415,25 +415,25 @@ struct ArenaPool final : IAllocator
 
     u8 * arena_mem;
 
-    if (!source->alloc(arena_layout, arena_mem))
+    if (!source_->alloc(arena_layout, arena_mem))
     {
       mem = nullptr;
       return false;
     }
 
-    if (!source->nrealloc(num_arenas, num_arenas + 1, arenas))
+    if (!source_->nrealloc(num_arenas_, num_arenas_ + 1, arenas_))
     {
-      source->dealloc(arena_layout, arena_mem);
+      source_->dealloc(arena_layout, arena_mem);
       mem = nullptr;
       return false;
     }
 
     Arena * arena =
-      new (arenas + num_arenas) Arena{arena_mem, arena_mem + arena_layout.size};
+      new (arenas_ + num_arenas_) Arena{arena_mem, arena_mem + arena_layout.size};
 
-    current_arena = num_arenas;
+    current_arena_ = num_arenas_;
 
-    num_arenas++;
+    num_arenas_++;
 
     if (!arena->alloc(layout, mem))
     {
@@ -458,14 +458,14 @@ struct ArenaPool final : IAllocator
   [[nodiscard]] virtual bool realloc(Layout layout, usize new_size,
                                      u8 *& mem) override
   {
-    if (new_size > cfg.max_arena_size)
+    if (new_size > cfg_.max_arena_size)
     {
       return false;
     }
 
-    if (num_arenas != 0)
+    if (num_arenas_ != 0)
     {
-      Arena & arena = arenas[current_arena];
+      Arena & arena = arenas_[current_arena_];
       if (arena.offset == (mem + layout.size))
       {
         // extend the arena offset if the allocation was the last one and it is within capacity
@@ -478,7 +478,7 @@ struct ArenaPool final : IAllocator
         // if only and first allocation on the arena, realloc arena
         if (arena.begin == mem)
         {
-          if (!source->realloc(Layout{.alignment = cfg.arena_alignment,
+          if (!source_->realloc(Layout{.alignment = cfg_.arena_alignment,
                                       .size      = arena.capacity()},
                                new_size, arena.begin))
           {
@@ -506,20 +506,20 @@ struct ArenaPool final : IAllocator
   /// @copydoc IAllocator::dealloc
   virtual void dealloc(Layout layout, u8 * mem) override
   {
-    if (mem == nullptr || layout.size == 0 || num_arenas == 0)
+    if (mem == nullptr || layout.size == 0 || num_arenas_ == 0)
     {
       return;
     }
 
     // we can try to reclaim some memory.
     // best case: stack allocation, if it is at end of arena, adjust arena offset
-    Arena & arena = arenas[current_arena];
+    Arena & arena = arenas_[current_arena_];
     if (arena.begin == mem && arena.offset == (mem + layout.size))
     {
       arena.reclaim();
-      if (current_arena != 0)
+      if (current_arena_ != 0)
       {
-        current_arena--;
+        current_arena_--;
       }
       return;
     }

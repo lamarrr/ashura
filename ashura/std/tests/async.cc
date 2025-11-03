@@ -11,7 +11,7 @@ TEST(AsyncTest, Basic)
 {
   using namespace ash;
 
-  RcSemaphore sem = semaphore({}).unwrap();
+  RcSemaphore sem = semaphore(default_allocator).unwrap();
 
   Dyn<Scheduler> sched = IScheduler::create(
     SchedulerInfo{.allocator              = default_allocator,
@@ -26,7 +26,7 @@ TEST(AsyncTest, Basic)
     hook_scheduler(nullptr);
   }};
 
-  Stream<int> s = stream({}, 1, 20).unwrap();
+  Stream<int> s = stream(default_allocator, 1, 20).unwrap();
 
   sched->once([]() { info("Hi"); }, AwaitStreams{{s.alias()}, {0}});
   sched->once([]() { info("Hello"); });
@@ -35,7 +35,7 @@ TEST(AsyncTest, Basic)
   sched->once([]() { info("Timer passed"); },
               Delay{.from = steady_clock::now(), .delay = 1ms});
 
-  auto fut = future<int>({}).unwrap();
+  auto fut = future<int>(default_allocator).unwrap();
 
   sched->loop(
     [x = (u64) 0, f = fut.alias(), s = s.alias()]() mutable -> bool {
@@ -55,7 +55,7 @@ TEST(AsyncTest, Basic)
   fut.yield(69).unwrap();
 
   sched->shard<int *>(
-    rc<int>(inplace, {}, 0).unwrap(),
+    rc<int>(inplace, default_allocator, 0).unwrap(),
     [](TaskInstance shard, int * pcount) {
       std::atomic_ref count_ref{*pcount};
       int             count = count_ref.fetch_add(1);

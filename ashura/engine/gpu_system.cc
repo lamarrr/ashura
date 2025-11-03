@@ -416,11 +416,11 @@ GpuDescriptors GpuDescriptors::create(GpuSys sys, Str label, Allocator scratch)
     .resize(sys->descriptors_layout_.sampled_textures_capacity)
     .unwrap();
 
-  return GpuDescriptors{.samplers         = samplers,
-                        .samplers_slots   = std::move(samplers_slots),
-                        .sampled_textures = sampled_textures,
-                        .sampled_textures_slots =
-                          std::move(sampled_textures_slots)};
+  return GpuDescriptors{
+    .samplers = samplers,
+    .samplers_slots{std::move(samplers_slots)},
+    .sampled_textures = sampled_textures,
+    .sampled_textures_slots{std::move(sampled_textures_slots)}};
 }
 
 void IGpuFramePlan::uninit()
