@@ -9,17 +9,59 @@
 namespace ash
 {
 
-template <typename Str>
+template <typename ViewType>
 struct Piece
 {
-  Rc<Str> buffer{};
-  Slice   slice{};
+  using View = ViewType;
+
+  Rc<View> buffer_;
+  Slice    slice_;
+
+  constexpr Piece(Rc<View> buffer, Slice slice) :
+    buffer_{std::move(buffer)},
+    slice_{slice}
+  {
+  }
+
+  constexpr Piece(Rc<View> buffer) :
+    buffer_{std::move(buffer)},
+    slice_{0, buffer_.get().size()}
+  {
+  }
+
+  constexpr usize size() const
+  {
+    return slice_.span;
+  }
+
+  constexpr View view() const
+  {
+    return buffer_.get().view().slice(slice_);
+  }
+
+  constexpr Piece subslice(Slice s) const
+  {
+    return Piece{
+      buffer_.alias(), Slice{slice_.offset + s.offset, s.span}
+       (size())
+    };
+  }
+
+  constexpr Piece with_slice(Slice s)
+  {
+    return Piece{
+      std::move(buffer_), Slice{slice_.offset + s.offset, s.span}
+       (size())
+    };
+  }
 };
 
-template <typename Str>
+template <typename PieceType>
+requires (NonConst<PieceType>)
 struct PieceTable
 {
-  using Piece = ash::Piece<Str>;
+  using Piece     = PieceType;
+  using PieceView = typename Piece::View;
 
   struct CharIter
   {
@@ -33,10 +75,7 @@ struct PieceTable
 
     constexpr Type operator*() const
     {
-      return piece_->buffer.get()
-        .slice(piece_->slice)
-        .slice(iter_ - piece_pos_, 1)
-        .data()[0];
+      return piece_->view().slice(iter_ - piece_pos_, 1).data()[0];
     }
 
     constexpr CharIter & operator++()
@@ -86,7 +125,7 @@ struct PieceTable
 
   struct PieceIter
   {
-    using Type = Str;
+    using Type = PieceView;
 
     Piece const * piece_     = nullptr;
     Piece const * piece_end_ = nullptr;
@@ -94,29 +133,24 @@ struct PieceTable
     usize         iter_      = 0;
     usize         end_       = 0;
 
-    constexpr Str str() const
+    constexpr PieceView view() const
     {
-      return piece_->buffer.get()
-        .slice(piece_->slice)
-        .slice(iter_ - piece_pos_, end_ - piece_pos_);
+      return piece_->view().slice(iter_ - piece_pos_, end_ - piece_pos_);
     }
 
     constexpr Piece alias() const
     {
-      auto slice = Slice{piece_->slice.offset + (iter_ - piece_pos_),
-                         end_ - iter_}(piece_->buffer.get().size());
-
-      return Piece{piece_->buffer.alias(), slice};
+      return piece_->subslice(Slice::slice(iter_ - piece_pos_, end_ - iter_));
     }
 
-    constexpr Str operator*() const
+    constexpr PieceView operator*() const
     {
-      return str();
+      return view();
     }
 
     constexpr PieceIter & operator++()
     {
-      piece_pos_ = piece_pos_ + piece_->slice.span;
+      piece_pos_ = piece_pos_ + piece_->size();
       piece_++;
       iter_ = piece_pos_;
       return *this;
@@ -161,7 +195,7 @@ struct PieceTable
 
       for (auto const & piece : pieces_)
       {
-        total_size += piece.slice.span;
+        total_size += piece.size();
       }
 
       return total_size;
@@ -180,12 +214,13 @@ struct PieceTable
 
       while (piece_iter != piece_end)
       {
-        if (Slice{piece_pos, piece_iter->slice.span}.contains(range.begin()))
+        auto current = Slice{piece_pos, piece_iter->size()};
+        if (current.contains(range.begin()))
         {
           break;
         }
 
-        piece_pos += piece_iter->slice.span;
+        piece_pos = current.end();
         piece_iter++;
       }
 
@@ -209,12 +244,13 @@ struct PieceTable
 
       while (piece_iter != piece_end)
       {
-        if (Slice{piece_pos, piece_iter->slice.span}.contains(range.begin()))
+        auto current = Slice{piece_pos, piece_iter->size()};
+        if (current.contains(range.begin()))
         {
           break;
         }
 
-        piece_pos += piece_iter->slice.span;
+        piece_pos = current.end();
         piece_iter++;
       }
 
@@ -306,8 +342,7 @@ struct PieceTable
 
     for (auto & piece : pieces_)
     {
-      auto piece_size = piece.slice.span;
-      auto range      = Slice{offset, piece_size};
+      auto range      = Slice{offset, piece.size()};
       bool intersects = erase.intersects(range);
 
       if (!intersects)
@@ -319,43 +354,37 @@ struct PieceTable
       }
       else if (range.contains(erase))
       {
-        auto left_range = Slice::offsets(range.begin(), erase.begin());
-
-        auto left_slice =
-          Slice{piece.slice.offset + (left_range.begin() - range.begin()),
-                left_range.span};
-
+        auto left_range  = Slice::offsets(range.begin(), erase.begin());
         auto right_range = Slice::offsets(erase.end(), range.end());
 
+        auto left_slice =
+          Slice{(left_range.begin() - range.begin()), left_range.span};
         auto right_slice =
-          Slice{piece.slice.offset + (right_range.begin() - range.begin()),
-                right_range.span};
+          Slice{(right_range.begin() - range.begin()), right_range.span};
 
-        auto left_buffer  = std::move(piece.buffer);
-        auto right_buffer = left_buffer.alias();
+        auto left  = piece.subslice(left_slice);
+        auto right = piece.subslice(right_slice);
 
         if (!left_slice.is_empty())
         {
-          pieces_.push(std::move(left_buffer), left_slice).unwrap();
+          pieces_.push(std::move(left)).unwrap();
         }
         if (!right_slice.is_empty())
         {
-          pieces_.push(std::move(right_buffer), right_slice).unwrap();
+          pieces_.push(std::move(right)).unwrap();
         }
       }
       else if (range.begin() > erase.begin())
       {
         auto result = Slice::offsets(erase.end(), range.end());
         auto slice  = Slice{result.offset - range.begin(), result.span};
-        slice.offset += piece.slice.offset;
-        pieces_.push(std::move(piece.buffer), slice).unwrap();
+        pieces_.push(piece.with_slice(slice)).unwrap();
       }
       else
       {
         auto result = Slice::offsets(range.begin(), erase.begin());
         auto slice  = Slice{result.offset - range.begin(), result.span};
-        slice.offset += piece.slice.offset;
-        pieces_.push(std::move(piece.buffer), slice).unwrap();
+        pieces_.push(piece.with_slice(slice)).unwrap();
       }
 
       offset = range.end();
@@ -364,7 +393,8 @@ struct PieceTable
     pieces_.erase(old);
   }
 
-  constexpr Result<> insert(usize pos, Piece text)
+  template <typename... Args>
+  constexpr Result<> insert(usize pos, Args &&... args)
   {
     usize ipiece    = 0;
     usize piece_pos = 0;
@@ -372,60 +402,44 @@ struct PieceTable
     for (; ipiece < pieces_.size(); ipiece++)
     {
       auto & piece = pieces_[ipiece];
-      if (Slice{piece_pos, piece.slice.span}.contains(pos))
+      auto   range = Slice{piece_pos, piece.size()};
+      if (range.contains(pos))
       {
         break;
       }
-      piece_pos += piece.slice.span;
+      piece_pos = range.end();
     }
 
     // insert at end of piece
     if (ipiece == pieces_.size())
     {
-      return pieces_.push(std::move(text));
+      return pieces_.push(std::forward<Args>(args)...);
     }
 
     // insert before piece
     if (piece_pos == pos)
     {
-      return pieces_.insert(ipiece, std::move(text));
+      return pieces_.insert(ipiece, std::forward<Args>(args)...);
     }
 
     // insert in middle of piece
-    auto & piece      = pieces_[ipiece];
-    auto   offset     = pos - piece_pos;
-    auto   left_range = Slice{0, offset};
-    left_range.offset += piece.slice.offset;
-    auto right_range = Slice::offsets(offset, piece.slice.span);
-    right_range.offset += piece.slice.offset;
+    auto & left        = pieces_[ipiece];
+    auto   offset      = pos - piece_pos;
+    auto   left_slice  = Slice{0, offset};
+    auto   right_slice = Slice::slice(offset, USIZE_MAX);
 
-    auto & left    = piece;
-    left.slice     = left_range;
-    auto  right    = Piece{piece.buffer.alias(), right_range};
-    Piece pieces[] = {std::move(text), std::move(right)};
+    auto right = left.subslice(right_slice);
+    left       = left.with_slice(left_slice);
+
+    Piece pieces[] = {Piece{std::forward<Args>(args)...}, std::move(right)};
 
     return pieces_.insert_span_move(ipiece + 1, span(pieces));
   }
 
-  constexpr Result<> insert(usize pos, Rc<Str> text)
+  template <typename... Args>
+  constexpr Result<> extend(Args &&... args)
   {
-    auto size = text.get().size();
-    return insert(pos, Piece{
-                         std::move(text), Slice{0, size}
-    });
-  }
-
-  constexpr Result<> extend(Piece text)
-  {
-    return pieces_.push(std::move(text));
-  }
-
-  constexpr Result<> extend(Rc<Str> text)
-  {
-    auto size = text.get().size();
-    return pieces_.push(Piece{
-      std::move(text), Slice{0, size}
-    });
+    return pieces_.push(std::forward<Args>(args)...);
   }
 
   constexpr View view() const
@@ -475,15 +489,16 @@ struct PieceTable
   }
 };
 
-using Piece8  = PieceTable<Str8>;
-using Piece16 = PieceTable<Str16>;
-using Piece32 = PieceTable<Str32>;
+using Piece8  = Piece<Str8>;
+using Piece16 = Piece<Str16>;
+using Piece32 = Piece<Str32>;
 
-template <typename Str>
-using PieceView = typename PieceTable<Str>::View;
+using PieceTable8  = PieceTable<Piece8>;
+using PieceTable16 = PieceTable<Piece16>;
+using PieceTable32 = PieceTable<Piece32>;
 
-using PieceView8  = PieceView<Str8>;
-using PieceView16 = PieceView<Str16>;
-using PieceView32 = PieceView<Str32>;
+using PieceTableView8  = typename PieceTable8 ::View;
+using PieceTableView16 = typename PieceTable16::View;
+using PieceTableView32 = typename PieceTable32::View;
 
 }    // namespace ash
