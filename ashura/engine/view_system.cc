@@ -272,7 +272,7 @@ void IViewSys::layout(f32x2 viewport_extent)
     {
       CRect const clip{.center = canvas_centers[i],
                        .extent = canvas_extents[i]};
-      clips[i] = clip.intersect(clips[parent_viewport]);
+      clips[i] = clip.intersection(clips[parent_viewport]);
     }
     else
     {

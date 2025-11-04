@@ -7,7 +7,7 @@ using namespace ash;
 
 TEST(PieceTableTest, Extend)
 {
-  Piece8 piece{default_allocator};
+  PieceTable8 piece{default_allocator};
 
   piece.extend(static_rc(u8"AB 12"_str)).unwrap();
   piece.extend(static_rc(u8"\n"_str)).unwrap();
@@ -17,13 +17,14 @@ TEST(PieceTableTest, Extend)
 
   piece.compact(Slice::all(), result).unwrap();
 
+  EXPECT_EQ(piece.size(), 18);
   EXPECT_EQ(result.size(), 18);
   EXPECT_TRUE(mem::eq(result.view(), u8"AB 12\n676967 12345"_str));
 }
 
 TEST(PieceTableTest, Insert)
 {
-  Piece8 piece{default_allocator};
+  PieceTable8 piece{default_allocator};
 
   piece.insert(0, static_rc(u8"AB 12"_str)).unwrap();
 
@@ -55,14 +56,14 @@ TEST(PieceTableTest, Insert)
 
 TEST(PieceTableTest, Erase)
 {
-  Piece8 piece{default_allocator};
+  PieceTable8 piece{default_allocator};
 
   piece.extend(static_rc(u8"AB"_str)).unwrap();
   piece.extend(static_rc(u8"CDEFGH"_str)).unwrap();
   piece.extend(static_rc(u8"IJKLM"_str)).unwrap();
 
   {
-    Piece8 p{default_allocator};
+    PieceTable8 p{default_allocator};
 
     piece.clone(Slice::all(), p).unwrap();
 
@@ -74,7 +75,7 @@ TEST(PieceTableTest, Erase)
   }
 
   {
-    Piece8 p{default_allocator};
+    PieceTable8 p{default_allocator};
 
     piece.clone(Slice::all(), p).unwrap();
 
@@ -86,7 +87,7 @@ TEST(PieceTableTest, Erase)
   }
 
   {
-    Piece8 p{default_allocator};
+    PieceTable8 p{default_allocator};
 
     piece.clone(Slice::all(), p).unwrap();
 
@@ -98,7 +99,7 @@ TEST(PieceTableTest, Erase)
   }
 
   {
-    Piece8 p{default_allocator};
+    PieceTable8 p{default_allocator};
 
     piece.clone(Slice::all(), p).unwrap();
 
@@ -110,7 +111,7 @@ TEST(PieceTableTest, Erase)
   }
 
   {
-    Piece8 p{default_allocator};
+    PieceTable8 p{default_allocator};
 
     piece.clone(Slice::all(), p).unwrap();
 
@@ -122,7 +123,7 @@ TEST(PieceTableTest, Erase)
   }
 
   {
-    Piece8 p{default_allocator};
+    PieceTable8 p{default_allocator};
 
     piece.clone(Slice::all(), p).unwrap();
 
@@ -136,7 +137,7 @@ TEST(PieceTableTest, Erase)
 
 TEST(PieceTableTest, Compact)
 {
-  Piece8 piece{default_allocator};
+  PieceTable8 piece{default_allocator};
 
   piece.extend(static_rc(u8"AB"_str)).unwrap();
   piece.extend(static_rc(u8"CDEFGH"_str)).unwrap();
@@ -165,7 +166,7 @@ TEST(PieceTableTest, Compact)
 
 TEST(PieceTableTest, Clone)
 {
-  Piece8 piece{default_allocator};
+  PieceTable8 piece{default_allocator};
 
   piece.extend(static_rc(u8"AB"_str)).unwrap();
   piece.extend(static_rc(u8"CDEFGH"_str)).unwrap();
@@ -178,7 +179,7 @@ TEST(PieceTableTest, Clone)
   piece.extend(static_rc(u8"789"_str)).unwrap();
 
   {
-    Piece8 clone{default_allocator};
+    PieceTable8 clone{default_allocator};
     piece.clone(Slice::slice(4, 10), clone).unwrap();
 
     Vec<c8> result{default_allocator};

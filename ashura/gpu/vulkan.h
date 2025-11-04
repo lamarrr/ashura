@@ -1182,7 +1182,7 @@ struct ICommandEncoder final : gpu::ICommandEncoder
 
   ICommandEncoder(IDevice & dev, Allocator allocator) :
     dev_{&dev},
-    arena_{allocator},
+    arena_{allocator, ArenaPoolCfg{}},
     status_{Status::Success},
     state_{CommandBufferState::Reset},
     pass_{Pass::None},
@@ -1331,7 +1331,7 @@ struct ICommandBuffer final : gpu::ICommandBuffer
     status_{Status::Success},
     state_{CommandBufferState::Reset},
     resource_states_{allocator},
-    arena_{allocator}
+    arena_{allocator, ArenaPoolCfg{}}
   {
   }
 

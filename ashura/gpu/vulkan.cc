@@ -7503,11 +7503,11 @@ void ICommandBuffer::record(gpu::CommandEncoder encoder_)
   {
     auto const & end = encoder->tracker_.passes_[ipass + 1];
 
-    auto commands = Slice32::range(begin.commands, end.commands);
-    auto buffers  = Slice32::range(begin.buffers, end.buffers);
-    auto images   = Slice32::range(begin.images, end.images);
+    auto commands = Slice32::offsets(begin.commands, end.commands);
+    auto buffers  = Slice32::offsets(begin.buffers, end.buffers);
+    auto images   = Slice32::offsets(begin.images, end.images);
     auto descriptor_sets =
-      Slice32::range(begin.descriptor_sets, end.descriptor_sets);
+      Slice32::offsets(begin.descriptor_sets, end.descriptor_sets);
 
     for (auto [buffer, stages, access] :
          encoder->tracker_.buffers_.view().slice(buffers))
