@@ -133,7 +133,7 @@ constexpr Result<Dyn<T *>, Void> dyn(Inplace, Allocator allocator,
 template <typename H>
 struct IsTriviallyRelocatable<Dyn<H>>
 {
-  static constexpr bool value = true;
+  static constexpr bool value = TriviallyRelocatable<H>;
 };
 
 template <typename T>

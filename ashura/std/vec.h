@@ -87,7 +87,7 @@ struct [[nodiscard]] Vec
     return old;
   }
 
-  static constexpr Result<Vec> make(usize capacity, Allocator allocator = {})
+  static constexpr Result<Vec> make(usize capacity, Allocator allocator)
   {
     Vec out{allocator};
 
@@ -585,6 +585,90 @@ struct [[nodiscard]] Vec
   {
     return View{data(), size()};
   }
+
+  template <typename... Args>
+  constexpr Result<> push(WithinCapacity, Args &&... args)
+  {
+    if (size() >= capacity()) [[unlikely]]
+    {
+      return Err{};
+    }
+
+    return push(static_cast<Args &&>(args)...);
+  }
+
+  template <typename... Args>
+  constexpr Result<> insert(WithinCapacity, usize pos, Args &&... args)
+  {
+    if (size() >= capacity()) [[unlikely]]
+    {
+      return Err{};
+    }
+
+    return insert(pos, static_cast<Args &&>(args)...);
+  }
+
+  constexpr Result<> insert_span(WithinCapacity, usize pos,
+                                 Span<Type const> span)
+  {
+    if (size() + span.size() > capacity()) [[unlikely]]
+    {
+      return Err{};
+    }
+
+    return insert_span(pos, span);
+  }
+
+  constexpr Result<> insert_span_move(WithinCapacity, usize pos,
+                                      Span<Type> span)
+  {
+    if (size() + span.size() > capacity()) [[unlikely]]
+    {
+      return Err{};
+    }
+
+    return insert_span_move(pos, span);
+  }
+
+  constexpr Result<> extend(WithinCapacity, usize extension)
+  {
+    if (size() + extension > capacity()) [[unlikely]]
+    {
+      return Err{};
+    }
+
+    return extend(extension);
+  }
+
+  constexpr Result<> extend(WithinCapacity, Span<Type const> span)
+  {
+    if (size() + span.size() > capacity()) [[unlikely]]
+    {
+      return Err{};
+    }
+
+    return extend(span);
+  }
+
+  constexpr Result<> extend_move(WithinCapacity, Span<Type> span)
+  {
+    if (size() + span.size() > capacity()) [[unlikely]]
+    {
+      return Err{};
+    }
+
+    return extend_move(span);
+  }
+
+  constexpr Result<> resize(WithinCapacity, usize new_size)
+  {
+    if (new_size > capacity()) [[unlikely]]
+    {
+      return Err{};
+    }
+
+    return resize(new_size);
+  }
 };
 
 template <typename T>
@@ -702,8 +786,7 @@ struct [[nodiscard]] SmallVec
     uninit();
   }
 
-  static constexpr Result<SmallVec> make(usize     capacity,
-                                         Allocator allocator = {})
+  static constexpr Result<SmallVec> make(usize capacity, Allocator allocator)
   {
     SmallVec out{allocator};
 
@@ -1257,6 +1340,90 @@ struct [[nodiscard]] SmallVec
   constexpr View view() const
   {
     return View{data(), size()};
+  }
+
+  template <typename... Args>
+  constexpr Result<> push(WithinCapacity, Args &&... args)
+  {
+    if (size() >= capacity()) [[unlikely]]
+    {
+      return Err{};
+    }
+
+    return push(static_cast<Args &&>(args)...);
+  }
+
+  template <typename... Args>
+  constexpr Result<> insert(WithinCapacity, usize pos, Args &&... args)
+  {
+    if (size() >= capacity()) [[unlikely]]
+    {
+      return Err{};
+    }
+
+    return insert(pos, static_cast<Args &&>(args)...);
+  }
+
+  constexpr Result<> insert_span(WithinCapacity, usize pos,
+                                 Span<Type const> span)
+  {
+    if (size() + span.size() > capacity()) [[unlikely]]
+    {
+      return Err{};
+    }
+
+    return insert_span(pos, span);
+  }
+
+  constexpr Result<> insert_span_move(WithinCapacity, usize pos,
+                                      Span<Type> span)
+  {
+    if (size() + span.size() > capacity()) [[unlikely]]
+    {
+      return Err{};
+    }
+
+    return insert_span_move(pos, span);
+  }
+
+  constexpr Result<> extend(WithinCapacity, usize extension)
+  {
+    if (size() + extension > capacity()) [[unlikely]]
+    {
+      return Err{};
+    }
+
+    return extend(extension);
+  }
+
+  constexpr Result<> extend(WithinCapacity, Span<Type const> span)
+  {
+    if (size() + span.size() > capacity()) [[unlikely]]
+    {
+      return Err{};
+    }
+
+    return extend(span);
+  }
+
+  constexpr Result<> extend_move(WithinCapacity, Span<Type> span)
+  {
+    if (size() + span.size() > capacity()) [[unlikely]]
+    {
+      return Err{};
+    }
+
+    return extend_move(span);
+  }
+
+  constexpr Result<> resize(WithinCapacity, usize new_size)
+  {
+    if (new_size > capacity()) [[unlikely]]
+    {
+      return Err{};
+    }
+
+    return resize(new_size);
   }
 };
 

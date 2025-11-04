@@ -143,7 +143,7 @@ struct [[nodiscard]] Rc
 template <typename H>
 struct IsTriviallyRelocatable<Rc<H>>
 {
-  static constexpr bool value = true;
+  static constexpr bool value = TriviallyRelocatable<H>;
 };
 
 template <typename T>

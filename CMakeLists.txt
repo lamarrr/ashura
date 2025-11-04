@@ -336,6 +336,7 @@ if(NOT ASH_EXCLUDE_TESTS)
     ashura/std/tests/constraint.cc
     ashura/std/tests/dyn.cc
     ashura/std/tests/dict.cc
+    ashura/std/tests/edit_string.cc
     ashura/std/tests/enum.cc
     ashura/std/tests/format.cc
     ashura/std/tests/lambda.cc

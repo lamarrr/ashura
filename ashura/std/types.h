@@ -878,6 +878,11 @@ struct [[nodiscard]] CoreSlice
     return m0 > m1 ? CoreSlice::slice(0, 0) : CoreSlice::offsets(m0, m1);
   }
 
+  constexpr CoreSlice extend(S extension) const
+  {
+    return CoreSlice{.offset = offset, .span = sat_add(span, extension)};
+  }
+
   constexpr bool contains(S item) const
   {
     return begin() <= item && end() > item;
@@ -1223,6 +1228,7 @@ struct [[nodiscard]] Span
   using Iter    = SpanIter<T>;
   using RevIter = RevSpanIter<T>;
   using Rev     = IterView<RevIter>;
+  using View    = Span<T>;
 
   T *   data_ = nullptr;
   usize size_ = 0;
@@ -1412,6 +1418,11 @@ struct [[nodiscard]] Span
   Span<U> reinterpret() const
   {
     return Span<U>{reinterpret_cast<U *>(data()), size_bytes() / sizeof(U)};
+  }
+
+  constexpr View view() const
+  {
+    return *this;
   }
 };
 
@@ -2536,21 +2547,6 @@ struct Pin<void>
   constexpr ~Pin()                       = default;
 };
 
-/// @brief In-place type constructor flag. Intended for functions that take
-/// generic types and want to overload with a second type that constructs the type using the
-/// provided arguments.
-struct Inplace
-{
-};
-
-inline constexpr Inplace inplace{};
-
-struct FromParts
-{
-};
-
-inline constexpr FromParts from_parts{};
-
 /// @brief Uninitialized storage
 template <usize Alignment, usize Capacity>
 struct InplaceStorage
@@ -2580,5 +2576,26 @@ struct alignas(u64) Version
                   .major   = ASH_MAJOR_VERSION,   \
                   .minor   = ASH_MINOR_VERSION,   \
                   .patch   = ASH_PATCH_VERSION})
+
+/// @brief In-place type constructor flag. Intended for functions that take
+/// generic types and want to overload with a second type that constructs the type using the
+/// provided arguments.
+struct Inplace
+{
+};
+
+inline constexpr Inplace inplace{};
+
+struct FromParts
+{
+};
+
+inline constexpr FromParts from_parts{};
+
+struct WithinCapacity
+{
+};
+
+inline constexpr WithinCapacity within_capacity{};
 
 }    // namespace ash

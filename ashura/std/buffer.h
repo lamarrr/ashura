@@ -363,6 +363,12 @@ Buffer(Span<T>) -> Buffer<T>;
 template <typename T, usize N>
 Buffer(T (&)[N]) -> Buffer<T>;
 
+template <typename T>
+struct IsTriviallyRelocatable<Buffer<T>>
+{
+  static constexpr bool value = true;
+};
+
 /// @brief A single-threaded non-thread-safe RingBuffer
 /// Properties:
 /// - It has a fixed capacity
@@ -511,6 +517,12 @@ struct [[nodiscard]] RingBuffer
 
     return true;
   }
+};
+
+template <typename T>
+struct IsTriviallyRelocatable<RingBuffer<T>>
+{
+  static constexpr bool value = true;
 };
 
 }    // namespace ash
