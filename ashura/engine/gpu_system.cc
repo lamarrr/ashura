@@ -473,7 +473,7 @@ CpuBufferId IGpuFramePlan::push_cpu(Span<u8 const> data)
 {
   CHECK(state_ == GpuFramePlanState::Recording, "");
   auto offset = cpu_buffer_data_.size();
-  cpu_buffer_data_.extend(data).unwrap();
+  cpu_buffer_data_.append(data).unwrap();
   auto size = max(data.size(), (usize) SIMD_ALIGNMENT);
   auto idx  = cpu_buffer_entries_.size();
   CHECK(cpu_buffer_data_.size() <= U32_MAX, "");
@@ -488,7 +488,7 @@ GpuBufferId IGpuFramePlan::push_gpu(Span<u8 const> data)
 {
   CHECK(state_ == GpuFramePlanState::Recording, "");
   auto offset = gpu_buffer_data_.size();
-  gpu_buffer_data_.extend(data).unwrap();
+  gpu_buffer_data_.append(data).unwrap();
   auto size = max(data.size(), (usize) gpu::BUFFER_OFFSET_ALIGNMENT);
   auto idx  = gpu_buffer_entries_.size();
   CHECK(gpu_buffer_data_.size() <= U32_MAX, "");

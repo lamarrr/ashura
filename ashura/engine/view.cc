@@ -44,7 +44,7 @@ DropCtx & DropCtx::copy(DropCtx const & other)
   phase = other.phase;
   type  = other.type;
   data.clear();
-  data.extend(other.data).unwrap();
+  data.append(other.data).unwrap();
   return *this;
 }
 
@@ -73,14 +73,14 @@ void Ctx::tick(InputState const & input)
     break;
     case DropState::Event::FilePath:
     {
-      drop.data.extend(input.drop.data).unwrap();
+      drop.data.append(input.drop.data).unwrap();
       drop.phase = DropCtx::Phase::Over;
       drop.type  = DropType::FilePath;
     }
     break;
     case DropState::Event::Bytes:
     {
-      drop.data.extend(input.drop.data).unwrap();
+      drop.data.append(input.drop.data).unwrap();
       drop.phase = DropCtx::Phase::Over;
       drop.type  = DropType::Bytes;
     }

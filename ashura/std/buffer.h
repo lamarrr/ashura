@@ -315,7 +315,7 @@ struct [[nodiscard]] Buffer
 
   /// @brief extend the the Buffer with elements in `span`
   /// @returns true if there's enough memory to perform the operation
-  [[nodiscard]] constexpr bool extend(Span<T const> span)
+  [[nodiscard]] constexpr bool append(Span<T const> span)
   {
     usize const pos = size_;
 

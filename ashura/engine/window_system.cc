@@ -50,7 +50,7 @@ struct ClipBoardImpl : IClipBoard
   virtual Result<> get(Str mime, Vec<u8> & out) override
   {
     InplaceVec<char, MAX_MIME_SIZE + 1> mime_c_str{};
-    mime_c_str.extend(mime).unwrap();
+    mime_c_str.append(mime).unwrap();
     mime_c_str.push('\0').unwrap();
     usize  mime_data_len;
     void * data = SDL_GetClipboardData(mime_c_str.data(), &mime_data_len);
@@ -60,7 +60,7 @@ struct ClipBoardImpl : IClipBoard
     }
     defer data_{[&] { SDL_free(data); }};
 
-    out.extend(Span{reinterpret_cast<u8 *>(data), mime_data_len}).unwrap();
+    out.append(Span{reinterpret_cast<u8 *>(data), mime_data_len}).unwrap();
     return Ok{};
   }
 
@@ -96,12 +96,12 @@ struct ClipBoardImpl : IClipBoard
     }
 
     InplaceVec<char, MAX_MIME_SIZE + 1> mime_c_str{};
-    mime_c_str.extend(mime).unwrap();
+    mime_c_str.append(mime).unwrap();
     mime_c_str.push('\0').unwrap();
 
     char const * mime_types[] = {mime_c_str.data()};
 
-    local_.extend(data).unwrap();
+    local_.append(data).unwrap();
 
     if (!SDL_SetClipboardData(get_callback, cleanup_callback, this, mime_types,
                               1))

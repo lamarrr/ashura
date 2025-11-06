@@ -111,7 +111,7 @@ void path::rect(Vec<f32x2> & vtx, f32x2 extent, f32x2 center)
     * extent + center
   };
 
-  vtx.extend(coords).unwrap();
+  vtx.append(coords).unwrap();
 }
 
 void path::line(Span<f32x2> vtx, f32x2 cp0, f32x2 cp1)
@@ -1076,11 +1076,6 @@ void ICanvas::render_(TextureSet const & texture_set, LineInfo const & info)
     return;
   }
 
-  // [ ] batch objects
-
-  // [ ] vector path needs to be properly batched
-  // [ ] using Batch = Enum<,,,.>; flush_batch before each pass
-
   Vec<f32x2>        tesselation_vertices{tmp_arena_};
   Span<f32x2 const> vertices;
 
@@ -1501,7 +1496,7 @@ void ICanvas::render_paths_bezier_stencil_(Span<PathInfo const> paths,
 
         if (i != 0)
         {
-          indices.extend(span({0U, current_cp + 0, current_cp + (num_cps - 1)}))
+          indices.append(span({0U, current_cp + 0, current_cp + (num_cps - 1)}))
             .unwrap();
         }
 
@@ -1528,7 +1523,7 @@ void ICanvas::render_paths_bezier_stencil_(Span<PathInfo const> paths,
           case CurveType::QuadraticBezier:
           {
             indices
-              .extend(span({current_cp + 0, current_cp + 1, current_cp + 2}))
+              .append(span({current_cp + 0, current_cp + 1, current_cp + 2}))
               .unwrap();
           }
           break;
@@ -1700,7 +1695,7 @@ void ICanvas::render_paths_vector_feathering_(Span<PathInfo const> paths,
 
       {
         auto first = size32(path_vertices);
-        path_vertices.extend(feather_vertices).unwrap();
+        path_vertices.append(feather_vertices).unwrap();
 
         // Counter-Clock-Wise
         if (signed_area <= 0 && triangle_signed_area(p0, p1, p2) <= 0)
@@ -1711,7 +1706,7 @@ void ICanvas::render_paths_vector_feathering_(Span<PathInfo const> paths,
             first + 0, first + 3, first + 4,    //
             first + 0, first + 4, first + 5     //
           };
-          path_indices.extend(indices).unwrap();
+          path_indices.append(indices).unwrap();
         }
         else
         {
@@ -1722,7 +1717,7 @@ void ICanvas::render_paths_vector_feathering_(Span<PathInfo const> paths,
             first + 4, first + 3, first + 0,    //
             first + 5, first + 4, first + 0     //
           };
-          path_indices.extend(indices).unwrap();
+          path_indices.append(indices).unwrap();
         }
       }
 
@@ -2060,7 +2055,7 @@ ICanvas & ICanvas::text(TextRenderInfo const & info,
                         TextPlacement const &  placement)
 {
   push_clip();
-  set_clip(info.clip.intersect(this->clip_));
+  set_clip(info.clip.intersection(this->clip_));
   defer clip_{[&] { pop_clip(); }};
 
   for (auto & b : placement.backgrounds)

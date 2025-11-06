@@ -359,9 +359,9 @@ struct ArenaPool final : IAllocator
   {
     for (usize i = num_arenas_; i-- > 0;)
     {
-      source_->dealloc(
-        Layout{.alignment = cfg_.arena_alignment, .size = arenas_[i].capacity()},
-        arenas_[i].begin);
+      source_->dealloc(Layout{.alignment = cfg_.arena_alignment,
+                              .size      = arenas_[i].capacity()},
+                       arenas_[i].begin);
     }
     source_->ndealloc(num_arenas_, arenas_);
   }
@@ -428,8 +428,8 @@ struct ArenaPool final : IAllocator
       return false;
     }
 
-    Arena * arena =
-      new (arenas_ + num_arenas_) Arena{arena_mem, arena_mem + arena_layout.size};
+    Arena * arena = new (arenas_ + num_arenas_)
+      Arena{arena_mem, arena_mem + arena_layout.size};
 
     current_arena_ = num_arenas_;
 
@@ -479,8 +479,8 @@ struct ArenaPool final : IAllocator
         if (arena.begin == mem)
         {
           if (!source_->realloc(Layout{.alignment = cfg_.arena_alignment,
-                                      .size      = arena.capacity()},
-                               new_size, arena.begin))
+                                       .size      = arena.capacity()},
+                                new_size, arena.begin))
           {
             return false;
           }

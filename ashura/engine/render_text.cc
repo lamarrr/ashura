@@ -229,7 +229,7 @@ RenderText & RenderText::text(Str32 utf32, TextStyle const & style,
 RenderText & RenderText::text(Str32 utf32)
 {
   text_.clear();
-  text_.extend(utf32).unwrap();
+  text_.append(utf32).unwrap();
   flush_text();
   return *this;
 }

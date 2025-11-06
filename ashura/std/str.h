@@ -23,14 +23,14 @@ Result<> join(Vec & out, Span<C const> delimiter,
 
   for (usize i = 0; i < (strings.size() - 1); i++)
   {
-    if (!out.extend(strings[i]) || !out.extend(delimiter))
+    if (!out.append(strings[i]) || !out.append(delimiter))
     {
       out.resize_uninit(initial_size).unwrap();
       return Err{};
     }
   }
 
-  if (!out.extend(strings.last()))
+  if (!out.append(strings.last()))
   {
     out.resize_uninit(initial_size).unwrap();
     return Err{};

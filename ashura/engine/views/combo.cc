@@ -271,7 +271,7 @@ Combo & Combo::items(Span<ref<ComboItem> const> list)
     item->state_.id         = i;
   }
 
-  items_.extend(list).unwrap();
+  items_.append(list).unwrap();
   return *this;
 }
 

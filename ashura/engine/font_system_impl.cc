@@ -79,7 +79,7 @@ Result<Dyn<Font>, FontLoadErr>
   FontSysImpl::decode_(Str label_ref, Span<u8 const> encoded, u32 face)
 {
   Vec<char> font_data{allocator_};
-  if (!font_data.extend(encoded.as_char()))
+  if (!font_data.append(encoded.as_char()))
   {
     return Err{FontLoadErr::OutOfMemory};
   }
@@ -183,17 +183,17 @@ Result<Dyn<Font>, FontLoadErr>
 
   if (ft_postscript_name != nullptr)
   {
-    postscript_name.extend(cstr(ft_postscript_name)).unwrap();
+    postscript_name.append(cstr(ft_postscript_name)).unwrap();
   }
 
   if (ft_face->family_name != nullptr)
   {
-    family_name.extend(cstr(ft_face->family_name)).unwrap();
+    family_name.append(cstr(ft_face->family_name)).unwrap();
   }
 
   if (ft_face->style_name != nullptr)
   {
-    style_name.extend(cstr(ft_face->style_name)).unwrap();
+    style_name.append(cstr(ft_face->style_name)).unwrap();
   }
 
   u32 const num_glyphs        = (u32) ft_face->num_glyphs;
@@ -233,7 +233,7 @@ Result<Dyn<Font>, FontLoadErr>
 
   Vec<char> label{allocator_};
 
-  if (!label.extend(label_ref))
+  if (!label.append(label_ref))
   {
     return Err{FontLoadErr::OutOfMemory};
   }
@@ -479,7 +479,7 @@ FontId FontSysImpl::upload_(Dyn<Font> font_)
                          .extent      = atlas.extent,
                          .glyphs{allocator_}};
 
-  gpu_atlas.glyphs.extend(atlas.glyphs).unwrap();
+  gpu_atlas.glyphs.append(atlas.glyphs).unwrap();
 
   constexpr gpu::Format   format = gpu::Format::B8G8R8A8_UNORM;
   Vec<gpu::ImageViewInfo> view_infos;
@@ -516,7 +516,7 @@ FontId FontSysImpl::upload_(Dyn<Font> font_)
                          view_infos, atlas.channels)
       .unwrap();
 
-  gpu_atlas.textures.extend(image.textures).unwrap();
+  gpu_atlas.textures.append(image.textures).unwrap();
   gpu_atlas.image = image.id;
 
   font.gpu_atlas = std::move(gpu_atlas);

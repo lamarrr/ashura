@@ -19,7 +19,7 @@ constexpr Result<Void, fmt::Result> sformat_to(Vec & out, Span<char const> fstr,
   auto sink = [&](Str str) {
     if (!oom)
     {
-      if (!out.extend(str))
+      if (!out.append(str))
       {
         oom = true;
       }

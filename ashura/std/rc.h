@@ -15,14 +15,13 @@ enum class RcOp : u8
   Unalias  = 2
 };
 
-typedef Fn<usize(Allocator, RcOp)> AliasOp;
+typedef Fn<usize(RcOp)> AliasOp;
 
 /// @param allocator the allocator used to allocate the object
 /// @param direction the reference operation, 0 (get ref count), 1 (increase ref count), -1 (decrease ref count)
 /// @returns the previous alias count
-static constexpr usize rc_noop(Allocator allocator, RcOp op)
+static constexpr usize rc_noop(RcOp op)
 {
-  (void) allocator;
   (void) op;
   return 0;
 }
@@ -42,21 +41,14 @@ struct [[nodiscard]] Rc
 {
   typedef H Handle;
 
-  H         handle_;
-  Allocator allocator_;
-  AliasOp   alias_;
+  H       handle_;
+  AliasOp alias_;
 
-  constexpr Rc(H handle, Allocator allocator, AliasOp alias) :
-    handle_{handle},
-    allocator_{allocator},
-    alias_{alias}
+  constexpr Rc(H handle, AliasOp alias) : handle_{handle}, alias_{alias}
   {
   }
 
-  explicit constexpr Rc() :
-    handle_{},
-    allocator_{noop_allocator},
-    alias_{rc_noop}
+  explicit constexpr Rc() : handle_{}, alias_{rc_noop}
   {
   }
 
@@ -64,14 +56,10 @@ struct [[nodiscard]] Rc
 
   constexpr Rc & operator=(Rc const &) = delete;
 
-  constexpr Rc(Rc && other) :
-    handle_{other.handle_},
-    allocator_{other.allocator_},
-    alias_{other.alias_}
+  constexpr Rc(Rc && other) : handle_{other.handle_}, alias_{other.alias_}
   {
-    other.handle_    = H{};
-    other.allocator_ = noop_allocator;
-    other.alias_     = rc_noop;
+    other.handle_ = H{};
+    other.alias_  = rc_noop;
   }
 
   constexpr Rc & operator=(Rc && other)
@@ -93,7 +81,7 @@ struct [[nodiscard]] Rc
 
   constexpr void uninit() const
   {
-    alias_(allocator_, RcOp::Unalias);
+    alias_(RcOp::Unalias);
   }
 
   constexpr void reset()
@@ -104,13 +92,13 @@ struct [[nodiscard]] Rc
 
   constexpr Rc alias() const
   {
-    alias_(allocator_, RcOp::Alias);
-    return Rc{handle_, allocator_, alias_};
+    alias_(RcOp::Alias);
+    return Rc{handle_, alias_};
   }
 
   constexpr usize num_aliases() const
   {
-    return alias_(allocator_, RcOp::GetCount);
+    return alias_(RcOp::GetCount);
   }
 
   constexpr H get() const
@@ -147,65 +135,36 @@ struct IsTriviallyRelocatable<Rc<H>>
 };
 
 template <typename T>
-struct AtomicRcObject
-{
-  AtomicAliasCount alias_count{};
-  T                v0;
-
-  static constexpr usize rc_op(AtomicRcObject * obj, Allocator allocator,
-                               RcOp op)
-  {
-    switch (op)
-    {
-      case RcOp::GetCount:
-      {
-        return obj->alias_count.count();
-      }
-      case RcOp::Alias:
-      {
-        return obj->alias_count.alias();
-      }
-      case RcOp::Unalias:
-      {
-        auto const old = obj->alias_count.unalias();
-        if (old == 0)
-        {
-          obj->~AtomicRcObject();
-          allocator->ndealloc(1, obj);
-        }
-        return old;
-      }
-      default:
-        ASH_UNREACHABLE;
-    }
-  }
-};
-
-template <typename T>
 struct RcObject
 {
-  AliasCount alias_count{};
-  T          v0;
+  AtomicAliasCount alias_count;
+  T                v;
 
-  static constexpr usize rc_op(RcObject * obj, Allocator allocator, RcOp op)
+  template <typename... Args>
+  constexpr RcObject(Args &&... args) :
+    alias_count{},
+    v{static_cast<Args &&>(args)...}
+  {
+  }
+
+  static constexpr usize rc_op(Allocated<RcObject> * p, RcOp op)
   {
     switch (op)
     {
       case RcOp::GetCount:
       {
-        return obj->alias_count.count();
+        return p->v.alias_count.count();
       }
       case RcOp::Alias:
       {
-        return obj->alias_count.alias();
+        return p->v.alias_count.alias();
       }
       case RcOp::Unalias:
       {
-        auto const old = obj->alias_count.unalias();
+        auto const old = p->v.alias_count.unalias();
         if (old == 0)
         {
-          obj->~RcObject();
-          allocator->ndealloc(1, obj);
+          p->dealloc();
         }
         return old;
       }
@@ -219,17 +178,17 @@ template <typename T, typename... Args>
 constexpr Result<Rc<T *>, Void> rc(Inplace, Allocator allocator,
                                    Args &&... args)
 {
-  AtomicRcObject<T> * obj;
+  Allocated<RcObject<T>> * p;
 
-  if (!allocator->nalloc(1, obj))
+  if (!allocator->nalloc(1, p))
   {
     return Err{Void{}};
   }
 
-  new (obj) AtomicRcObject<T>{.v0{static_cast<Args &&>(args)...}};
+  new (p) Allocated<RcObject<T>>{allocator, static_cast<Args &&>(args)...};
 
   return Ok{
-    Rc<T *>{&obj->v0, allocator, Fn(obj, AtomicRcObject<T>::rc_op)}
+    Rc<T *>{&p->v.v, Fn(p, RcObject<T>::rc_op)}
   };
 }
 
@@ -242,10 +201,9 @@ constexpr Result<Rc<T *>, Void> rc(Allocator allocator, T object)
 template <typename Base, typename H>
 constexpr Rc<H> transmute(Rc<Base> base, H handle)
 {
-  Rc<H> t{static_cast<H &&>(handle), base.allocator_, base.alias_};
-  base.handle_    = {};
-  base.allocator_ = noop_allocator;
-  base.alias_     = rc_noop;
+  Rc<H> t{static_cast<H &&>(handle), base.alias_};
+  base.handle_ = {};
+  base.alias_  = rc_noop;
   return t;
 }
 
@@ -258,7 +216,7 @@ constexpr Rc<To> cast(Rc<From> from)
 template <typename Handle>
 constexpr Rc<Handle> static_rc(Handle handle)
 {
-  return Rc<Handle>{handle, noop_allocator, rc_noop};
+  return Rc<Handle>{handle, rc_noop};
 }
 
 }    // namespace ash

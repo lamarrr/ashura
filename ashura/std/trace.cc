@@ -31,7 +31,7 @@ void MemoryTraceSink::trace(TraceEvent event, Span<TraceRecord const> records)
     current_records.clear();
   }
 
-  current_records.extend(records).unwrap();
+  current_records.append(records).unwrap();
 }
 
 void MemoryTraceSink::flush()

@@ -502,8 +502,6 @@ struct AnimationState
   {
     CHECK(!timeline.is_empty(), "");
 
-    // [ ] first check current slot; if not in, binary search through the next ones
-
     /// add 1ns so result of modulo operation would be between 0ns and timeline-duration
     auto const timeline_end = timeline.duration() + 1ns;
 
@@ -729,13 +727,11 @@ struct RippleStagger final : Stagger
 template <typename... T>
 struct StaggeredAnimation
 {
-  Vec<AnimationState>   states_{};
+  Vec<AnimationState>   states_;
   Super<Stagger>        stagger_{Unstaggered{}};
   u64                   stagger_width_ = 1;
   Tuple<Timeline<T>...> timelines_{};
   nanoseconds           delay_ = 0ns;
-
-  StaggeredAnimation() = default;
 
   StaggeredAnimation(Vec<AnimationState> states, Super<Stagger> stagger,
                      u64 stagger_width, Tuple<Timeline<T>...> timelines) :
@@ -754,10 +750,10 @@ struct StaggeredAnimation
 
   ~StaggeredAnimation() = default;
 
-  static auto make(u64 stagger_width = 0, u64 num_items = 0,
-                   Super<Stagger> stagger = Unstaggered{})
+  static auto make(u64 stagger_width, u64 num_items, Super<Stagger> stagger,
+                   Allocator allocator)
   {
-    Vec<AnimationState> states{};
+    Vec<AnimationState> states{allocator};
     states.resize(num_items).unwrap();
 
     Tuple<Timeline<T>...> timelines;

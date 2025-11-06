@@ -33,7 +33,7 @@ KeyState & KeyState::copy(KeyState const & other)
   any_down = other.any_down;
   any_up   = other.any_up;
   input    = other.input;
-  text.extend(other.text).unwrap();
+  text.append(other.text).unwrap();
   key_downs   = other.key_downs;
   key_ups     = other.key_ups;
   key_states  = other.key_states;
@@ -56,7 +56,7 @@ DropState & DropState::copy(DropState const & other)
 {
   event = other.event;
   data.clear();
-  data.extend(other.data).unwrap();
+  data.append(other.data).unwrap();
   return *this;
 }
 

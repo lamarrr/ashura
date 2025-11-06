@@ -55,7 +55,7 @@ Flex & Flex::items(InitList<ref<View>> list)
 
 Flex & Flex::items(Span<ref<View> const> list)
 {
-  items_.extend(list).unwrap();
+  items_.append(list).unwrap();
   return *this;
 }
 

@@ -1270,11 +1270,11 @@ void EncoderResourceStates::rebuild(DeviceResourceStates const & upstream)
 {
   alias_.clear();
 
-  alias_.id_to_index_.extend(upstream.alias_.id_to_index_).unwrap();
-  alias_.index_to_id_.extend(upstream.alias_.index_to_id_).unwrap();
+  alias_.id_to_index_.append(upstream.alias_.id_to_index_).unwrap();
+  alias_.index_to_id_.append(upstream.alias_.index_to_id_).unwrap();
 
   // memory hazard
-  alias_.dense.v0.extend(upstream.alias_.dense.v0).unwrap();
+  alias_.dense.v0.append(upstream.alias_.dense.v0).unwrap();
   // was modified
   alias_.dense.v1.resize(upstream.alias_.dense.v0.size()).unwrap();
   // last_accessed
@@ -1284,9 +1284,9 @@ void EncoderResourceStates::rebuild(DeviceResourceStates const & upstream)
 
   descriptor_sets_.clear();
 
-  descriptor_sets_.id_to_index_.extend(upstream.descriptor_sets_.id_to_index_)
+  descriptor_sets_.id_to_index_.append(upstream.descriptor_sets_.id_to_index_)
     .unwrap();
-  descriptor_sets_.index_to_id_.extend(upstream.descriptor_sets_.index_to_id_)
+  descriptor_sets_.index_to_id_.append(upstream.descriptor_sets_.index_to_id_)
     .unwrap();
 }
 
@@ -1601,7 +1601,7 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
   Vec<Str> required_extensions{scratch_};
 
   required_extensions
-    .extend(
+    .append(
       span({cstr(VK_KHR_SURFACE_EXTENSION_NAME),
             cstr(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME)}))
     .unwrap();
@@ -1609,7 +1609,7 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
   Vec<Str> optional_extensions{scratch_};
 
   optional_extensions
-    .extend(span({cstr(VK_EXT_DEBUG_UTILS_EXTENSION_NAME),
+    .append(span({cstr(VK_EXT_DEBUG_UTILS_EXTENSION_NAME),
                   cstr(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME),
                   "VK_KHR_android_surface"_str, "VK_MVK_ios_surface"_str,
                   "VK_MVK_macos_surface"_str, "VK_EXT_metal_surface"_str,
@@ -2113,7 +2113,7 @@ Result<gpu::Device, Status>
   Vec<Str> required_extensions{scratch_};
 
   required_extensions
-    .extend(span<Str>({cstr(VK_KHR_SWAPCHAIN_EXTENSION_NAME),
+    .append(span<Str>({cstr(VK_KHR_SWAPCHAIN_EXTENSION_NAME),
                        cstr(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME),
                        cstr(VK_EXT_EXTENDED_DYNAMIC_STATE_EXTENSION_NAME),
                        cstr(VK_KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME),
@@ -2124,7 +2124,7 @@ Result<gpu::Device, Status>
   Vec<Str> optional_extensions{scratch_};
 
   optional_extensions
-    .extend(span<Str>({cstr(VK_EXT_DEBUG_MARKER_EXTENSION_NAME),
+    .append(span<Str>({cstr(VK_EXT_DEBUG_MARKER_EXTENSION_NAME),
                        cstr(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME)}))
     .unwrap();
 
@@ -2419,7 +2419,7 @@ void IDevice::set_resource_name(Str label, void const * resource,
 {
   Vec<char> label_c_str{scratch};
 
-  label_c_str.extend(label).unwrap();
+  label_c_str.append(label).unwrap();
   label_c_str.push('\0').unwrap();
 
   VkDebugUtilsObjectNameInfoEXT name_info{
@@ -3251,7 +3251,7 @@ Result<gpu::DescriptorSetLayout, Status> IDevice::create_descriptor_set_layout(
   }
 
   SmallVec<gpu::DescriptorBindingInfo, 1, 0> bindings{allocator_};
-  bindings.extend(info.bindings).unwrap();
+  bindings.append(info.bindings).unwrap();
 
   auto is_readonly = is_readonly_set(info.bindings);
 
@@ -3501,7 +3501,7 @@ Result<gpu::ComputePipeline, Status>
     .pData    = info.compute_shader.specialization_constants_data.data()};
 
   Vec<char> entry_point{scratch_};
-  entry_point.extend(info.compute_shader.entry_point).unwrap();
+  entry_point.append(info.compute_shader.entry_point).unwrap();
   entry_point.push('\0').unwrap();
 
   VkPipelineShaderStageCreateInfo vk_stage{
@@ -3625,11 +3625,11 @@ Result<gpu::GraphicsPipeline, Status>
     .pData    = info.fragment_shader.specialization_constants_data.data()};
 
   Vec<char> vs_entry_point{scratch_};
-  vs_entry_point.extend(info.vertex_shader.entry_point).unwrap();
+  vs_entry_point.append(info.vertex_shader.entry_point).unwrap();
   vs_entry_point.push('\0').unwrap();
 
   Vec<char> fs_entry_point{scratch_};
-  fs_entry_point.extend(info.fragment_shader.entry_point).unwrap();
+  fs_entry_point.append(info.fragment_shader.entry_point).unwrap();
   fs_entry_point.push('\0').unwrap();
 
   VkPipelineShaderStageCreateInfo vk_stages[2] = {
@@ -3926,7 +3926,7 @@ Result<gpu::GraphicsPipeline, Status>
                       .sample_count = info.rasterization_state.sample_count,
                       .num_vertex_attributes = size32(info.vertex_attributes)};
 
-  pipeline->color_fmts.extend(info.color_formats).unwrap();
+  pipeline->color_fmts.append(info.color_formats).unwrap();
 
   return Ok{(gpu::GraphicsPipeline) pipeline};
 }
@@ -4150,7 +4150,7 @@ Result<gpu::Swapchain, Status>
   IDevice::create_swapchain(gpu::SwapchainInfo const & info)
 {
   Vec<char> label{allocator_};
-  if (!label.extend(info.label))
+  if (!label.append(info.label))
   {
     return Err{Status::OutOfHostMemory};
   }
@@ -5769,7 +5769,7 @@ void ICommandEncoder::update_buffer(Span<u8 const> src_, u64 dst_offset,
 
   Vec<u8, 0> src{arena_};
 
-  MEMTRY(src.extend(src_));
+  MEMTRY(src.append(src_));
 
   cmd->src = src.leak();
 
@@ -6774,7 +6774,7 @@ void ICommandEncoder::bind_descriptor_sets(
 
   Vec<u32, 0> dynamic_offsets{arena_};
 
-  MEMTRY(dynamic_offsets.extend(dynamic_offsets_));
+  MEMTRY(dynamic_offsets.append(dynamic_offsets_));
 
   cmd->sets            = descriptor_sets.leak();
   cmd->dynamic_offsets = dynamic_offsets.leak();
@@ -6843,7 +6843,7 @@ void ICommandEncoder::push_constants(Span<u8 const> constants_)
 
   Vec<u8> constants{arena_};
 
-  MEMTRY(constants.extend(constants_));
+  MEMTRY(constants.append(constants_));
 
   cmd->constants = constants.leak();
 }
@@ -6939,7 +6939,7 @@ void ICommandEncoder::bind_vertex_buffers(
 
   Vec<u64, 0> offsets{arena_};
 
-  MEMTRY(offsets.extend(offsets_));
+  MEMTRY(offsets.append(offsets_));
 
   cmd->buffers = vertex_buffers.leak();
   cmd->offsets = offsets.leak();

@@ -21,7 +21,7 @@ TEST(SparseVecTest, Start)
   ASSERT_TRUE(f.push(1));
   ASSERT_EQ(f[0], 1);
   ASSERT_EQ(f.size(), 1);
-  ASSERT_TRUE(f.extend(span({2, 3, 4, 5, 6})));
+  ASSERT_TRUE(f.append(span({2, 3, 4, 5, 6})));
   ASSERT_EQ(f.size(), 6);
   ASSERT_EQ(f[5], 6);
   ASSERT_TRUE(f.fit());

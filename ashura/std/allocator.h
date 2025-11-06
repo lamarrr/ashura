@@ -202,4 +202,30 @@ inline constexpr Allocator noop_allocator{noop_allocator_impl};
 
 inline constexpr Allocator default_allocator = heap_allocator;
 
+template <typename T>
+struct Allocated
+{
+  T         v;
+  Allocator allocator;
+
+  template <typename... Args>
+  constexpr Allocated(Allocator allocator, Args &&... args) :
+    v{static_cast<Args &&>(args)...},
+    allocator{allocator}
+  {
+  }
+
+  constexpr Allocated(Allocated const &)             = delete;
+  constexpr Allocated & operator=(Allocated const &) = delete;
+  constexpr Allocated(Allocated &&)                  = delete;
+  constexpr Allocated & operator=(Allocated &&)      = delete;
+  constexpr ~Allocated()                             = delete;
+
+  constexpr void dealloc()
+  {
+    v.~T();
+    allocator->ndealloc(1, this);
+  }
+};
+
 }    // namespace ash

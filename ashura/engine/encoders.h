@@ -91,7 +91,7 @@ void push_state(State const & state, Vec<State> & states, Vec<u32> & runs)
 {
   if (runs.is_empty())
   {
-    runs.extend(span({0U, 1U})).unwrap();
+    runs.append(span({0U, 1U})).unwrap();
   }
   else
   {
@@ -111,7 +111,7 @@ void push_index(u32 num_indices, Vec<u32> & runs)
 {
   if (runs.is_empty())
   {
-    runs.extend(span({0U, num_indices})).unwrap();
+    runs.append(span({0U, num_indices})).unwrap();
   }
   else
   {
@@ -121,7 +121,6 @@ void push_index(u32 num_indices, Vec<u32> & runs)
 
 }    // namespace impl
 
-// [ ] encoders should work on batches primarily
 struct SdfEncoder final : ICanvasEncoder
 {
   using State = SdfPipelineParams::State;
@@ -189,7 +188,7 @@ struct SdfEncoder final : ICanvasEncoder
   void push_(State const & state, Span<u8 const> item)
   {
     impl::push_state(state, states_, state_runs_);
-    items_.extend(item).unwrap();
+    items_.append(item).unwrap();
     num_instances_++;
   }
 
@@ -278,7 +277,7 @@ struct QuadEncoder final : ICanvasEncoder
   void push_(State const & state, Span<u8 const> quad)
   {
     impl::push_state(state, states_, state_runs_);
-    quads_.extend(quad).unwrap();
+    quads_.append(quad).unwrap();
     num_instances_++;
   }
 
@@ -389,9 +388,9 @@ struct TriangleFillEncoder final : ICanvasEncoder
   {
     impl::push_index(size32(indices), index_runs_);
     impl::push_state(state, states_, state_runs_);
-    sets_.extend(set).unwrap();
-    vertices_.extend(vertices).unwrap();
-    indices_.extend(indices.as_u8()).unwrap();
+    sets_.append(set).unwrap();
+    vertices_.append(vertices).unwrap();
+    indices_.append(indices.as_u8()).unwrap();
     num_instances_++;
   }
 
@@ -492,9 +491,9 @@ struct FillStencilEncoder final : ICanvasEncoder
   {
     impl::push_index(size32(indices), index_runs_);
     impl::push_state(state, states_, state_runs_);
-    world_transforms_.extend(as_u8_span(world_transform)).unwrap();
-    vertices_.extend(vertices).unwrap();
-    indices_.extend(indices.as_u8()).unwrap();
+    world_transforms_.append(as_u8_span(world_transform)).unwrap();
+    vertices_.append(vertices).unwrap();
+    indices_.append(indices.as_u8()).unwrap();
     num_instances_++;
   }
 
@@ -592,9 +591,9 @@ struct BezierStencilEncoder final : ICanvasEncoder
     auto item = shader::BezierStencilItem{.world_transform = world_transform,
                                           .first_bezier_index =
                                             index_prefix + first_bezier_index};
-    items_.extend(as_u8_span(item)).unwrap();
-    vertices_.extend(vertices).unwrap();
-    indices_.extend(indices.as_u8()).unwrap();
+    items_.append(as_u8_span(item)).unwrap();
+    vertices_.append(vertices).unwrap();
+    indices_.append(indices.as_u8()).unwrap();
     num_instances_++;
   }
 
@@ -846,10 +845,10 @@ struct VectorPathEncoder final : ICanvasEncoder
 
     shader::VectorPathCoverageItem item{.world_transform = world_transform};
 
-    vertices_.extend(vertices.as_u8()).unwrap();
-    indices_.extend(indices.as_u8()).unwrap();
-    coverage_items_.extend(as_u8_span(item)).unwrap();
-    fill_items_.extend(fill_items.as_u8()).unwrap();
+    vertices_.append(vertices.as_u8()).unwrap();
+    indices_.append(indices.as_u8()).unwrap();
+    coverage_items_.append(as_u8_span(item)).unwrap();
+    fill_items_.append(fill_items.as_u8()).unwrap();
     num_coverage_items_++;
     num_fill_items_ += size32(fill_items);
   }
@@ -944,8 +943,8 @@ struct PbrEncoder final : ICanvasEncoder
     front_face_{item.front_face},
     variant_{item.variant}
   {
-    item_.extend(item.item).unwrap();
-    lights_.extend(item.lights).unwrap();
+    item_.append(item.item).unwrap();
+    lights_.append(item.lights).unwrap();
   }
 
   PbrEncoder(PbrEncoder const &)             = delete;

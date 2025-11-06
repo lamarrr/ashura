@@ -38,7 +38,7 @@ Stack & Stack::items(InitList<ref<View>> list)
 
 Stack & Stack::items(Span<ref<View> const> list)
 {
-  items_.extend(span(list)).unwrap();
+  items_.append(span(list)).unwrap();
   return *this;
 }
 

@@ -103,7 +103,7 @@ struct [[nodiscard]] Vec
   {
     Vec out{allocator};
 
-    if (!out.extend(*this))
+    if (!out.append(*this))
     {
       return Err{};
     }
@@ -509,7 +509,7 @@ struct [[nodiscard]] Vec
     return Ok{};
   }
 
-  constexpr Result<> extend(Span<Type const> span)
+  constexpr Result<> append(Span<Type const> span)
   {
     auto const pos = size_;
 
@@ -640,14 +640,14 @@ struct [[nodiscard]] Vec
     return extend(extension);
   }
 
-  constexpr Result<> extend(WithinCapacity, Span<Type const> span)
+  constexpr Result<> append(WithinCapacity, Span<Type const> span)
   {
     if (size() + span.size() > capacity()) [[unlikely]]
     {
       return Err{};
     }
 
-    return extend(span);
+    return append(span);
   }
 
   constexpr Result<> extend_move(WithinCapacity, Span<Type> span)
@@ -681,7 +681,7 @@ constexpr Result<Vec<T>> vec(Allocator allocator, Span<T const> data)
     return out;
   }
 
-  out.v().extend(data).unwrap();
+  out.v().append(data).unwrap();
 
   return out;
 }
@@ -802,7 +802,7 @@ struct [[nodiscard]] SmallVec
   {
     SmallVec out{allocator};
 
-    if (!out.extend(*this))
+    if (!out.append(*this))
     {
       return Err{};
     }
@@ -1265,7 +1265,7 @@ struct [[nodiscard]] SmallVec
     return Ok{};
   }
 
-  constexpr Result<> extend(Span<Type const> span)
+  constexpr Result<> append(Span<Type const> span)
   {
     auto const pos = size_;
 
@@ -1396,14 +1396,14 @@ struct [[nodiscard]] SmallVec
     return extend(extension);
   }
 
-  constexpr Result<> extend(WithinCapacity, Span<Type const> span)
+  constexpr Result<> append(WithinCapacity, Span<Type const> span)
   {
     if (size() + span.size() > capacity()) [[unlikely]]
     {
       return Err{};
     }
 
-    return extend(span);
+    return append(span);
   }
 
   constexpr Result<> extend_move(WithinCapacity, Span<Type> span)
@@ -1452,7 +1452,7 @@ struct [[nodiscard]] InplaceVec
 
   constexpr InplaceVec(InitList<T> list) : InplaceVec{}
   {
-    extend(span(list)).unwrap();
+    append(span(list)).unwrap();
   }
 
   constexpr InplaceVec(InplaceVec const & other) : size_{other.size()}
@@ -1767,7 +1767,7 @@ struct [[nodiscard]] InplaceVec
     return Ok{};
   }
 
-  constexpr Result<> extend(Span<Type const> span)
+  constexpr Result<> append(Span<Type const> span)
   {
     auto const pos = size_;
 

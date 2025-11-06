@@ -122,8 +122,8 @@ void TextCompositor::push_record(TextEditRecordType type, usize text_pos,
 
   truncate_records();
 
-  buffer_.extend(erase).unwrap();
-  buffer_.extend(insert).unwrap();
+  buffer_.append(erase).unwrap();
+  buffer_.append(insert).unwrap();
 
   auto const idx = records_.size();
 

@@ -284,7 +284,7 @@ struct PieceTable
     {
       for (auto iter = piece_begin(range); iter != piece_end(); iter++)
       {
-        if (!out.extend(*iter))
+        if (!out.append(*iter))
         {
           return Err{};
         }
@@ -437,7 +437,7 @@ struct PieceTable
   }
 
   template <typename... Args>
-  constexpr Result<> extend(Args &&... args)
+  constexpr Result<> append(Args &&... args)
   {
     return pieces_.push(std::forward<Args>(args)...);
   }

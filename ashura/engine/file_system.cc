@@ -12,7 +12,7 @@ Future<Result<Vec<u8>, IoErr>> IFileSys::load_file(Allocator allocator,
                                                    Str       path)
 {
   Vec<char> path_copy{allocator};
-  path_copy.extend(path).unwrap();
+  path_copy.append(path).unwrap();
 
   Future fut = future<Result<Vec<u8>, IoErr>>(allocator).unwrap();
 

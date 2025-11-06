@@ -9,9 +9,9 @@ TEST(PieceTableTest, Extend)
 {
   PieceTable8 piece{default_allocator};
 
-  piece.extend(static_rc(u8"AB 12"_str)).unwrap();
-  piece.extend(static_rc(u8"\n"_str)).unwrap();
-  piece.extend(static_rc(u8"676967 12345"_str)).unwrap();
+  piece.append(static_rc(u8"AB 12"_str)).unwrap();
+  piece.append(static_rc(u8"\n"_str)).unwrap();
+  piece.append(static_rc(u8"676967 12345"_str)).unwrap();
 
   Vec<c8> result{default_allocator};
 
@@ -58,9 +58,9 @@ TEST(PieceTableTest, Erase)
 {
   PieceTable8 piece{default_allocator};
 
-  piece.extend(static_rc(u8"AB"_str)).unwrap();
-  piece.extend(static_rc(u8"CDEFGH"_str)).unwrap();
-  piece.extend(static_rc(u8"IJKLM"_str)).unwrap();
+  piece.append(static_rc(u8"AB"_str)).unwrap();
+  piece.append(static_rc(u8"CDEFGH"_str)).unwrap();
+  piece.append(static_rc(u8"IJKLM"_str)).unwrap();
 
   {
     PieceTable8 p{default_allocator};
@@ -139,15 +139,15 @@ TEST(PieceTableTest, Compact)
 {
   PieceTable8 piece{default_allocator};
 
-  piece.extend(static_rc(u8"AB"_str)).unwrap();
-  piece.extend(static_rc(u8"CDEFGH"_str)).unwrap();
-  piece.extend(static_rc(u8"IJKLM"_str)).unwrap();
-  piece.extend(static_rc(u8"NOPQR"_str)).unwrap();
-  piece.extend(static_rc(u8"STUVW"_str)).unwrap();
-  piece.extend(static_rc(u8"XYZ"_str)).unwrap();
-  piece.extend(static_rc(u8" 012"_str)).unwrap();
-  piece.extend(static_rc(u8"3456"_str)).unwrap();
-  piece.extend(static_rc(u8"789"_str)).unwrap();
+  piece.append(static_rc(u8"AB"_str)).unwrap();
+  piece.append(static_rc(u8"CDEFGH"_str)).unwrap();
+  piece.append(static_rc(u8"IJKLM"_str)).unwrap();
+  piece.append(static_rc(u8"NOPQR"_str)).unwrap();
+  piece.append(static_rc(u8"STUVW"_str)).unwrap();
+  piece.append(static_rc(u8"XYZ"_str)).unwrap();
+  piece.append(static_rc(u8" 012"_str)).unwrap();
+  piece.append(static_rc(u8"3456"_str)).unwrap();
+  piece.append(static_rc(u8"789"_str)).unwrap();
 
   {
     Vec<c8> result{default_allocator};
@@ -168,15 +168,15 @@ TEST(PieceTableTest, Clone)
 {
   PieceTable8 piece{default_allocator};
 
-  piece.extend(static_rc(u8"AB"_str)).unwrap();
-  piece.extend(static_rc(u8"CDEFGH"_str)).unwrap();
-  piece.extend(static_rc(u8"IJKLM"_str)).unwrap();
-  piece.extend(static_rc(u8"NOPQR"_str)).unwrap();
-  piece.extend(static_rc(u8"STUVW"_str)).unwrap();
-  piece.extend(static_rc(u8"XYZ"_str)).unwrap();
-  piece.extend(static_rc(u8" 012"_str)).unwrap();
-  piece.extend(static_rc(u8"3456"_str)).unwrap();
-  piece.extend(static_rc(u8"789"_str)).unwrap();
+  piece.append(static_rc(u8"AB"_str)).unwrap();
+  piece.append(static_rc(u8"CDEFGH"_str)).unwrap();
+  piece.append(static_rc(u8"IJKLM"_str)).unwrap();
+  piece.append(static_rc(u8"NOPQR"_str)).unwrap();
+  piece.append(static_rc(u8"STUVW"_str)).unwrap();
+  piece.append(static_rc(u8"XYZ"_str)).unwrap();
+  piece.append(static_rc(u8" 012"_str)).unwrap();
+  piece.append(static_rc(u8"3456"_str)).unwrap();
+  piece.append(static_rc(u8"789"_str)).unwrap();
 
   {
     PieceTable8 clone{default_allocator};

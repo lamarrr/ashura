@@ -149,7 +149,7 @@ Result<EngineCfg> EngineCfg::parse(Allocator allocator, Vec<u8> & json)
   std::string_view pipeline_cache_path =
     cfg["cache.pipeline.path"].get_string().value();
 
-  out.pipeline_cache.extend(pipeline_cache_path).unwrap();
+  out.pipeline_cache.append(pipeline_cache_path).unwrap();
 
   return Ok{std::move(out)};
 }
@@ -211,7 +211,7 @@ static void window_event_listener(Engine * engine, WindowEvent const & event)
     },
     [&](TextInputEvent e) {
       f.key.input = true;
-      f.key.text.extend(e.text).unwrap();
+      f.key.text.append(e.text).unwrap();
     },
     [&](WindowEventType e) {
       switch (e)
@@ -273,12 +273,12 @@ static void window_event_listener(Engine * engine, WindowEvent const & event)
         [&](DropPositionEvent e) { f.mouse.position = e.pos; },
         [&](DropFileEvent e) {
           f.drop.data.clear();
-          f.drop.data.extend(e.path.as_u8()).unwrap();
+          f.drop.data.append(e.path.as_u8()).unwrap();
           f.drop.event = DropState::Event::FilePath;
         },
         [&](DropTextEvent e) {
           f.drop.data.clear();
-          f.drop.data.extend(e.text.as_u8()).unwrap();
+          f.drop.data.append(e.text.as_u8()).unwrap();
           f.drop.event = DropState::Event::Bytes;
         });
     });
@@ -637,7 +637,7 @@ void Engine::run(ui::View & view, Fn<void(ui::Ctx const &)> loop)
       }*/
 
       // [ ] always-on borderless windows
-      // [ ] ** add grain effect with uv shift; additive blend of the noise with the region: https://www.shadertoy.com/view/DdcfzH
+
       canvas.blur({
         .area{.center = input_state.mouse.position.unwrap_or(),
               .extent{875, 450}},

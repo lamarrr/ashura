@@ -7,12 +7,7 @@
 namespace ash
 {
 
-typedef Fn<void(Allocator)> DynUninit;
-
-static constexpr void dyn_noop(Allocator allocator)
-{
-  (void) allocator;
-}
+typedef Fn<void()> DynUninit;
 
 /// @brief A dynamically allocated object. It is always valid. Dyn represents a resource using the handle type `H`.
 template <typename H>
@@ -22,20 +17,13 @@ struct [[nodiscard]] Dyn
   typedef H Handle;
 
   H         handle_;
-  Allocator allocator_;
   DynUninit uninit_;
 
-  constexpr Dyn(H handle, Allocator allocator, DynUninit uninit) :
-    handle_{handle},
-    allocator_{allocator},
-    uninit_{uninit}
+  constexpr Dyn(H handle, DynUninit uninit) : handle_{handle}, uninit_{uninit}
   {
   }
 
-  explicit constexpr Dyn() :
-    handle_{},
-    allocator_{noop_allocator},
-    uninit_{noop}
+  explicit constexpr Dyn() : handle_{}, uninit_{noop}
   {
   }
 
@@ -43,14 +31,10 @@ struct [[nodiscard]] Dyn
 
   constexpr Dyn & operator=(Dyn const &) = delete;
 
-  constexpr Dyn(Dyn && other) :
-    handle_{other.handle_},
-    allocator_{other.allocator_},
-    uninit_{other.uninit_}
+  constexpr Dyn(Dyn && other) : handle_{other.handle_}, uninit_{other.uninit_}
   {
-    other.handle_    = H{};
-    other.allocator_ = noop_allocator;
-    other.uninit_    = noop;
+    other.handle_ = H{};
+    other.uninit_ = noop;
   }
 
   constexpr Dyn & operator=(Dyn && other)
@@ -72,7 +56,7 @@ struct [[nodiscard]] Dyn
 
   constexpr void uninit() const
   {
-    uninit_(allocator_);
+    uninit_();
   }
 
   constexpr void reset()
@@ -112,21 +96,18 @@ template <typename T, typename... Args>
 constexpr Result<Dyn<T *>, Void> dyn(Inplace, Allocator allocator,
                                      Args &&... args)
 {
-  T * object;
-  if (!allocator->nalloc(1, object)) [[unlikely]]
+  Allocated<T> * p;
+  if (!allocator->nalloc(1, p)) [[unlikely]]
   {
     return Err{Void{}};
   }
 
-  constexpr auto uninit = +[](T * object, Allocator allocator) {
-    obj::destruct(Span{object, 1});
-    allocator->ndealloc(1, object);
-  };
+  constexpr auto uninit = +[](Allocated<T> * p) { p->dealloc(); };
 
-  new (object) T{static_cast<Args &&>(args)...};
+  new (p) Allocated<T>{allocator, static_cast<Args &&>(args)...};
 
   return Ok{
-    Dyn<T *>{object, allocator, Fn(object, uninit)}
+    Dyn<T *>{&p->v, Fn(p, uninit)}
   };
 }
 
@@ -145,10 +126,9 @@ constexpr Result<Dyn<T *>, Void> dyn(Allocator allocator, T object)
 template <typename Base, typename H>
 constexpr Dyn<H> transmute(Dyn<Base> base, H handle)
 {
-  Dyn<H> t{static_cast<H &&>(handle), base.allocator_, base.uninit_};
-  base.handle_    = {};
-  base.allocator_ = noop_allocator;
-  base.uninit_    = noop;
+  Dyn<H> t{static_cast<H &&>(handle), base.uninit_};
+  base.handle_ = {};
+  base.uninit_ = noop;
   return t;
 }
 
@@ -171,7 +151,7 @@ constexpr Result<Dyn<Fn>, Void> dyn_lambda(Allocator allocator,
 template <typename Handle>
 constexpr Dyn<Handle> static_dyn(Handle handle)
 {
-  return Dyn<Handle>{handle, noop_allocator, dyn_noop};
+  return Dyn<Handle>{handle, noop};
 }
 
 }    // namespace ash
