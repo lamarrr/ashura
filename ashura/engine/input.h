@@ -951,7 +951,7 @@ struct KeyState
   bool input : 1 = false;
 
   /// @brief Current text input data from the IME or keyboard
-  Vec<c8> text{};
+  Vec<c8> text;
 
   /// @brief Bit mask of all the keys that were pressed on this frame
   Bits<u64, NUM_KEY_CODES> key_downs{};

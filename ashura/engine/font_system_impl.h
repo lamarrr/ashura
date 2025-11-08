@@ -14,7 +14,6 @@ extern "C"
 
 namespace ash
 {
-// [ ] make systems MT-safe?
 
 struct FontImpl final : IFont
 {

@@ -54,7 +54,7 @@ Future<Result<ShaderInfo, ShaderLoadErr>>
                                         spirv.view().reinterpret<u32>()))
                 .unwrap();
             },
-            Ready{}, ThreadId::Main);
+            Ready{}, MainThread::Main);
         },
         [&](IoErr err) {
           fut
@@ -64,7 +64,7 @@ Future<Result<ShaderInfo, ShaderLoadErr>>
             .unwrap();
         });
     },
-    AwaitFutures{load_fut.alias()}, ThreadId::Main);
+    AwaitFutures{load_fut.alias()}, MainThread::Main);
 
   return fut;
 }

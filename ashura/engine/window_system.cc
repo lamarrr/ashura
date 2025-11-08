@@ -14,11 +14,11 @@ namespace ash
 
 struct WindowImpl
 {
-  SDL_Window *                             win       = nullptr;
-  gpu::Surface                             surface   = nullptr;
-  SDL_WindowID                             id        = 0;
-  SparseVec<Fn<void(WindowEvent const &)>> listeners = {};
-  gpu::Instance                            instance  = nullptr;
+  SDL_Window *                             win     = nullptr;
+  gpu::Surface                             surface = nullptr;
+  SDL_WindowID                             id      = 0;
+  SparseVec<Fn<void(WindowEvent const &)>> listeners;
+  gpu::Instance                            instance = nullptr;
   Fn<WindowRegion(u32x2)> hit_test = [](u32x2) { return WindowRegion::Normal; };
 
   WindowImpl(Allocator allocator, SDL_Window * window, gpu::Surface surface,
@@ -172,7 +172,7 @@ struct WindowSysImpl : IWindowSys
 
     CHECK(instance->get_backend() == gpu::Backend::Vulkan, "");
 
-    vk::Instance & vk_instance = (vk::Instance &) *instance;
+    vk::IInstance & vk_instance = (vk::IInstance &) *instance;
     VkSurfaceKHR   surface;
 
     CHECK_SDL(

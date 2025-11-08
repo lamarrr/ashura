@@ -698,10 +698,6 @@ struct LayerStack
 
 inline constexpr LayerStack LAYERS;
 
-// [ ] hook object; register, unregister, etc.
-// [ ] always attached to the views
-// using HookObject = Dyn<Fn<void()>>;
-
 // [ ] Message-oriented architecture, fn-state hook for message querying + message queue? or just hashmap. state hook can modify0
 // [ ] fn-style and state hooks for renderers?
 

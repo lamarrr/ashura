@@ -14,7 +14,12 @@ ImageInfo IImageSys::create_image_(Vec<char> label, gpu::ImageInfo const & info,
 {
   gpu::Image gpu_image = sys.gpu->device()->create_image(info).unwrap();
 
-  Image image{.label = std::move(label), .info = info, .image = gpu_image};
+  Image image{.label = std::move(label),
+              .textures{allocator_},
+              .info = info,
+              .view_infos{allocator_},
+              .image = gpu_image,
+              .views{allocator_}};
 
   for (gpu::ImageViewInfo view_info : view_infos)
   {
@@ -217,7 +222,7 @@ Future<Result<ImageInfo, ImageLoadErr>>
                     })
                       .unwrap();
                   },
-                  Ready{}, ThreadId::Main);
+                  Ready{}, MainThread::Main);
               },
               [&](ImageLoadErr err) {
                 trace("Failed to decode image {}", label);
@@ -233,7 +238,7 @@ Future<Result<ImageInfo, ImageLoadErr>>
             .unwrap();
         });
     },
-    AwaitFutures{load_fut.alias()}, ThreadId::AnyWorker);
+    AwaitFutures{load_fut.alias()}, WorkerThread::Any);
 
   return fut;
 }

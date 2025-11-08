@@ -35,17 +35,17 @@ struct Image
 {
   ImageId id = ImageId::None;
 
-  Vec<char> label{};
+  Vec<char> label;
 
-  Vec<TextureIndex> textures{};
+  Vec<TextureIndex> textures;
 
   gpu::ImageInfo info{};
 
-  Vec<gpu::ImageViewInfo> view_infos{};
+  Vec<gpu::ImageViewInfo> view_infos;
 
   gpu::Image image = nullptr;
 
-  Vec<gpu::ImageView> views{};
+  Vec<gpu::ImageView> views;
 
   constexpr ImageInfo to_view() const
   {
@@ -62,7 +62,7 @@ struct Image
 struct IImageSys
 {
   Allocator        allocator_;
-  SparseVec<Image> images_{};
+  SparseVec<Image> images_;
 
   explicit IImageSys(Allocator allocator) :
     allocator_{allocator},

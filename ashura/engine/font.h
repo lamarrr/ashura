@@ -119,8 +119,8 @@ struct CpuFontAtlas
   i32             font_height = 0;
   u32x2           extent      = {};
   u32             num_layers  = 0;
-  Vec<AtlasGlyph> glyphs      = {};
-  Vec<u8>         channels    = {};
+  Vec<AtlasGlyph> glyphs;
+  Vec<u8>         channels;
 
   ImageLayerSpan<u8, 1> span() const
   {
@@ -131,11 +131,11 @@ struct CpuFontAtlas
 
 struct GpuFontAtlas
 {
-  Vec<TextureIndex> textures    = {};
+  Vec<TextureIndex> textures;
   ImageId           image       = ImageId::None;
   i32               font_height = 0;
   u32x2             extent      = {};
-  Vec<AtlasGlyph>   glyphs      = {};
+  Vec<AtlasGlyph>   glyphs;
 
   constexpr u32 num_layers() const
   {
@@ -172,8 +172,6 @@ struct FontInfo
   Option<CpuFontAtlas const &> cpu_atlas         = none;
   Option<GpuFontAtlas const &> gpu_atlas         = none;
 };
-
-// [ ] font variations?; the user would resolve them; how to represent variations? same metrics or different ones?
 
 typedef struct IFont * Font;
 

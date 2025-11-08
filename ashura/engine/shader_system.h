@@ -27,7 +27,7 @@ struct Shader
 {
   ShaderId id{};
 
-  Vec<char> label{};
+  Vec<char> label;
 
   gpu::Shader shader = nullptr;
 

@@ -39,7 +39,7 @@ struct IPipelineSys
     blur_{nullptr},
     pbr_{nullptr},
     vector_path_{nullptr},
-    all_{}
+    all_{noop_allocator}
   {
   }
 
