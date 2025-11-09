@@ -57,10 +57,7 @@ VertexOutput vert(u32 instance : SV_InstanceID, u32 vertex : SV_VertexID)
   var   item       = items[instance];
   f32x4 world_pos  = mul(item.world_transform, f32x4(vtx.position, 0.0, 1.0));
   f32x4 screen_pos = mul(world_to_ndc, world_pos);
-  f32   object     = vtx.fill_id >> 2;
-  f32   type       = (vtx.fill_id & 3);
-  f32   depth      = 0.001 * object + 0.0001 * type;
-  f32x4 output     = f32x4(screen_pos.xy, depth, 1.0);
+  f32x4 output     = f32x4(screen_pos.xy, 0, 1.0);
   return VertexOutput(output, vtx.alpha_mask, vtx.fill_id);
 }
 
