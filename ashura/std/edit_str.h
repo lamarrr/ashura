@@ -10,15 +10,7 @@
 namespace ash
 {
 
-// [ ] we need to add metadata to track whether the piece should be preserved and not copied,
-// i.e. for memory-mapped files
-
-// [ ] sum the buffer_size of all pieces to get the total duplicated size, not just the size of the pieces themselves
-// make the piece constructor always take the orignal buffer and slice into it
-// [ ] do not create alias views of slices!!!!!!!
-// [ ] we can track the total buffer size of the piece table and compare to the actual size of the (non-paged) pieces to
-// determine if to compact, use a ratio of 0.75 expected load factor
-// [ ] aliasing of page pieces?
+  // [ ] delete?
 template <typename Char>
 requires (NonConst<Char>)
 struct EditStr
@@ -30,7 +22,6 @@ struct EditStr
   using TableView = typename Table::View;
 
   static constexpr usize DEFAULT_PIECE_CAPACITY = 1'024;
-  static constexpr usize MAX_PIECES             = 64;
 
   Allocator entry_allocator_;
 
@@ -72,10 +63,9 @@ struct EditStr
     last_buffer_insert_ = none;
   }
 
+  /// @warning the previous state is not maintained if an error is returned
   constexpr Result<> insert(usize pos, Str str)
   {
-    // [ ] error propagation
-    // [ ] remove subspan of buffers, and use slice 
     bool is_page = str.size() > piece_capacity_;
 
     if (is_page)
@@ -98,15 +88,15 @@ struct EditStr
 
       buffer->append(within_capacity, str).unwrap();
 
-      auto view   = buffer->view().as_const();
-      auto rc_str = transmute(std::move(buffer), view);
+      auto view = buffer->view().as_const();
 
-      if (!table_.insert(pos, transmute(buffer.alias(), view)))
+      if (!table_.insert(pos, transmute(std::move(buffer), view)))
       {
         return Err{};
       }
 
       last_buffer_insert_ = none;
+
       return Ok{};
     }
 
@@ -200,25 +190,7 @@ struct EditStr
 
   constexpr void erase(Slice slice)
   {
-    if (last_buffer_insert_.is_some())
-    {
-      // optimization for when we are deleting from the last inserted text buffer
-      if (slice.begin() >= last_buffer_insert_->begin() &&
-          slice.end() == last_buffer_insert_->end())
-      {
-        last_buffer_insert_ = Slice::slice(
-          last_buffer_insert_->begin(), last_buffer_insert_->span - slice.span);
-        (*buffer_)->pop(slice.span);
-      }
-      else
-      {
-        last_buffer_insert_ = none;
-      }
-    }
-
-    // [ ] we can also perform dynamic non-explicit compaction here if the resulting buffer is not sized large enough?
-    // [ ] we'd need regular compaction calls anyway to avoid unbounded piece table memory growth as the pieces will still be chopped up from larger strings
-    // [ ] create metric to determine when to compact based on number of pieces and total size of pieces?
+    last_buffer_insert_ = none;
 
     table_.erase(slice);
   }
@@ -228,14 +200,31 @@ struct EditStr
     return table_.view();
   }
 
-  constexpr Result<> try_compact(){
-    // [ ] how many and which should we compact?
+  constexpr Result<> compact(Slice range, EditStr & out) const
+  {
+    Vec<Char> buffer{out.piece_allocator_};
+
+    if (!table_.compact(range, buffer))
+    {
+      return Err{};
+    }
+
+    auto r0 = rc<Buffer>(inplace, out.entry_allocator_, std::move(buffer));
+
+    if (!r0)
+    {
+      return Err{};
+    }
+
+    auto rc_buffer = r0.unwrap();
+    auto view      = rc_buffer->view().as_const();
+
+    return out.table_.append(transmute(rc_buffer.alias(), view));
   }
 
-  // [ ] fix
   constexpr Result<> clone(Slice range, EditStr & out) const
   {
-    // return table_.clone(range, out);
+    return table_.view().clone(range, out.table_);
   }
 };
 
