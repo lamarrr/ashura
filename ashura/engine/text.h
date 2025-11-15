@@ -537,9 +537,12 @@ struct TextSegment
   TextScript script = TextScript::None;
 
   bool linebreak_begin : 1 = false;
+
   bool paragraph_begin : 1 = false;
-  bool whitespace      : 1 = false;
-  bool tab             : 1 = false;
+
+  bool whitespace : 1 = false;
+
+  bool tab : 1 = false;
 
   /// @brief if this codepoint begins a wrappable text, i.e. has spaces
   /// or tabs before it
