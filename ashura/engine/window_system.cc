@@ -173,7 +173,7 @@ struct WindowSysImpl : IWindowSys
     CHECK(instance->get_backend() == gpu::Backend::Vulkan, "");
 
     vk::IInstance & vk_instance = (vk::IInstance &) *instance;
-    VkSurfaceKHR   surface;
+    VkSurfaceKHR    surface;
 
     CHECK_SDL(
       SDL_Vulkan_CreateSurface(window, vk_instance.vk_, nullptr, &surface));

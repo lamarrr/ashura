@@ -1028,13 +1028,12 @@ void EditText::tick(nanoseconds)
                      actions         = std::move(actions),
                      previous_state_ = state_.alias(),
                      history         = std::move(state_->history)]() mutable {
-      PieceTable32 pieces{allocator};
-      pieces.insert(0, previous_state_->text.text_.alias()).unwrap();
       auto cursors = SmallVec<Cursor, 8>{allocator};
 
       Option<RenderText> rendered = none;
 
-      auto rebuild = [&](f32 max_width, Renderer const & renderer) {
+      auto rebuild = [&](PieceTable32 const & pieces, f32 max_width,
+                         Renderer const & renderer) {
         StrVec32 text{allocator};
         pieces.compact(Slice::all(), text).unwrap();
         auto rc_text  = rc<StrVec32>(allocator, std::move(text)).unwrap();
@@ -1049,6 +1048,10 @@ void EditText::tick(nanoseconds)
       {
         auto & layout = rendered.is_some() ? rendered->get_layout() :
                                              previous_state_->text.get_layout();
+        auto & str =
+          rendered.is_some() ? rendered->text_ : previous_state_->text.text_;
+        PieceTable32 pieces{allocator};
+        pieces.insert(0, str.alias()).unwrap();
 
         action.match(
           [&](InsertAction & a) {
@@ -1056,7 +1059,7 @@ void EditText::tick(nanoseconds)
             auto cp        = layout.get_caret_codepoint(a.cursor.caret());
             auto codepoint = cp.codepoint + (cp.after ? 1 : 0);
             history.insert(codepoint, pieces, a.str.alias());
-            rebuild(a.max_width, a.renderer);
+            rebuild(pieces, a.max_width, a.renderer);
             auto & new_layout = rendered->get_layout();
             auto   caret =
               new_layout.to_caret(codepoint + a.str.get().size(), true);
@@ -1068,7 +1071,7 @@ void EditText::tick(nanoseconds)
             a.cursor.normalize(layout.num_carets);
             auto selection = layout.get_caret_selection(a.cursor.selection());
             history.erase(selection, pieces);
-            rebuild(a.max_width, a.renderer);
+            rebuild(pieces, a.max_width, a.renderer);
             auto cursor = TextCursor{};
             cursor.move_to(a.cursor.left_caret())
               .normalize(rendered->get_layout().num_carets);
@@ -1077,28 +1080,28 @@ void EditText::tick(nanoseconds)
           [&](UndoAction & a) {
             history.undo(pieces).match(
               [&](Slice insertion) {
-                rebuild(a.max_width, a.renderer);
+                rebuild(pieces, a.max_width, a.renderer);
                 auto & new_layout = rendered->get_layout();
                 auto   selection  = new_layout.to_caret_selection(insertion);
                 auto   cursor     = TextCursor{};
                 cursor.select(selection);
                 cursors.push(Cursor{.id = a.id, .v = cursor}).unwrap();
               },
-              [&] { rebuild(a.max_width, a.renderer); });
+              [&] { rebuild(pieces, a.max_width, a.renderer); });
           },
           [&](RedoAction & a) {
             history.redo(pieces).match(
               [&](Slice insertion) {
-                rebuild(a.max_width, a.renderer);
+                rebuild(pieces, a.max_width, a.renderer);
                 auto & new_layout = rendered->get_layout();
                 auto   selection  = new_layout.to_caret_selection(insertion);
                 auto   cursor     = TextCursor{};
                 cursor.select(selection);
                 cursors.push(Cursor{.id = a.id, .v = cursor}).unwrap();
               },
-              [&] { rebuild(a.max_width, a.renderer); });
+              [&] { rebuild(pieces, a.max_width, a.renderer); });
           },
-          [&](RelayoutAction & a) { rebuild(a.max_width, a.renderer); },
+          [&](RelayoutAction & a) { rebuild(pieces, a.max_width, a.renderer); },
           [&](CopyAction & a) {
             a.cursor.normalize(layout.num_carets);
             auto selection = layout.get_caret_selection(a.cursor.selection());

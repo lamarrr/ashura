@@ -235,19 +235,26 @@ constexpr TextDirection level_to_direction(u8 level)
 
 struct TextHighlightStyle
 {
-  ColorGradient color        = {};
-  f32x4         corner_radii = f32x4::splat(0);
-  f32           stroke       = 0;
-  f32           thickness    = 1;
-  void *        user_data    = nullptr;
+  ColorGradient color = {};
+
+  f32x4 corner_radii = f32x4::splat(0);
+
+  f32 stroke = 0;
+
+  f32 thickness = 1;
+
+  void * user_data = nullptr;
 };
 
 struct CaretStyle
 {
-  ColorGradient color        = {};
-  f32           thickness    = 1;
-  f32x4         corner_radii = f32x4::splat(0.25F);
-  void *        user_data    = nullptr;
+  ColorGradient color = {};
+
+  f32 thickness = 1;
+
+  f32x4 corner_radii = f32x4::splat(0.25F);
+
+  void * user_data = nullptr;
 
   constexpr bool is_none() const
   {
@@ -258,6 +265,7 @@ struct CaretStyle
 struct TextCursor
 {
   isize span_ = 0;
+
   isize base_ = 0;
 
   constexpr TextCursor & select(Slice s)
@@ -414,8 +422,10 @@ struct FontStyle
 
 struct TextStyle
 {
-  f32 underline_thickness     = 0;
-  f32 underline_offset        = 2.0F;
+  f32 underline_thickness = 0;
+
+  f32 underline_offset = 2.0F;
+
   f32 strikethrough_thickness = 0;
 
   /// @brief relative. multiplied by font_height
@@ -424,13 +434,19 @@ struct TextStyle
   /// @brief offset from center of glyph
   f32x2 shadow_offset = f32x2{0, 0};
 
-  ColorGradient foreground    = {};
-  ColorGradient background    = {};
-  ColorGradient underline     = {};
+  ColorGradient foreground = {};
+
+  ColorGradient background = {};
+
+  ColorGradient underline = {};
+
   ColorGradient strikethrough = {};
-  ColorGradient shadow        = {};
-  f32x4         corner_radii  = f32x4::splat(0.5F);
-  void *        user_data     = nullptr;
+
+  ColorGradient shadow = {};
+
+  f32x4 corner_radii = f32x4::splat(0.5F);
+
+  void * user_data = nullptr;
 
   constexpr bool has_shadow() const
   {
@@ -488,10 +504,13 @@ struct TextBlockStyle
   /// @brief width to align the text block to when rendering.
   f32 align_width = 0;
 
-  TextHighlightStyle highlight           = {};
-  f32                min_highlight_width = 15.0F;
-  CaretStyle         caret               = {};
-  void *             user_data           = nullptr;
+  TextHighlightStyle highlight = {};
+
+  f32 min_highlight_width = 15.0F;
+
+  CaretStyle caret = {};
+
+  void * user_data = nullptr;
 };
 
 /// @param cluster codepoint cluster within the text run
@@ -500,10 +519,13 @@ struct TextBlockStyle
 /// position, i.e. offset from GlyphMetrics::bearing
 struct GlyphShape
 {
-  usize glyph   = 0;
+  usize glyph = 0;
+
   usize cluster = 0;
-  i32   advance = 0;
-  i32x2 offset  = {};
+
+  i32 advance = 0;
+
+  i32x2 offset = {};
 };
 
 struct TextSegment
@@ -659,21 +681,26 @@ enum class CaretYAlignment : isize
 struct CaretAlignment
 {
   CaretXAlignment x = CaretXAlignment::Start;
+
   CaretYAlignment y = CaretYAlignment::Top;
 };
 
 struct CaretCodepoint
 {
-  usize line      = 0;
+  usize line = 0;
+
   usize codepoint = 0;
-  bool  after     = false;
+
+  bool after = false;
 };
 
 struct CaretPlacement
 {
-  usize         line  = 0;
+  usize line = 0;
+
   Option<usize> glyph = none;
-  bool          after = false;
+
+  bool after = false;
 };
 
 struct TextPlacement
@@ -687,15 +714,20 @@ struct TextPlacement
   struct Line
   {
     CRect bbox = {};
+
     usize line = 0;
   };
 
   struct Background
   {
-    CRect bbox      = {};
-    usize line      = 0;
-    usize column    = 0;
-    usize run       = 0;
+    CRect bbox = {};
+
+    usize line = 0;
+
+    usize column = 0;
+
+    usize run = 0;
+
     usize run_style = 0;
   };
 
@@ -724,30 +756,44 @@ struct TextPlacement
 
   struct Glyph
   {
-    CRect bbox      = {};
-    usize line      = 0;
-    usize column    = 0;
-    usize run       = 0;
+    CRect bbox = {};
+
+    usize line = 0;
+
+    usize column = 0;
+
+    usize run = 0;
+
     usize run_style = 0;
-    usize glyph     = 0;
-    usize cluster   = 0;
+
+    usize glyph = 0;
+
+    usize cluster = 0;
   };
 
   struct Underline
   {
-    CRect bbox      = {};
-    usize line      = 0;
-    usize column    = 0;
-    usize run       = 0;
+    CRect bbox = {};
+
+    usize line = 0;
+
+    usize column = 0;
+
+    usize run = 0;
+
     usize run_style = 0;
   };
 
   struct Strikethrough
   {
-    CRect bbox      = {};
-    usize line      = 0;
-    usize column    = 0;
-    usize run       = 0;
+    CRect bbox = {};
+
+    usize line = 0;
+
+    usize column = 0;
+
+    usize run = 0;
+
     usize run_style = 0;
   };
 
@@ -755,28 +801,39 @@ struct TextPlacement
   {
     // [ ] indices; slice32 span; so we know if it spans the entire line
     CRect bbox = {};
+
     usize line = 0;
   };
 
   struct Caret
   {
-    CRect bbox   = {};
-    usize line   = 0;
+    CRect bbox = {};
+
+    usize line = 0;
+
     usize column = 0;
 
     /// @brief Set to the current caret being rendered for
     usize caret = 0;
   };
 
-  Span<Block const>         blocks         = {};
-  Span<Line const>          lines          = {};
-  Span<Background const>    backgrounds    = {};
-  Span<GlyphShadow const>   glyph_shadows  = {};
-  Span<Glyph const>         glyphs         = {};
-  Span<Underline const>     underlines     = {};
+  Span<Block const> blocks = {};
+
+  Span<Line const> lines = {};
+
+  Span<Background const> backgrounds = {};
+
+  Span<GlyphShadow const> glyph_shadows = {};
+
+  Span<Glyph const> glyphs = {};
+
+  Span<Underline const> underlines = {};
+
   Span<Strikethrough const> strikethroughs = {};
-  Span<Highlight const>     highlights     = {};
-  Span<Caret const>         carets         = {};
+
+  Span<Highlight const> highlights = {};
+
+  Span<Caret const> carets = {};
 };
 
 struct TextRenderInfo
@@ -824,21 +881,35 @@ typedef Fn<void(TextRenderInfo const &, TextPlacement const &)> TextRenderer;
 /// caret:0                caret:1                  caret:2                caret:3               caret:4
 struct TextLayout
 {
-  bool            laid_out;
-  f32             max_width;
-  usize           num_carets;
-  usize           num_codepoints;
-  f32x2           extent;
+  bool laid_out;
+
+  f32 max_width;
+
+  usize num_carets;
+
+  usize num_codepoints;
+
+  Slice lines_slice;
+
+  Slice paragraphs_slice;
+
+  f32x2 extent;
+
   Vec<GlyphShape> glyphs;
-  Vec<TextRun>    runs;
-  Vec<Line>       lines;
-  Vec<Paragraph>  paragraphs;
+
+  Vec<TextRun> runs;
+
+  Vec<Line> lines;
+
+  Vec<Paragraph> paragraphs;
 
   explicit TextLayout(Allocator allocator) :
     laid_out{false},
     max_width{0},
     num_carets{0},
     num_codepoints{0},
+    lines_slice{0, 0},
+    paragraphs_slice{0, 0},
     extent{},
     glyphs{allocator},
     runs{allocator},
@@ -855,11 +926,13 @@ struct TextLayout
 
   void clear()
   {
-    laid_out       = false;
-    max_width      = 0;
-    num_carets     = 0;
-    num_codepoints = 0;
-    extent         = f32x2{0, 0};
+    laid_out         = false;
+    max_width        = 0;
+    num_carets       = 0;
+    num_codepoints   = 0;
+    lines_slice      = {0, 0};
+    paragraphs_slice = {0, 0};
+    extent           = f32x2{0, 0};
     glyphs.clear();
     runs.clear();
     lines.clear();

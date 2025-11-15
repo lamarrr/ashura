@@ -273,8 +273,6 @@ enum class NineSliceScaling : u8
   Tile    = 1
 };
 
-// [ ] liquid metal shader
-
 /// ┏━━━━━━━━━━━━━━━━━┑
 /// ┃  0  ┃  1  ┃  2  ┃
 /// ┃╸╸╸╸╸┃╸╸╸╸╸┃╸╸╸╸╸┃
@@ -666,8 +664,6 @@ struct ICanvas
 
   void render_blur_(Shape const & info);
 
-  // [ ] Handling Self-Intersection; Fill Rules; STC
-
   void render_paths_stencil_then_cover_(Span<PathInfo const> paths,
                                         bool                 has_overlaps);
 
@@ -739,12 +735,6 @@ struct ICanvas
 
   /// @brief Render a text block
   ICanvas & text(TextRenderInfo const & info, TextPlacement const & placement);
-
-  // [ ] implement
-  ICanvas & bloom();
-
-  // [ ] implement
-  ICanvas & crt();
 };
 
 }    // namespace ash

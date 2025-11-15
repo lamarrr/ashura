@@ -381,10 +381,8 @@ Tuple<isize, CaretAlignment> TextLayout::hit(TextBlock const &      block,
   {
     case TextDirection::LeftToRight:
       return {
-        (isize) line.carets.last(), CaretAlignment{
-                                                   .x = CaretXAlignment::End,
-                                                   .y = CaretYAlignment{ln},
-                                                   }
+        (isize) line.carets.last(),
+        CaretAlignment{.x = CaretXAlignment::End, .y = CaretYAlignment{ln}}
       };
 
     case TextDirection::RightToLeft:
