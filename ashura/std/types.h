@@ -880,7 +880,7 @@ struct [[nodiscard]] CoreSlice
 
   constexpr CoreSlice extend(S extension) const
   {
-    return CoreSlice{.offset = offset, .span = sat_add(span, extension)};
+    return CoreSlice::offsets(begin(), sat_add(end(), extension));
   }
 
   constexpr bool contains(S item) const
@@ -1790,12 +1790,18 @@ struct BitSpan
 
   constexpr void clear_all_bits() const requires (NonConst<R>)
   {
-    fill(repr(), (R) 0);
+    for (usize i = 0; i < atom_size(); ++i)
+    {
+      storage_[i] = 0;
+    }
   }
 
   constexpr void set_all_bits() const requires (NonConst<R>)
   {
-    fill(repr(), NumTraits<R>::MAX);
+    for (usize i = 0; i < atom_size(); ++i)
+    {
+      storage_[i] = NumTraits<R>::MAX;
+    }
   }
 
   constexpr usize find_set_bit()
