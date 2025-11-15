@@ -38,8 +38,8 @@ ConstantBuffer<f32x4x4> world_to_ndc;
 [[vk::binding(0, 3)]]
 StructuredBuffer<ITEM_TYPE> quads;
 
-[[shader("vertex")]] VertexOutput vert(u32 instance : SV_InstanceID,
-                                       u32 vertex : SV_VertexID)
+[[shader("vertex")]] VertexOutput vert(u32 instance : SV_VulkanInstanceID,
+                                       u32 vertex : SV_VulkanVertexID)
 {
   var   quad       = quads[instance];
   var   pos        = quad.corners[vertex];

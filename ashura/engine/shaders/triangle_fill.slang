@@ -36,7 +36,8 @@ struct VertexOutput
 };
 
 [[shader("vertex")]]
-VertexOutput vert(u32 instance : SV_InstanceID, u32 vertex : SV_VertexID)
+VertexOutput vert(u32 instance : SV_VulkanInstanceID,
+                  u32 vertex : SV_VulkanVertexID)
 {
   u32   idx        = indices[vertex];
   var   vtx        = vertices[idx];

@@ -21,8 +21,8 @@ StructuredBuffer<f32x2> vertices;
 [[vk::binding(0, 3)]]
 StructuredBuffer<u32> indices;
 
-[[shader("vertex")]] VertexOutput vert(u32 instance : SV_InstanceID,
-                                       u32 vertex : SV_VertexID)
+[[shader("vertex")]] VertexOutput vert(u32 instance : SV_VulkanInstanceID,
+                                       u32 vertex : SV_VulkanVertexID)
 {
   var idx             = indices[vertex];
   var rel_pos         = vertices[idx];
