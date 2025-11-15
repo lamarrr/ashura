@@ -15,44 +15,30 @@ struct Piece
   using View = ViewType;
 
   Rc<View> buffer_;
-  Slice    slice_;
 
-  constexpr Piece(Rc<View> buffer, Slice slice) :
-    buffer_{std::move(buffer)},
-    slice_{slice}
-  {
-  }
-
-  constexpr Piece(Rc<View> buffer) :
-    buffer_{std::move(buffer)},
-    slice_{0, buffer_.get().size()}
+  constexpr Piece(Rc<View> buffer) : buffer_{std::move(buffer)}
   {
   }
 
   constexpr usize size() const
   {
-    return slice_.span;
+    return buffer_.get().size();
   }
 
   constexpr View view() const
   {
-    return buffer_.get().view().slice(slice_);
+    return buffer_.get().view();
   }
 
   constexpr Piece subslice(Slice s) const
   {
-    return Piece{
-      buffer_.alias(), Slice{slice_.offset + s.offset, s.span}
-       (size())
-    };
+    return Piece{transmute(buffer_.alias(), buffer_.get().view().slice(s))};
   }
 
   constexpr Piece with_slice(Slice s)
   {
-    return Piece{
-      std::move(buffer_), Slice{slice_.offset + s.offset, s.span}
-       (size())
-    };
+    auto view = buffer_.get().view().slice(s);
+    return Piece{transmute(std::move(buffer_), view)};
   }
 };
 
@@ -143,6 +129,11 @@ struct PieceTable
       return piece_->subslice(Slice::slice(iter_ - piece_pos_, end_ - iter_));
     }
 
+    constexpr Tuple<usize, usize> diff(PieceIter const & rhs) const
+    {
+      return {static_cast<usize>(piece_ - rhs.piece_), iter_ - rhs.iter_};
+    }
+
     constexpr PieceView operator*() const
     {
       return view();
@@ -214,7 +205,7 @@ struct PieceTable
 
       while (piece_iter != piece_end)
       {
-        auto current = Slice{piece_pos, piece_iter->size()};
+        auto current = Slice::slice(piece_pos, piece_iter->size());
         if (current.contains(range.begin()))
         {
           break;
@@ -244,7 +235,7 @@ struct PieceTable
 
       while (piece_iter != piece_end)
       {
-        auto current = Slice{piece_pos, piece_iter->size()};
+        auto current = Slice::slice(piece_pos, piece_iter->size());
         if (current.contains(range.begin()))
         {
           break;
@@ -334,7 +325,7 @@ struct PieceTable
 
   constexpr void erase(Slice erase)
   {
-    auto old = Slice{0, pieces_.size()};
+    auto old = Slice::slice(0, pieces_.size());
 
     pieces_.reserve_extend(pieces_.size() + 8).unwrap();
 
@@ -342,7 +333,7 @@ struct PieceTable
 
     for (auto & piece : pieces_)
     {
-      auto range      = Slice{offset, piece.size()};
+      auto range      = Slice::slice(offset, piece.size());
       bool intersects = erase.intersects(range);
 
       if (!intersects)
@@ -358,9 +349,9 @@ struct PieceTable
         auto right_range = Slice::offsets(erase.end(), range.end());
 
         auto left_slice =
-          Slice{(left_range.begin() - range.begin()), left_range.span};
+          Slice::slice(left_range.begin() - range.begin(), left_range.span);
         auto right_slice =
-          Slice{(right_range.begin() - range.begin()), right_range.span};
+          Slice::slice(right_range.begin() - range.begin(), right_range.span);
 
         auto left  = piece.subslice(left_slice);
         auto right = piece.subslice(right_slice);
@@ -377,13 +368,13 @@ struct PieceTable
       else if (range.begin() > erase.begin())
       {
         auto result = Slice::offsets(erase.end(), range.end());
-        auto slice  = Slice{result.offset - range.begin(), result.span};
+        auto slice  = Slice::slice(result.offset - range.begin(), result.span);
         pieces_.push(piece.with_slice(slice)).unwrap();
       }
       else
       {
         auto result = Slice::offsets(range.begin(), erase.begin());
-        auto slice  = Slice{result.offset - range.begin(), result.span};
+        auto slice  = Slice::slice(result.offset - range.begin(), result.span);
         pieces_.push(piece.with_slice(slice)).unwrap();
       }
 
@@ -402,7 +393,7 @@ struct PieceTable
     for (; ipiece < pieces_.size(); ipiece++)
     {
       auto & piece = pieces_[ipiece];
-      auto   range = Slice{piece_pos, piece.size()};
+      auto   range = Slice::slice(piece_pos, piece.size());
       if (range.contains(pos))
       {
         break;
@@ -425,7 +416,7 @@ struct PieceTable
     // insert in middle of piece
     auto & left        = pieces_[ipiece];
     auto   offset      = pos - piece_pos;
-    auto   left_slice  = Slice{0, offset};
+    auto   left_slice  = Slice::slice(0, offset);
     auto   right_slice = Slice::slice(offset, USIZE_MAX);
 
     auto right = left.subslice(right_slice);
