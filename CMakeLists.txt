@@ -128,7 +128,7 @@ set(SIMDJSON_BUILD_STATIC_LIB
 include(FetchContent)
 include(ExternalProject)
 
-set(ASH_VULKAN_VERSION "1.4.313.0")
+set(ASH_VULKAN_VERSION "1.4.328.1")
 set(ASH_VULKAN_SDK_VERSION "vulkan-sdk-${ASH_VULKAN_VERSION}")
 
 FetchContent_Declare(
@@ -164,50 +164,50 @@ FetchContent_Declare(
 FetchContent_Declare(
   SDL3
   GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
-  GIT_TAG release-3.2.14)
+  GIT_TAG release-3.2.26)
 
 FetchContent_Declare(
   harfbuzz
   GIT_REPOSITORY https://github.com/harfbuzz/harfbuzz.git
-  GIT_TAG 11.3.2)
+  GIT_TAG 12.2.0)
 
 FetchContent_Declare(
   Freetype
   GIT_REPOSITORY https://github.com/freetype/freetype.git
-  GIT_TAG VER-2-13-3)
+  GIT_TAG VER-2-14-1)
 
 FetchContent_Declare(
   SheenBidi
   GIT_REPOSITORY https://github.com/Tehreer/SheenBidi.git
-  GIT_TAG v2.8
+  GIT_TAG v2.9.0
   CONFIGURE_COMMAND "" BUILD_COMMAND "")
 
 FetchContent_Declare(
   WebP
   GIT_REPOSITORY https://chromium.googlesource.com/webm/libwebp
-  GIT_TAG 1.4.0)
+  GIT_TAG v1.6.0)
 
 FetchContent_Declare(
   CURL
   GIT_REPOSITORY https://github.com/curl/curl.git
-  GIT_TAG curl-8_8_0)
+  GIT_TAG curl-8_17_0)
 
 FetchContent_Declare(
   xxHash
   GIT_REPOSITORY https://github.com/Cyan4973/xxHash.git
-  GIT_TAG v0.8.3
+  GIT_TAG 136cc1f
   CONFIGURE_COMMAND "" BUILD_COMMAND "")
 
 FetchContent_Declare(
   fast_float
   GIT_REPOSITORY https://github.com/fastfloat/fast_float.git
-  GIT_TAG v7.0.0
+  GIT_TAG v8.1.0
   CONFIGURE_COMMAND "" BUILD_COMMAND "")
 
 FetchContent_Declare(
   simdjson
   GIT_REPOSITORY https://github.com/simdjson/simdjson.git
-  GIT_TAG dfa43f6)
+  GIT_TAG v4.2.1)
 
 FetchContent_Declare(
   libpng
@@ -261,7 +261,8 @@ list(APPEND ASH_COMPILE_DEFINITIONS)
 list(APPEND ASH_LINK_OPTIONS)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-  list(APPEND ASH_COMPILE_OPTIONS -Wall -Wextra -Wpedantic)
+  list(APPEND ASH_COMPILE_OPTIONS -Wall -Wextra -Wpedantic
+       --embed-dir=${CMAKE_CURRENT_LIST_DIR})
 
   if(ASH_WERROR)
     list(APPEND ASH_COMPILE_OPTIONS -Werror)
@@ -277,7 +278,8 @@ else()
       -Wpedantic
       -Wno-nullability-completeness
       -Wno-nullability-extension
-      -Wno-bitwise-instead-of-logical)
+      -Wno-bitwise-instead-of-logical
+      --embed-dir=${CMAKE_CURRENT_LIST_DIR})
 
     if(ASH_WERROR)
       list(APPEND ASH_COMPILE_OPTIONS -Werror)
@@ -519,7 +521,7 @@ endif()
 
 set(SLANG_SRC_DIR "${CMAKE_SOURCE_DIR}/ashura/engine/shaders")
 set(SLANG_INCLUDE_DIR "${SLANG_SRC_DIR}")
-set(SLANG_OUT_DIR "${CMAKE_BINARY_DIR}/assets/shaders")
+set(SLANG_OUT_DIR "${CMAKE_SOURCE_DIR}/assets/shaders")
 
 set(SLANG_FEATURE_LIST
     SPV_EXT_descriptor_indexing
@@ -545,44 +547,50 @@ set(SLANG_FLAGS
     -fvk-use-entrypoint-name
     -O3)
 
-function(compile_shader shader_file)
+add_custom_target(
+  ashura_shaders
+  COMMENT "Building Ashura Engine core shaders"
+  VERBATIM)
+
+function(add_shader_target target_name shader_file)
   set(input "${SLANG_SRC_DIR}/${shader_file}")
-  set(output_spv "${SLANG_OUT_DIR}/${shader_file}.spv")
-  set(output_asm "${SLANG_OUT_DIR}/${shader_file}.spv-asm")
+  set(output_spv "${SLANG_OUT_DIR}/${target_name}.spv")
+  set(output_asm "${SLANG_OUT_DIR}/${target_name}.spv-asm")
+  set(compile_options ${ARGN})
 
   add_custom_command(
     OUTPUT ${output_spv}
     COMMAND ${SLANGC_EXECUTABLE} -target spirv ${SLANG_FLAGS} ${input} -o
-            ${output_spv} -I ${SLANG_INCLUDE_DIR}
+            ${output_spv} -I ${SLANG_INCLUDE_DIR} ${compile_options}
     DEPENDS ${input}
-    COMMENT "Compiling ${shader_file} -> ${shader_file}.spv")
+    COMMENT "Compiling ${target_name} -> ${shader_file}.spv")
 
   add_custom_command(
     OUTPUT ${output_asm}
     COMMAND ${SLANGC_EXECUTABLE} -target spirv-asm ${SLANG_FLAGS} ${input} -o
-            ${output_asm} -I ${SLANG_INCLUDE_DIR}
+            ${output_asm} -I ${SLANG_INCLUDE_DIR} ${compile_options}
     DEPENDS ${input}
-    COMMENT "Compiling ${shader_file} -> ${shader_file}.spv-asm")
+    COMMENT "Compiling ${target_name} -> ${shader_file}.spv-asm")
 
-  add_custom_target(${shader_file}_shaders ALL DEPENDS ${output_spv}
+  add_custom_target(${target_name}_shaders ALL DEPENDS ${output_spv}
                                                        ${output_asm})
+
+  add_dependencies(ashura_shaders ${target_name}_shaders)
 endfunction()
 
-set(SHADER_FILES
-    bezier_stencil.slang
-    blur.slang
-    composite_sdf.slang
-    fill_stencil.slang
-    pbr.slang
-    quad.slang
-    sdf.slang
-    triangle_fill.slang
-    vector_path_coverage.slang
-    vector_path_fill.slang)
-
-foreach(shader ${SHADER_FILES})
-  compile_shader(${shader})
-endforeach()
+add_shader_target(bezier_stencil bezier_stencil.slang)
+add_shader_target(blur_downsample blur.slang "-DDOWNSAMPLE=1")
+add_shader_target(blur_upsample blur.slang "-DDOWNSAMPLE=0")
+add_shader_target(composite_sdf composite_sdf.slang)
+add_shader_target(fill_stencil fill_stencil.slang)
+add_shader_target(pbr pbr.slang)
+add_shader_target(quad quad.slang)
+add_shader_target(sdf sdf.slang)
+add_shader_target(sdf_noise sdf.slang "-DITEM_TYPE=SdfNoiseItem")
+add_shader_target(sdf_mesh_gradient sdf.slang "-DITEM_TYPE=SdfMeshGradientItem")
+add_shader_target(triangle_fill triangle_fill.slang)
+add_shader_target(vector_path_coverage vector_path_coverage.slang)
+add_shader_target(vector_path_fill vector_path_fill.slang)
 
 if(ASH_BUILD_DOC)
   set(DOXYGEN_IN ${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in)
