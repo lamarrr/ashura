@@ -675,6 +675,11 @@ struct [[nodiscard]] Option<T &>
   {
     return repr_;
   }
+
+  constexpr Span<T> as_span() const
+  {
+    return Span<T>{repr_, is_some() ? 1 : 0};
+  }
 };
 
 template <typename T>
