@@ -190,7 +190,7 @@ FetchContent_Declare(
 FetchContent_Declare(
   CURL
   GIT_REPOSITORY https://github.com/curl/curl.git
-  GIT_TAG curl-8_17_0)
+  GIT_TAG curl-8_11_0)
 
 FetchContent_Declare(
   xxHash
@@ -279,6 +279,7 @@ else()
       -Wno-nullability-completeness
       -Wno-nullability-extension
       -Wno-bitwise-instead-of-logical
+      -Wno-c23-extensions
       --embed-dir=${CMAKE_CURRENT_LIST_DIR})
 
     if(ASH_WERROR)
@@ -356,6 +357,7 @@ if(NOT ASH_EXCLUDE_TESTS)
     ashura/std/tests/super.cc
     ashura/std/tests/text.cc
     ashura/std/tests/types.cc
+    ashura/std/tests/uri.cc
     ashura/std/tests/vec.cc)
 
   target_link_libraries(ashura_std_tests ashura_std GTest::gtest
@@ -413,7 +415,6 @@ if(NOT ASH_EXCLUDE_ENGINE)
     ashura/engine/shader_system.cc
     ashura/engine/shaderc.cc
     ashura/engine/systems.cc
-    ashura/engine/text_compositor.cc
     ashura/engine/text.cc
     ashura/engine/video_system.cc
     ashura/engine/view_system.cc
@@ -428,6 +429,7 @@ if(NOT ASH_EXCLUDE_ENGINE)
     ashura/engine/pipelines/quad.cc
     ashura/engine/pipelines/sdf.cc
     ashura/engine/pipelines/triangle_fill.cc
+    ashura/engine/pipelines/vector_path.cc
     # VIEWS
     ashura/engine/views/button.cc
     ashura/engine/views/check_box.cc
@@ -482,8 +484,7 @@ if(NOT ASH_EXCLUDE_ENGINE)
     add_executable(
       ashura_engine_tests
       ashura/engine/tests/main.cc ashura/engine/tests/animation.cc
-      ashura/engine/tests/render_text.cc ashura/engine/tests/views.cc
-      ashura/engine/tests/text_compositor.cc)
+      ashura/engine/tests/render_text.cc ashura/engine/tests/views.cc)
     target_link_libraries(ashura_engine_tests ashura_std ashura_engine
                           GTest::gtest)
   endif()
