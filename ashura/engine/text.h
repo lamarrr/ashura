@@ -528,38 +528,6 @@ struct GlyphShape
   i32x2 offset = {};
 };
 
-struct TextSegment
-{
-  /// @brief the text/font style of the current run
-  u32 style = 0;
-
-  /// @brief script of the current codepoint
-  TextScript script = TextScript::None;
-
-  bool linebreak_begin : 1 = false;
-
-  bool paragraph_begin : 1 = false;
-
-  bool whitespace : 1 = false;
-
-  bool tab : 1 = false;
-
-  /// @brief if this codepoint begins a wrappable text, i.e. has spaces
-  /// or tabs before it
-  bool wrappable : 1 = false;
-
-  /// @brief the current paragraph's embedding level
-  u8 base_level = 0;
-
-  /// @brief embedding level of the current codepoint in the paragraph
-  u8 level = 0;
-
-  constexpr bool is_wrap_point() const
-  {
-    return whitespace | tab;
-  }
-};
-
 enum class TextRunType : u8
 {
   Char       = 0,
@@ -587,8 +555,8 @@ struct TextRun
 
   u8 level = 0;
 
-  /// @brief If the run represents a break-opportunity as constrained by the max-width.
-  bool wrappable = false;
+  /// @brief Wrap-level as constrained by the max-width.
+  u32 wrap_level = 0;
 
   TextRunType type = TextRunType::Char;
 
@@ -665,7 +633,8 @@ struct Paragraph
 
   Slice codepoints = {};
 
-  Slice break_codepoints = {};
+  /// @brief Trailing line-break delimeters after the paragraph`
+  Slice delimeters = {};
 };
 
 enum class CaretXAlignment : isize
@@ -866,6 +835,18 @@ struct TextRenderInfo
 
 typedef Fn<void(TextRenderInfo const &, TextPlacement const &)> TextRenderer;
 
+/// @returns the offset and length of the paragraph break
+Slice advance_paragraph(Str32 text);
+
+/// @returns the offset and length of the paragraph break
+Slice advance_paragraph(Str8 text);
+
+/// @brief Cull text to only the specified paragraphs
+Str32 cull_paragraphs(Str32 text, Slice paragraphs);
+
+/// @brief Cull text to only the specified paragraphs
+Str8 cull_paragraphs(Str8 text, Slice paragraphs);
+
 /// @brief Cached/pre-computed text layout
 /// @param max_width maximum width the text was laid out with
 /// @param extent current extent of the text block after layout
@@ -884,19 +865,15 @@ typedef Fn<void(TextRenderInfo const &, TextPlacement const &)> TextRenderer;
 /// caret:0                caret:1                  caret:2                caret:3               caret:4
 struct TextLayout
 {
-  bool laid_out;
+  bool laid_out = false;
 
-  f32 max_width;
+  f32 max_width = 0;
 
-  usize num_carets;
+  usize num_carets = 0;
 
-  usize num_codepoints;
+  usize num_codepoints = 0;
 
-  Slice lines_slice;
-
-  Slice paragraphs_slice;
-
-  f32x2 extent;
+  f32x2 extent = {};
 
   Vec<GlyphShape> glyphs;
 
@@ -906,41 +883,7 @@ struct TextLayout
 
   Vec<Paragraph> paragraphs;
 
-  explicit TextLayout(Allocator allocator) :
-    laid_out{false},
-    max_width{0},
-    num_carets{0},
-    num_codepoints{0},
-    lines_slice{0, 0},
-    paragraphs_slice{0, 0},
-    extent{},
-    glyphs{allocator},
-    runs{allocator},
-    lines{allocator},
-    paragraphs{allocator}
-  {
-  }
-
-  TextLayout(TextLayout const &)             = delete;
-  TextLayout & operator=(TextLayout const &) = delete;
-  TextLayout(TextLayout &&)                  = default;
-  TextLayout & operator=(TextLayout &&)      = default;
-  ~TextLayout()                              = default;
-
-  void clear()
-  {
-    laid_out         = false;
-    max_width        = 0;
-    num_carets       = 0;
-    num_codepoints   = 0;
-    lines_slice      = {0, 0};
-    paragraphs_slice = {0, 0};
-    extent           = f32x2{0, 0};
-    glyphs.clear();
-    runs.clear();
-    lines.clear();
-    paragraphs.clear();
-  }
+  void clear();
 
   isize to_caret(usize codepoint, bool before) const;
 
@@ -965,5 +908,7 @@ struct TextLayout
   void render(TextRenderer renderer, TextRenderInfo const & info,
               Allocator scratch) const;
 };
+
+typedef struct ITextLayoutBuffer * TextLayoutBuffer;
 
 }    // namespace ash

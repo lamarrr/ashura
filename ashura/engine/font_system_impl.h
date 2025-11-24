@@ -105,14 +105,10 @@ struct FontSysImpl final : IFontSys
 {
   Allocator            allocator_;
   SparseVec<Dyn<Font>> fonts_;
-  Vec<TextSegment>     segments_;
-  hb_buffer_t *        hb_buffer_;
 
-  explicit FontSysImpl(Allocator allocator, hb_buffer_t * hb_buffer) :
+  explicit FontSysImpl(Allocator allocator) :
     allocator_{allocator},
-    fonts_{allocator},
-    segments_{allocator},
-    hb_buffer_{hb_buffer}
+    fonts_{allocator}
   {
   }
 
@@ -131,8 +127,11 @@ struct FontSysImpl final : IFontSys
 
   FontId upload_(Dyn<Font> font);
 
+  virtual Dyn<TextLayoutBuffer> create_layout_buffer(Allocator allocator) override;
+
   virtual void layout_text(TextBlock const & block, f32 max_width,
-                           TextLayout & layout) override;
+                           TextLayout &     layout,
+                           TextLayoutBuffer buffer) override;
 
   virtual Future<Result<FontId, FontLoadErr>>
     load_from_memory(Vec<char> label, Vec<u8> encoded, u32 font_height,

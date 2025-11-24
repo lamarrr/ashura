@@ -295,6 +295,8 @@ struct MapIter
   }
 };
 
+// [ ] mapview
+
 template <typename Iter, typename Map>
 constexpr MapIter<Iter, Map> map(Iter && iter, Map && map)
 {
@@ -357,6 +359,8 @@ struct FilterIter
   }
 };
 
+
+// [ ] filterview
 template <typename Iter, typename Predicate>
 constexpr FilterIter<Iter, Predicate> filter(Iter &&      iter,
                                              Predicate && predicate)
@@ -840,97 +844,6 @@ constexpr T exclusive_scan(Span<I const> in, Span<O> out, T init = {},
   return init;
 }
 
-// [ ] add tests
-/// @details structured to break loop-dependence, we read from the indices arrays once
-template <typename Index, typename... T>
-struct RunIter
-{
-  Index         run_start_{0};
-  Index         run_end_{0};
-  Index const * ree_iter_ = nullptr;
-  Index const * ree_end_  = nullptr;
-  Tuple<T *...> data_{};
-
-  constexpr RunIter & operator++()
-  {
-    run_start_ = run_end_;
-    ree_iter_++;
-    run_end_ = *ree_iter_;
-    return *this;
-  }
-
-  constexpr auto operator*() const
-  {
-    return apply(
-      [&](T *... data) {
-        return Tuple<Span<T>...>{
-          {data + run_start_, data + run_end_}
-          ...
-        };
-      },
-      data_);
-  }
-
-  constexpr bool operator!=(IterEnd) const
-  {
-    return ree_iter_ != ree_end_;
-  }
-};
-
-template <typename Index, typename... T>
-struct RunRange
-{
-  Index         run_start_{0};
-  Index         run_end_{0};
-  Index const * ree_begin_ = nullptr;
-  Index const * ree_end_   = nullptr;
-  Tuple<T *...> data_{};
-
-  constexpr auto begin() const
-  {
-    return RunIter<Index, T...>{.run_start_ = run_start_,
-                                .run_end_   = run_end_,
-                                .ree_iter_  = ree_begin_,
-                                .ree_end_   = ree_end_,
-                                .data_{data_}};
-  }
-
-  constexpr auto end() const
-  {
-    return iter_end;
-  }
-};
-
-/// @param ends run-ends of the data. Must be sorted.
-template <typename Index, typename... T>
-constexpr auto prefix_run(Span<Index const> runs, Span<T>... data)
-{
-  if (runs.size() < 2) [[unlikely]]
-  {
-    return RunRange<Index, T...>{};
-  }
-  return RunRange<Index, T...>{.run_start_ = runs[0],
-                               .run_end_   = runs[1],
-                               .ree_begin_ = runs.pbegin() + 1,
-                               .ree_end_   = runs.pend(),
-                               .data_{data.pbegin()...}};
-}
-
-/// @param ends run-ends of the data. Must be sorted.
-template <typename I, typename Index, typename... T>
-constexpr auto suffix_run(I start, Span<Index const> runs, Span<T>... data)
-{
-  if (runs.size() < 1) [[unlikely]]
-  {
-    return RunRange<Index, T...>{};
-  }
-  return RunRange<Index, T...>{.run_start_ = start,
-                               .run_end_   = runs[0],
-                               .ree_begin_ = runs.pbegin(),
-                               .ree_end_   = runs.pend(),
-                               .data_{data.pbegin()...}};
-}
-
 /// @brief Given an ordered range, find first value in the range that satisfies `cmp(x)`.
 /// @warning each element in the range must be ordered relative to `cmp` or be equal.
 
@@ -974,13 +887,14 @@ constexpr Span<T> binary_find(Span<T> span, Cmp && cmp, U && value)
 }
 
 /// @param window_advance_ must be non-zero
-template <typename T>
+template <typename... T>
 struct WindowIter
 {
-  T *       iter_ = nullptr;
-  T const * end_  = nullptr;
-  usize     window_size_{0};
-  usize     window_advance_{1};
+  Tuple<T *...> data_           = {};
+  usize         iter_           = 0;
+  usize         size_           = 0;
+  usize         window_size_    = 0;
+  usize         window_advance_ = 1;
 
   constexpr WindowIter & operator++()
   {
@@ -988,31 +902,50 @@ struct WindowIter
     return *this;
   }
 
-  constexpr Span<T> operator*() const
+  constexpr auto operator*() const
   {
-    return Span<T>{iter_, window_size_};
+    return apply(
+      [&](T *... p) {
+        return Tuple<Span<T>...>{
+          Span<T>{p + iter_, window_size_}
+          ...
+        };
+      },
+      data_);
   }
 
   constexpr bool operator==(IterEnd) const
   {
-    return (iter_ + window_size_) >= end_;
+    return (iter_ + window_size_) >= size_;
   }
 };
 
-template <typename T>
-struct WindowRange
+template <typename T0, typename... T>
+struct WindowView
 {
-  T *       begin_ = nullptr;
-  T const * end_   = nullptr;
-  usize     window_size_{0};
-  usize     window_advance_{1};
+  using Iter = WindowIter<T0, T...>;
+
+  Tuple<T0 *, T *...> data_;
+  usize               size_;
+  usize               window_size_;
+  usize               window_advance_;
+
+  constexpr WindowView(usize window_size, usize window_advance, Span<T0> span0,
+                       Span<T>... spans) :
+    data_{span0.pbegin(), spans.pbegin()...},
+    size_{(window_size > span0.size()) ? 0 : span0.size()},
+    window_size_{window_size},
+    window_advance_{window_advance}
+  {
+  }
 
   constexpr auto begin() const
   {
-    return WindowIter<T>{.iter_           = begin_,
-                         .end_            = end_,
-                         .window_size_    = window_size_,
-                         .window_advance_ = window_advance_};
+    return Iter{.data_           = data_,
+                .iter_           = 0,
+                .size_           = size_,
+                .window_size_    = window_size_,
+                .window_advance_ = window_advance_};
   }
 
   constexpr auto end() const
@@ -1021,19 +954,230 @@ struct WindowRange
   }
 };
 
-template <typename T>
-constexpr WindowRange<T> window(Span<T> span, usize window_size,
-                                usize advance = 1)
+template <typename T0, typename... T>
+WindowView(usize, usize, Span<T0>, Span<T>...) -> WindowView<T0, T...>;
+
+template <typename Index, typename... T>
+struct RunBatchIter
 {
-  if (window_size > span.size()) [[unlikely]]
+  Index const * run_indices_ = nullptr;
+  Tuple<T *...> items_       = {};
+  Index         run_iter_    = 0;
+  Index         num_runs_    = 0;
+
+  constexpr RunBatchIter & operator++()
   {
-    return WindowRange<T>{};
+    run_iter_++;
+    return *this;
   }
 
-  return WindowRange<T>{.begin_          = span.pbegin(),
-                        .end_            = span.pend(),
-                        .window_size_    = window_size,
-                        .window_advance_ = advance};
-}
+  constexpr auto operator*() const
+  {
+    return apply(
+      [&](T *... data) {
+        auto begin = run_indices_[run_iter_];
+        auto end   = run_indices_[run_iter_ + 1];
+        return Tuple<Span<T>...>{
+          {data + begin, end - begin}
+          ...
+        };
+      },
+      items_);
+  }
+
+  constexpr bool operator!=(IterEnd) const
+  {
+    return run_iter_ != num_runs_;
+  }
+};
+
+template <typename Index, typename... T>
+struct RunBatchView
+{
+  using Iter = RunBatchIter<Index, T...>;
+
+  Index const * run_indices_;
+  Tuple<T *...> items_;
+  Index         size_;
+
+  constexpr RunBatchView(Span<Index const> run_indices, Span<T>... items) :
+    run_indices_{run_indices.pbegin()},
+    items_{items.pbegin()...},
+    size_{(run_indices.size() < 2) ? 0 :
+                                     static_cast<Index>(run_indices.size() - 1)}
+  {
+  }
+
+  constexpr auto begin() const
+  {
+    return Iter{.run_indices_ = run_indices_,
+                .items_       = items_,
+                .run_iter_    = 0,
+                .num_runs_    = size_};
+  }
+
+  constexpr auto end() const
+  {
+    return iter_end;
+  }
+};
+
+template <typename Index, typename... T>
+RunBatchView(Span<Index const>, Span<T>...) -> RunBatchView<Index, T...>;
+
+template <typename Index, typename... T>
+RunBatchView(Span<Index>, Span<T>...) -> RunBatchView<Index, T...>;
+
+template <typename Index, typename... T>
+struct RunItemIter
+{
+  using Slice = CoreSlice<Index>;
+
+  Index const * run_indices_ = nullptr;
+  Tuple<T *...> items_       = {};
+  Index         item_iter_   = 0;
+  Index         run_iter_    = 0;
+  Index         num_items_   = 0;
+  Index         num_runs_    = 0;
+
+  constexpr Index run() const
+  {
+    return run_iter_;
+  }
+
+  constexpr Index item() const
+  {
+    return item_iter_;
+  }
+
+  constexpr RunItemIter & operator++()
+  {
+    item_iter_++;
+
+    if (run_indices_[run_iter_ + 1] == item_iter_) [[unlikely]]
+    {
+      run_iter_++;
+    }
+
+    return *this;
+  }
+
+  /// @brief Move the iterator to the specified index. Good for linear seeks with small jumps.
+  /// @details O(num_runs) complexity
+  /// @warning `index` must be less than or equal to `num_items`
+  constexpr void seek(Index index)
+  {
+    if (run_iter_ < num_runs_ &&
+        (index == item_iter_ ||
+         Slice::offsets(run_indices_[run_iter_], run_indices_[run_iter_ + 1])
+           .contains(index))) [[likely]]
+    {
+    }
+    else if (index < item_iter_)
+    {
+      while (run_iter_ > 0 && index < run_indices_[run_iter_])
+      {
+        item_iter_ = run_indices_[run_iter_];
+        run_iter_--;
+      }
+    }
+    else
+    {
+      // index > item_iter_
+
+      while (run_iter_ < num_runs_ && index >= run_indices_[run_iter_ + 1])
+      {
+        item_iter_ = run_indices_[run_iter_ + 1];
+        run_iter_++;
+      }
+    }
+
+    item_iter_ = index;
+  }
+
+  /// @brief Move the iterator to the specified index. Good for random/non-deterministic seeks with possibly large jumps.
+  /// @details O(log(N)) complexity
+  constexpr void seek_far(Index index);
+
+  constexpr auto operator*() const
+  {
+    return apply([&](T *... data) { return Tuple<T &...>{data[run_iter_]...}; },
+                 items_);
+  }
+
+  constexpr bool operator!=(IterEnd) const
+  {
+    return item_iter_ != num_items_;
+  }
+};
+
+template <typename Index, typename... T>
+struct RunItemView
+{
+  using Iter = RunItemIter<Index, T...>;
+
+  Index const * run_indices_;
+  Tuple<T *...> items_;
+  Index         size_;
+  Index         num_runs_;
+
+  constexpr RunItemView(Span<Index const> run_indices, Span<T>... items) :
+    run_indices_{run_indices.pbegin()},
+    items_{items.pbegin()...},
+    size_{(run_indices.size() < 2) ? 0 : run_indices.last()},
+    num_runs_{
+      (run_indices.size() < 2) ? 0 : static_cast<Index>(run_indices.size() - 1)}
+  {
+  }
+
+  constexpr Index size() const
+  {
+    return size_;
+  }
+
+  constexpr Index num_runs() const
+  {
+    return num_runs_;
+  }
+
+  constexpr Span<Index const> run_indices() const
+  {
+    return Span<Index const>{run_indices_,
+                             (num_runs_ == 0) ? 0 : (num_runs_ + 1)};
+  }
+
+  constexpr Tuple<Span<T>...> items() const
+  {
+    return apply(
+      [&](T *... data) {
+        return Tuple<Span<T>...>{
+          Span<T>{data, size_}
+          ...
+        };
+      },
+      items_);
+  }
+
+  constexpr auto begin() const
+  {
+    return Iter{.run_indices_ = run_indices_,
+                .items_       = items_,
+                .item_iter_   = 0,
+                .run_iter_    = 0,
+                .num_items_   = size_,
+                .num_runs_    = num_runs_};
+  }
+
+  constexpr auto end() const
+  {
+    return iter_end;
+  }
+};
+
+template <typename Index, typename... T>
+RunItemView(Span<Index const>, Span<T>...) -> RunItemView<Index, T...>;
+
+template <typename Index, typename... T>
+RunItemView(Span<Index>, Span<T>...) -> RunItemView<Index, T...>;
 
 }    // namespace  ash

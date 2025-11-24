@@ -30,9 +30,10 @@ struct IFontSys
   /// @param allocator scratch allocator to use for storing intermediates
   virtual Result<> rasterize(Font font, u32 font_height) = 0;
 
-  // [ ] text layout should be partial; i.e layout segments
+  virtual Dyn<TextLayoutBuffer> create_layout_buffer(Allocator allocator) = 0;
+
   virtual void layout_text(TextBlock const & block, f32 max_width,
-                           TextLayout & layout) = 0;
+                           TextLayout & layout, TextLayoutBuffer buffer) = 0;
 
   virtual Future<Result<FontId, FontLoadErr>>
     load_from_memory(Vec<char> label, Vec<u8> encoded, u32 font_height,

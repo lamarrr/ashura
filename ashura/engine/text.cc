@@ -8,6 +8,123 @@
 namespace ash
 {
 
+Slice advance_paragraph(Str32 text)
+{
+  auto  text_size = text.size();
+  usize i         = 0;
+
+  while (i < text_size)
+  {
+    if (text[i] == '\r' && ((i + 1) < text_size) && text[i + 1] == '\n')
+    {
+      return Slice{i, 2};
+    }
+    else if (text[i] == '\n' || text[i] == '\r')
+    {
+      return Slice{i, 1};
+    }
+
+    i++;
+  }
+
+  return Slice{i, 0};
+}
+
+Slice advance_paragraph(Str8 text)
+{
+  auto  text_size = text.size();
+  usize i         = 0;
+
+  while (i < text_size)
+  {
+    if (text[i] == '\r' && ((i + 1) < text_size) && text[i + 1] == '\n')
+    {
+      return Slice{i, 2};
+    }
+    else if (text[i] == '\n' || text[i] == '\r')
+    {
+      return Slice{i, 1};
+    }
+
+    i++;
+  }
+
+  return Slice{i, 0};
+}
+
+Str32 cull_paragraphs(Str32 text, Slice paragraphs)
+{
+  auto iparagraph          = usize{0};
+  auto text_size           = text.size();
+  auto text_iter           = usize{0};
+  auto text_paragraph_iter = usize{0};
+
+  while (text_iter < text_size && iparagraph < paragraphs.offset)
+  {
+    auto delims         = advance_paragraph(text.slice(text_iter));
+    text_paragraph_iter = text_iter + delims.offset;
+    text_iter += delims.end();
+    iparagraph++;
+  }
+
+  auto first_paragraph_begin = text_paragraph_iter;
+
+  while (text_iter < text_size && iparagraph < paragraphs.end())
+  {
+    auto delims         = advance_paragraph(text.slice(text_iter));
+    text_paragraph_iter = text_iter + delims.offset;
+    text_iter += delims.end();
+    iparagraph++;
+  }
+
+  auto last_paragraph_end = text_paragraph_iter;
+
+  return text.slice(Slice::offsets(first_paragraph_begin, last_paragraph_end));
+}
+
+Str8 cull_paragraphs(Str8 text, Slice paragraphs)
+{
+  auto iparagraph          = usize{0};
+  auto text_size           = text.size();
+  auto text_iter           = usize{0};
+  auto text_paragraph_iter = usize{0};
+
+  while (text_iter < text_size && iparagraph < paragraphs.offset)
+  {
+    auto delims         = advance_paragraph(text.slice(text_iter));
+    text_paragraph_iter = text_iter + delims.offset;
+    text_iter += delims.end();
+    iparagraph++;
+  }
+
+  auto first_paragraph_begin = text_paragraph_iter;
+
+  while (text_iter < text_size && iparagraph < paragraphs.end())
+  {
+    auto delims         = advance_paragraph(text.slice(text_iter));
+    text_paragraph_iter = text_iter + delims.offset;
+    text_iter += delims.end();
+    iparagraph++;
+  }
+
+  auto last_paragraph_end = text_paragraph_iter;
+
+  return text.slice(Slice::offsets(first_paragraph_begin, last_paragraph_end));
+}
+
+void TextLayout::clear()
+{
+  laid_out       = false;
+  max_width      = 0;
+  num_carets     = 0;
+  num_codepoints = 0;
+  extent         = f32x2{0, 0};
+  glyphs.clear();
+  runs.clear();
+  lines.clear();
+  paragraphs.clear();
+}
+
 isize TextLayout::to_caret(usize codepoint, bool before) const
 {
   CHECK(laid_out, "");

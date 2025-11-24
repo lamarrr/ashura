@@ -252,16 +252,14 @@ TextLayout const & RenderText::get_layout() const
   return layout_;
 }
 
-void RenderText::layout(f32 max_width)
+void RenderText::layout(f32 max_width, TextLayoutBuffer buffer)
 {
   if (hash_ == HASH_CLEAN && max_width == layout_.max_width)
   {
     return;
   }
 
-  // [ ] implement
-  sys.font->layout_text(block(), max_width, Slice::all(), Slice::all(),
-                        layout_);
+  sys.font->layout_text(block(), max_width, layout_, buffer);
   hash_ = HASH_CLEAN;
 }
 
@@ -1031,6 +1029,7 @@ void EditText::tick(nanoseconds)
       auto cursors = SmallVec<Cursor, 8>{allocator};
 
       Option<RenderText> rendered = none;
+      auto layout_buffer          = sys.font->create_layout_buffer(allocator);
 
       auto rebuild = [&](PieceTable32 const & pieces, f32 max_width,
                          Renderer const & renderer) {
@@ -1040,7 +1039,7 @@ void EditText::tick(nanoseconds)
         auto view     = rc_text->view().as_const();
         auto rc_str32 = transmute(std::move(rc_text), view);
         auto new_text = renderer.get()(allocator, std::move(rc_str32));
-        new_text.layout(max_width);
+        new_text.layout(max_width, layout_buffer);
         rendered = std::move(new_text);
       };
 

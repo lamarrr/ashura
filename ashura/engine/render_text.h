@@ -62,7 +62,10 @@ struct RenderText
     styles_{allocator},
     fonts_{allocator},
     language_{},
-    layout_{allocator}
+    layout_{.glyphs{allocator},
+            .runs{allocator},
+            .lines{allocator},
+            .paragraphs{allocator}}
   {
   }
 
@@ -96,9 +99,6 @@ struct RenderText
 
   Str32 get_text() const;
 
-  // RenderText& lines(Slice lines);
-  // RenderText& paragraphs(Slice paragraphs);
-
   RenderText & text(Rc<Str32> utf32, TextStyle const & style,
                     FontStyle const & font);
 
@@ -118,7 +118,7 @@ struct RenderText
 
   TextLayout const & get_layout() const;
 
-  void layout(f32 max_width);
+  void layout(f32 max_width, TextLayoutBuffer buffer);
 
   /// @brief Render the laid out text
   /// @param center canvas-space region of the text to place the text on

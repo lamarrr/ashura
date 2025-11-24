@@ -19,11 +19,8 @@ namespace ash
 
 Dyn<FontSys> IFontSys::create(Allocator allocator)
 {
-  hb_buffer_t * hb_buffer = hb_buffer_create();
-  CHECK(hb_buffer != nullptr && hb_buffer_allocation_successful(hb_buffer), "");
-
   return cast<FontSys>(
-    dyn<FontSysImpl>(inplace, allocator, allocator, hb_buffer).unwrap());
+    dyn<FontSysImpl>(inplace, allocator, allocator).unwrap());
 }
 
 FontImpl::~FontImpl()
@@ -64,7 +61,6 @@ FontInfo FontImpl::info()
 
 FontSysImpl::~FontSysImpl()
 {
-  hb_buffer_destroy(hb_buffer_);
 }
 
 void FontSysImpl::shutdown()
@@ -196,16 +192,16 @@ Result<Dyn<Font>, FontLoadErr>
     style_name.append(cstr(ft_face->style_name)).unwrap();
   }
 
-  u32 const num_glyphs        = (u32) ft_face->num_glyphs;
+  u32 num_glyphs        = (u32) ft_face->num_glyphs;
   // glyph 0 is selected if the replacement codepoint glyph is not found
-  u32 const replacement_glyph = FT_Get_Char_Index(ft_face, 0xFFFD);
-  u32 const ellipsis_glyph    = FT_Get_Char_Index(ft_face, 0x2026);
-  u32 const space_glyph       = FT_Get_Char_Index(ft_face, ' ');
+  u32 replacement_glyph = FT_Get_Char_Index(ft_face, 0xFFFD);
+  u32 ellipsis_glyph    = FT_Get_Char_Index(ft_face, 0x2026);
+  u32 space_glyph       = FT_Get_Char_Index(ft_face, ' ');
 
   // expressed on a AU_UNIT scale
-  i32 const ascent  = ft_face->size->metrics.ascender;
-  i32 const descent = -ft_face->size->metrics.descender;
-  i32 const advance = ft_face->size->metrics.max_advance;
+  i32 ascent  = ft_face->size->metrics.ascender;
+  i32 descent = -ft_face->size->metrics.descender;
+  i32 advance = ft_face->size->metrics.max_advance;
 
   Vec<GlyphMetrics> glyphs{allocator_};
 
@@ -273,9 +269,9 @@ Result<> FontSysImpl::rasterize(Font font_, u32 font_height)
 
   font.cpu_atlas.unwrap_none("CPU font atlas has already been loaded"_str);
 
-  CpuFontAtlas atlas;
+  CpuFontAtlas atlas{.glyphs{allocator_}, .channels{allocator_}};
 
-  u32 const num_glyphs = size32(font.glyphs);
+  auto num_glyphs = size32(font.glyphs);
 
   if (!atlas.glyphs.resize(num_glyphs))
   {
@@ -309,8 +305,8 @@ Result<> FontSysImpl::rasterize(Font font_, u32 font_height)
   CHECK(max_glyph_extent.x() <= MIN_ATLAS_EXTENT, "");
   CHECK(max_glyph_extent.y() <= MIN_ATLAS_EXTENT, "");
 
-  u32x2 const atlas_extent     = u32x2::splat(MIN_ATLAS_EXTENT);
-  f32x2 const inv_atlas_extent = 1 / atlas_extent.to<f32>();
+  auto atlas_extent     = u32x2::splat(MIN_ATLAS_EXTENT);
+  auto inv_atlas_extent = 1 / atlas_extent.to<f32>();
 
   u32 num_layers = 0;
   {
@@ -340,7 +336,7 @@ Result<> FontSysImpl::rasterize(Font font_, u32 font_height)
     }
 
     Vec<rect_pack::Node> nodes{allocator_};
-    u32 const            num_nodes = atlas_extent.x();
+    auto                 num_nodes = atlas_extent.x();
     nodes.resize_uninit(num_nodes).unwrap();
 
     Span<rect_pack::rect> unpacked = rects;
@@ -390,8 +386,8 @@ Result<> FontSysImpl::rasterize(Font font_, u32 font_height)
     }
   }
 
-  auto const atlas_layer_size = atlas_extent.product<u64>() * 4;
-  u64 const  atlas_size       = atlas_layer_size * num_layers;
+  auto atlas_layer_size = atlas_extent.product<u64>() * 4;
+  u64  atlas_size       = atlas_layer_size * num_layers;
 
   if (!atlas.channels.resize(atlas_size))
   {
@@ -482,7 +478,7 @@ FontId FontSysImpl::upload_(Dyn<Font> font_)
   gpu_atlas.glyphs.append(atlas.glyphs).unwrap();
 
   constexpr gpu::Format   format = gpu::Format::B8G8R8A8_UNORM;
-  Vec<gpu::ImageViewInfo> view_infos;
+  Vec<gpu::ImageViewInfo> view_infos{allocator_};
 
   for (u32 i = 0; i < atlas.num_layers; i++)
   {
@@ -555,7 +551,7 @@ Future<Result<FontId, FontLoadErr>>
 
                       fut.yield(Ok{id}).unwrap();
                     },
-                    Ready{}, ThreadId::Main);
+                    Ready{}, MainThread::Main);
                 },
                 [&](Void) {
                   fut.yield(Err{FontLoadErr::OutOfMemory}).unwrap();
@@ -563,7 +559,7 @@ Future<Result<FontId, FontLoadErr>>
           },
           [&](FontLoadErr err) { fut.yield(Err{err}).unwrap(); });
     },
-    Ready{}, ThreadId::AnyWorker);
+    Ready{}, WorkerThread::Any);
 
   return fut;
 }
@@ -589,7 +585,7 @@ Future<Result<FontId, FontLoadErr>> FontSysImpl::load_from_path(Vec<char> label,
             [fut = fut.alias(), mem_load_fut = mem_load_fut.alias()]() {
               fut.yield(mem_load_fut.get()).unwrap();
             },
-            AwaitFutures{mem_load_fut.alias()}, ThreadId::AnyWorker);
+            AwaitFutures{mem_load_fut.alias()}, WorkerThread::Any);
         },
         [&](IoErr err) {
           fut
@@ -640,9 +636,9 @@ void FontSysImpl::unload(FontId id)
 /// Tag. See: https://unicode.org/reports/tr24/#Relation_To_ISO15924
 static inline Tuple<Span<hb_glyph_info_t const>,
                     Span<hb_glyph_position_t const>>
-  shape(hb_font_t * font, hb_buffer_t * buffer, Str32 line, Slice codepoints,
-        hb_script_t script, hb_direction_t direction, hb_language_t language,
-        bool use_kerning, bool use_ligatures)
+  shape_run(hb_font_t * font, hb_buffer_t * buffer, Str32 line,
+            Slice codepoints, hb_script_t script, hb_direction_t direction,
+            hb_language_t language, bool use_kerning, bool use_ligatures)
 {
   // tags are opentype feature tags
   hb_feature_t const shaping_features[] = {
@@ -694,43 +690,16 @@ static inline Tuple<Span<hb_glyph_info_t const>,
   };
 }
 
-/// @brief Only needs to be called if it contains multiple paragraphs
-static inline void segment_paragraphs(Str32 text, Span<TextSegment> segments)
-{
-  auto const text_size = text.size();
-  for (usize i = 0; i < text_size;)
-  {
-    while (i < text_size)
-    {
-      if (text[i] == '\r' && ((i + 1) < text_size) && text[i + 1] == '\n')
-      {
-        segments[i].linebreak_begin = true;
-        if ((i + 2) < text_size)
-        {
-          segments[i + 2].paragraph_begin = true;
-        }
-        i += 2;
-        break;
-      }
-      else if (text[i] == '\n' || text[i] == '\r')
-      {
-        segments[i].linebreak_begin = true;
-        if ((i + 1) < text_size)
-        {
-          segments[i + 1].paragraph_begin = true;
-        }
-        i += 1;
-        break;
-      }
-      i++;
-    }
-  }
-}
-
 /// @brief Only needs to be called if it contains multiple scripts
 /// outputs iso15924 or OpenType tags
-static inline void segment_scripts(Str32 text, Span<TextSegment> segments)
+static inline void paragraph_script_runs(Str32 text, auto & run_indices,
+                                         auto & scripts)
 {
+  if (text.is_empty())
+  {
+    return;
+  }
+
   SBCodepointSequence codepoints{.stringEncoding = SBStringEncodingUTF32,
                                  .stringBuffer   = (void *) text.data(),
                                  .stringLength   = text.size()};
@@ -744,139 +713,123 @@ static inline void segment_scripts(Str32 text, Span<TextSegment> segments)
 
   while (SBScriptLocatorMoveNext(locator) == SBTrue)
   {
-    for (SBUInteger i = agent->offset; i < (agent->offset + agent->length); i++)
+    auto script = TextScript{agent->script};
+    if (run_indices.is_empty())
     {
-      segments[i].script = TextScript{agent->script};
+      run_indices.push(0ULL).unwrap();
+      run_indices.push(agent->length).unwrap();
     }
+    else
+    {
+      run_indices.push(run_indices.last() + agent->length).unwrap();
+    }
+
+    scripts.push(script).unwrap();
   }
 
   SBScriptLocatorRelease(locator);
 }
 
 /// @brief Only needs to be called if it is a bidirectional text
-static inline void segment_levels(Str32 text, SBAlgorithmRef algorithm,
-                                  TextDirection     base,
-                                  Span<TextSegment> segments)
+/// @returns the base embedding level
+static inline u8 paragraph_levels(Str32 text, SBAlgorithmRef algorithm,
+                                  TextDirection base, auto & levels)
 {
   // The embedding level is an integer value. LTR text segments have even
   // embedding levels (e.g., 0, 2, 4), and RTL text segments have odd embedding
   // levels (e.g., 1, 3, 5).
-  auto const text_size = text.size();
-  for (usize i = 0; i < text_size;)
+  if (text.is_empty())
   {
-    auto first = i;
-    while (i < text_size && !segments[i].linebreak_begin)
-    {
-      i++;
-    }
-
-    auto const length = i - first;
-
-    if (length > 0)
-    {
-      SBParagraphRef paragraph = SBAlgorithmCreateParagraph(
-        algorithm, first, length,
-        (base == TextDirection::LeftToRight) ? SBLevelDefaultLTR :
-                                               SBLevelDefaultRTL);
-      CHECK(paragraph != nullptr, "");
-
-      CHECK(SBParagraphGetLength(paragraph) == length, "");
-      SBLevel const   base_level = SBParagraphGetBaseLevel(paragraph);
-      SBLevel const * levels     = SBParagraphGetLevelsPtr(paragraph);
-      CHECK(levels != nullptr, "");
-      for (usize i = 0; i < length; i++)
-      {
-        segments[first + i].base_level = base_level;
-        segments[first + i].level      = levels[i];
-      }
-      SBParagraphRelease(paragraph);
-    }
-
-    i++;
-    while (i < text_size && !segments[i].paragraph_begin)
-    {
-      i++;
-    }
+    return 0;
   }
+
+  auto text_size = text.size();
+  auto paragraph = SBAlgorithmCreateParagraph(
+    algorithm, 0, text_size,
+    (base == TextDirection::LeftToRight) ? SBLevelDefaultLTR :
+                                           SBLevelDefaultRTL);
+  CHECK(paragraph != nullptr, "");
+  defer paragraph_{[&] { SBParagraphRelease(paragraph); }};
+
+  CHECK(SBParagraphGetLength(paragraph) == text_size, "");
+  SBLevel const   base_level = SBParagraphGetBaseLevel(paragraph);
+  SBLevel const * p_levels   = SBParagraphGetLevelsPtr(paragraph);
+  CHECK(p_levels != nullptr, "");
+  levels.append(Span{p_levels, text_size}).unwrap();
+  return base_level;
 }
 
-/// @brief Only needs to be called if line breaking is required.
-static inline void segment_wrap_points(Str32 text, Span<TextSegment> segments)
+constexpr bool is_wrap_char(c32 c)
 {
-  for (auto [cp, segment] : zip(text, segments))
-  {
-    switch (cp)
-    {
-      case ' ':
-        segment.whitespace = true;
-        break;
-      case '\t':
-        segment.tab = true;
-        break;
-    }
-  }
+  return c == ' ' || c == '\t';
+}
 
-  for (auto [i, segment] : enumerate(segments))
+constexpr TextRunType classify_run_type(c32 c)
+{
+  switch (c)
   {
-    segment.wrappable =
-      (i == (text.size() - 1)) || segments[i + 1].is_wrap_point();
+    case ' ':
+      return TextRunType::WhiteSpace;
+    case '\t':
+      return TextRunType::Tab;
+    default:
+      return TextRunType::Char;
   }
 }
+
+struct RunProps
+{
+  TextRunType type       = TextRunType::WhiteSpace;
+  u32         style      = 0;
+  TextScript  script     = TextScript::Unknown;
+  u8          base_level = 0;
+  u8          level      = 0;
+  u32         wrap_level = 0;
+};
 
 static inline void insert_run(TextLayout & l, FontStyle const & s,
                               Slice codepoints, usize base_cluster,
+                              RunProps const &                props,
                               FontMetrics const &             font_metrics,
-                              TextSegment const &             base_segment,
                               Span<hb_glyph_info_t const>     infos,
                               Span<hb_glyph_position_t const> positions)
 {
-  auto const num_glyphs  = infos.size();
-  auto const first_glyph = l.glyphs.size();
+  auto num_glyphs  = infos.size();
+  auto first_glyph = l.glyphs.size();
 
   l.glyphs.extend_uninit(num_glyphs).unwrap();
 
   i32 advance = 0;
 
-  for (usize i = 0; i < num_glyphs; i++)
+  for (auto i : range(num_glyphs))
   {
-    hb_glyph_info_t const &     info = infos[i];
-    hb_glyph_position_t const & pos  = positions[i];
-    GlyphShape                  shape{
-                       .glyph   = info.codepoint,
-                       .cluster = base_cluster + info.cluster,
-                       .advance = pos.x_advance,
-                       .offset  = {pos.x_offset, -pos.y_offset}
+    hb_glyph_info_t const &     info  = infos[i];
+    hb_glyph_position_t const & pos   = positions[i];
+    auto                        shape = GlyphShape{
+                             .glyph   = info.codepoint,
+                             .cluster = base_cluster + info.cluster,
+                             .advance = pos.x_advance,
+                             .offset  = {pos.x_offset, -pos.y_offset}
     };
 
     l.glyphs[first_glyph + i] = shape;
     advance += pos.x_advance;
   }
 
-  TextRunType type = TextRunType::Char;
-
-  if (base_segment.whitespace)
-  {
-    type = TextRunType::WhiteSpace;
-  }
-  else if (base_segment.tab)
-  {
-    type = TextRunType::Tab;
-  }
-
   l.runs
     .push(TextRun{
       .codepoints  = codepoints,
-      .style       = base_segment.style,
+      .style       = props.style,
       .font_height = s.height,
       .line_height = max(s.line_height, 1.0F),
       .glyphs{first_glyph, num_glyphs},
       .metrics{.ascent  = font_metrics.ascent,
               .descent = font_metrics.descent,
               .advance = advance},
-      .base_level = base_segment.base_level,
-      .level      = base_segment.level,
-      .wrappable  = base_segment.wrappable,
-      .type       = type
+      .base_level = props.base_level,
+      .level      = props.level,
+      .wrap_level = props.wrap_level,
+      .type       = props.type
   })
     .unwrap();
 }
@@ -906,7 +859,7 @@ static inline void reorder_line(Span<TextRun> runs)
         i++;
       }
 
-      usize const first = i;
+      auto first = i;
 
       while (i < runs.size() && runs[i].level >= level)
       {
@@ -920,241 +873,282 @@ static inline void reorder_line(Span<TextRun> runs)
   }
 }
 
-/// see:
+struct TextLayoutBufferImpl
+{
+  hb_buffer_t *           hb_buffer_;    // harfbuzz shaping buffer
+  SmallVec<usize, 8 + 1>  level_runs_;
+  SmallVec<u8, 8>         levels_;
+  SmallVec<usize, 8 + 1>  script_runs_;
+  SmallVec<TextScript, 8> scripts_;
+
+  constexpr TextLayoutBufferImpl(Allocator allocator, hb_buffer_t * hb_buffer) :
+    hb_buffer_{hb_buffer},
+    level_runs_{allocator},
+    levels_{allocator},
+    script_runs_{allocator},
+    scripts_{allocator}
+  {
+  }
+
+  constexpr TextLayoutBufferImpl(TextLayoutBufferImpl const &) = delete;
+  constexpr TextLayoutBufferImpl &
+    operator=(TextLayoutBufferImpl const &)                           = delete;
+  constexpr TextLayoutBufferImpl(TextLayoutBufferImpl &&)             = delete;
+  constexpr TextLayoutBufferImpl & operator=(TextLayoutBufferImpl &&) = delete;
+
+  void clear()
+  {
+    hb_buffer_clear_contents(hb_buffer_);
+    level_runs_.clear();
+    levels_.clear();
+    script_runs_.clear();
+    scripts_.clear();
+  }
+
+  ~TextLayoutBufferImpl()
+  {
+    hb_buffer_destroy(hb_buffer_);
+  }
+};
+
+Dyn<TextLayoutBuffer> FontSysImpl::create_layout_buffer(Allocator allocator)
+{
+  hb_buffer_t * hb_buffer = hb_buffer_create();
+  CHECK(hb_buffer != nullptr && hb_buffer_allocation_successful(hb_buffer), "");
+
+  auto buff =
+    dyn<TextLayoutBufferImpl>(inplace, allocator, allocator, hb_buffer)
+      .unwrap();
+
+  auto ptr = (TextLayoutBuffer) buff.get();
+
+  return transmute(std::move(buff), ptr);
+}
+
+void layout_paragraph(Paragraph & paragraph, f32 max_width,
+                      TextBlock const & block, TextLayout & layout,
+                      usize & caret_iter, f32x2 & extent)
+{
+  auto  lines_begin = layout.lines.size();
+  usize irun        = paragraph.runs.begin();
+
+  while (irun < paragraph.runs.end())
+  {
+    auto   first             = irun++;
+    auto & first_run         = layout.runs[first];
+    u8     base_level        = first_run.base_level;
+    f32    font_height       = block.font_scale * first_run.font_height;
+    auto   first_run_metrics = first_run.metrics.resolve(font_height);
+    auto & style             = block.fonts[first_run.style];
+    auto   advance =
+      first_run_metrics.advance +
+      (first_run.is_spacing() ? 0 : (block.font_scale * style.word_spacing));
+
+    f32 width   = advance;
+    f32 ascent  = first_run_metrics.ascent;
+    f32 descent = first_run_metrics.descent;
+    f32 line_height =
+      max(font_height * first_run.line_height, first_run_metrics.height());
+
+    while (irun < paragraph.runs.end())
+    {
+      auto & r = layout.runs[irun];
+      auto   f = block.font_scale * r.font_height;
+      auto   m = r.metrics.resolve(f);
+      auto   l = max(f * r.line_height, m.height());
+      auto & s = block.fonts[r.style];
+      auto   a =
+        m.advance + (r.is_spacing() ? 0 : (block.font_scale * s.word_spacing));
+
+      if (block.wrap && r.wrap_level != first_run.wrap_level &&
+          (width + a) > max_width)
+      {
+        break;
+      }
+
+      width += a;
+      ascent      = max(ascent, m.ascent);
+      descent     = max(descent, m.descent);
+      line_height = max(line_height, l);
+      irun++;
+    }
+
+    auto & last_run = layout.runs[irun - 1];
+    auto   codepoints =
+      Slice::offsets(first_run.codepoints.offset, last_run.codepoints.end());
+    auto runs       = Slice::offsets(first, irun);
+    auto num_carets = codepoints.span + 1;
+    auto carets     = Slice{caret_iter, num_carets};
+    auto line       = Line{
+            .codepoints = codepoints,
+            .carets     = carets,
+            .runs       = runs,
+            .metrics{.width   = width,
+                     .height  = line_height,
+                     .ascent  = ascent,
+                     .descent = descent,
+                     .level   = base_level}
+    };
+
+    layout.lines.push(line).unwrap();
+
+    reorder_line(layout.runs.view().slice(first, irun - first));
+
+    extent.x() = max(extent.x(), width);
+    extent.y() += line_height;
+    caret_iter += num_carets;
+  }
+
+  auto lines_end  = layout.lines.size();
+  paragraph.lines = Slice::offsets(lines_begin, lines_end);
+}
+
 /// https://stackoverflow.com/questions/62374506/how-do-i-align-glyphs-along-the-baseline-with-freetype
 ///
 void FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
-                              TextLayout & layout)
+                              TextLayout & layout, TextLayoutBuffer buffer_)
 {
-  segments_.clear();
-  layout.clear();
-
+  auto       text      = block.text;
   auto const text_size = block.text.size();
   CHECK(block.run_indices.size() == (block.fonts.size() + 1), "");
   CHECK(!block.run_indices.is_empty(), "No run styling provided for text");
   CHECK(block.run_indices.last() >= text_size,
         "Text runs need to span the entire text");
 
-  segments_.clear();
-  segments_.resize(text_size).unwrap();
+  auto language = block.language.is_empty() ?
+                    hb_language_get_default() :
+                    hb_language_from_string(block.language.data(),
+                                            (i32) block.language.size());
 
-  {
-    for (usize irun = 0; irun < (block.run_indices.size() - 1); irun++)
-    {
-      auto const run_start = min(block.run_indices[irun], text_size);
-      auto const run_end   = min(block.run_indices[irun + 1], text_size);
-      for (usize i = run_start; i < run_end; i++)
-      {
-        segments_[i].style = irun;
-      }
-    }
-  }
+  TextLayoutBufferImpl & buffer = (TextLayoutBufferImpl &) *buffer_;
+  layout.clear();
 
-  segment_paragraphs(block.text, segments_);
-  segment_scripts(block.text, segments_);
-  segment_wrap_points(block.text, segments_);
+  // - the block never has empty paragraphs
+  // - paragraphs never have empty lines; they may have empty codepoints or break codepoints
+  // - lines never have empty runs; they may have empty codepoints
+  // - runs may have empty codepoints
 
-  if (!block.text.is_empty())
-  {
-    SBCodepointSequence codepoints{.stringEncoding = SBStringEncodingUTF32,
-                                   .stringBuffer   = (void *) block.text.data(),
-                                   .stringLength   = text_size};
-    SBAlgorithmRef      algorithm = SBAlgorithmCreate(&codepoints);
-    CHECK(algorithm != nullptr, "");
-    defer algorithm_{[&] { SBAlgorithmRelease(algorithm); }};
-    segment_levels(block.text, algorithm, block.direction, segments_);
-  }
+  usize p = 0;
 
-  {
-    hb_language_t language =
-      block.language.is_empty() ?
-        hb_language_get_default() :
-        hb_language_from_string(block.language.data(),
-                                (i32) block.language.size());
-
-    // - the block never has empty paragraphs
-    // - paragraphs never have empty lines; they may have empty codepoints or break codepoints
-    // - lines never have empty runs; they may have empty codepoints
-    // - runs may have empty codepoints
-
-    usize p = 0;
-
-    do
-    {
-      auto const paragraph_begin = p;
-
-      while (p < text_size && !segments_[p].linebreak_begin)
-      {
-        p++;
-      }
-
-      auto const paragraph_end        = p;
-      auto const paragraph_runs_begin = layout.runs.size();
-      auto       i                    = paragraph_begin;
-
-      do
-      {
-        auto const        run_begin = i;
-        TextSegment const base_segment =
-          (run_begin < paragraph_end) ? segments_[run_begin] :
-                                        TextSegment{.style  = 0,
-                                                    .script = TextScript::None,
-                                                    .linebreak_begin = false,
-                                                    .paragraph_begin = true,
-                                                    .whitespace      = false,
-                                                    .tab             = false,
-                                                    .wrappable       = false,
-                                                    .base_level      = 0,
-                                                    .level           = 0};
-
-        if (i < paragraph_end)
-        {
-          i++;
-        }
-
-        if (!base_segment.is_wrap_point())
-        {
-          while (i < paragraph_end &&
-                 base_segment.style == segments_[i].style &&
-                 base_segment.script == segments_[i].script &&
-                 base_segment.level == segments_[i].level &&
-                 !segments_[i].is_wrap_point())
-          {
-            i++;
-          }
-        }
-
-        FontStyle const & s = block.fonts[base_segment.style];
-        FontImpl const &  f = (FontImpl const &) *fonts_[(usize) s.font].v0;
-
-        auto const paragraph =
-          block.text.slice(Slice::offsets(paragraph_begin, paragraph_end));
-        Slice const paragraph_subset{run_begin - paragraph_begin,
-                                     i - run_begin};
-
-        auto [infos, positions] =
-          shape(f.hb_font, hb_buffer_, paragraph, paragraph_subset,
-                hb_script_from_iso15924_tag(
-                  SBScriptGetOpenTypeTag(SBScript{(u8) base_segment.script})),
-                ((base_segment.level & 0x1) == 0) ? HB_DIRECTION_LTR :
-                                                    HB_DIRECTION_RTL,
-                language, block.use_kerning, block.use_ligatures);
-
-        Slice const codepoints = Slice::offsets(run_begin, i);
-
-        insert_run(layout, s, codepoints, paragraph_begin, f.metrics,
-                   base_segment, infos, positions);
-
-      } while (i < paragraph_end);
-
-      auto const paragraph_runs_end = layout.runs.size();
-
-      // line-break or end of text
-      auto const break_begin = p;
-
-      if (p < text_size)
-      {
-        p++;
-      }
-
-      while (p < text_size && !segments_[p].paragraph_begin)
-      {
-        p++;
-      }
-
-      auto const break_end = p;
-
-      layout.paragraphs
-        .push(Paragraph{
-          .runs = Slice::offsets(paragraph_runs_begin, paragraph_runs_end),
-          .codepoints       = Slice::offsets(paragraph_begin, paragraph_end),
-          .break_codepoints = Slice::offsets(break_begin, break_end)})
-        .unwrap();
-
-    } while (p < text_size);
-  }
+  auto style_iter = RunItemView{block.run_indices.view()}.begin();
 
   f32x2 extent{};
-
   usize caret_iter = 0;
 
-  for (auto & paragraph : layout.paragraphs)
+  // do-while is used to ensure at least one paragraph is processed even if the text is empty
+  do
   {
-    auto const lines_begin = layout.lines.size();
+    buffer.clear();
+    auto paragraph_begin = p;
+    auto delims          = advance_paragraph(text.slice(paragraph_begin));
+    auto paragraph_delims =
+      Slice::slice(paragraph_begin + delims.offset, delims.span);
+    auto paragraph_end        = paragraph_delims.offset;
+    auto paragraph_size       = paragraph_end - paragraph_begin;
+    auto paragraph_runs_begin = layout.runs.size();
+    auto paragraph_text =
+      text.slice(Slice::offsets(paragraph_begin, paragraph_end));
+    auto sb_codepoints =
+      SBCodepointSequence{.stringEncoding = SBStringEncodingUTF32,
+                          .stringBuffer   = (void *) paragraph_text.data(),
+                          .stringLength   = paragraph_text.size()};
+    SBAlgorithmRef sb_algorithm = SBAlgorithmCreate(&sb_codepoints);
+    CHECK(sb_algorithm != nullptr, "");
+    defer sb_algorithm_{[&] { SBAlgorithmRelease(sb_algorithm); }};
 
-    for (usize i = paragraph.runs.begin(); i < paragraph.runs.end();)
+    auto paragraph_level = paragraph_levels(paragraph_text, sb_algorithm,
+                                            block.direction, buffer.levels_);
+    paragraph_script_runs(paragraph_text, buffer.script_runs_, buffer.scripts_);
+
+    auto run_iter = usize{0};
+    auto scripts_iter =
+      RunItemView{buffer.script_runs_.view(), buffer.scripts_.view()}.begin();
+    auto levels_iter =
+      RunItemView{buffer.level_runs_.view(), buffer.levels_.view()}.begin();
+    auto wrap_level = u32{0};
+
+    // do-while is used to ensure at least one run is processed even if the paragraph is empty (empty paragraphs)
+    do
     {
-      auto const   first             = i++;
-      auto const & first_run         = layout.runs[first];
-      u8 const     base_level        = first_run.base_level;
-      f32 const    font_height       = block.font_scale * first_run.font_height;
-      auto const   first_run_metrics = first_run.metrics.resolve(font_height);
-      auto const & style             = block.fonts[first_run.style];
-      auto const   advance =
-        first_run_metrics.advance +
-        (first_run.is_spacing() ? 0 : (block.font_scale * style.word_spacing));
+      auto run_begin = run_iter;
+      style_iter.seek(paragraph_begin + run_begin);
 
-      f32 width   = advance;
-      f32 ascent  = first_run_metrics.ascent;
-      f32 descent = first_run_metrics.descent;
-      f32 line_height =
-        max(font_height * first_run.line_height, first_run_metrics.height());
+      auto run_props =
+        (run_begin < paragraph_size) ?
+          RunProps{.type       = classify_run_type(paragraph_text[run_begin]),
+                   .style      = static_cast<u32>(style_iter.run()),
+                   .script     = (*scripts_iter).v0,
+                   .base_level = paragraph_level,
+                   .level      = (*levels_iter).v0,
+                   .wrap_level = wrap_level} :
+          RunProps{.type       = TextRunType::Char,
+                   .style      = 0,
+                   .script     = TextScript::None,
+                   .base_level = 0,
+                   .level      = 0,
+                   .wrap_level = 0};
 
-      while (i < paragraph.runs.end())
+      if (run_iter < paragraph_size)
       {
-        auto const & r = layout.runs[i];
-        auto const   f = block.font_scale * r.font_height;
-        auto const   m = r.metrics.resolve(f);
-        auto const   l = max(f * r.line_height, m.height());
-        auto const & s = block.fonts[r.style];
-        auto const   a =
-          m.advance +
-          (r.is_spacing() ? 0 : (block.font_scale * s.word_spacing));
-
-        if (block.wrap && r.wrappable && (width + a) > max_width)
-        {
-          break;
-        }
-
-        width += a;
-        ascent      = max(ascent, m.ascent);
-        descent     = max(descent, m.descent);
-        line_height = max(line_height, l);
-        i++;
+        ++run_iter;
       }
 
-      auto const & last_run = layout.runs[i - 1];
-      auto const   codepoints =
-        Slice::offsets(first_run.codepoints.offset, last_run.codepoints.end());
+      if (!is_wrap_char(paragraph_text[run_begin]))
+      {
+        while (run_iter < paragraph_size &&
+               run_props.style == style_iter.run() &&
+               run_props.script == (*scripts_iter).v0 &&
+               run_props.level == (*levels_iter).v0 &&
+               run_props.level == buffer.levels_[run_iter] &&
+               !is_wrap_char(paragraph_text[run_iter]))
+        {
+          ++run_iter;
+          ++style_iter;
+          ++scripts_iter;
+          ++levels_iter;
+        }
+      }
+      else
+      {
+        wrap_level++;
+      }
 
-      Slice const runs = Slice::offsets(first, i);
+      auto run_end = run_iter;
 
-      auto const num_carets = codepoints.span + 1;
-      auto const carets     = Slice{caret_iter, num_carets};
+      auto & font_style = block.fonts[run_props.style];
+      // [ ] not thread-safe: fonts_
+      auto & font = (FontImpl const &) *fonts_[(usize) font_style.font].v0;
 
-      Line line{
-        .codepoints = codepoints,
-        .carets     = carets,
-        .runs       = runs,
-        .metrics{.width   = width,
-                 .height  = line_height,
-                 .ascent  = ascent,
-                 .descent = descent,
-                 .level   = base_level}
-      };
+      auto run                = Slice::offsets(run_begin, run_end);
+      auto [infos, positions] = shape_run(
+        font.hb_font, buffer.hb_buffer_, paragraph_text, run,
+        hb_script_from_iso15924_tag(
+          SBScriptGetOpenTypeTag(SBScript{(u8) run_props.script})),
+        ((paragraph_level & 0x1) == 0) ? HB_DIRECTION_LTR : HB_DIRECTION_RTL,
+        language, block.use_kerning, block.use_ligatures);
 
-      layout.lines.push(line).unwrap();
+      auto block_run =
+        Slice::offsets(paragraph_begin + run_begin, paragraph_begin + run_end);
 
-      reorder_line(layout.runs.view().slice(first, i - first));
+      insert_run(layout, font_style, block_run, paragraph_begin, run_props,
+                 font.metrics, infos, positions);
 
-      extent.x() = max(extent.x(), width);
-      extent.y() += line_height;
-      caret_iter += num_carets;
-    }
+    } while (run_iter < paragraph_size);
 
-    auto const lines_end = layout.lines.size();
-    paragraph.lines      = Slice::offsets(lines_begin, lines_end);
-  }
+    auto paragraph_runs_end = layout.runs.size();
+
+    layout.paragraphs
+      .push(Paragraph{
+        .runs       = Slice::offsets(paragraph_runs_begin, paragraph_runs_end),
+        .codepoints = Slice::offsets(paragraph_begin, paragraph_end),
+        .delimeters = paragraph_delims})
+      .unwrap();
+
+    layout_paragraph(layout.paragraphs.last(), max_width, block, layout,
+                     caret_iter, extent);
+
+    p = paragraph_delims.end();
+  } while (p < text_size);
 
   layout.max_width      = max_width;
   layout.num_carets     = max(caret_iter, 1ULL);
