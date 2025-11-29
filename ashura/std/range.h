@@ -359,7 +359,6 @@ struct FilterIter
   }
 };
 
-
 // [ ] filterview
 template <typename Iter, typename Predicate>
 constexpr FilterIter<Iter, Predicate> filter(Iter &&      iter,

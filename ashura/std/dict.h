@@ -595,7 +595,7 @@ template <typename V, typename D = usize>
 using StrDict = Dict<Str, V, SpanHash, StrEq, D>;
 
 template <typename V, typename D = usize>
-using StringDict = Dict<Vec<char>, V, SpanHash, StrEq, D>;
+using StrVecDict = Dict<Vec<char>, V, SpanHash, StrEq, D>;
 
 template <typename K, typename V, typename D = usize>
 using BitDict = Dict<K, V, BitHash, BitEq, D>;

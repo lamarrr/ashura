@@ -158,9 +158,9 @@ struct ISpinLock
   }
 };
 
-typedef struct IFairSpinLock * FairSpinLock;
+typedef struct ITicketSpinLock * TicketSpinLock;
 
-struct IFairSpinLock
+struct ITicketSpinLock
 {
   usize front_ = 0;
   usize back_  = 0;
@@ -226,7 +226,7 @@ struct LockGuard
 };
 
 template <typename UpstreamLock>
-struct ReadWriteLock
+struct RWLock
 {
   UpstreamLock lock_{};
   usize        num_writers_ = 0;
@@ -1149,6 +1149,7 @@ using Thread = Enum<WorkerThread, DedicatedThread, MainThread>;
 
 typedef struct IScheduler * Scheduler;
 
+// [ ] thread names; thread metadata
 struct SchedulerInfo
 {
   /// @brief thread-safe allocator to allocate tasks from, must be able to allocate page-sized allocations

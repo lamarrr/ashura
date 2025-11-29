@@ -980,7 +980,7 @@ struct DeviceResourceStates
                 >
     descriptor_sets_;
 
-  ReadWriteLock<IFutex> lock_;
+  RWLock<IFutex> lock_;
 
   DeviceResourceStates(Allocator allocator) :
     alias_{allocator},
