@@ -52,6 +52,8 @@ ImageInfo IImageSys::upload_(Vec<char> label, gpu::ImageInfo const & info,
                              Span<gpu::ImageViewInfo const> view_infos,
                              Span<u8 const>                 channels)
 {
+  tracing::ScopeTrace trace;
+
   CHECK(info.type == gpu::ImageType::Type2D, "");
   CHECK(
     (info.usage & ~(gpu::ImageUsage::Sampled | gpu::ImageUsage::TransferSrc |

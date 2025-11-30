@@ -200,6 +200,8 @@ Result<DecodedImageInfo, ImageLoadErr> decode_jpg(Span<u8 const> bytes,
 Result<DecodedImageInfo, ImageLoadErr> decode_image(Span<u8 const> bytes,
                                                     Vec<u8> &      channels)
 {
+  tracing::ScopeTrace trace;
+
   static constexpr u8 JPG_MAGIC[]   = {0xFF, 0xD8, 0xFF};
   static constexpr u8 PNG_MAGIC[]   = {0x89, 0x50, 0x4E, 0x47,
                                        0x0D, 0x0A, 0x1A, 0x0A};

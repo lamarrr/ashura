@@ -4,6 +4,7 @@
 #include "ashura/engine/rect_pack.h"
 #include "ashura/engine/systems.h"
 #include "ashura/std/range.h"
+#include "ashura/std/trace.h"
 #include "ashura/std/vec.h"
 
 extern "C"
@@ -257,6 +258,7 @@ Result<Dyn<Font>, FontLoadErr>
 
 Result<> FontSysImpl::rasterize(Font font_, u32 font_height)
 {
+  tracing::ScopeTrace  trace;
   FontImpl &           font             = (FontImpl &) *font_;
   static constexpr u32 MIN_ATLAS_EXTENT = 512;
   static_assert(MIN_ATLAS_EXTENT > 0, "Font atlas extent must be non-zero");

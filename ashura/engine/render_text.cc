@@ -4,6 +4,7 @@
 #include "ashura/engine/systems.h"
 #include "ashura/std/range.h"
 #include "ashura/std/text.h"
+#include "ashura/std/trace.h"
 
 namespace ash
 {

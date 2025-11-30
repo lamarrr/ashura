@@ -10,12 +10,15 @@
 #include "ashura/engine/pipelines/triangle_fill.h"
 #include "ashura/engine/pipelines/vector_path.h"
 #include "ashura/engine/systems.h"
+#include "ashura/std/trace.h"
 
 namespace ash
 {
 
 void IPipelineSys::init(Allocator allocator)
 {
+  tracing::ScopeTrace trace;
+
   Dyn sdf  = dyn<SdfPipeline>(inplace, allocator, allocator).unwrap();
   Dyn quad = dyn<QuadPipeline>(inplace, allocator, allocator).unwrap();
   Dyn triangle_fill =

@@ -2615,6 +2615,7 @@ void format(fmt::Sink sink, fmt::Spec spec, InplaceVec<char, C> const & str)
   format(sink, spec, str.view());
 }
 
+using StrVec   = Vec<char>;
 using StrVec8  = Vec<c8>;
 using StrVec16 = Vec<c16>;
 using StrVec32 = Vec<c32>;
