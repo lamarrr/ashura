@@ -1112,24 +1112,6 @@ struct ThemeState
   SystemTheme theme = SystemTheme::Unknown;
 };
 
-struct WindowState
-{
-  /// @brief Extent of the viewport the windows' views are in
-  u32x2 extent = {};
-
-  /// @brief Then windows' backing surface extent
-  u32x2 surface_extent = {};
-
-  /// @brief Did a window resize happen
-  bool resized = true;
-
-  /// @brief Did a window surface resize happen
-  bool surface_resized = true;
-
-  /// @brief Is the application requested to close
-  bool close_requested = false;
-};
-
 struct DropState
 {
   enum class Event : u8
@@ -1161,7 +1143,7 @@ struct DropState
   DropState & copy(DropState const & other);
 };
 
-struct InputState
+struct SystemState
 {
   /// @brief Timestamp of current frame
   time_point timestamp;
@@ -1169,40 +1151,66 @@ struct InputState
   /// @brief Time elapsed between previous and current frame
   nanoseconds timedelta;
 
-  WindowState window;
-
-  /// @brief Windows' current frame mouse state
-  MouseState mouse;
-
   ThemeState theme;
 
-  /// @brief Windows' current frame keyboard state
-  KeyState key;
-
-  DropState drop;
-
-  explicit InputState(Allocator allocator) :
-    timestamp{},
-    timedelta{},
-    window{},
-    mouse{},
-    theme{},
-    key{allocator},
-    drop{allocator}
+  explicit SystemState(Allocator) : timestamp{}, timedelta{}, theme{}
   {
   }
 
-  InputState(InputState const &)             = delete;
-  InputState & operator=(InputState const &) = delete;
-  InputState(InputState &&)                  = default;
-  InputState & operator=(InputState &&)      = default;
-  ~InputState()                              = default;
+  SystemState(SystemState const &)             = delete;
+  SystemState & operator=(SystemState const &) = delete;
+  SystemState(SystemState &&)                  = default;
+  SystemState & operator=(SystemState &&)      = default;
+  ~SystemState()                               = default;
 
   void stamp(time_point time, nanoseconds delta);
 
   void clear();
 
-  InputState & copy(InputState const & other);
+  SystemState & copy(SystemState const & other);
+};
+
+struct WindowState
+{
+  /// @brief Extent of the viewport the windows' views are in
+  u32x2 extent = {};
+
+  /// @brief Then windows' backing surface extent
+  u32x2 surface_extent = {};
+
+  /// @brief Did a window resize happen
+  bool resized = true;
+
+  /// @brief Did a window surface resize happen
+  bool surface_resized = true;
+
+  /// @brief Is the application requested to close
+  bool close_requested = false;
+
+  /// @brief Windows' current frame keyboard state
+  KeyState key;
+
+  /// @brief Windows' current frame mouse state
+  MouseState mouse;
+
+  DropState drop;
+
+  explicit WindowState(Allocator allocator) :
+    key{allocator},
+    mouse{},
+    drop{allocator}
+  {
+  }
+
+  WindowState(WindowState const &)             = delete;
+  WindowState & operator=(WindowState const &) = delete;
+  WindowState(WindowState &&)                  = default;
+  WindowState & operator=(WindowState &&)      = default;
+  ~WindowState()                               = default;
+
+  void clear();
+
+  WindowState & copy(WindowState const & other);
 };
 
 }    // namespace ash

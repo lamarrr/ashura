@@ -244,14 +244,10 @@ struct GpuSysCfg
 
 struct GpuSysPreferences
 {
-  u32                            buffering               = 4;
-  u32x2                          initial_extent          = {1'920, 1'080};
-  GpuSysCfg                      cfg                     = {};
-  Span<gpu::Format const>        color_formats           = {};
-  Span<gpu::Format const>        depth_stencil_formats   = {};
-  Span<gpu::SurfaceFormat const> swapchain_formats       = {};
-  Span<gpu::PresentMode const>   swapchain_present_modes = {};
-  gpu::CompositeAlpha swapchain_composite_alpha = gpu::CompositeAlpha::Opaque;
+  u32                     buffering             = 4;
+  GpuSysCfg               cfg                   = {};
+  Span<gpu::Format const> color_formats         = {};
+  Span<gpu::Format const> depth_stencil_formats = {};
 };
 
 struct GpuDescriptorsLayout
@@ -593,10 +589,6 @@ struct GpuFrameResources
   void uninit(gpu::Device device);
 };
 
-// [ ] handle the case where swapchain might be deferred or not have images
-// [ ] we should sync and update texture configurations when swapchain config changes
-// [ ] to recreate swapchain, how do we wait correctly on the swapchain image presentation before re-creating?
-
 enum class ScratchTexureType : u8
 {
   SampledColor                = 0,
@@ -699,9 +691,6 @@ struct IGpuFrame
 
   GpuSys sys() const;
 
-  /// @brief Swapchain images must be manually acquired and blitted to
-  gpu::Swapchain swapchain() const;
-
   gpu::DescriptorSet sampled_textures() const;
 
   gpu::DescriptorSet samplers() const;
@@ -775,8 +764,6 @@ struct IGpuSys
 
   gpu::Device dev_;
 
-  gpu::Surface surface_;
-
   GpuSysCfg cfg_;
 
   gpu::DeviceProperties props_;
@@ -794,11 +781,9 @@ struct IGpuSys
 
   GpuDescriptorsLayout descriptors_layout_;
 
-  gpu::Swapchain swapchain_;
-
   gpu::QueueScope queue_scope_;
 
-  IFutex resources_lock_;
+  ISpinLock resources_lock_;
 
   SamplerCache sampler_cache_;
 
@@ -822,7 +807,6 @@ struct IGpuSys
     initialized_{false},
     allocator_{noop_allocator},
     dev_{nullptr},
-    surface_{nullptr},
     cfg_{},
     props_{},
     pipeline_cache_{nullptr},
@@ -830,7 +814,6 @@ struct IGpuSys
     color_format_{gpu::Format::Undefined},
     depth_stencil_format_{gpu::Format::Undefined},
     descriptors_layout_{},
-    swapchain_{nullptr},
     queue_scope_{nullptr},
     resources_lock_{},
     sampler_cache_{noop_allocator},
@@ -852,12 +835,12 @@ struct IGpuSys
   ~IGpuSys()                           = default;
 
   /// @brief Uninitialize the gpu system and get the pipeline cache data
-  void uninit(Vec<u8> & cache);
+  void shutdown(Vec<u8> & cache);
 
   /// @brief Initialize the GPU system with the provided pipeline cache data and preference
   ///
   void init(Allocator allocator, gpu::Device device,
-            Span<u8 const> pipeline_cache_data, gpu::Surface surface,
+            Span<u8 const>            pipeline_cache_data,
             GpuSysPreferences const & preferences, Scheduler scheduler,
             Thread thread);
 
@@ -875,7 +858,7 @@ struct IGpuSys
 
   Allocator allocator() const;
 
-  GpuFramePlan plan();
+  GpuFramePlan current_plan();
 
   gpu::Format color_format() const;
 
@@ -892,6 +875,8 @@ struct IGpuSys
   gpu::DescriptorSet sampled_textures() const;
 
   void submit_frame();
+
+  void await_idle();
 };
 
 }    // namespace ash

@@ -41,7 +41,7 @@ void IPipelineSys::init(Allocator allocator)
   auto p_pbr            = pbr.get();
   auto p_vector_path    = vector_path.get();
 
-  Vec<Dyn<Pipeline>> all{allocator};
+  SparseVec<PipelineId, Dyn<Pipeline>> all{allocator};
 
   all.push(cast<Pipeline>(std::move(sdf))).unwrap();
   all.push(cast<Pipeline>(std::move(quad))).unwrap();
@@ -60,18 +60,20 @@ void IPipelineSys::init(Allocator allocator)
   pbr_            = p_pbr;
   vector_path_    = p_vector_path;
   all_            = std::move(all);
+  allocator_      = allocator;
 
-  for (auto & pass : all)
+  for (auto [pass] : all)
   {
-    pass->acquire(sys.gpu->plan());
+    pass->acquire(gpu_sys_->current_plan());
   }
 }
 
-void IPipelineSys::uninit()
+void IPipelineSys::shutdown()
 {
-  for (auto const & p : all_)
+  WriteGuard guard{rw_lock_};
+  for (auto [p] : all_)
   {
-    p->release(sys.gpu->plan());
+    p->release(gpu_sys_->current_plan());
   }
 }
 
@@ -115,15 +117,22 @@ VectorPathPipeline & IPipelineSys::vector_path() const
   return *vector_path_;
 }
 
-void IPipelineSys::add_pipeline(Dyn<Pipeline> pipeline)
+Future<PipelineId> IPipelineSys::add_pipeline(Dyn<Pipeline> pipeline)
 {
-  pipeline->acquire(sys.gpu->plan());
-  all_.push(std::move(pipeline)).unwrap();
+  return scheduler
+    ->run(allocator_, MainThread::Main,
+          [pipeline = std::move(pipeline), this]() mutable {
+            pipeline->acquire(gpu_sys_->current_plan());
+            WriteGuard guard{this->rw_lock_};
+            return this->all_.push(std::move(pipeline)).unwrap();
+          })
+    .unwrap();
 }
 
 Option<IPipeline &> IPipelineSys::get(Str label)
 {
-  for (auto & pass : all_)
+  ReadGuard guard{rw_lock_};
+  for (auto [pass] : all_)
   {
     if (mem::eq(pass->label(), label))
     {
@@ -132,6 +141,13 @@ Option<IPipeline &> IPipelineSys::get(Str label)
   }
 
   return none;
+}
+
+IPipeline & IPipelineSys::get(PipelineId id)
+{
+  ReadGuard guard{rw_lock_};
+  CHECK(all_.is_valid_id(id), "Invalid PipelineId");
+  return *all_[id].v0;
 }
 
 }    // namespace ash

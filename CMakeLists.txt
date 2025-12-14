@@ -12,7 +12,7 @@ option(ASH_EXCLUDE_TESTS "" OFF)
 option(ASH_EXCLUDE_BENCHMARKS "" OFF)
 option(ASH_BUILD_DOC "Build documentation" OFF)
 
-set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_COLOR_DIAGNOSTICS ON)
 
@@ -180,7 +180,9 @@ FetchContent_Declare(
   SheenBidi
   GIT_REPOSITORY https://github.com/Tehreer/SheenBidi.git
   GIT_TAG v2.9.0
-  CONFIGURE_COMMAND "" BUILD_COMMAND "")
+  CONFIGURE_COMMAND "" BUILD_COMMAND ""
+  PATCH_COMMAND git apply --ignore-whitespace
+                ${CMAKE_CURRENT_SOURCE_DIR}/patches/SheenBidi/SBAllocator.patch)
 
 FetchContent_Declare(
   WebP
@@ -318,6 +320,7 @@ add_library(
   ashura/std/hash.cc
   ashura/std/log.cc
   ashura/std/panic.cc
+  ashura/std/thread.cc
   ashura/std/trace.cc)
 target_include_directories(
   ashura_std
@@ -413,7 +416,6 @@ if(NOT ASH_EXCLUDE_ENGINE)
     ashura/engine/render_text.cc
     ashura/engine/scene.cc
     ashura/engine/shader_system.cc
-    ashura/engine/shaderc.cc
     ashura/engine/systems.cc
     ashura/engine/text.cc
     ashura/engine/video_system.cc
@@ -584,9 +586,9 @@ add_shader_target(blur_downsample blur.slang "-DDOWNSAMPLE=1")
 add_shader_target(blur_upsample blur.slang "-DDOWNSAMPLE=0")
 add_shader_target(composite_sdf composite_sdf.slang)
 add_shader_target(fill_stencil fill_stencil.slang)
-add_shader_target(pbr pbr.slang)
-add_shader_target(quad quad.slang)
-add_shader_target(sdf sdf.slang)
+add_shader_target(pbr_base pbr.slang)
+add_shader_target(quad_base quad.slang)
+add_shader_target(sdf_gradient sdf.slang "-DITEM_TYPE=SdfGradientItem")
 add_shader_target(sdf_noise sdf.slang "-DITEM_TYPE=SdfNoiseItem")
 add_shader_target(sdf_mesh_gradient sdf.slang "-DITEM_TYPE=SdfMeshGradientItem")
 add_shader_target(triangle_fill triangle_fill.slang)

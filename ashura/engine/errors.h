@@ -6,34 +6,17 @@
 namespace ash
 {
 
-enum class [[nodiscard]] ImageLoadErr : i32
-{
-  OutOfMemory       = 0,
-  InvalidPath       = 1,
-  IoErr             = 2,
-  DecodeFailed      = 3,
-  UnsupportedFormat = 4
-};
-
-enum class FontLoadErr : u8
-{
-  OutOfMemory       = 0,
-  InvalidPath       = 1,
-  IoErr             = 2,
-  DecodeFailed      = 3,
-  FaceNotFound      = 4,
-  UnsupportedFormat = 5
-};
-
-enum class ShaderLoadErr : u32
+enum class [[nodiscard]] SysErr : i32
 {
   OutOfMemory           = 0,
   InvalidPath           = 1,
-  IOErr                 = 2,
-  CompileFailed         = 3,
-  LinkFailed            = 4,
-  SpirvConversionFailed = 5,
-  InitErr               = 6
+  IoErr                 = 2,
+  DecodeFailed          = 3,
+  FaceNotFound          = 4,
+  UnsupportedFormat     = 5,
+  CompileFailed         = 6,
+  LinkFailed            = 7,
+  SpirvConversionFailed = 8
 };
 
 }    // namespace ash

@@ -118,7 +118,7 @@ struct RenderText
 
   TextLayout const & get_layout() const;
 
-  void layout(f32 max_width, TextLayoutBuffer buffer);
+  void layout(f32 max_width, TextLayoutBuffer buffer, Allocator scratch);
 
   /// @brief Render the laid out text
   /// @param center canvas-space region of the text to place the text on

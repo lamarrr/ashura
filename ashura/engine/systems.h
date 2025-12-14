@@ -33,7 +33,6 @@ struct Systems
   AudioSys     audio     = nullptr;
   VideoSys     video     = nullptr;
   AnimationSys animation = nullptr;
-  ViewSys      view      = nullptr;
 };
 
 extern Systems sys;

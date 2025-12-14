@@ -79,6 +79,7 @@ enum class FocusAction : u8
 // [ ] view click area re-targeting
 
 typedef struct IViewSys * ViewSys;
+typedef struct IEngine *  Engine;
 
 /// @brief A compact View Hierarchy
 struct IViewSys
@@ -407,8 +408,8 @@ struct IViewSys
   Option<TextInputInfo> text_input() const;
 
   // [ ] make positions relative to center of the screen; especially in the inputstate goptten from the view
-  bool tick(InputState const & input, ui::View & root, Canvas & canvas,
-            Fn<void(ui::Ctx const &)> loop);
+  bool tick(SystemState const & system_state, WindowState const & window_state,
+            Canvas canvas, Fn<ui::View &(Engine, ui::Ctx const &)> loop);
 };
 
 }    // namespace ash

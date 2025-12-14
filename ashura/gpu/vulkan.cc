@@ -4146,23 +4146,37 @@ Result<Void, Status> IDevice::recreate_swapchain(Swapchain swapchain)
   return Ok{};
 }
 
+Result<SwapchainPreference, Void>
+  SwapchainPreference::make(gpu::SwapchainInfo const & info,
+                            Allocator                  allocator)
+{
+  Vec<char> label{allocator};
+  if (!label.append(info.label))
+  {
+    return Err{};
+  }
+
+  return Ok{
+    SwapchainPreference{.label               = std::move(label),
+                        .surface             = info.surface,
+                        .format              = info.format,
+                        .usage               = info.usage,
+                        .preferred_buffering = info.preferred_buffering,
+                        .present_mode        = info.present_mode,
+                        .preferred_extent    = info.preferred_extent,
+                        .composite_alpha     = info.composite_alpha}
+  };
+}
+
 Result<gpu::Swapchain, Status>
   IDevice::create_swapchain(gpu::SwapchainInfo const & info)
 {
-  Vec<char> label{allocator_};
-  if (!label.append(info.label))
+  auto pref = SwapchainPreference::make(info, allocator_);
+
+  if (!pref)
   {
     return Err{Status::OutOfHostMemory};
   }
-
-  SwapchainPreference pref{.label               = std::move(label),
-                           .surface             = info.surface,
-                           .format              = info.format,
-                           .usage               = info.usage,
-                           .preferred_buffering = info.preferred_buffering,
-                           .present_mode        = info.present_mode,
-                           .preferred_extent    = info.preferred_extent,
-                           .composite_alpha     = info.composite_alpha};
 
   ISwapchain * shim;
 
@@ -4193,7 +4207,7 @@ Result<gpu::Swapchain, Status>
     .present_mode      = info.present_mode,
     .extent            = {0, 0},
     .composite_alpha   = info.composite_alpha,
-    .preference        = std::move(pref)
+    .preference        = pref.unwrap()
   };
 
   auto result = recreate_swapchain(shim);
@@ -5334,6 +5348,26 @@ Result<Void, Status>
   {
     return Err{(Status) result};
   }
+
+  return Ok{};
+}
+
+Result<Void, Status>
+  IDevice::mark_swapchain_out_of_date(gpu::Swapchain             swapchain_,
+                                      gpu::SwapchainInfo const & info)
+{
+  CHECK(swapchain_ != nullptr, "");
+  auto swapchain = (Swapchain) swapchain_;
+
+  auto pref = SwapchainPreference::make(info, allocator_);
+
+  if (!pref)
+  {
+    return Err{Status::OutOfHostMemory};
+  }
+
+  swapchain->is_out_of_date = true;
+  swapchain->preference     = pref.unwrap();
 
   return Ok{};
 }

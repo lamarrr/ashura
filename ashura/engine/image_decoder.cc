@@ -2,6 +2,7 @@
 #include "ashura/engine/image_decoder.h"
 #include "ashura/std/image.h"
 #include "ashura/std/range.h"
+#include "ashura/std/trace.h"
 
 extern "C"
 {
@@ -14,14 +15,14 @@ extern "C"
 namespace ash
 {
 
-Result<DecodedImageInfo, ImageLoadErr> decode_webp(Span<u8 const> bytes,
+Result<DecodedImageInfo, SysErr> decode_webp(Span<u8 const> bytes,
                                                    Vec<u8> &      channels)
 {
   WebPBitstreamFeatures features;
 
   if (WebPGetFeatures(bytes.data(), bytes.size(), &features) != VP8_STATUS_OK)
   {
-    return Err{ImageLoadErr::DecodeFailed};
+    return Err{SysErr::DecodeFailed};
   }
 
   u32 const pitch       = features.width * (features.has_alpha == 0 ? 3U : 4U);
@@ -33,7 +34,7 @@ Result<DecodedImageInfo, ImageLoadErr> decode_webp(Span<u8 const> bytes,
 
   if (!channels.resize_uninit(buffer_size))
   {
-    return Err{ImageLoadErr::OutOfMemory};
+    return Err{SysErr::OutOfMemory};
   }
 
   if (features.has_alpha != 0)
@@ -42,7 +43,7 @@ Result<DecodedImageInfo, ImageLoadErr> decode_webp(Span<u8 const> bytes,
                            buffer_size, pitch) == nullptr)
     {
       channels.clear();
-      return Err{ImageLoadErr::DecodeFailed};
+      return Err{SysErr::DecodeFailed};
     }
   }
   else
@@ -51,7 +52,7 @@ Result<DecodedImageInfo, ImageLoadErr> decode_webp(Span<u8 const> bytes,
                           buffer_size, pitch) == nullptr)
     {
       channels.clear();
-      return Err{ImageLoadErr::DecodeFailed};
+      return Err{SysErr::DecodeFailed};
     }
   }
 
@@ -68,7 +69,7 @@ inline void png_stream_reader(png_structp png_ptr, unsigned char * out,
   *input = input->slice(nbytes_to_read);
 }
 
-Result<DecodedImageInfo, ImageLoadErr> decode_png(Span<u8 const> bytes,
+Result<DecodedImageInfo, SysErr> decode_png(Span<u8 const> bytes,
                                                   Vec<u8> &      channels)
 {
   // skip magic number
@@ -79,7 +80,7 @@ Result<DecodedImageInfo, ImageLoadErr> decode_png(Span<u8 const> bytes,
 
   if (png_ptr == nullptr)
   {
-    return Err{ImageLoadErr::OutOfMemory};
+    return Err{SysErr::OutOfMemory};
   }
 
   png_infop info_ptr = png_create_info_struct(png_ptr);
@@ -87,7 +88,7 @@ Result<DecodedImageInfo, ImageLoadErr> decode_png(Span<u8 const> bytes,
   if (png_ptr == nullptr)
   {
     png_destroy_read_struct(&png_ptr, nullptr, nullptr);
-    return Err{ImageLoadErr::OutOfMemory};
+    return Err{SysErr::OutOfMemory};
   }
 
   Span stream = bytes;
@@ -106,13 +107,13 @@ Result<DecodedImageInfo, ImageLoadErr> decode_png(Span<u8 const> bytes,
 
   if (status != 1)
   {
-    return Err{ImageLoadErr::DecodeFailed};
+    return Err{SysErr::DecodeFailed};
   }
 
   if (color_type != PNG_COLOR_TYPE_RGB && color_type != PNG_COLOR_TYPE_RGBA)
   {
     png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
-    return Err{ImageLoadErr::UnsupportedFormat};
+    return Err{SysErr::UnsupportedFormat};
   }
 
   u32         ncomponents = (color_type == PNG_COLOR_TYPE_RGB) ? 3 : 4;
@@ -123,7 +124,7 @@ Result<DecodedImageInfo, ImageLoadErr> decode_png(Span<u8 const> bytes,
 
   if (!channels.resize_uninit(buffer_size))
   {
-    return Err{ImageLoadErr::OutOfMemory};
+    return Err{SysErr::OutOfMemory};
   }
 
   u8 * row = channels.data();
@@ -140,7 +141,7 @@ Result<DecodedImageInfo, ImageLoadErr> decode_png(Span<u8 const> bytes,
   };
 }
 
-Result<DecodedImageInfo, ImageLoadErr> decode_jpg(Span<u8 const> bytes,
+Result<DecodedImageInfo, SysErr> decode_jpg(Span<u8 const> bytes,
                                                   Vec<u8> &      channels)
 {
   jpeg_decompress_struct info;
@@ -153,19 +154,19 @@ Result<DecodedImageInfo, ImageLoadErr> decode_jpg(Span<u8 const> bytes,
   if (jpeg_read_header(&info, true) != JPEG_HEADER_OK)
   {
     jpeg_destroy_decompress(&info);
-    return Err{ImageLoadErr::DecodeFailed};
+    return Err{SysErr::DecodeFailed};
   }
 
   if (jpeg_start_decompress(&info) == 0)
   {
     jpeg_destroy_decompress(&info);
-    return Err{ImageLoadErr::DecodeFailed};
+    return Err{SysErr::DecodeFailed};
   }
 
   if (info.num_components != 3 && info.num_components != 4)
   {
     jpeg_destroy_decompress(&info);
-    return Err{ImageLoadErr::UnsupportedFormat};
+    return Err{SysErr::UnsupportedFormat};
   }
 
   u32               width       = info.output_width;
@@ -179,7 +180,7 @@ Result<DecodedImageInfo, ImageLoadErr> decode_jpg(Span<u8 const> bytes,
   if (!channels.resize_uninit(buffer_size))
   {
     jpeg_destroy_decompress(&info);
-    return Err{ImageLoadErr::OutOfMemory};
+    return Err{SysErr::OutOfMemory};
   }
 
   u8 * scanline = channels.data();
@@ -197,7 +198,7 @@ Result<DecodedImageInfo, ImageLoadErr> decode_jpg(Span<u8 const> bytes,
   };
 }
 
-Result<DecodedImageInfo, ImageLoadErr> decode_image(Span<u8 const> bytes,
+Result<DecodedImageInfo, SysErr> decode_image(Span<u8 const> bytes,
                                                     Vec<u8> &      channels)
 {
   tracing::ScopeTrace trace;
@@ -225,7 +226,7 @@ Result<DecodedImageInfo, ImageLoadErr> decode_image(Span<u8 const> bytes,
     return decode_webp(bytes, channels);
   }
 
-  return Err{ImageLoadErr::UnsupportedFormat};
+  return Err{SysErr::UnsupportedFormat};
 }
 
 }    // namespace ash

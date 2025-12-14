@@ -3,6 +3,7 @@
 #include "ashura/engine/errors.h"
 #include "ashura/engine/font.h"
 #include "ashura/engine/font_system.h"
+#include "ashura/engine/systems.h"
 #include "ashura/std/types.h"
 #include "ashura/std/vec.h"
 
@@ -58,8 +59,6 @@ struct FontImpl final : IFont
 
   FontMetrics metrics;
 
-  Option<CpuFontAtlas> cpu_atlas = none;
-
   Option<GpuFontAtlas> gpu_atlas = none;
 
   FontImpl(Vec<char> label, Vec<char> font_data, bool has_color,
@@ -103,12 +102,21 @@ struct FontImpl final : IFont
 
 struct FontSysImpl final : IFontSys
 {
-  Allocator            allocator_;
-  SparseVec<Dyn<Font>> fonts_;
+  Allocator                    allocator_;
+  RWLock                       rw_lock_;
+  SparseVec<FontId, Dyn<Font>> fonts_;
+  FileSys                      file_sys_;
+  ImageSys                     image_sys_;
+  Scheduler                    scheduler_;
 
-  explicit FontSysImpl(Allocator allocator) :
+  explicit FontSysImpl(Allocator allocator, FileSys file_sys,
+                       ImageSys image_sys, Scheduler scheduler) :
     allocator_{allocator},
-    fonts_{allocator}
+    rw_lock_{},
+    fonts_{allocator},
+    file_sys_{file_sys},
+    image_sys_{image_sys},
+    scheduler_{scheduler}
   {
   }
 
@@ -118,32 +126,43 @@ struct FontSysImpl final : IFontSys
   FontSysImpl & operator=(FontSysImpl &&)      = delete;
   ~FontSysImpl();
 
+  virtual void init() override;
+
   virtual void shutdown() override;
 
-  Result<Dyn<Font>, FontLoadErr> decode_(Str label, Span<u8 const> encoded,
-                                         u32 face = 0);
+  Result<Dyn<Font>, SysErr> decode_(Str label, Span<u8 const> encoded,
+                                          u32 face);
 
-  virtual Result<> rasterize(Font font, u32 font_height) override;
+  /// @brief Rasterize the font at the specified font height. Note: raster is
+  /// stored as alpha values.
+  /// @note rasterizing mutates the font's internal data, not thread-safe
+  /// @param font_height the font height at which the texture should be
+  /// rasterized at (px)
+  /// @param allocator scratch allocator to use for storing intermediates
+  Result<CpuFontAtlas, SysErr> rasterize(Font font, u32 font_height);
 
-  FontId upload_(Dyn<Font> font);
+  Future<Result<GpuFontAtlas, SysErr>> upload_atlas_to_gpu_(Str                label,
+                                            Rc<CpuFontAtlas const *> cpu_atlas);
 
-  virtual Dyn<TextLayoutBuffer> create_layout_buffer(Allocator allocator) override;
+  virtual Dyn<TextLayoutBuffer>
+    create_layout_buffer(Allocator allocator) override;
 
   virtual void layout_text(TextBlock const & block, f32 max_width,
-                           TextLayout &     layout,
-                           TextLayoutBuffer buffer) override;
+                           TextLayout & layout, TextLayoutBuffer buffer,
+                           Allocator scratch) override;
 
-  virtual Future<Result<FontId, FontLoadErr>>
-    load_from_memory(Vec<char> label, Vec<u8> encoded, u32 font_height,
-                     u32 face = 0) override;
+  virtual Future<Result<FontId, SysErr>>
+    load_from_memory(Str label, RcBlob8 encoded, u32 font_height,
+                     u32 face) override;
 
-  virtual Future<Result<FontId, FontLoadErr>>
-    load_from_path(Vec<char> label, Str path, u32 font_height,
-                   u32 face = 0) override;
+  virtual Future<Result<FontId, SysErr>>
+    load_from_path(Str label, Str path, u32 font_height, u32 face) override;
 
   virtual FontInfo get(FontId id) override;
 
   virtual Option<FontInfo> get(Str label) override;
+
+  void unload_(FontId id);
 
   virtual void unload(FontId id) override;
 };

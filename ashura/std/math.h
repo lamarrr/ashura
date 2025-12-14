@@ -819,6 +819,17 @@ struct vec
     return any_zero;
   }
 
+  constexpr bool all_nonzero() const
+  {
+    bool all_nonzero = true;
+#pragma unroll
+    for (usize i = 0; i < N; i++)
+    {
+      all_nonzero &= (v[i] != 0);
+    }
+    return all_nonzero;
+  }
+
   constexpr vec operator+(vec b) const
   {
     vec c;

@@ -109,7 +109,8 @@ TriangleFillPipeline::TriangleFillPipeline(Allocator allocator) :
 void TriangleFillPipeline::acquire(GpuFramePlan plan)
 {
   auto id = add_variant(
-    plan, "Base"_str, sys.shader->get("TriangleFill.Base"_str).unwrap().shader);
+    plan, "base"_str,
+    sys.shader->get("defaults/triangle_fill_base"_str).unwrap().shader);
   CHECK(id == PipelineVariantId::Base, "");
 }
 
@@ -125,8 +126,8 @@ PipelineVariantId TriangleFillPipeline::add_variant(GpuFramePlan plan,
 void TriangleFillPipeline::remove_variant(GpuFramePlan      plan,
                                           PipelineVariantId id)
 {
-  auto pipeline = pipelines_[(usize) id];
-  pipelines_.erase((usize) id);
+  auto pipeline = pipelines_[id];
+  pipelines_.erase(id);
   plan->add_preframe_task(
     [p = pipeline.v0, d = plan->device()] { d->uninit(p.v1); });
 }
@@ -178,7 +179,7 @@ void TriangleFillPipeline::encode(gpu::CommandEncoder                e,
 
   e->begin_rendering(info);
 
-  auto pipeline = pipelines_[(usize) params.variant].v0.v1;
+  auto pipeline = pipelines_[params.variant].v0.v1;
 
   e->bind_graphics_pipeline(pipeline);
   e->bind_descriptor_sets(
@@ -202,9 +203,9 @@ void TriangleFillPipeline::encode(gpu::CommandEncoder                e,
   CHECK(size32(params.index_runs) > 1, "");
   auto num_states = size32(params.states);
 
-  for (u32 i = 0; i < num_states; i++)
+  for (auto s : range(num_states))
   {
-    auto & state = params.states[i];
+    auto & state = params.states[s];
     e->set_graphics_state(gpu::GraphicsState{
       .scissor             = state.scissor,
       .viewport            = state.viewport,
@@ -216,10 +217,10 @@ void TriangleFillPipeline::encode(gpu::CommandEncoder                e,
       .cull_mode  = state.cull_mode,
       .front_face = state.front_face});
 
-    for (auto i :
-         range(Slice32::range(params.state_runs[i], params.state_runs[i + 1])))
+    for (auto i : range(
+           Slice32::offsets(params.state_runs[s], params.state_runs[s + 1])))
     {
-      e->draw(Slice32::range(params.index_runs[i], params.index_runs[i + 1]),
+      e->draw(Slice32::offsets(params.index_runs[i], params.index_runs[i + 1]),
               {i, 1});
     }
   }

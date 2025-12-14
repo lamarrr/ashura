@@ -29,7 +29,7 @@ struct QuadPipelineParams
 
 struct QuadPipeline final : IPipeline
 {
-  SparseVec<Tuple<Str, gpu::GraphicsPipeline>> variants_;
+  SparseVec<PipelineVariantId, Tuple<Str, gpu::GraphicsPipeline>> variants_;
 
   QuadPipeline(Allocator);
 

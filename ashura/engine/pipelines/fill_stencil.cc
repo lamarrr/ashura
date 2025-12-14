@@ -62,7 +62,7 @@ void FillStencilPipeline::acquire(GpuFramePlan plan)
     layout.read_storage_buffer,    // 3: indices
   };
 
-  auto shader = sys.shader->get("FillStencil"_str).unwrap().shader;
+  auto shader = sys.shader->get("defaults/fill_stencil"_str).unwrap().shader;
 
   auto pipeline_info = gpu::GraphicsPipelineInfo{
     .label                  = tagged_label,
@@ -121,9 +121,9 @@ void FillStencilPipeline::encode(gpu::CommandEncoder               e,
   CHECK(size32(params.index_runs) > 1, "");
   auto num_states = size32(params.states);
 
-  for (auto i : range(num_states))
+  for (auto s : range(num_states))
   {
-    auto & state = params.states[i];
+    auto & state = params.states[s];
 
     auto [front_stencil, back_stencil] =
       fill_rule_stencil(state.fill_rule, state.invert, state.write_mask);
@@ -136,10 +136,10 @@ void FillStencilPipeline::encode(gpu::CommandEncoder               e,
                          .back_face_stencil   = back_stencil,
                          .front_face          = state.front_face});
 
-    for (auto i :
-         range(Slice32::range(params.state_runs[i], params.state_runs[i + 1])))
+    for (auto i : range(
+           Slice32::offsets(params.state_runs[s], params.state_runs[s + 1])))
     {
-      e->draw(Slice32::range(params.index_runs[i], params.index_runs[i + 1]),
+      e->draw(Slice32::offsets(params.index_runs[i], params.index_runs[i + 1]),
               {i, 1});
     }
   }

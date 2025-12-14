@@ -756,7 +756,11 @@ struct StaggeredAnimation
     Vec<AnimationState> states{allocator};
     states.resize(num_items).unwrap();
 
-    Tuple<Timeline<T>...> timelines;
+    Tuple<Timeline<T>...> timelines{
+      Timeline<T>{
+                  .timestamps_{allocator}, .easings_{allocator}, .frames_{allocator}}
+      ...
+    };
 
     return StaggeredAnimation<T...>{std::move(states), std::move(stagger),
                                     stagger_width, std::move(timelines)};

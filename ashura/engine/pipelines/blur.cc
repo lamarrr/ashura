@@ -108,11 +108,12 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
 
 void BlurPipeline::acquire(GpuFramePlan plan)
 {
-  downsample_pipeline_ =
-    create_pipeline(plan, "Downsample"_str,
-                    sys.shader->get("Blur.Downsample"_str).unwrap().shader);
+  downsample_pipeline_ = create_pipeline(
+    plan, "Downsample"_str,
+    sys.shader->get("defaults/blur_downsample"_str).unwrap().shader);
   upsample_pipeline_ = create_pipeline(
-    plan, "Upsample"_str, sys.shader->get("Blur.Upsample"_str).unwrap().shader);
+    plan, "Upsample"_str,
+    sys.shader->get("defaults/blur_upsample"_str).unwrap().shader);
 }
 
 void BlurPipeline::release(GpuFramePlan plan)

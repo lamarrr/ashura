@@ -1039,11 +1039,6 @@ GpuSys IGpuFrame::sys() const
   return sys_;
 }
 
-gpu::Swapchain IGpuFrame::swapchain() const
-{
-  return sys_->swapchain_;
-}
-
 gpu::DescriptorSet IGpuFrame::sampled_textures() const
 {
   return sys_->descriptors_.sampled_textures;
@@ -1176,11 +1171,10 @@ void IGpuFrame::end()
 
 void IGpuFrame::submit()
 {
+  tracing::ScopeTrace trace;
   CHECK(state_ == GpuFrameState::Recorded, "");
   u8                scratch_buffer_[1_KB];
   FallbackAllocator scratch{scratch_buffer_, allocator_};
-
-  // [ ] collect time and statistics traces
 
   {
     auto label = sformat(scratch, "GpuFrame {} / Buffer"_str, id_).unwrap();
@@ -1222,6 +1216,11 @@ void IGpuFrame::submit()
   auto num_scratch_images =
     clamp(current_plan_->num_scratch_images_, cfg_.min_scratch_images,
           cfg_.max_scratch_images);
+
+  CHECK(current_plan_->target_.color_format != gpu::Format::Undefined, "");
+  CHECK(current_plan_->target_.depth_stencil_format != gpu::Format::Undefined,
+        "");
+  CHECK(!current_plan_->target_.extent.any_zero(), "");
 
   if (target_info_ != current_plan_->target_ ||
       resources_.scratch_images.images.size() != num_scratch_images)
@@ -1285,6 +1284,7 @@ void IGpuFrame::submit()
 
 bool IGpuFrame::try_complete(nanoseconds timeout)
 {
+  tracing::ScopeTrace trace;
   CHECK(state_ == GpuFrameState::Submitted, "");
 
   if (!dev_->await_queue_scope_frame(sys_->queue_scope_, scope_frame_id_,
@@ -1358,55 +1358,7 @@ static Option<gpu::Format>
   return none;
 }
 
-gpu::Swapchain create_surface_swapchain(
-  gpu::Device device, Str label, gpu::Surface surface, u32 buffering,
-  u32x2 initial_extent, Span<gpu::SurfaceFormat const> preferred_formats,
-  Span<gpu::PresentMode const> preferred_present_modes,
-  gpu::CompositeAlpha composite_alpha, Allocator scratch)
-{
-  CHECK(!initial_extent.any_zero(), "");
-
-  Vec<gpu::SurfaceFormat> formats{scratch};
-  device->get_surface_formats(surface, formats).unwrap();
-  Vec<gpu::PresentMode> present_modes{scratch};
-  device->get_surface_present_modes(surface, present_modes).unwrap();
-
-  auto selected_format =
-    find(preferred_formats, formats.view(),
-         [](gpu::SurfaceFormat pref, Span<gpu::SurfaceFormat const> formats) {
-           return !find(formats, pref, bit_eq).is_empty();
-         });
-
-  CHECK(!selected_format.is_empty(), "");
-
-  auto selected_present_mode =
-    find(preferred_present_modes, present_modes.view(),
-         [](gpu::PresentMode pref, Span<gpu::PresentMode const> modes) {
-           return !find(modes, pref).is_empty();
-         });
-
-  CHECK(!selected_present_mode.is_empty(), "");
-
-  auto capabilities = device->get_surface_capabilities(surface).unwrap();
-
-  CHECK(has_bits(capabilities.image_usage, gpu::ImageUsage::TransferDst |
-                                             gpu::ImageUsage::ColorAttachment),
-        "");
-
-  return device
-    ->create_swapchain(gpu::SwapchainInfo{
-      .label   = label,
-      .surface = surface,
-      .format  = selected_format[0],
-      .usage = gpu::ImageUsage::TransferDst | gpu::ImageUsage::ColorAttachment,
-      .preferred_buffering = buffering,
-      .present_mode        = selected_present_mode[0],
-      .preferred_extent    = initial_extent,
-      .composite_alpha     = composite_alpha})
-    .unwrap();
-}
-
-void IGpuSys::uninit(Vec<u8> & cache)
+void IGpuSys::shutdown(Vec<u8> & cache)
 {
   auto drain_semaphore = scheduler_->get_drain_semaphore(thread_.v());
   CHECK(drain_semaphore->complete(0), "");
@@ -1430,7 +1382,7 @@ void IGpuSys::uninit(Vec<u8> & cache)
     dev_->uninit(sampler.v1);
   }
   dev_->uninit(queue_scope_);
-  dev_->uninit(swapchain_);
+
   descriptors_layout_.uninit(dev_);
   for (auto view : default_image_views_)
   {
@@ -1440,7 +1392,7 @@ void IGpuSys::uninit(Vec<u8> & cache)
   dev_->uninit(pipeline_cache_);
 }
 
-void create_default_samplers(GpuSys sys, Allocator scratch)
+static void create_default_samplers(GpuSys sys, Allocator scratch)
 {
   constexpr Tuple<Str, gpu::BorderColor> colors[] = {
     {"FloatTransparentBlack"_str, gpu::BorderColor::FloatTransparentBlack},
@@ -1495,7 +1447,7 @@ void create_default_samplers(GpuSys sys, Allocator scratch)
   }
 }
 
-void create_default_textures(GpuSys sys)
+static void create_default_textures(GpuSys sys)
 {
   gpu::Image default_image =
     sys->dev_
@@ -1640,7 +1592,7 @@ void create_default_textures(GpuSys sys)
 }
 
 void IGpuSys::init(Allocator allocator, gpu::Device device,
-                   Span<u8 const> pipeline_cache_data, gpu::Surface surface,
+                   Span<u8 const>            pipeline_cache_data,
                    GpuSysPreferences const & preferences, Scheduler scheduler,
                    Thread thread)
 {
@@ -1649,12 +1601,11 @@ void IGpuSys::init(Allocator allocator, gpu::Device device,
 
   CHECK(preferences.buffering > 0, "");
   CHECK(preferences.buffering <= MAX_BUFFERING, "");
-  CHECK(!preferences.initial_extent.any_zero(), "");
 
   allocator_ = allocator;
   dev_       = device;
-  surface_   = surface;
-  props_     = device->get_properties();
+
+  props_ = device->get_properties();
   pipeline_cache_ =
     dev_
       ->create_pipeline_cache(gpu::PipelineCacheInfo{
@@ -1676,11 +1627,6 @@ void IGpuSys::init(Allocator allocator, gpu::Device device,
 
   descriptors_layout_ = GpuDescriptorsLayout::create(
     dev_, "/ DescriptorsLayout"_str, cfg_, scratch);
-
-  swapchain_ = create_surface_swapchain(
-    dev_, "/ Swapchain"_str, surface_, buffering_, preferences.initial_extent,
-    preferences.swapchain_formats, preferences.swapchain_present_modes,
-    preferences.swapchain_composite_alpha, scratch);
 
   queue_scope_ = dev_
                    ->create_queue_scope(gpu::QueueScopeInfo{
@@ -1768,9 +1714,9 @@ SamplerIndex IGpuSys::create_cached_sampler(gpu::SamplerInfo const & info_)
 
   sampler_cache_.push(info, Tuple{sampler_index, sampler}).unwrap();
 
-  plan()->add_preframe_task([device   = this->dev_,
-                             samplers = descriptors_.samplers,
-                             index    = static_cast<u32>(index), sampler] {
+  current_plan()->add_preframe_task([device   = this->dev_,
+                                     samplers = descriptors_.samplers,
+                                     index = static_cast<u32>(index), sampler] {
     device->update_descriptor_set(gpu::DescriptorSetUpdate{
       .set           = samplers,
       .binding       = 0,
@@ -1794,9 +1740,9 @@ TextureIndex IGpuSys::alloc_texture_index(gpu::ImageView view)
   CHECK(index < descriptors_.sampled_textures_slots.size(),
         "Ran out of sampled texture descriptor slots");
 
-  plan()->add_preframe_task([device   = this->dev_,
-                             textures = descriptors_.sampled_textures,
-                             index    = static_cast<u32>(index), view] {
+  current_plan()->add_preframe_task([device   = this->dev_,
+                                     textures = descriptors_.sampled_textures,
+                                     index    = static_cast<u32>(index), view] {
     device->update_descriptor_set(gpu::DescriptorSetUpdate{
       .set           = textures,
       .binding       = 0,
@@ -1817,9 +1763,9 @@ void IGpuSys::release_texture_index(TextureIndex index)
 
   descriptors_.sampled_textures_slots.clear_bit((usize) index);
 
-  plan()->add_preframe_task([device   = this->dev_,
-                             textures = descriptors_.sampled_textures,
-                             index    = static_cast<u32>(index)] {
+  current_plan()->add_preframe_task([device   = this->dev_,
+                                     textures = descriptors_.sampled_textures,
+                                     index    = static_cast<u32>(index)] {
     device->update_descriptor_set(
       gpu::DescriptorSetUpdate{.set           = textures,
                                .binding       = 0,
@@ -1841,7 +1787,7 @@ Allocator IGpuSys::allocator() const
   return allocator_;
 }
 
-GpuFramePlan IGpuSys::plan()
+GpuFramePlan IGpuSys::current_plan()
 {
   CHECK(initialized_, "");
   return plans_[frame_ring_index_].get();
@@ -1924,46 +1870,11 @@ void IGpuSys::submit_frame()
   plans_[frame_ring_index_]->await(nanoseconds::max());
 }
 
-// [ ] move to scene construction
-/*
-void GpuSys::frame(gpu::Swapchain swapchain)
+void IGpuSys::await_idle()
 {
+  CHECK(initialized_, "");
 
-  ScopeTrace trace;
-  dev_->begin_frame(swapchain).unwrap();
-  uninit_objects(*dev_, released_objects_[ring_index()]);
-  released_objects_[ring_index()].clear();
-
-  auto & enc = encoder();
-
-  queries_[ring_index()].begin_frame(*dev_, enc);
-
-  if (swapchain != nullptr)
-  {
-    auto swapchain_state = dev_->get_swapchain_state(swapchain).unwrap();
-
-    swapchain_state.current_image.match([&](auto idx) {
-      enc.blit_image(
-        fb_.color.image, swapchain_state.images[idx],
-        span({
-          gpu::ImageBlit{
-                         .src_layers = {.aspects           = gpu::ImageAspects::Color,
-                           .mip_level         = 0,
-                           .first_array_layer = 0,
-                           .num_array_layers  = 1},
-                         .src_area   = {{0, 0, 0}, fb_.extent()},
-                         .dst_layers = {.aspects           = gpu::ImageAspects::Color,
-                           .mip_level         = 0,
-                           .first_array_layer = 0,
-                           .num_array_layers  = 1},
-                         .dst_area   = {{0, 0, 0}, swapchain_state.extent.append(1)}}
-      }),
-        gpu::Filter::Linear);
-    });
-  }
-
-  dev_->submit_frame(swapchain).unwrap();
+  // [ ] implement
 }
-   */
 
 }    // namespace ash

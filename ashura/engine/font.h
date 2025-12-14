@@ -30,28 +30,28 @@ constexpr f32x2 au_to_px(i32x2 au, f32 base)
   return f32x2{au_to_px(au.x(), base), au_to_px(au.y(), base)};
 }
 
-constexpr Str to_str(FontLoadErr err)
+constexpr Str to_str(SysErr err)
 {
   switch (err)
   {
-    case FontLoadErr::OutOfMemory:
+    case SysErr::OutOfMemory:
       return "OutOfMemory"_str;
-    case FontLoadErr::DecodeFailed:
+    case SysErr::DecodeFailed:
       return "DecodeFailed"_str;
-    case FontLoadErr::FaceNotFound:
+    case SysErr::FaceNotFound:
       return "FaceNotFound"_str;
-    case FontLoadErr::UnsupportedFormat:
+    case SysErr::UnsupportedFormat:
       return "UnsupportedFormat"_str;
-    case FontLoadErr::InvalidPath:
+    case SysErr::InvalidPath:
       return "InvalidPath"_str;
-    case FontLoadErr::IoErr:
+    case SysErr::IoErr:
       return "IoErr"_str;
     default:
       return "Unidentified"_str;
   }
 }
 
-inline void format(fmt::Sink sink, fmt::Spec, FontLoadErr const & err)
+inline void format(fmt::Sink sink, fmt::Spec, SysErr const & err)
 {
   sink(to_str(err));
 }

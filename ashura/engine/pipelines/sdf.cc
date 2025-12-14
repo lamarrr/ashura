@@ -107,15 +107,17 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
 
 void SdfPipeline::acquire(GpuFramePlan plan)
 {
-  auto gradient_id = add_variant(
-    plan, "Gradient"_str, sys.shader->get("SDF.Gradient"_str).unwrap().shader);
+  auto gradient_id =
+    add_variant(plan, "gradient"_str,
+                sys.shader->get("defaults/sdf_gradient"_str).unwrap().shader);
   CHECK(gradient_id == GRADIENT, "");
-  auto noise_id = add_variant(plan, "Noise"_str,
-                              sys.shader->get("SDF.Noise"_str).unwrap().shader);
+  auto noise_id =
+    add_variant(plan, "noise"_str,
+                sys.shader->get("defaults/sdf_noise"_str).unwrap().shader);
   CHECK(noise_id == NOISE, "");
-  auto mesh_gradient_id =
-    add_variant(plan, "MeshGradient"_str,
-                sys.shader->get("SDF.MeshGradient"_str).unwrap().shader);
+  auto mesh_gradient_id = add_variant(
+    plan, "mesh_gradient"_str,
+    sys.shader->get("defaults/sdf_mesh_gradient"_str).unwrap().shader);
   CHECK(mesh_gradient_id == MESH_GRADIENT, "");
 }
 
@@ -129,8 +131,8 @@ PipelineVariantId SdfPipeline::add_variant(GpuFramePlan plan, Str label,
 
 void SdfPipeline::remove_variant(GpuFramePlan plan, PipelineVariantId id)
 {
-  auto pipeline = variants_[(usize) id].v0;
-  variants_.erase((usize) id);
+  auto pipeline = variants_[id].v0;
+  variants_.erase(id);
   plan->add_preframe_task(
     [d = plan->device(), p = pipeline.v1] { d->uninit(p); });
 }
@@ -179,7 +181,7 @@ void SdfPipeline::encode(gpu::CommandEncoder       e,
                        .depth_attachment   = {},
                        .stencil_attachment = stencil};
 
-  auto pipeline = variants_[(usize) params.variant].v0.v1;
+  auto pipeline = variants_[params.variant].v0.v1;
 
   e->begin_rendering(info);
   e->bind_graphics_pipeline(pipeline);
@@ -199,9 +201,9 @@ void SdfPipeline::encode(gpu::CommandEncoder       e,
   CHECK(size32(params.state_runs) == (size32(params.states) + 1), "");
   auto num_states = size32(params.states);
 
-  for (auto i : range(num_states))
+  for (auto s : range(num_states))
   {
-    auto & state = params.states[i];
+    auto & state = params.states[s];
 
     e->set_graphics_state(gpu::GraphicsState{
       .scissor             = state.scissor,
@@ -213,7 +215,7 @@ void SdfPipeline::encode(gpu::CommandEncoder       e,
         state.stencil.map([](auto s) { return s.back; }).unwrap_or()});
 
     e->draw({0, 4},
-            Slice32::offsets(params.state_runs[i], params.state_runs[i + 1]));
+            Slice32::offsets(params.state_runs[s], params.state_runs[s + 1]));
   }
   e->end_rendering();
 }

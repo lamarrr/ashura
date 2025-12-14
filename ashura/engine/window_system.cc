@@ -14,11 +14,11 @@ namespace ash
 
 struct WindowImpl
 {
-  SDL_Window *                             win     = nullptr;
-  gpu::Surface                             surface = nullptr;
-  SDL_WindowID                             id      = 0;
-  SparseVec<Fn<void(WindowEvent const &)>> listeners;
-  gpu::Instance                            instance = nullptr;
+  SDL_Window *                                               win     = nullptr;
+  gpu::Surface                                               surface = nullptr;
+  SDL_WindowID                                               id      = 0;
+  SparseVec<WindowListenerId, Fn<void(WindowEvent const &)>> listeners;
+  gpu::Instance                                              instance = nullptr;
   Fn<WindowRegion(u32x2)> hit_test = [](u32x2) { return WindowRegion::Normal; };
 
   WindowImpl(Allocator allocator, SDL_Window * window, gpu::Surface surface,
@@ -115,10 +115,10 @@ struct ClipBoardImpl : IClipBoard
 
 struct WindowSysImpl : IWindowSys
 {
-  Allocator                                allocator;
-  SparseVec<Fn<void(SystemEvent const &)>> listeners;
-  ClipBoardImpl                            clipboard;
-  SDL_Cursor *                             cursor;
+  Allocator                                                  allocator;
+  SparseVec<WindowListenerId, Fn<void(SystemEvent const &)>> listeners;
+  ClipBoardImpl                                              clipboard;
+  SDL_Cursor *                                               cursor;
 
   WindowSysImpl(Allocator allocator) :
     allocator{allocator},
@@ -149,8 +149,8 @@ struct WindowSysImpl : IWindowSys
     return ((WindowImpl *) window)->win;
   }
 
-  virtual Option<ash::Window> create_window(gpu::Instance instance,
-                                            Str           title) override
+  virtual Option<ash::IWindow &> create_window(gpu::Instance instance,
+                                               Str           title) override
   {
     char * title_c_str;
     if (!allocator->nalloc(title.size() + 1, title_c_str))
@@ -188,7 +188,7 @@ struct WindowSysImpl : IWindowSys
     SDL_PropertiesID props_id = SDL_GetWindowProperties(window);
     CHECK(SDL_SetPointerProperty(props_id, "impl", impl), "");
 
-    return (Window) impl;
+    return (IWindow &) *impl;
   }
 
   virtual void uninit_window(Window window) override
@@ -379,19 +379,20 @@ struct WindowSysImpl : IWindowSys
     CHECK_SDL(SDL_SetWindowResizable(psdl(window), false));
   }
 
-  virtual u64 listen(Fn<void(SystemEvent const &)> callback) override
+  virtual WindowListenerId
+    listen(Fn<void(SystemEvent const &)> callback) override
   {
     return listeners.push(callback).unwrap();
   }
 
-  virtual u64 listen(Window                        window,
-                     Fn<void(WindowEvent const &)> callback) override
+  virtual WindowListenerId
+    listen(Window window, Fn<void(WindowEvent const &)> callback) override
   {
     WindowImpl * pwin = (WindowImpl *) window;
     return pwin->listeners.push(callback).unwrap();
   }
 
-  virtual void unlisten(Window window, u64 listener) override
+  virtual void unlisten(Window window, WindowListenerId listener) override
   {
     WindowImpl * pwin = (WindowImpl *) window;
     pwin->listeners.erase(listener);
@@ -1264,7 +1265,7 @@ struct WindowSysImpl : IWindowSys
     }
   }
 
-  virtual Tuple<KeyModifiers, Window>
+  virtual Tuple<KeyModifiers, Option<IWindow &>>
     get_keyboard_state(BitSpan<u64> scan_state, BitSpan<u64> key_state) override
   {
     CHECK(scan_state.size() >= NUM_SCAN_CODES, "");
@@ -1295,10 +1296,11 @@ struct WindowSysImpl : IWindowSys
     WindowImpl *     impl =
       (WindowImpl *) SDL_GetPointerProperty(props_id, "impl", nullptr);
 
-    return {(KeyModifiers) sdl_mod, (Window) impl};
+    return {(KeyModifiers) sdl_mod, (IWindow &) *impl};
   }
 
-  virtual Tuple<MouseButtons, f32x2, Window> get_mouse_state() override
+  virtual Tuple<MouseButtons, f32x2, Option<IWindow &>>
+    get_mouse_state() override
   {
     f32x2 pos{};
 
@@ -1336,7 +1338,7 @@ struct WindowSysImpl : IWindowSys
     WindowImpl *     impl =
       (WindowImpl *) SDL_GetPointerProperty(props_id, "impl", nullptr);
 
-    return {state, pos, (Window) impl};
+    return {state, pos, (IWindow &) *impl};
   }
 
   virtual void set_text_input(Window                window,

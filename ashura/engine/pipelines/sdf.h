@@ -33,7 +33,7 @@ struct SdfPipeline final : IPipeline
   static constexpr PipelineVariantId NOISE         = PipelineVariantId{1};
   static constexpr PipelineVariantId MESH_GRADIENT = PipelineVariantId{2};
 
-  SparseVec<Tuple<Str, gpu::GraphicsPipeline>> variants_;
+  SparseVec<PipelineVariantId, Tuple<Str, gpu::GraphicsPipeline>> variants_;
 
   SdfPipeline(Allocator);
 

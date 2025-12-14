@@ -2430,6 +2430,36 @@ Fn(R (*)(Args...)) -> Fn<R(Args...)>;
 template <typename T, typename R, typename... Args>
 Fn(T *, R (*)(T *, Args...)) -> Fn<R(Args...)>;
 
+template <typename Tag, typename Sig>
+struct TagFn;
+
+template <typename Tag, typename R, typename... Args>
+struct TagFn<Tag, R(Args...)>
+{
+  using Thunk = R (*)(Tag, Args...);
+
+  Tag tag = {};
+
+  Thunk thunk = nullptr;
+
+  explicit constexpr TagFn() = default;
+
+  constexpr TagFn(TagFn const &)             = default;
+  constexpr TagFn(TagFn &&)                  = default;
+  constexpr TagFn & operator=(TagFn const &) = default;
+  constexpr TagFn & operator=(TagFn &&)      = default;
+  constexpr ~TagFn()                         = default;
+
+  constexpr TagFn(Tag tag, Thunk thunk) : tag{tag}, thunk{thunk}
+  {
+  }
+
+  constexpr R operator()(Args... args) const
+  {
+    return thunk(tag, static_cast<Args &&>(args)...);
+  }
+};
+
 struct Noop
 {
   template <typename... Args>

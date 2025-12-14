@@ -34,7 +34,7 @@ struct TriangleFillPipelineParams
 
 struct TriangleFillPipeline final : IPipeline
 {
-  SparseVec<Tuple<Str, gpu::GraphicsPipeline>> pipelines_;
+  SparseVec<PipelineVariantId, Tuple<Str, gpu::GraphicsPipeline>> pipelines_;
 
   TriangleFillPipeline(Allocator);
 

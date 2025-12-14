@@ -190,7 +190,8 @@ VectorPathPipeline::VectorPathPipeline(Allocator allocator) :
 void VectorPathPipeline::acquire(GpuFramePlan plan)
 {
   auto id = add_fill_variant(
-    plan, "Base"_str, sys.shader->get("VectorPath.Base"_str).unwrap().shader);
+    plan, "base"_str,
+    sys.shader->get("defaults/vector_path_base"_str).unwrap().shader);
   CHECK(id == PipelineVariantId::Base, "");
 }
 
@@ -206,8 +207,8 @@ PipelineVariantId VectorPathPipeline::add_fill_variant(GpuFramePlan plan,
 void VectorPathPipeline::remove_fill_variant(GpuFramePlan      plan,
                                              PipelineVariantId id)
 {
-  auto pipeline = fill_pipelines_[(usize) id];
-  fill_pipelines_.erase((usize) id);
+  auto pipeline = fill_pipelines_[id];
+  fill_pipelines_.erase(id);
   plan->add_preframe_task(
     [p = pipeline.v0, d = plan->device()] { d->uninit(p.v1); });
 }
@@ -255,9 +256,9 @@ void VectorPathPipeline::encode(gpu::CommandEncoder                      e,
   CHECK(size32(params.index_runs) > 1, "");
   auto num_states = size32(params.states);
 
-  for (u32 i = 0; i < num_states; i++)
+  for (auto s : range(num_states))
   {
-    auto & state       = params.states[i];
+    auto & state       = params.states[s];
     auto [front, back] = fill_rule_stencil(FillRule::NonZero, false, U32_MAX);
 
     e->set_graphics_state(gpu::GraphicsState{.scissor  = state.scissor,
@@ -267,10 +268,10 @@ void VectorPathPipeline::encode(gpu::CommandEncoder                      e,
                                              .back_face_stencil   = back,
                                              .cull_mode = gpu::CullMode::None});
 
-    for (auto i :
-         range(Slice32::range(params.state_runs[i], params.state_runs[i + 1])))
+    for (auto i : range(
+           Slice32::offsets(params.state_runs[s], params.state_runs[s + 1])))
     {
-      e->draw(Slice32::range(params.index_runs[i], params.index_runs[i + 1]),
+      e->draw(Slice32::offsets(params.index_runs[i], params.index_runs[i + 1]),
               {i, 1});
     }
   }
@@ -322,7 +323,7 @@ void VectorPathPipeline::encode(gpu::CommandEncoder                  e,
                        .depth_attachment   = {},
                        .stencil_attachment = stencil};
 
-  auto pipeline = fill_pipelines_[(usize) params.variant].v0.v1;
+  auto pipeline = fill_pipelines_[params.variant].v0.v1;
 
   e->begin_rendering(info);
   e->bind_graphics_pipeline(pipeline);
@@ -345,9 +346,9 @@ void VectorPathPipeline::encode(gpu::CommandEncoder                  e,
   CHECK(size32(params.state_runs) == (size32(params.states) + 1), "");
   auto num_states = size32(params.states);
 
-  for (auto i : range(num_states))
+  for (auto s : range(num_states))
   {
-    auto & state = params.states[i];
+    auto & state = params.states[s];
     auto   non_zero_stencil =
       gpu::StencilState{.fail_op       = gpu::StencilOp::Keep,
                         .pass_op       = gpu::StencilOp::Keep,
@@ -365,7 +366,7 @@ void VectorPathPipeline::encode(gpu::CommandEncoder                  e,
                          .back_face_stencil   = non_zero_stencil});
 
     e->draw({0, 4},
-            Slice32::range(params.state_runs[i], params.state_runs[i + 1]));
+            Slice32::offsets(params.state_runs[s], params.state_runs[s + 1]));
   }
   e->end_rendering();
 }

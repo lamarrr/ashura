@@ -1647,6 +1647,10 @@ struct IDevice
     get_statistics_query_result(StatisticsQuery query, u32 first,
                                 Span<PipelineStatistics> statistics) = 0;
 
+  virtual Result<Void, Status>
+    mark_swapchain_out_of_date(Swapchain             swapchain,
+                               SwapchainInfo const & info) = 0;
+
   virtual Result<Void, Status> acquire_next(Swapchain swapchain) = 0;
 
   virtual Result<u64, Status> submit(CommandBuffer buffer,

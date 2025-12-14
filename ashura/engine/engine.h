@@ -2,64 +2,76 @@
 #pragma once
 #include "ashura/engine/systems.h"
 #include "ashura/engine/view_system.h"
+#include "ashura/gpu/gpu.h"
+#include "ashura/std/allocators.h"
 #include "ashura/std/cfg.h"
+#include "ashura/std/dict.h"
+#include "ashura/std/vec.h"
 
 namespace ash
 {
+
+enum class WindowId : usize
+{
+  Undefined = USIZE_MAX
+};
 
 struct EngineCfg
 {
   struct Gpu
   {
     bool                           validation = false;
-    bool                           vsync      = true;
     InplaceVec<gpu::DeviceType, 5> preferences{};
     bool                           hdr        = true;
     u32                            buffering  = 2;
     gpu::SampleCount               msaa_level = gpu::SampleCount::C4;
-    Option<i64>                    max_fps    = none;
   };
 
   struct Window
   {
-    bool resizable   = true;
-    bool maximized   = false;
-    bool full_screen = false;
-    bool borderless  = false;
-    u32  width       = 1'920;
-    u32  height      = 1'080;
+    Vec<char> title;
+    bool      resizable   = true;
+    bool      maximized   = false;
+    bool      full_screen = false;
+    bool      borderless  = false;
+    bool      vsync       = true;
+    u32       width       = 1'920;
+    u32       height      = 1'080;
   };
 
   Gpu gpu{};
 
-  Window window{};
+  Window window;
 
   u32 font_height = 64;
 
-  StringDict<Vec<char>> shaders{};
+  StrVecDict<Vec<char>> font_paths;
 
-  StringDict<Vec<char>> fonts{};
+  StrVecDict<Vec<char>> image_paths;
 
-  StringDict<Vec<char>> images{};
+  Vec<char> working_dir_path;
 
-  Vec<char> pipeline_cache{};
+  Vec<char> pipeline_cache_path;
 
-  static Result<EngineCfg> parse(Allocator allocator, Vec<u8> & json);
+  static Result<EngineCfg> parse_json(Span<u8 const> json, Allocator allocator,
+                                      Allocator scratch_allocator);
+
+  static Result<EngineCfg> load_json(Str path, Allocator allocator);
 };
 
-typedef struct Window_T * Window;
-typedef struct IEngine *  Engine;
+typedef struct IWindow * Window;
+typedef struct IEngine * Engine;
+
+using WindowLoop = Dyn<Fn<ui::View &(Engine, ui::Ctx const &)>>;
 
 struct IEngine
 {
-  Allocator allocator;
-
   struct Systems
   {
     Dyn<Logger>       logger;
     Dyn<Scheduler>    sched;
-    Dyn<GpuSys>       gpu;
     Dyn<FileSys>      file;
+    Dyn<GpuSys>       gpu;
     Dyn<ImageSys>     image;
     Dyn<FontSys>      font;
     Dyn<ShaderSys>    shader;
@@ -68,82 +80,115 @@ struct IEngine
     Dyn<AudioSys>     audio;
     Dyn<VideoSys>     video;
     Dyn<AnimationSys> animation;
-    Dyn<ViewSys>      view;
-  } sys;
+  };
 
-  Dyn<gpu::Instance> instance;
+  struct WindowEntry
+  {
+    Engine engine = nullptr;
 
-  Dyn<gpu::Device> device;
+    Window win = nullptr;
 
-  Window window;
+    WindowState state{noop_allocator};
 
-  gpu::Surface surface;
+    gpu::Surface surface = nullptr;
 
-  gpu::PresentMode present_mode_preference;
+    Option<gpu::ISwapchain &> swapchain = none;
 
-  Canvas canvas;
+    Dyn<ViewSys> view_sys{};
 
-  InputState input_state;
+    Dyn<Canvas> canvas{};
 
-  Vec<char> working_dir{};
+    WindowLoop loop{};
 
-  Vec<char> pipeline_cache_path{};
+    gpu::PresentMode present_mode_preference = gpu::PresentMode::Fifo;
 
-  nanoseconds min_frame_interval;
+    ui::Ctx context_;
+  };
 
-  static Dyn<Engine *> create(Allocator allocator, Str config_path,
-                              Str working_dir);
+  struct Paths
+  {
+    Vec<char> working_dir;
+
+    Vec<char> pipeline_cache;
+  };
+
+  struct Callbacks
+  {
+    Dyn<Fn<void(Engine)>> post_init;
+
+    Dyn<Fn<void(Engine)>> pre_shutdown;
+
+    Dyn<Fn<void(Engine)>> post_shutdown;
+  };
+
+  Allocator allocator_;
+
+  Systems sys_;
+
+  gpu::Instance gpu_instance_;
+
+  gpu::Device gpu_device_;
+
+  u32 buffering_;
+
+  SystemState state_;
+
+  Paths paths_;
+
+  Callbacks callbacks_;
+
+  Dyn<WindowEntry *> window_;
 
   IEngine() :
-    allocator{allocator},
-    logger{std::move(logger)},
-    scheduler{std::move(scheduler)},
-    file_sys{std::move(file_sys)},
-    instance{std::move(instance)},
-    device{device},
-    gpu_sys{std::move(gpu_sys)},
-    image_sys{std::move(image_sys)},
-    font_sys{std::move(font_sys)},
-    shader_sys{std::move(shader_sys)},
-    window_sys{std::move(window_sys)},
-    window{window},
-    clipboard{clipboard},
-    surface{surface},
-    present_mode_preference{present_mode_preference},
-    renderer{std::move(renderer)},
-    canvas{std::move(canvas)},
-    ui_sys{std::move(ui_sys)},
-    input_state{allocator},
-    working_dir{std::move(working_dir)},
-    pipeline_cache_path{std::move(pipeline_cache_path)},
-    min_frame_interval{min_frame_interval}
+    allocator_{noop_allocator},
+    sys_{.logger{},
+         .sched{},
+         .file{},
+         .gpu{},
+         .image{},
+         .font{},
+         .shader{},
+         .win{},
+         .pipeline{},
+         .audio{},
+         .video{},
+         .animation{}},
+    gpu_instance_{},
+    gpu_device_{},
+    buffering_{},
+    state_{noop_allocator},
+    paths_{.working_dir{allocator_}, .pipeline_cache{allocator_}},
+    callbacks_{
+      .post_init{},
+      .pre_shutdown{},
+      .post_shutdown{},
+    },
+    window_{}
   {
   }
 
-  IEngine(IEngine const &)            = delete;
-  Engine & operator=(IEngine const &) = delete;
-  IEngine(IEngine &&)                 = default;
-  IEngine & operator=(IEngine &&)     = default;
-  ~IEngine()                          = default;
+  IEngine(IEngine const &)             = delete;
+  IEngine & operator=(IEngine const &) = delete;
+  IEngine(IEngine &&)                  = default;
+  IEngine & operator=(IEngine &&)      = default;
+  ~IEngine()                           = default;
 
-  Systems get_systems()
-  {
-    return Systems{.file   = file_sys,
-                   .gpu    = gpu_sys,
-                   .image  = image_sys,
-                   .font   = *font_sys,
-                   .shader = shader_sys,
-                   .window = *window_sys};
-  }
+  static Dyn<Engine> create(Allocator allocator, EngineCfg const & cfg,
+                            Callbacks callbacks, WindowLoop loop);
 
-  void init(Allocator allocator, EngineCfg const & cfg, Vec<char> working_dir,
-            Vec<char> pipeline_cache_path, nanoseconds min_frame_interval);
+  Dyn<WindowEntry *> add_window_(EngineCfg::Window const & cfg,
+                                 WindowLoop                loop);
+
+  void remove_window_(WindowEntry & win);
+
+  Option<gpu::SwapchainInfo>
+    create_swapchain_info_(WindowEntry const & win_entry);
+
+  void poll_inputs_(time_point prev_frame_end, time_point frame_start);
 
   void shutdown();
 
-  time_point get_inputs_(time_point prev_frame_end);
-
-  void run(ui::View & view, Fn<void(ui::Ctx const &)> loop = noop);
+  void run();
 };
 
 /// Global Engine Pointer. Can be hooked at runtime for dynamically loaded

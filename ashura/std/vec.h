@@ -671,10 +671,13 @@ struct [[nodiscard]] Vec
   }
 };
 
-template <typename T>
-constexpr Result<Vec<T>> vec(Allocator allocator, Span<T const> data)
+namespace vec
 {
-  Result out = Vec<T>::make(data.size(), allocator);
+
+template <typename T>
+constexpr Result<Vec<remove_const<T>>> copy(Allocator allocator, Span<T> data)
+{
+  Result out = Vec<remove_const<T>>::make(data.size(), allocator);
 
   if (!out)
   {
@@ -687,7 +690,8 @@ constexpr Result<Vec<T>> vec(Allocator allocator, Span<T const> data)
 }
 
 template <typename T>
-constexpr Result<Vec<T>> vec_move(Allocator allocator, Span<T> data)
+requires (NonConst<T>)
+constexpr Result<Vec<T>> move(Allocator allocator, Span<T> data)
 {
   Result out = Vec<T>::make(data.size(), allocator);
 
@@ -700,6 +704,7 @@ constexpr Result<Vec<T>> vec_move(Allocator allocator, Span<T> data)
 
   return out;
 }
+}    // namespace vec
 
 /// @brief A Vec with a small inline-reserved storage
 /// @warning SmallVec does not have stable addressing
@@ -2152,9 +2157,6 @@ using BitVec = CoreBitVec<Vec<R>>;
 template <typename R, usize MinBitCapacity = 64>
 using SmallBitVec = CoreBitVec<SmallVec<R, atom_size_for<R>(MinBitCapacity)>>;
 
-// [ ] separate timestamp log type? modifiable, sync-able, updatable across servers
-// [ ] Make this interface more egonormic
-
 /// @brief Sparse Vector (a.k.a Sparse Set) are used for stable ID-tagging of
 /// objects in high-perf scenarious i.e. ECS, where a stable identity is needed
 /// for objects and they need to be processed in batches for efficiency. They
@@ -2170,13 +2172,17 @@ using SmallBitVec = CoreBitVec<SmallVec<R, atom_size_for<R>(MinBitCapacity)>>;
 /// The index and id either point to valid indices/ids or are an implicit free
 /// list of ids and indices masked by RELEASED_MASK
 ///
-template <typename IndexVec, typename... V>
-requires (NonConst<V> && ... && true)
-struct CoreSparseMap
+template <typename IdType, typename IndexVecType, typename... V>
+requires (NonConst<IdType> && NonConst<IndexVecType> &&
+          Unsigned<typename IndexVecType::Type> &&
+          (sizeof(IdType) == sizeof(typename IndexVecType::Type)) &&
+          (NonConst<V> && ... && true))
+struct CoreSparseVec
 {
   using Dense   = Tuple<V...>;
-  using Index   = typename IndexVec::Type;
-  using Indices = IndexVec;
+  using Index   = typename IndexVecType::Type;
+  using Indices = IndexVecType;
+  using Id      = IdType;
 
   static constexpr Index RELEASED_MASK = ~(NumTraits<Index>::MAX >> 1);
   static constexpr Index STUB          = NumTraits<Index>::MAX;
@@ -2237,7 +2243,7 @@ struct CoreSparseMap
 
   Index free_id_head_;
 
-  explicit constexpr CoreSparseMap(Indices index_to_id, Indices id_to_index,
+  explicit constexpr CoreSparseVec(Indices index_to_id, Indices id_to_index,
                                    Dense dense, Index free_id_head) :
     index_to_id_{static_cast<Indices &&>(index_to_id)},
     id_to_index_{static_cast<Indices &&>(id_to_index)},
@@ -2246,7 +2252,7 @@ struct CoreSparseMap
   {
   }
 
-  explicit constexpr CoreSparseMap(Allocator allocator) :
+  explicit constexpr CoreSparseVec(Allocator allocator) :
     index_to_id_{allocator},
     id_to_index_{allocator},
     dense{V{allocator}...},
@@ -2254,11 +2260,11 @@ struct CoreSparseMap
   {
   }
 
-  constexpr CoreSparseMap(CoreSparseMap const &) = delete;
+  constexpr CoreSparseVec(CoreSparseVec const &) = delete;
 
-  constexpr CoreSparseMap & operator=(CoreSparseMap const &) = delete;
+  constexpr CoreSparseVec & operator=(CoreSparseVec const &) = delete;
 
-  constexpr CoreSparseMap(CoreSparseMap && other) :
+  constexpr CoreSparseVec(CoreSparseVec && other) :
     index_to_id_{static_cast<Indices &&>(other.index_to_id_)},
     id_to_index_{static_cast<Indices &&>(other.id_to_index_)},
     dense{static_cast<Dense &&>(other.dense)},
@@ -2267,7 +2273,7 @@ struct CoreSparseMap
     other.free_id_head_ = STUB;
   }
 
-  constexpr CoreSparseMap & operator=(CoreSparseMap && other)
+  constexpr CoreSparseVec & operator=(CoreSparseVec && other)
   {
     if (this == &other) [[unlikely]]
     {
@@ -2281,7 +2287,7 @@ struct CoreSparseMap
     return *this;
   }
 
-  constexpr ~CoreSparseMap() = default;
+  constexpr ~CoreSparseVec() = default;
 
   constexpr bool is_empty() const
   {
@@ -2337,8 +2343,10 @@ struct CoreSparseMap
     index_to_id_.uninit();
   }
 
-  constexpr bool is_valid_id(Index id) const
+  constexpr bool is_valid_id(Id item) const
   {
+    auto const id = static_cast<Index>(item);
+
     if (id >= id_to_index_.size())
     {
       return false;
@@ -2347,18 +2355,15 @@ struct CoreSparseMap
     return (id_to_index_[id] & RELEASED_MASK) == 0;
   }
 
-  constexpr bool is_valid_id(Enumeration auto id)
-  {
-    return is_valid_id(static_cast<Index>(id));
-  }
-
   constexpr bool is_valid_index(Index index) const
   {
     return index < size();
   }
 
-  constexpr auto operator[](Index id) const
+  constexpr auto operator[](Id item) const
   {
+    auto const id = static_cast<Index>(item);
+
     auto const index = id_to_index_[id];
     return apply(
       [index](auto &... dense) {
@@ -2367,25 +2372,18 @@ struct CoreSparseMap
       dense);
   }
 
-  constexpr auto operator[](Enumeration auto id) const
+  constexpr auto get(Id item) const
   {
-    return this->operator[](static_cast<Index>(id));
-  }
+    auto const id = static_cast<Index>(item);
 
-  constexpr auto get(Index id) const
-  {
-    return this->operator[](id);
-  }
-
-  constexpr auto get(Enumeration auto id) const
-  {
     return this->operator[](id);
   }
 
   template <typename... Args>
   requires (sizeof...(Args) == sizeof...(V))
-  constexpr void set(Index id, Args &&... args) const
+  constexpr void set(Id item, Args &&... args) const
   {
+    auto const        id    = static_cast<Index>(item);
     auto              index = id_to_index_[id];
     Tuple<Args &&...> arg_refs{static_cast<Args &&>(args)...};
 
@@ -2397,18 +2395,16 @@ struct CoreSparseMap
     });
   }
 
-  constexpr Index to_index(Index id) const
+  constexpr Index to_index(Id item) const
   {
+    auto const id = static_cast<Index>(item);
     return id_to_index_[id];
   }
 
-  constexpr Index to_index(Enumeration auto id) const
+  constexpr Result<Index, Void> try_to_index(Id item) const
   {
-    return to_index(static_cast<Index>(id));
-  }
+    auto const id = static_cast<Index>(item);
 
-  constexpr Result<Index, Void> try_to_index(Index id) const
-  {
     if (!is_valid_id(id)) [[unlikely]]
     {
       return Err{};
@@ -2417,17 +2413,12 @@ struct CoreSparseMap
     return Ok{id_to_index_[id]};
   }
 
-  constexpr Result<Index, Void> try_to_index(Enumeration auto id) const
+  constexpr Id to_id(Index index) const
   {
-    return try_to_index(static_cast<Index>(id));
+    return static_cast<Id>(index_to_id_[index]);
   }
 
-  constexpr Index to_id(Index index) const
-  {
-    return index_to_id_[index];
-  }
-
-  constexpr Result<Index, Void> try_to_id(Index index) const
+  constexpr Result<Id, Void> try_to_id(Index index) const
   {
     if (!is_valid_index(index)) [[unlikely]]
     {
@@ -2437,8 +2428,9 @@ struct CoreSparseMap
     return Ok{to_id(index)};
   }
 
-  constexpr void erase(Index id)
+  constexpr void erase(Id item)
   {
+    auto const id    = static_cast<Index>(item);
     auto const index = id_to_index_[id];
     auto const last  = size() - 1;
 
@@ -2462,24 +2454,16 @@ struct CoreSparseMap
     index_to_id_.pop();
   }
 
-  constexpr void erase(Enumeration auto id)
+  constexpr Result<> try_erase(Id item)
   {
-    return erase(static_cast<Index>(id));
-  }
+    auto const id = static_cast<Index>(item);
 
-  constexpr Result<> try_erase(Index id)
-  {
     if (!is_valid_id(id)) [[unlikely]]
     {
       return Err{};
     }
     erase(id);
     return Ok{};
-  }
-
-  constexpr Result<> try_erase(Enumeration auto id)
-  {
-    return try_erase(static_cast<Index>(id));
   }
 
   constexpr Result<> reserve(Index target_capacity)
@@ -2552,7 +2536,7 @@ struct CoreSparseMap
 
   template <typename... Args>
   requires (sizeof...(Args) == sizeof...(V))
-  constexpr Result<Index, Void> push(Args &&... args)
+  constexpr Result<Id, Void> push(Args &&... args)
   {
     // grow here so we can handle all memory allocation
     // failures at once. the proceeding unwrap calls will not fail
@@ -2573,18 +2557,12 @@ struct CoreSparseMap
        ...);
     });
 
-    return Ok{id};
+    return Ok{static_cast<Id>(id)};
   }
-
-  // [ ] set()
-  // [ ] get()
 };
 
-template <typename... V>
-using CoreSparseVec = CoreSparseMap<Vec<usize>, V...>;
-
-template <typename... T>
-using SparseVec = CoreSparseMap<Vec<usize>, Vec<T>...>;
+template <typename Id, typename... T>
+using SparseVec = CoreSparseVec<Id, Vec<UnderlyingType<Id>>, Vec<T>...>;
 
 template <typename T>
 struct IsTriviallyRelocatable<Vec<T>>

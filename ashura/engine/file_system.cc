@@ -4,28 +4,30 @@
 namespace ash
 {
 
-IFileSys::IFileSys([[maybe_unused]] Allocator allocator)
+IFileSys::IFileSys(Scheduler scheduler, [[maybe_unused]] Allocator allocator) :
+  scheduler_(scheduler)
 {
 }
 
-Future<Result<Vec<u8>, IoErr>> IFileSys::load_file(Allocator allocator,
-                                                   Str       path)
+Future<Result<Vec<u8>, SysErr>> IFileSys::load_file(Allocator allocator,
+                                                    Str       path)
 {
   Vec<char> path_copy{allocator};
   path_copy.append(path).unwrap();
 
-  Future fut = future<Result<Vec<u8>, IoErr>>(allocator).unwrap();
-
-  scheduler->once(
-    [allocator, path = std::move(path_copy), fut = fut.alias()]() {
-      Vec<u8> data{allocator};
-      read_file(path, data)
-        .match([&](Void) { fut.yield(Ok{std::move(data)}).unwrap(); },
-               [&](IoErr err) { fut.yield(Err{err}).unwrap(); });
-    },
-    Ready{}, ThreadId::AnyWorker);
-
-  return fut;
+  return scheduler_
+    ->run(allocator, WorkerThread::Any,
+          [allocator, path = std::move(path_copy)]() {
+            Vec<u8> data{allocator};
+            using R = Result<Vec<u8>, SysErr>;
+            return read_file(path, data, allocator)
+              .match([&](Void) -> R { return Ok{std::move(data)}; },
+                     [&](IoErr) -> R {
+                       // [ ] Domain transfer from IoErr to SysErr
+                       return Err{SysErr::IoErr};
+                     });
+          })
+    .unwrap();
 }
 
 void IFileSys::shutdown()

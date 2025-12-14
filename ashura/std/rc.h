@@ -219,4 +219,9 @@ constexpr Rc<Handle> static_rc(Handle handle)
   return Rc<Handle>{handle, rc_noop};
 }
 
+using RcBlob8  = Rc<Span<u8 const>>;
+using RcBlob16 = Rc<Span<u16 const>>;
+using RcBlob32 = Rc<Span<u32 const>>;
+using RcBlob64 = Rc<Span<u64 const>>;
+
 }    // namespace ash

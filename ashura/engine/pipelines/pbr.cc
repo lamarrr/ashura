@@ -117,8 +117,8 @@ PBRPipeline::PBRPipeline(Allocator allocator) : variants_{allocator}
 
 void PBRPipeline::acquire(GpuFramePlan plan)
 {
-  auto id = add_variant(plan, "Base"_str,
-                        sys.shader->get("PBR.Base"_str).unwrap().shader);
+  auto id = add_variant(
+    plan, "base"_str, sys.shader->get("defaults/pbr_base"_str).unwrap().shader);
   CHECK(id == PipelineVariantId::Base, "");
 }
 
@@ -133,9 +133,9 @@ PipelineVariantId PBRPipeline::add_variant(GpuFramePlan plan, Str label,
 
 void PBRPipeline::remove_variant(GpuFramePlan plan, PipelineVariantId id)
 {
-  auto pipeline = variants_[(usize) id].v0.v1;
+  auto pipeline = variants_[id].v0.v1;
 
-  variants_.erase((usize) id);
+  variants_.erase(id);
 
   plan->add_preframe_task([p = pipeline, d = plan->device()] {
     d->uninit(p.fill);
@@ -199,7 +199,7 @@ void PBRPipeline::encode(gpu::CommandEncoder       e,
 
   e->begin_rendering(info);
 
-  auto pipelines = variants_[(usize) params.variant].v0.v1;
+  auto pipelines = variants_[params.variant].v0.v1;
 
   auto pipeline = pipelines.fill;
 

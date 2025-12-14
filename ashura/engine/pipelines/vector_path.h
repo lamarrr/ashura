@@ -49,8 +49,9 @@ struct VectorPathFillPipelineParams
 
 struct VectorPathPipeline final : IPipeline
 {
-  gpu::GraphicsPipeline                        coverage_pipeline_;
-  SparseVec<Tuple<Str, gpu::GraphicsPipeline>> fill_pipelines_;
+  gpu::GraphicsPipeline coverage_pipeline_;
+  SparseVec<PipelineVariantId, Tuple<Str, gpu::GraphicsPipeline>>
+    fill_pipelines_;
 
   VectorPathPipeline(Allocator);
 

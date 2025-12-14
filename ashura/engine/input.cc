@@ -60,30 +60,37 @@ DropState & DropState::copy(DropState const & other)
   return *this;
 }
 
-void InputState::stamp(time_point time, nanoseconds delta)
+void SystemState::stamp(time_point time, nanoseconds delta)
 {
   timestamp = time;
   timedelta = delta;
 }
 
-void InputState::clear()
+void SystemState::clear()
 {
   timestamp = {};
   timedelta = {};
-  window    = {};
-  mouse     = {};
   theme     = {};
+}
+
+SystemState & SystemState::copy(SystemState const & other)
+{
+  timestamp = other.timestamp;
+  timedelta = other.timedelta;
+  theme     = other.theme;
+  return *this;
+}
+
+void WindowState::clear()
+{
+  mouse = {};
   key.clear();
   drop.clear();
 }
 
-InputState & InputState::copy(InputState const & other)
+WindowState & WindowState::copy(WindowState const & other)
 {
-  timestamp = other.timestamp;
-  timedelta = other.timedelta;
-  window    = other.window;
-  mouse     = other.mouse;
-  theme     = other.theme;
+  mouse = other.mouse;
   key.copy(other.key);
   drop.copy(other.drop);
   return *this;

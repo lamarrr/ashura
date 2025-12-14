@@ -20,29 +20,22 @@ struct IFontSys
 
   virtual ~IFontSys() = default;
 
-  virtual void shutdown() = 0;
+  virtual void init() = 0;
 
-  /// @brief Rasterize the font at the specified font height. Note: raster is
-  /// stored as alpha values.
-  /// @note rasterizing mutates the font's internal data, not thread-safe
-  /// @param font_height the font height at which the texture should be
-  /// rasterized at (px)
-  /// @param allocator scratch allocator to use for storing intermediates
-  virtual Result<> rasterize(Font font, u32 font_height) = 0;
+  virtual void shutdown() = 0;
 
   virtual Dyn<TextLayoutBuffer> create_layout_buffer(Allocator allocator) = 0;
 
   virtual void layout_text(TextBlock const & block, f32 max_width,
-                           TextLayout & layout, TextLayoutBuffer buffer) = 0;
+                           TextLayout & layout, TextLayoutBuffer buffer,
+                           Allocator scratch) = 0;
 
-  virtual Future<Result<FontId, FontLoadErr>>
-    load_from_memory(Vec<char> label, Vec<u8> encoded, u32 font_height,
+  virtual Future<Result<FontId, SysErr>>
+    load_from_memory(Str label, RcBlob8 encoded, u32 font_height,
                      u32 face = 0) = 0;
 
-  virtual Future<Result<FontId, FontLoadErr>> load_from_path(Vec<char> label,
-                                                             Str       path,
-                                                             u32 font_height,
-                                                             u32 face = 0) = 0;
+  virtual Future<Result<FontId, SysErr>>
+    load_from_path(Str label, Str path, u32 font_height, u32 face = 0) = 0;
 
   virtual FontInfo get(FontId id) = 0;
 
@@ -50,5 +43,7 @@ struct IFontSys
 
   virtual void unload(FontId id) = 0;
 };
+
+Span<u8 const> get_default_font_data();
 
 }    // namespace ash

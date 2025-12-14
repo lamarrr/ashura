@@ -493,6 +493,9 @@ struct SwapchainPreference
   gpu::PresentMode    present_mode        = gpu::PresentMode::Immediate;
   u32x2               preferred_extent    = {};
   gpu::CompositeAlpha composite_alpha     = gpu::CompositeAlpha::None;
+
+  static Result<SwapchainPreference, Void> make(gpu::SwapchainInfo const & info,
+                                                Allocator allocator);
 };
 
 /// @param is_out_of_date can't present anymore
@@ -971,16 +974,18 @@ struct HazardBarriers
 /// @brief Global synchronization state
 struct DeviceResourceStates
 {
-  CoreSparseMap<Vec<u32>,      // id-to-index map
+  CoreSparseVec<AliasId,
+                Vec<u32>,      // id-to-index map
                 Vec<Hazard>    // memory state
                 >
     alias_;
 
-  CoreSparseMap<Vec<u32>    // id-to-index map
+  CoreSparseVec<DescriptorSetId,
+                Vec<u32>    // id-to-index map
                 >
     descriptor_sets_;
 
-  RWLock<IFutex> lock_;
+  RWLock lock_;
 
   DeviceResourceStates(Allocator allocator) :
     alias_{allocator},
@@ -1005,7 +1010,8 @@ struct EncoderResourceStates
   static constexpr VkPipelineStageFlags COMPUTE_DESCRIPTOR_STAGES =
     VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
 
-  CoreSparseMap<
+  CoreSparseVec<
+    AliasId,
     Vec<u32>,       // id-to-index map
     Vec<Hazard>,    // memory hazard so far
     BitVec<u64>,    // was the resource accessed?
@@ -1013,7 +1019,8 @@ struct EncoderResourceStates
     >
     alias_;
 
-  CoreSparseMap<
+  CoreSparseVec<
+    DescriptorSetId,
     Vec<u32>,    // id-to-index map
     Vec<
       u32>    // the last pass the descriptor set was accessed: initially U32_MAX
@@ -1576,6 +1583,10 @@ struct IDevice final : gpu::IDevice
   virtual Result<Void, Status> get_statistics_query_result(
     gpu::StatisticsQuery query, u32 first,
     Span<gpu::PipelineStatistics> statistics) override;
+
+  virtual Result<Void, Status>
+    mark_swapchain_out_of_date(gpu::Swapchain             swapchain,
+                               gpu::SwapchainInfo const & info) override;
 
   virtual Result<Void, Status> acquire_next(gpu::Swapchain swapchain) override;
 

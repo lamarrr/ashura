@@ -8,7 +8,7 @@ TEST(AnimationEngine, Basic)
   using namespace ash;
 
   StaggeredAnimation<f32> animation =
-      StaggeredAnimation<f32>::make(6, 36, RippleStagger{});
+    StaggeredAnimation<f32>::make(6, 36, RippleStagger{}, default_allocator);
 
   auto & timeline = animation.timelines().v0;
 
@@ -22,7 +22,7 @@ TEST(AnimationEngine, Basic)
   EXPECT_EQ(timeline.duration(), 1ms);
 
   EXPECT_EQ(animation.animate(0).v0, 20);
-  
+
   animation.tick(500us);
 
   EXPECT_EQ(animation.animate(0).v0, 25);

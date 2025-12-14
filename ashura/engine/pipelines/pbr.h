@@ -36,7 +36,7 @@ struct PBRPipeline final : IPipeline
     gpu::GraphicsPipeline point = nullptr;
   };
 
-  SparseVec<Tuple<Str, Pipeline>> variants_;
+  SparseVec<PipelineVariantId, Tuple<Str, Pipeline>> variants_;
 
   PBRPipeline(Allocator);
 

@@ -106,8 +106,9 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
 
 void QuadPipeline::acquire(GpuFramePlan plan)
 {
-  auto id = add_variant(plan, "Base"_str,
-                        sys.shader->get("Quad.Base"_str).unwrap().shader);
+  auto id =
+    add_variant(plan, "base"_str,
+                sys.shader->get("defaults/quad_base"_str).unwrap().shader);
   CHECK(id == PipelineVariantId::Base, "");
 }
 
@@ -121,8 +122,8 @@ PipelineVariantId QuadPipeline::add_variant(GpuFramePlan plan, Str label,
 
 void QuadPipeline::remove_variant(GpuFramePlan plan, PipelineVariantId id)
 {
-  auto pipeline = variants_[(usize) id].v0.v1;
-  variants_.erase((usize) id);
+  auto pipeline = variants_[id].v0.v1;
+  variants_.erase(id);
   plan->add_preframe_task([p = pipeline, d = plan->device()] { d->uninit(p); });
 }
 
@@ -170,7 +171,7 @@ void QuadPipeline::encode(gpu::CommandEncoder        e,
                        .depth_attachment   = {},
                        .stencil_attachment = stencil};
 
-  auto pipeline = variants_[(usize) params.variant].v0.v1;
+  auto pipeline = variants_[params.variant].v0.v1;
 
   e->begin_rendering(info);
   e->bind_graphics_pipeline(pipeline);
@@ -190,9 +191,9 @@ void QuadPipeline::encode(gpu::CommandEncoder        e,
   CHECK(size32(params.state_runs) == (size32(params.states) + 1), "");
   auto num_states = size32(params.states);
 
-  for (auto i : range(num_states))
+  for (auto s : range(num_states))
   {
-    auto & state = params.states[i];
+    auto & state = params.states[s];
 
     e->set_graphics_state(gpu::GraphicsState{
       .scissor             = state.scissor,
@@ -204,7 +205,7 @@ void QuadPipeline::encode(gpu::CommandEncoder        e,
         state.stencil.map([](auto s) { return s.back; }).unwrap_or()});
 
     e->draw({0, 4},
-            Slice32::range(params.state_runs[i], params.state_runs[i + 1]));
+            Slice32::offsets(params.state_runs[s], params.state_runs[s + 1]));
   }
 
   e->end_rendering();

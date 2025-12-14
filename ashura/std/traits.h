@@ -235,4 +235,12 @@ concept Predicate = requires (Fn fn, Args... args) {
   { fn(static_cast<Args>(args)...) && true };
 };
 
+template <typename T>
+using UnderlyingType =
+#if ASH_CFG(COMPILER, CLANG)
+  __underlying_type(T);
+#else
+  std::underlying_type_t<T>;
+#endif
+
 }    // namespace ash

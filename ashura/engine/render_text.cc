@@ -253,14 +253,15 @@ TextLayout const & RenderText::get_layout() const
   return layout_;
 }
 
-void RenderText::layout(f32 max_width, TextLayoutBuffer buffer)
+void RenderText::layout(f32 max_width, TextLayoutBuffer buffer,
+                        Allocator scratch)
 {
   if (hash_ == HASH_CLEAN && max_width == layout_.max_width)
   {
     return;
   }
 
-  sys.font->layout_text(block(), max_width, layout_, buffer);
+  sys.font->layout_text(block(), max_width, layout_, buffer, scratch);
   hash_ = HASH_CLEAN;
 }
 
@@ -1027,7 +1028,8 @@ void EditText::tick(nanoseconds)
                      actions         = std::move(actions),
                      previous_state_ = state_.alias(),
                      history         = std::move(state_->history)]() mutable {
-      auto cursors = SmallVec<Cursor, 8>{allocator};
+      tracing::ScopeTrace trace{"EditText::tick::apply_actions"_str};
+      auto                cursors = SmallVec<Cursor, 8>{allocator};
 
       Option<RenderText> rendered = none;
       auto layout_buffer          = sys.font->create_layout_buffer(allocator);
@@ -1040,6 +1042,9 @@ void EditText::tick(nanoseconds)
         auto view     = rc_text->view().as_const();
         auto rc_str32 = transmute(std::move(rc_text), view);
         auto new_text = renderer.get()(allocator, std::move(rc_str32));
+        // [ ] scratch allocator
+        // [ ] get_thread_scratch_allocator();
+        // [ ] set_thread_scratch_allocator(buffer, upstream);
         new_text.layout(max_width, layout_buffer);
         rendered = std::move(new_text);
       };
