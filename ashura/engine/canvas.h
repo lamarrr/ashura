@@ -532,9 +532,9 @@ struct ICanvas
 
   Vec<Dyn<CanvasEncoder>> encoders_;
 
-  ArenaPool encoder_arena_;
+  IArenaPool encoder_arena_;
 
-  ArenaPool tmp_arena_;
+  IArenaPool tmp_arena_;
 
   explicit ICanvas(Allocator allocator) :
     state_{CanvasState::Reset},

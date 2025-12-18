@@ -1,34 +1,26 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/std/trace.h"
+#include "ashura/std/list.h"
 
 namespace ash
 {
 namespace tracing
 {
 
-static constexpr usize BUFFER_SIZE     = 4'096;
-static constexpr usize MAX_NUM_THREADS = 256;
-
-static InplaceVec<Tuple<EventSink<I64RangeRecord> *, std::thread::id>,
-                  MAX_NUM_THREADS>
-                  thread_scope_sinks;
-static std::mutex thread_scope_sinks_lock;
-
 struct EventSinkHook
 {
-  EventSink<I64RangeRecord> sink;
-  std::thread::id           thread_id;
+  EventSinkHook *           next;
+  EventSinkHook *           prev;
+  EventSink<I64RangeRecord> v;
+
+  static void push(EventSinkHook *);
+
+  static void pop(EventSinkHook *);
 
   template <typename... Args>
-  EventSinkHook(Args &&... args) :
-    sink{static_cast<Args &&>(args)...},
-    thread_id{std::this_thread::get_id()}
+  EventSinkHook(Args &&... args) : v{static_cast<Args &&>(args)...}
   {
-    LockGuard guard{thread_scope_sinks_lock};
-    thread_scope_sinks
-      .push(
-        Tuple<EventSink<I64RangeRecord> *, std::thread::id>{&sink, thread_id})
-      .unwrap();
+    push(this);
   }
 
   EventSinkHook(EventSinkHook const &)             = delete;
@@ -38,28 +30,44 @@ struct EventSinkHook
 
   ~EventSinkHook()
   {
-    LockGuard guard{thread_scope_sinks_lock};
-    for (usize i = 0; i < thread_scope_sinks.size(); i++)
-    {
-      if (thread_scope_sinks[i].v1 == thread_id)
-      {
-        thread_scope_sinks.erase(i, 1);
-        break;
-      }
-    }
+    pop(this);
   }
 };
 
-EventSink<I64RangeRecord> & scope_trace_sink()
+struct EventSinkHooks
 {
-  static thread_local EventSinkHook hook{
-    EventData{.label = "ScopeTrace"_str,
-              .type  = "I64Range"_str,
-              .unit  = "nanoseconds"_str},
-    Vec<I64RangeRecord>::make(BUFFER_SIZE, default_allocator).unwrap()
-  };
+  std::mutex          lock;
+  List<EventSinkHook> sinks;
+};
 
-  return hook.sink;
+static EventSinkHooks thread_event_sinks;
+
+void EventSinkHook::push(EventSinkHook * hook)
+{
+  LockGuard guard{thread_event_sinks.lock};
+  thread_event_sinks.sinks.push_front(hook);
+}
+
+void EventSinkHook::pop(EventSinkHook * hook)
+{
+  LockGuard guard{thread_event_sinks.lock};
+  thread_event_sinks.sinks.unlink_at(hook);
+}
+
+EventSink<I64RangeRecord> & get_scope_trace_sink()
+{
+  static constexpr usize CFG_BUFFER_SIZE = 4'096;
+
+  static thread_local EventSinkHook hook{[] {
+    return EventSink<I64RangeRecord>{
+      EventData{.label = "ScopeTrace"_str,
+                .type  = "I64Range"_str,
+                .unit  = "nanoseconds"_str},
+      Vec<I64RangeRecord>::make(CFG_BUFFER_SIZE, default_allocator).unwrap()
+    };
+  }()};
+
+  return hook.v;
 }
 
 }    // namespace tracing

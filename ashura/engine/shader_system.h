@@ -67,8 +67,7 @@ struct IShaderSys
 
   void shutdown();
 
-  Result<ShaderId, SysErr> load_from_memory(Str             label,
-                                                  Span<u32 const> spirv);
+  Result<ShaderId, SysErr> load_from_memory(Str label, Span<u32 const> spirv);
 
   Future<Result<ShaderId, SysErr>> load_from_path(Str label, Str path);
 
@@ -78,6 +77,8 @@ struct IShaderSys
 
   void unload_(ShaderId);
 
+  /// @warning Resources are not reference counted. Holding on to their info
+  /// structs after unloading them will be catastrophic
   void unload(ShaderId);
 };
 

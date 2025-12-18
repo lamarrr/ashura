@@ -21,11 +21,12 @@ Str SdfPipeline::label()
 gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
                                       gpu::Shader shader)
 {
-  u8 scratch_buffer_[1'024];
+  u8     scratch_buffer_[1'024];
+  IArena scratch_arena_{scratch_buffer_};
 
   auto & gpu = *plan->sys();
 
-  FallbackAllocator scratch{scratch_buffer_, gpu.allocator()};
+  IFallbackAllocator scratch{&scratch_arena_, gpu.allocator()};
 
   auto raster_state =
     gpu::RasterizationState{.depth_clamp_enable = false,

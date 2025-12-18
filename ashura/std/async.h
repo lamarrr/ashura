@@ -15,6 +15,7 @@
 #include "ashura/std/time.h"
 #include "ashura/std/tuple.h"
 #include "ashura/std/types.h"
+#include "ashura/std/vec.h"
 
 #include <atomic>
 #include <thread>
@@ -25,7 +26,6 @@
 
 namespace ash
 {
-
 inline void yielding_backoff(u64 poll)
 {
   if (poll < 8)
@@ -50,42 +50,11 @@ inline void yielding_backoff(u64 poll)
   return;
 }
 
-inline void sleepy_backoff(u64 poll, nanoseconds sleep)
-{
-  if (poll < 8)
-  {
-    return;
-  }
+typedef struct ISpinLock * SpinLock;
 
-  if (poll < 16)
-  {
-#if ASH_CFG(ARCH, X86) || ASH_CFG(ARCH, X86_64)
-    _mm_pause();
-#else
-#  if ASH_CFG(ARCH, ARM32) || ASH_CFG(ARCH, ARM64)
-    __asm("yield");
-#  endif
-#endif
-
-    return;
-  }
-
-  if (poll < 64)
-  {
-    std::this_thread::yield();
-    return;
-  }
-
-  std::this_thread::sleep_for(sleep);
-  return;
-}
-
-typedef struct IFutex * Futex;
-
-/// @brief Fast user-space mutex suitable for non-deterministic critical sections.
-// The mutex is paced to minimize cache invalidation and make CPU usage efficient.
-///
-struct IFutex
+/// @brief Fast user-space spinlock suitable for deterministic and short critical sections.
+/// The spinlock is unpaced and can cause cache invalidation and inefficient CPU usage, use with caution.
+struct ISpinLock
 {
   usize flag_ = false;
 
@@ -121,43 +90,6 @@ struct IFutex
   }
 };
 
-typedef struct ISpinLock * SpinLock;
-
-/// @brief Fast user-space spinlock suitable for deterministic and short critical sections.
-/// The spinlock is unpaced and can cause cache invalidation and inefficient CPU usage, use with caution.
-struct ISpinLock
-{
-  usize flag_ = false;
-
-  void lock()
-  {
-    usize           expected = false;
-    usize           target   = true;
-    std::atomic_ref flag{flag_};
-    while (!flag.compare_exchange_weak(
-      expected, target, std::memory_order_acquire, std::memory_order_relaxed))
-    {
-      expected = false;
-    }
-  }
-
-  [[nodiscard]] bool try_lock()
-  {
-    usize           expected = false;
-    usize           target   = true;
-    std::atomic_ref flag{flag_};
-    flag.compare_exchange_weak(expected, target, std::memory_order_acquire,
-                               std::memory_order_relaxed);
-    return expected;
-  }
-
-  void unlock()
-  {
-    std::atomic_ref flag{flag_};
-    flag.store(false, std::memory_order_release);
-  }
-};
-
 typedef struct ITicketSpinLock * TicketSpinLock;
 
 struct ITicketSpinLock
@@ -169,6 +101,7 @@ struct ITicketSpinLock
   {
     std::atomic_ref front{front_};
     std::atomic_ref back{back_};
+    u64             poll = 0;
 
     auto ticket = back.fetch_add(1, std::memory_order_relaxed) - 1;
 
@@ -180,6 +113,9 @@ struct ITicketSpinLock
       {
         return;
       }
+
+      yielding_backoff(poll);
+      poll++;
     }
   }
 
@@ -199,6 +135,11 @@ struct ITicketSpinLock
     std::atomic_ref front{front_};
     front.fetch_add(1, std::memory_order_release);
   }
+};
+
+struct ISeqLock
+{
+  usize version_ = 0;
 };
 
 template <typename L>
@@ -225,24 +166,33 @@ struct LockGuard
   }
 };
 
-template <typename UpstreamLock>
-struct RWLock
+typedef struct IRWLock * RWLock;
+
+struct IRWLock
 {
-  UpstreamLock lock_{};
-  usize        num_writers_ = 0;
-  usize        num_readers_ = 0;
+  usize state_ = 0;
 
   void lock_read()
   {
-    u64 poll = 0;
+    std::atomic_ref state{state_};
+    usize           expected = 0;
+    usize           target   = 1;
+    usize           poll     = 0;
+
     while (true)
     {
-      LockGuard guard{lock_};
-      if (num_writers_ == 0)
+      if (state.compare_exchange_weak(expected, target,
+                                      std::memory_order_acquire,
+                                      std::memory_order_relaxed))
       {
-        num_readers_++;
         return;
       }
+
+      if (expected != USIZE_MAX)
+      {
+        target = expected + 1;
+      }
+
       yielding_backoff(poll);
       poll++;
     }
@@ -250,16 +200,23 @@ struct RWLock
 
   void lock_write()
   {
-    u64 poll = 0;
+    std::atomic_ref state{state_};
+    usize           expected = 0;
+    usize           target   = USIZE_MAX;
+    usize           poll     = 0;
 
     while (true)
     {
-      LockGuard guard{lock_};
-      if (num_writers_ == 0 && num_readers_ == 0)
+      if (state.compare_exchange_weak(expected, target,
+                                      std::memory_order_acquire,
+                                      std::memory_order_relaxed))
       {
-        num_writers_++;
         return;
       }
+
+      expected = 0;
+      target   = USIZE_MAX;
+
       yielding_backoff(poll);
       poll++;
     }
@@ -267,14 +224,14 @@ struct RWLock
 
   void unlock_read()
   {
-    LockGuard guard{lock_};
-    num_readers_--;
+    std::atomic_ref state{state_};
+    state.fetch_sub(1, std::memory_order_relaxed);
   }
 
   void unlock_write()
   {
-    LockGuard guard{lock_};
-    num_writers_--;
+    std::atomic_ref state{state_};
+    state.store(0, std::memory_order_release);
   }
 };
 
@@ -735,6 +692,13 @@ template <typename Future, typename FutureStageKey>
   return false;
 }
 
+[[nodiscard]] inline bool await_futures(Span<FutureStage * const> futures,
+                                        nanoseconds               timeout)
+{
+  return await_futures(futures, timeout,
+                       [](auto const & f) -> FutureStage & { return *f; });
+}
+
 }    // namespace impl
 
 /// @brief A Stream is a continously mutated value yielding side-effects to
@@ -1077,6 +1041,24 @@ struct TaskInstance
     [](AnyFuture const & f) -> FutureStage & { return *f.state_; });
 }
 
+template <typename T>
+[[nodiscard]] inline bool await_futures(Span<Future<T> const> futures,
+                                        nanoseconds           timeout)
+{
+  return impl::await_futures(
+    futures, timeout,
+    [](Future<T> const & f) -> FutureStage & { return *f.state_; });
+}
+
+template <typename T>
+[[nodiscard]] inline bool await_futures(Span<Future<T>> futures,
+                                        nanoseconds     timeout)
+{
+  return impl::await_futures(
+    futures, timeout,
+    [](Future<T> const & f) -> FutureStage & { return *f.state_; });
+}
+
 template <usize N>
 struct [[nodiscard]] AwaitStreams
 {
@@ -1103,6 +1085,16 @@ struct [[nodiscard]] AwaitFutures
 template <typename... T>
 AwaitFutures(T...) -> AwaitFutures<sizeof...(T)>;
 
+struct [[nodiscard]] AwaitFuturesVec
+{
+  Vec<AnyFuture> futures;
+
+  [[nodiscard]] bool operator()() const
+  {
+    return await_futures(futures.view(), 0ns);
+  }
+};
+
 struct [[nodiscard]] Delay
 {
   steady_clock::time_point from{};
@@ -1122,11 +1114,13 @@ struct [[nodiscard]] Delay
 
 struct [[nodiscard]] Ready
 {
-  [[nodiscard]] constexpr bool operator()() const
+  [[nodiscard]] static constexpr bool operator()()
   {
     return true;
   }
 };
+
+inline constexpr Ready ready;
 
 enum class WorkerThread : u32
 {
@@ -1149,21 +1143,19 @@ using Thread = Enum<WorkerThread, DedicatedThread, MainThread>;
 
 typedef struct IScheduler * Scheduler;
 
-// [ ] thread names; thread metadata
+struct SchedulerThreadInfo
+{
+  Str name = "SchedulerThread"_str;
+};
+
 struct SchedulerInfo
 {
   /// @brief thread-safe allocator to allocate tasks from, must be able to allocate page-sized allocations
   Allocator allocator;
 
-  /// @brief max sleep time for the dedicated threads.
-  /// enables responsiveness. `.size()` represents the number of dedicated
-  /// threads to create.
-  Span<nanoseconds const> dedicated_thread_sleep = {};
+  Span<SchedulerThreadInfo const> dedicated_threads = {};
 
-  /// @brief maximum sleep time for the worker threads.
-  /// enables responsiveness. `.size()` represents the number of worker threads
-  /// to create.
-  Span<nanoseconds const> worker_thread_sleep = {};
+  Span<SchedulerThreadInfo const> worker_threads = {};
 
   std::thread::id main_thread_id = {};
 };
@@ -1205,13 +1197,12 @@ struct IScheduler
   /// @param info Task frame information
   /// @param thread the index of the thread to schedule to. If none is specified,
   /// the task is scheduled to the main thread.
-  virtual void schedule(TaskInfo const & info,
-                        Thread           thread = WorkerThread::Any) = 0;
+  virtual void schedule_raw(Thread thread, TaskInfo const & info) = 0;
 
   /// @brief Execute work on the main thread queue
-  /// @param grace_period minimum time (within duration) to wait for tasks when
-  /// the task queue is empty
   /// @param duration maximum timeout to spend executing tasks
+  /// @param poll_max minimum time (within duration) to wait for tasks when
+  /// the task queue is empty
   virtual void run_main_loop(nanoseconds duration, nanoseconds poll_max) = 0;
 
   /// @brief Request that all threads shutdown once all work on the threads are finished executing and there's no more
@@ -1228,9 +1219,9 @@ struct IScheduler
   /// @brief Schedule a task to run
   /// @param thread the thread to run the task on
   template <TaskFrame F>
-  void schedule(F && task, Thread thread = WorkerThread::Any)
+  void schedule(Thread thread, F && task)
   {
-    schedule(to_task_info(task), thread);
+    schedule_raw(thread, to_task_info(task));
   }
 
   /// @brief Launch a one-shot task
@@ -1240,26 +1231,203 @@ struct IScheduler
   /// @param poll Poller functor that returns true when ready
   /// @param schedule How to schedule the task
   template <Callable F, Poll P = Ready>
-  void once(F fn, P poll = {}, Thread thread = WorkerThread::Any)
+  void once(Thread thread, F fn, P poll)
   {
-    this->schedule(TaskBody{static_cast<P &&>(poll),
+    this->schedule(thread,
+                   TaskBody{static_cast<P &&>(poll),
                             [fn = static_cast<F &&>(fn)]() mutable -> bool {
                               fn();
                               return false;
-                            }},
-                   thread);
+                            }});
   }
 
+  /// @brief Launch a one-shot task with multiple functions to be called in sequence
   template <Callable F, Callable... F1, Poll P = Ready>
-  void once(Tuple<F, F1...> fns, P poll = {}, Thread thread = WorkerThread::Any)
+  void once(Thread thread, Tuple<F, F1...> fns, P poll)
   {
     this->schedule(
+      thread,
       TaskBody{static_cast<P &&>(poll),
                [fns = static_cast<Tuple<F, F1...> &&>(fns)]() mutable -> bool {
                  ash::fold(fns);
                  return false;
-               }},
-      thread);
+               }});
+  }
+
+  /// @brief Launch a task that produces a future value
+  template <typename Func>
+  auto run(Allocator future_allocator, Thread thread, Func func)
+  {
+    using Ret = decltype(func());
+    using Fut = Future<Ret>;
+
+    auto fut_r = future<Ret>(future_allocator);
+
+    if (!fut_r)
+    {
+      return Result<Fut>{Err{}};
+    }
+
+    auto fut = std::move(fut_r.v());
+
+    this->once(
+      thread,
+      [fut = fut.alias(), func = static_cast<Func &&>(func)]() mutable {
+        fut.yield(func()).unwrap();
+      },
+      ready);
+
+    return Result<Fut>{Ok{std::move(fut)}};
+  }
+
+  /// @brief Launch a task that produces a future value after awaiting other
+  /// futures
+  template <typename Func, typename... FutureTypes>
+  auto then(Allocator future_allocator, Thread thread, Func func,
+            Future<FutureTypes>... awaits)
+  {
+    using Ret = decltype(func(awaits.get()...));
+    using Fut = Future<Ret>;
+
+    auto fut_r = future<Ret>(future_allocator);
+
+    if (!fut_r)
+    {
+      return Result<Fut>{Err{}};
+    }
+
+    auto fut = std::move(fut_r.v());
+
+    struct Frame
+    {
+      Func                          func;
+      Tuple<Future<FutureTypes>...> awaits;
+      Fut                           yield_fut;
+
+      bool poll()
+      {
+        return apply(
+          [](auto &... f) {
+            FutureStage * stages[] = {&f.state_.get().stage_...};
+            return impl::await_futures(stages, 0ns);
+          },
+          awaits);
+      }
+
+      bool run()
+      {
+        yield_fut
+          .yield(
+            apply([this](auto &... fs) { return func(fs.get()...); }, awaits))
+          .unwrap();
+        return false;
+      }
+    };
+
+    this->schedule(thread, Frame{.func{static_cast<Func &&>(func)},
+                                 .awaits{std::move(awaits)...},
+                                 .yield_fut{fut.alias()}});
+
+    return Result<Fut>{Ok{std::move(fut)}};
+  }
+
+  /// @brief Flattens a nested future result into a single future result
+  template <typename FlattenFunc, typename T, typename E>
+  auto flatten(Allocator future_allocator, Thread thread,
+               FlattenFunc                             flatten_func,
+               Future<Result<Future<Result<T, E>>, E>> await)
+  {
+    using U   = decltype(flatten_func(declval<Result<T, E>>()));
+    using Fut = Future<U>;
+
+    struct Frame
+    {
+      FlattenFunc                             flatten_func;
+      Future<Result<Future<Result<T, E>>, E>> await;
+      Fut                                     yield_fut;
+      u8                                      nesting_level = 0;
+
+      bool poll()
+      {
+        switch (nesting_level)
+        {
+          case 0:
+          {
+            FutureStage * stages[] = {&await.state_.get().stage_};
+            return impl::await_futures(stages, 0ns);
+          }
+
+          case 1:
+          {
+            auto &        r0       = await.get();
+            FutureStage * stages[] = {&r0.v().state_.get().stage_};
+            return impl::await_futures(stages, 0ns);
+          }
+        }
+      }
+
+      bool run()
+      {
+        switch (nesting_level)
+        {
+          case 0:
+          {
+            auto & r0 = await.get();
+            if (r0.is_err())
+            {
+              yield_fut
+                .yield(flatten_func(Result<T, E>{Err{std::move(r0.err())}}))
+                .unwrap();
+              return false;
+            }
+
+            nesting_level++;
+
+            // if next level is not ready, reschedule
+            if (!poll())
+            {
+              return true;
+            }
+
+            [[fallthrough]];
+          }
+
+          case 1:
+          {
+            auto r0     = std::move(await.get());
+            auto r1_fut = r0.unwrap();
+            auto r1     = std::move(r1_fut.get());
+            yield_fut.yield(flatten_func(std::move(r1))).unwrap();
+            return false;
+          }
+        }
+      }
+    };
+
+    auto fut_r = future<U>(future_allocator);
+
+    if (!fut_r)
+    {
+      return Result<Fut>{Err{}};
+    }
+
+    auto fut = std::move(fut_r.v());
+
+    this->schedule(
+      thread, Frame{.flatten_func{static_cast<FlattenFunc &&>(flatten_func)},
+                    .await{std::move(await)},
+                    .yield_fut{fut.alias()}});
+
+    return Result<Fut>{Ok{std::move(fut)}};
+  }
+
+  /// @brief Flattens a nested future result into a single future result
+  template <typename T, typename E>
+  auto flatten(Allocator future_allocator, Thread thread,
+               Future<Result<Future<Result<T, E>>, E>> await)
+  {
+    return flatten(
+      future_allocator, thread, [](auto r) { return r; }, std::move(await));
   }
 
   /// @brief Launch a task that is repeatedly called until it is done
@@ -1270,12 +1438,13 @@ struct IScheduler
   /// @param schedule How to schedule the task
   template <Callable F, Poll P = Ready>
   requires (Convertible<CallResult<F>, bool>)
-  void loop(F fn, P poll = {}, Thread thread = WorkerThread::Any)
+  void loop(Thread thread, F fn, P poll)
   {
-    this->schedule(
-      TaskBody{static_cast<P &&>(poll),
-               [fn = static_cast<F &&>(fn)]() mutable -> bool { return fn(); }},
-      thread);
+    this->schedule(thread,
+                   TaskBody{static_cast<P &&>(poll),
+                            [fn = static_cast<F &&>(fn)]() mutable -> bool {
+                              return fn();
+                            }});
   }
 
   /// @brief Launch a task that is repeatedly called n times
@@ -1289,7 +1458,7 @@ struct IScheduler
   template <Callable<u64> F, Poll P = Ready>
   requires (Same<CallResult<F, u64>, void> ||
             Convertible<CallResult<F, u64>, bool>)
-  void repeat(F fn, u64 n, P poll = {}, Thread thread = WorkerThread::Any)
+  void repeat(Thread thread, F fn, u64 n, P poll)
   {
     if (n == 0)
     {
@@ -1297,6 +1466,7 @@ struct IScheduler
     }
 
     this->schedule(
+      thread,
       TaskBody{static_cast<P &&>(poll),
                [fn = static_cast<F &&>(fn), n, i = (u64) 0]() mutable -> bool {
                  if constexpr (Same<CallResult<F, u64>, void>)
@@ -1312,8 +1482,7 @@ struct IScheduler
                    i++;
                    return done || (n == i);
                  }
-               }},
-      thread);
+               }});
   }
 
   /// @brief Launch shards of tasks, All shards share the same state and task
@@ -1326,8 +1495,8 @@ struct IScheduler
   /// @param poll Poller functor that returns true when ready
   /// @param schedule How to schedule the shards
   template <typename State, Poll P = Ready>
-  void shard(Rc<State> state, Fn<void(TaskInstance, State)> fn, u64 dim,
-             P poll = {}, Thread thread = WorkerThread::Any)
+  void shard(Thread thread, Rc<State> state, Fn<void(TaskInstance, State)> fn,
+             u64 dim, P poll)
   {
     if (dim == 0)
     {
@@ -1346,22 +1515,22 @@ struct IScheduler
     //
     //
     this->schedule(
+      thread,
       TaskBody{
         static_cast<P &&>(poll),
         [fn, state = std::move(state), thread, dim, this]() mutable -> bool {
           for (u64 i = 0; i < dim; i++)
           {
             this->schedule(
-              TaskBody{Ready{},
+              thread,
+              TaskBody{ready,
                        [fn, i, dim, state = state.alias()]() mutable -> bool {
                          fn(TaskInstance{.dim = dim, .idx = i}, state.get());
                          return false;
-                       }},
-              thread);
+                       }});
           }
           return false;
-        }},
-      thread);
+        }});
   }
 };
 

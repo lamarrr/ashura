@@ -648,7 +648,6 @@ struct Theme
   void * user_data        = nullptr;
 };
 
-// [ ] better theming
 extern Theme theme;
 
 struct Layout

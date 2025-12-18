@@ -6,6 +6,7 @@
 #include "ashura/std/cfg.h"
 #include "ashura/std/error.h"
 #include "ashura/std/list.h"
+#include "ashura/std/thread.h"
 #include "ashura/std/time.h"
 #include "ashura/std/types.h"
 #include "ashura/std/vec.h"
@@ -25,7 +26,7 @@ struct TaskArena : Pin<>
   TaskArena *      next = nullptr;
   TaskArena *      prev = nullptr;
   AtomicAliasCount ac{};
-  Arena            arena{};
+  IArena           arena{};
 
   static constexpr auto flex()
   {
@@ -112,7 +113,7 @@ struct TaskAllocator
   /// arenas.
   struct alignas(CACHELINE_ALIGNMENT)
   {
-    IFutex          lock{};
+    ISpinLock       lock{};
     List<TaskArena> list{};
 
     TaskArena * pop()
@@ -130,7 +131,7 @@ struct TaskAllocator
   /// allocate a new arena and make it the current arena.
   struct alignas(CACHELINE_ALIGNMENT)
   {
-    IFutex      lock{};
+    ISpinLock   lock{};
     TaskArena * node = nullptr;
 
   } current_arena{};
@@ -347,14 +348,12 @@ struct alignas(CACHELINE_ALIGNMENT) TaskThread
   ThreadType  type;
   TaskQueue   queue;
   ISemaphore  drain_semaphore;
-  nanoseconds max_sleep;
   std::thread thread;
 
-  TaskThread(Allocator allocator, ThreadType type, nanoseconds max_sleep) :
+  TaskThread(Allocator allocator, ThreadType type) :
     type{type},
     queue{allocator},
-    drain_semaphore{},
-    max_sleep{max_sleep}
+    drain_semaphore{}
   {
   }
 
@@ -449,8 +448,7 @@ struct ASH_DLL_EXPORT SchedulerImpl final : IScheduler
     joined_ = true;
   }
 
-  static void thread_loop(TaskAllocator & a, TaskQueue & q, Semaphore s,
-                          nanoseconds max_sleep)
+  static void thread_loop(TaskAllocator & a, TaskQueue & q, Semaphore s)
   {
     u64 poll = 0;
 
@@ -467,7 +465,7 @@ struct ASH_DLL_EXPORT SchedulerImpl final : IScheduler
           break;
         }
 
-        sleepy_backoff(poll, max_sleep);
+        yielding_backoff(poll);
         poll++;
         continue;
       }
@@ -605,7 +603,7 @@ struct ASH_DLL_EXPORT SchedulerImpl final : IScheduler
     return size32(worker_threads_);
   }
 
-  virtual void schedule(TaskInfo const & info, Thread thread) override
+  virtual void schedule_raw(Thread thread, TaskInfo const & info) override
   {
     thread.match(
       [&](WorkerThread t) {
@@ -639,10 +637,8 @@ struct ASH_DLL_EXPORT SchedulerImpl final : IScheduler
 
   virtual bool await_drain(nanoseconds timeout) override
   {
-    u8                buffer_[512];
-    FallbackAllocator scratch{buffer_, allocator_};
-    Vec<Semaphore>    semaphores{scratch};
-    Vec<u64>          stages{scratch};
+    Vec<Semaphore> semaphores{allocator_};
+    Vec<u64>       stages{allocator_};
 
     semaphores.reserve(dedicated_threads_.size() + worker_threads_.size())
       .unwrap();
@@ -685,27 +681,35 @@ Dyn<Scheduler> IScheduler::create(SchedulerInfo const & info)
                                  info.main_thread_id)
                 .unwrap();
 
-  for (auto sleep : info.dedicated_thread_sleep)
+  for (auto thread_info : info.dedicated_threads)
   {
     auto thread = dyn<TaskThread>(inplace, info.allocator, info.allocator,
-                                  ThreadType::Dedicated, sleep)
+                                  ThreadType::Dedicated)
                     .unwrap();
-    thread->thread = std::thread{[t = thread.get()] {
-      SchedulerImpl::thread_loop(t->queue.allocator, t->queue,
-                                 &t->drain_semaphore, t->max_sleep);
-    }};
+    auto thread_name = vec::copy(info.allocator, thread_info.name).unwrap();
+    thread->thread   = std::thread{
+      [t = thread.get(), thread_name = std::move(thread_name)] mutable {
+        set_thread_name(thread_name);
+        thread_name.reset();
+        SchedulerImpl::thread_loop(t->queue.allocator, t->queue,
+                                     &t->drain_semaphore);
+      }};
     impl->dedicated_threads_.push(std::move(thread)).unwrap();
   }
 
-  for (auto sleep : info.worker_thread_sleep)
+  for (auto thread_info : info.worker_threads)
   {
     auto thread = dyn<TaskThread>(inplace, info.allocator, info.allocator,
-                                  ThreadType::Worker, sleep)
+                                  ThreadType::Worker)
                     .unwrap();
-    thread->thread = std::thread{[t = thread.get(), q = &impl->worker_queue_] {
-      SchedulerImpl::thread_loop(q->allocator, *q, &t->drain_semaphore,
-                                 t->max_sleep);
-    }};
+    auto thread_name = vec::copy(info.allocator, thread_info.name).unwrap();
+    thread->thread =
+      std::thread{[t = thread.get(), q = &impl->worker_queue_,
+                   thread_name = std::move(thread_name)] mutable {
+        set_thread_name(thread_name);
+        thread_name.reset();
+        SchedulerImpl::thread_loop(q->allocator, *q, &t->drain_semaphore);
+      }};
     impl->worker_threads_.push(std::move(thread)).unwrap();
   }
 

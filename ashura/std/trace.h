@@ -77,7 +77,7 @@ struct EventSink
   RingBuffer<Record> records_;
   usize              num_produced_;
   usize              num_consumed_;
-  std::mutex         lock_;
+  ISpinLock          spin_lock_;
 
   EventSink(EventData event, Vec<Record> buffer) :
     event_{event},
@@ -85,7 +85,7 @@ struct EventSink
     records_{records_storage_.data(), records_storage_.capacity()},
     num_produced_{0},
     num_consumed_{0},
-    lock_{}
+    spin_lock_{}
   {
     CHECK(is_pow2(buffer.capacity()), "");
   }
@@ -98,7 +98,7 @@ struct EventSink
 
   void trace(Record const & record)
   {
-    LockGuard guard{lock_};
+    LockGuard guard{spin_lock_};
     records_.push_overrun(record);
     num_produced_++;
   }
@@ -107,12 +107,12 @@ struct EventSink
   /// @returns number of elements left in the RingBuffer after the operation
   usize drain(Buffer<Record> & out)
   {
-    LockGuard guard{lock_};
+    LockGuard guard{spin_lock_};
     return records_.pop_many(out);
   }
 };
 
-extern EventSink<I64RangeRecord> & scope_trace_sink();
+extern EventSink<I64RangeRecord> & get_scope_trace_sink();
 
 struct ScopeTrace
 {
@@ -141,7 +141,7 @@ struct ScopeTrace
   {
     record_.data.end =
       static_cast<nanoseconds>(steady_clock::now().time_since_epoch()).count();
-    scope_trace_sink().trace(record_);
+    get_scope_trace_sink().trace(record_);
   }
 };
 

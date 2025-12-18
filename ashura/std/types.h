@@ -2634,4 +2634,10 @@ struct WithinCapacity
 
 inline constexpr WithinCapacity within_capacity{};
 
+template <typename T>
+T declval() noexcept
+{
+  static_assert(false, "declval not allowed in an evaluated context");
+}
+
 }    // namespace ash

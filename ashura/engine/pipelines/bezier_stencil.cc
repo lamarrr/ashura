@@ -20,9 +20,7 @@ Str BezierStencilPipeline::label()
 
 void BezierStencilPipeline::acquire(GpuFramePlan plan)
 {
-  u8                scratch_buffer_[1'024];
-  auto &            gpu = *plan->sys();
-  FallbackAllocator scratch{scratch_buffer_, gpu.allocator()};
+  auto & gpu = *plan->sys();
 
   auto shader = sys.shader->get("defaults/bezier_stencil"_str).unwrap().shader;
 

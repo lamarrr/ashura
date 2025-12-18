@@ -1,6 +1,5 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
-#include "ashura/std/error.h"
 #include "ashura/std/types.h"
 
 namespace ash
@@ -161,14 +160,17 @@ struct [[nodiscard]] List
 
   constexpr List & operator=(List && other)
   {
-    swap(head_, other.head_);
+    if (this == &other) [[unlikely]]
+    {
+      return *this;
+    }
+
+    head_       = other.head_;
+    other.head_ = nullptr;
     return *this;
   }
 
-  constexpr ~List()
-  {
-    CHECK(head_ == nullptr, "Linked list's elements were not released");
-  }
+  constexpr ~List() = default;
 
   constexpr void leak()
   {
@@ -221,6 +223,13 @@ struct [[nodiscard]] List
     node->*next = nullptr;
 
     return node;
+  }
+
+  static constexpr void unlink_at(Node * node)
+  {
+    intr::list::unlink<Node, prev, next>(node);
+    node->*prev = nullptr;
+    node->*next = nullptr;
   }
 
   /// @param node non-null node to push

@@ -19,11 +19,12 @@ namespace vk
 {
 
 #define SCRATCH_STACK_RESERVE_SIZE 16_KB
-#define SCRATCH_ALLOCATOR(upstream)                              \
-  u8                scratch_memory_[SCRATCH_STACK_RESERVE_SIZE]; \
-  FallbackAllocator scratch_                                     \
-  {                                                              \
-    scratch_memory_, upstream                                    \
+#define SCRATCH_ALLOCATOR(upstream)                                \
+  u8                 scratch_memory__[SCRATCH_STACK_RESERVE_SIZE]; \
+  IArena             scratch_arena__{scratch_memory__};            \
+  IFallbackAllocator scratch_                                      \
+  {                                                                \
+    &scratch_arena__, upstream                                     \
   }
 
 constexpr auto DEBUG_LAYER_EXTENSION_NAME = "VK_LAYER_KHRONOS_validation"_str;
@@ -5422,9 +5423,6 @@ Result<Void, Status> IDevice::acquire_next(gpu::Swapchain swapchain_)
 Result<u64, Status> IDevice::submit(gpu::CommandBuffer buffer_,
                                     gpu::QueueScope    scope_)
 {
-  u8                reserved_[512];
-  FallbackAllocator scratch{reserved_, allocator_};
-
   auto * buffer = (CommandBuffer) buffer_;
   CHECK(buffer != nullptr, "");
   CHECK(buffer->state_ == CommandBufferState::Recorded, "");

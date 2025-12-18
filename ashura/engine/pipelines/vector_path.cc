@@ -18,9 +18,10 @@ Str VectorPathPipeline::label()
 gpu::GraphicsPipeline create_coverage_pipeline(GpuFramePlan plan, Str label,
                                                gpu::Shader shader)
 {
-  u8                scratch_buffer_[1'024];
-  auto &            gpu = *plan->sys();
-  FallbackAllocator scratch{scratch_buffer_, gpu.allocator()};
+  u8                 scratch_buffer_[1'024];
+  IArena             scratch_arena_{scratch_buffer_};
+  auto &             gpu = *plan->sys();
+  IFallbackAllocator scratch{&scratch_arena_, gpu.allocator()};
 
   auto tagged_label =
     sformat(scratch, "VectorPath Coverage Graphics Pipeline: {}"_str, label)
@@ -96,9 +97,10 @@ gpu::GraphicsPipeline create_coverage_pipeline(GpuFramePlan plan, Str label,
 gpu::GraphicsPipeline create_fill_pipeline(GpuFramePlan plan, Str label,
                                            gpu::Shader shader)
 {
-  u8                scratch_buffer_[1'024];
-  auto &            gpu = *plan->sys();
-  FallbackAllocator scratch{scratch_buffer_, gpu.allocator()};
+  u8                 scratch_buffer_[1'024];
+  IArena             scratch_arena_{scratch_buffer_};
+  auto &             gpu = *plan->sys();
+  IFallbackAllocator scratch{&scratch_arena_, gpu.allocator()};
 
   auto tagged_label =
     sformat(scratch, "VectorPath Fill Graphics Pipeline: {}"_str, label)

@@ -985,7 +985,7 @@ struct DeviceResourceStates
                 >
     descriptor_sets_;
 
-  RWLock lock_;
+  IRWLock lock_;
 
   DeviceResourceStates(Allocator allocator) :
     alias_{allocator},
@@ -1179,7 +1179,7 @@ struct ICommandEncoder final : gpu::ICommandEncoder
   };
 
   Device               dev_;
-  ArenaPool            arena_;
+  IArenaPool           arena_;
   Status               status_;
   CommandBufferState   state_;
   Pass                 pass_;
@@ -1327,7 +1327,7 @@ struct ICommandBuffer final : gpu::ICommandBuffer
   Status                status_;
   CommandBufferState    state_;
   EncoderResourceStates resource_states_;
-  ArenaPool             arena_;
+  IArenaPool            arena_;
 
   ICommandBuffer(IDevice & dev, VkCommandPool vk_pool,
                  VkCommandBuffer vk_buffer, Allocator allocator) :

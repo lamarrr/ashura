@@ -17,9 +17,10 @@ Str TriangleFillPipeline::label()
 gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
                                       gpu::Shader shader)
 {
-  u8                scratch_buffer_[1'024];
-  auto &            gpu = *plan->sys();
-  FallbackAllocator scratch{scratch_buffer_, gpu.allocator()};
+  u8                 scratch_buffer_[1'024];
+  IArena             scratch_arena_{scratch_buffer_};
+  auto &             gpu = *plan->sys();
+  IFallbackAllocator scratch{&scratch_arena_, gpu.allocator()};
 
   auto tagged_label =
     sformat(scratch, "TriangleFill Graphics Pipeline: {}"_str, label).unwrap();

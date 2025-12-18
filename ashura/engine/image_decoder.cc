@@ -16,7 +16,7 @@ namespace ash
 {
 
 Result<DecodedImageInfo, SysErr> decode_webp(Span<u8 const> bytes,
-                                                   Vec<u8> &      channels)
+                                             Vec<u8> &      channels)
 {
   WebPBitstreamFeatures features;
 
@@ -70,7 +70,7 @@ inline void png_stream_reader(png_structp png_ptr, unsigned char * out,
 }
 
 Result<DecodedImageInfo, SysErr> decode_png(Span<u8 const> bytes,
-                                                  Vec<u8> &      channels)
+                                            Vec<u8> &      channels)
 {
   // skip magic number
   bytes = bytes.slice(8);
@@ -142,7 +142,7 @@ Result<DecodedImageInfo, SysErr> decode_png(Span<u8 const> bytes,
 }
 
 Result<DecodedImageInfo, SysErr> decode_jpg(Span<u8 const> bytes,
-                                                  Vec<u8> &      channels)
+                                            Vec<u8> &      channels)
 {
   jpeg_decompress_struct info;
   jpeg_error_mgr         error_mgr;
@@ -199,7 +199,7 @@ Result<DecodedImageInfo, SysErr> decode_jpg(Span<u8 const> bytes,
 }
 
 Result<DecodedImageInfo, SysErr> decode_image(Span<u8 const> bytes,
-                                                    Vec<u8> &      channels)
+                                              Vec<u8> &      channels)
 {
   tracing::ScopeTrace trace;
 
