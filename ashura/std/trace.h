@@ -75,16 +75,16 @@ struct EventSink
   EventData          event_;
   Vec<Record>        records_storage_;
   RingBuffer<Record> records_;
-  usize              num_produced_;
-  usize              num_consumed_;
-  ISpinLock          spin_lock_;
+  usize              num_written_;
+  usize              num_read_;
+  alignas(CACHELINE_ALIGNMENT) ISpinLock spin_lock_;
 
   EventSink(EventData event, Vec<Record> buffer) :
     event_{event},
     records_storage_{std::move(buffer)},
     records_{records_storage_.data(), records_storage_.capacity()},
-    num_produced_{0},
-    num_consumed_{0},
+    num_written_{0},
+    num_read_{0},
     spin_lock_{}
   {
     CHECK(is_pow2(buffer.capacity()), "");
@@ -100,7 +100,7 @@ struct EventSink
   {
     LockGuard guard{spin_lock_};
     records_.push_overrun(record);
-    num_produced_++;
+    num_written_++;
   }
 
   /// @brief drain all available records into `out`

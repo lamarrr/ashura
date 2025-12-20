@@ -168,7 +168,7 @@ struct [[nodiscard]] Vec
 
   constexpr auto end() const
   {
-    return IterEnd{};
+    return iter_end;
   }
 
   constexpr Type & first() const
@@ -898,7 +898,7 @@ struct [[nodiscard]] SmallVec
 
   constexpr auto end() const
   {
-    return IterEnd{};
+    return iter_end;
   }
 
   constexpr Type & first() const
@@ -1536,7 +1536,7 @@ struct [[nodiscard]] InplaceVec
 
   constexpr auto end() const
   {
-    return IterEnd{};
+    return iter_end;
   }
 
   constexpr Type & first() const
@@ -1917,7 +1917,7 @@ struct [[nodiscard]] CoreBitVec
 
   constexpr auto end() const
   {
-    return IterEnd{};
+    return iter_end;
   }
 
   constexpr usize capacity() const
@@ -2209,9 +2209,14 @@ struct CoreSparseVec
       return apply(
         [](auto &... iters) {
           static constexpr bool ZERO_SIZED = (sizeof...(V) == 0);
-          return ((!ZERO_SIZED) && ... && (iters != IterEnd{}));
+          return ((!ZERO_SIZED) && ... && (iters != iter_end));
         },
         iters_);
+    }
+
+    constexpr bool operator==(IterEnd) const
+    {
+      return !this->operator!=(iter_end);
     }
   };
 
@@ -2230,7 +2235,7 @@ struct CoreSparseVec
 
     constexpr auto end() const
     {
-      return IterEnd{};
+      return iter_end;
     }
   };
 
@@ -2311,7 +2316,7 @@ struct CoreSparseVec
 
   constexpr auto end() const
   {
-    return IterEnd{};
+    return iter_end;
   }
 
   constexpr auto view() const

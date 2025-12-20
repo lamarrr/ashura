@@ -501,12 +501,12 @@ struct vec
 
   constexpr auto end()
   {
-    return IterEnd{};
+    return iter_end;
   }
 
   constexpr auto end() const
   {
-    return IterEnd{};
+    return iter_end;
   }
 
   constexpr auto view() const

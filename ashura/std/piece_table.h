@@ -100,7 +100,7 @@ struct PieceTable
 
     constexpr bool operator!=(IterEnd) const
     {
-      return !(*this == IterEnd{});
+      return !(*this == iter_end);
     }
 
     constexpr usize operator-(CharIter const & other) const
@@ -172,7 +172,7 @@ struct PieceTable
 
     constexpr bool operator!=(IterEnd) const
     {
-      return !(*this == IterEnd{});
+      return !(*this == iter_end);
     }
   };
 
@@ -224,7 +224,7 @@ struct PieceTable
 
     constexpr auto char_end() const
     {
-      return IterEnd{};
+      return iter_end;
     }
 
     constexpr auto piece_begin(Slice range) const
@@ -254,7 +254,7 @@ struct PieceTable
 
     constexpr auto piece_end() const
     {
-      return IterEnd{};
+      return iter_end;
     }
 
     constexpr Result<> clone(Slice range, PieceTable & out) const

@@ -10,10 +10,10 @@ TEST(UriTest, BasicParse)
 
   auto res = UriView::parse(uri).unwrap();
 
-  EXPECT_TRUE(str_eq(res.scheme, "file"_str));
-  EXPECT_TRUE(str_eq(res.hier_part, "///C:/path/to/file.extension"_str));
+  EXPECT_TRUE(span_bit_eq(res.scheme, "file"_str));
+  EXPECT_TRUE(span_bit_eq(res.hier_part, "///C:/path/to/file.extension"_str));
   EXPECT_TRUE(res.queries.is_some());
-  EXPECT_TRUE(str_eq(res.queries.unwrap(), "query=example"_str));
+  EXPECT_TRUE(span_bit_eq(res.queries.unwrap(), "query=example"_str));
   EXPECT_TRUE(res.fragments.is_some());
-  EXPECT_TRUE(str_eq(res.fragments.unwrap(), "fragment"_str));
+  EXPECT_TRUE(span_bit_eq(res.fragments.unwrap(), "fragment"_str));
 }

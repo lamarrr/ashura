@@ -35,3 +35,53 @@ TEST(ListTest, Insertion)
   EXPECT_EQ(l.pop_back(), y);
   EXPECT_EQ(l.pop_back(), nullptr);
 }
+
+TEST(ListTest, ReverseView)
+{
+  using namespace ash;
+  u8     storage[512];
+  IArena arena{storage};
+
+  struct Node
+  {
+    Node *next = nullptr, *prev = nullptr;
+    int   v = 0;
+  };
+
+  List<Node> l;
+  Node *     x;
+  Node *     y;
+  Node *     z;
+  Node *     w;
+  CHECK(arena.nalloc(1, x), "");
+  CHECK(arena.nalloc(1, y), "");
+  CHECK(arena.nalloc(1, z), "");
+  CHECK(arena.nalloc(1, w), "");
+
+  {
+    EXPECT_EQ(l.rbegin().iter_, nullptr);
+  }
+
+  l.push_back(x);
+  {
+    auto iter = l.rbegin();
+    EXPECT_EQ(&*iter, x);
+  }
+
+  l.push_back(y);
+  l.push_back(z);
+  l.push_back(w);
+
+  {
+    auto iter = l.rbegin();
+    EXPECT_EQ(&*iter, w);
+    ++iter;
+    EXPECT_EQ(&*iter, z);
+    ++iter;
+    EXPECT_EQ(&*iter, y);
+    ++iter;
+    EXPECT_EQ(&*iter, x);
+    ++iter;
+    EXPECT_EQ(iter, iter_end);
+  }
+}

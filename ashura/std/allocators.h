@@ -297,7 +297,7 @@ struct IArenaPool final : IAllocator
   /// @brief force-reclaim all allocated memory on the pool
   void reclaim()
   {
-    for (auto & arena : arenas_)
+    for (auto & arena : arenas_.rev_view())
     {
       arena.v.reclaim();
     }
@@ -341,15 +341,13 @@ struct IArenaPool final : IAllocator
 
   void uninit()
   {
-    auto it = arenas_.pop_front();
-
-    while (it != nullptr)
+    while (!arenas_.is_empty())
     {
+      auto it = arenas_.pop_back();
       auto layout =
         Layout{.alignment = cfg_.arena_alignment, .size = it->v.capacity()};
       source_->dealloc(layout, it->v.begin);
       source_->ndealloc(1, it);
-      it = arenas_.pop_front();
     };
   }
 
@@ -375,7 +373,7 @@ struct IArenaPool final : IAllocator
       return false;
     }
 
-    for (auto & arena : arenas_)
+    for (auto & arena : arenas_.rev_view())
     {
       if (arena.v.alloc(layout, mem))
       {
@@ -457,7 +455,7 @@ struct IArenaPool final : IAllocator
       return false;
     }
 
-    for (auto & arena : arenas_)
+    for (auto & arena : arenas_.rev_view())
     {
       if (arena.v.contains(layout, mem))
       {
@@ -508,8 +506,7 @@ struct IArenaPool final : IAllocator
 
     // we can try to reclaim some memory.
     // best case: stack allocation, if it is at end of arena, adjust arena offset
-    // [ ] iterate from back to front
-    for (auto & arena : arenas_)
+    for (auto & arena : arenas_.rev_view())
     {
       if (arena.v.contains(layout, mem))
       {

@@ -45,12 +45,6 @@ typedef ptrdiff_t isize;
 typedef uintptr_t uptr;
 typedef intptr_t  iptr;
 
-typedef u8    bool8;
-typedef u16   bool16;
-typedef u32   bool32;
-typedef u64   bool64;
-typedef usize sbool;
-
 struct f8
 {
   u8 repr_;
@@ -953,6 +947,11 @@ struct [[nodiscard]] SpanIter
     return iter_ != end_;
   }
 
+  constexpr bool operator==(IterEnd) const
+  {
+    return !this->operator!=(iter_end);
+  }
+
   constexpr usize size() const
   {
     return static_cast<usize>(end_ - iter_);
@@ -984,6 +983,11 @@ struct [[nodiscard]] RevSpanIter
     return iter_ != begin_;
   }
 
+  constexpr bool operator==(IterEnd) const
+  {
+    return !this->operator!=(iter_end);
+  }
+
   constexpr usize size() const
   {
     return static_cast<usize>(iter_ - begin_);
@@ -1005,7 +1009,7 @@ constexpr auto begin(T && a) -> decltype(a.begin())
 template <typename T, usize N>
 constexpr auto end(T (&)[N])
 {
-  return IterEnd{};
+  return iter_end;
 }
 
 template <typename T>
@@ -1099,7 +1103,7 @@ struct IterView
 
   constexpr auto end() const
   {
-    return IterEnd{};
+    return iter_end;
   }
 
   constexpr auto size() const requires (SizedIter<Iter>)
@@ -1245,7 +1249,7 @@ struct [[nodiscard]] Span
   {
   }
 
-  constexpr Span(Iter iter, IterEnd = {}) : Span{iter.iter_, iter.end_}
+  constexpr Span(Iter iter) : Span{iter.iter_, iter.end_}
   {
   }
 
@@ -1301,7 +1305,7 @@ struct [[nodiscard]] Span
 
   constexpr auto end() const
   {
-    return IterEnd{};
+    return iter_end;
   }
 
   constexpr auto rev() const
@@ -1686,6 +1690,11 @@ struct BitSpanIter
   {
     return iter_ != end_;
   }
+
+  constexpr bool operator==(IterEnd) const
+  {
+    return !this->operator!=(iter_end);
+  }
 };
 
 template <typename R>
@@ -1745,7 +1754,7 @@ struct BitSpan
 
   constexpr auto end() const
   {
-    return IterEnd{};
+    return iter_end;
   }
 
   constexpr Span<R> repr() const
@@ -1917,12 +1926,12 @@ struct Array
 
   constexpr auto end()
   {
-    return IterEnd{};
+    return iter_end;
   }
 
   constexpr auto end() const
   {
-    return IterEnd{};
+    return iter_end;
   }
 
   constexpr T & first()
@@ -2065,12 +2074,12 @@ struct Array<T, 0>
 
   constexpr auto end()
   {
-    return IterEnd{};
+    return iter_end;
   }
 
   constexpr auto end() const
   {
-    return IterEnd{};
+    return iter_end;
   }
 
   constexpr T & first() requires (SIZE > 1)
@@ -2177,7 +2186,7 @@ struct Bits
 
   constexpr auto end() const
   {
-    return IterEnd{};
+    return iter_end;
   }
 
   constexpr usize size() const

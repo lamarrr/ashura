@@ -333,7 +333,7 @@ struct [[nodiscard]] Option
 
   constexpr auto end() const
   {
-    return IterEnd{};
+    return iter_end;
   }
 
   constexpr View view()

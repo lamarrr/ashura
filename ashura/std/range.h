@@ -30,6 +30,11 @@ struct IndexIter
     return i_ != max_;
   }
 
+  constexpr bool operator==(IterEnd) const
+  {
+    return !this->operator!=(iter_end);
+  }
+
   constexpr I size() const
   {
     return max_ - i_;
@@ -103,6 +108,11 @@ struct SkipIndexIter
     return i_ != max_;
   }
 
+  constexpr bool operator==(IterEnd) const
+  {
+    return !this->operator!=(iter_end);
+  }
+
   constexpr I size() const
   {
     return (max_ - i_) / incr_;
@@ -158,9 +168,14 @@ struct ZipIter
       iters_);
   }
 
-  constexpr bool operator!=(IterEnd end) const
+  constexpr bool operator!=(IterEnd) const
   {
-    return iters_.v0 != end;
+    return iters_.v0 != iter_end;
+  }
+
+  constexpr bool operator==(IterEnd) const
+  {
+    return !this->operator!=(iter_end);
   }
 
   constexpr auto size() const requires (SizedIter<BaseIter>)
@@ -227,9 +242,14 @@ struct EnumerateIter
     return Tuple<Index, decltype(*iter_)>{index_, *iter_};
   }
 
-  constexpr bool operator!=(IterEnd end) const
+  constexpr bool operator!=(IterEnd) const
   {
-    return iter_ != end;
+    return iter_ != iter_end;
+  }
+
+  constexpr bool operator==(IterEnd) const
+  {
+    return !this->operator!=(iter_end);
   }
 };
 
@@ -282,6 +302,11 @@ struct MapIter
   constexpr bool operator!=(IterEnd) const
   {
     return iter_ != iter_end;
+  }
+
+  constexpr bool operator==(IterEnd) const
+  {
+    return !this->operator!=(iter_end);
   }
 
   constexpr auto size() const requires (SizedIter<Iter>)
@@ -346,6 +371,11 @@ struct FilterIter
     return valid_iter_ != iter_end;
   }
 
+  constexpr bool operator==(IterEnd) const
+  {
+    return !this->operator!=(iter_end);
+  }
+
   constexpr auto max_size() const
     requires (SizedIter<Iter> && !BoundedSizeIter<Iter>)
   {
@@ -372,11 +402,10 @@ constexpr FilterIter<Iter, Predicate> filter(Iter &&      iter,
 template <OutRange A, OutRange B, typename SwapOp = Swap>
 constexpr void swap_range(A && a, B && b, SwapOp && swap_op = {})
 {
-  auto       a_iter = begin(a);
-  auto const a_end  = end(a);
-  auto       b_iter = begin(b);
+  auto a_iter = begin(a);
+  auto b_iter = begin(b);
 
-  while (a_iter != a_end)
+  while (a_iter != iter_end)
   {
     swap_op(*a_iter, *b_iter);
     ++a_iter;
@@ -387,10 +416,9 @@ constexpr void swap_range(A && a, B && b, SwapOp && swap_op = {})
 template <OutRange R, typename U>
 constexpr void fill(R && dst, U && value)
 {
-  auto       iter    = begin(dst);
-  auto const dst_end = end(dst);
+  auto iter = begin(dst);
 
-  while (iter != dst_end)
+  while (iter != iter_end)
   {
     *iter = value;
     ++iter;
@@ -400,10 +428,9 @@ constexpr void fill(R && dst, U && value)
 template <Range R, typename Predicate>
 constexpr bool all_is(R && range, Predicate && predicate)
 {
-  auto       iter      = begin(range);
-  auto const range_end = end(range);
+  auto iter = begin(range);
 
-  while (iter != range_end)
+  while (iter != iter_end)
   {
     if (!predicate(*iter))
     {
@@ -417,10 +444,9 @@ constexpr bool all_is(R && range, Predicate && predicate)
 template <Range R, typename Predicate>
 constexpr bool any_is(R && range, Predicate && predicate)
 {
-  auto       iter      = begin(range);
-  auto const range_end = end(range);
+  auto iter = begin(range);
 
-  while (iter != range_end)
+  while (iter != iter_end)
   {
     if (predicate(*iter))
     {
@@ -434,10 +460,9 @@ constexpr bool any_is(R && range, Predicate && predicate)
 template <Range R, typename Predicate>
 constexpr bool none_is(R && range, Predicate && predicate)
 {
-  auto       iter      = begin(range);
-  auto const range_end = end(range);
+  auto iter = begin(range);
 
-  while (iter != range_end)
+  while (iter != iter_end)
   {
     if (predicate(*iter))
     {
@@ -451,10 +476,9 @@ constexpr bool none_is(R && range, Predicate && predicate)
 template <Range R, typename U, typename Cmp = Eq>
 constexpr bool contains(R && range, U && value, Cmp && cmp = {})
 {
-  auto       iter      = begin(range);
-  auto const range_end = end(range);
+  auto iter = begin(range);
 
-  while (iter != range_end)
+  while (iter != iter_end)
   {
     if (cmp(*iter, value))
     {
@@ -473,11 +497,10 @@ constexpr bool begins_with(B && body, H && head, Cmp && cmp = {})
     return false;
   }
 
-  auto       body_iter = begin(body);
-  auto       head_iter = begin(head);
-  auto const head_end  = end(head);
+  auto body_iter = begin(body);
+  auto head_iter = begin(head);
 
-  while (head_iter != head_end)
+  while (head_iter != iter_end)
   {
     if (!cmp(*head_iter, *body_iter))
     {
@@ -519,10 +542,9 @@ constexpr bool ends_with(Span<T> body, Span<U> foot, Cmp && cmp = {})
 template <typename T, typename U, typename Cmp = Eq>
 constexpr Span<T> find(Span<T> span, U && value, Cmp && cmp = {})
 {
-  auto       iter     = begin(span);
-  auto const span_end = end(span);
+  auto iter = begin(span);
 
-  while (iter != span_end)
+  while (iter != iter_end)
   {
     if (cmp(*iter, value))
     {
@@ -531,16 +553,15 @@ constexpr Span<T> find(Span<T> span, U && value, Cmp && cmp = {})
     ++iter;
   }
 
-  return Span<T>{iter, span_end};
+  return Span<T>{iter};
 }
 
 template <typename T, typename Predicate>
 constexpr Span<T> find_if(Span<T> span, Predicate && predicate)
 {
-  auto       iter     = begin(span);
-  auto const span_end = end(span);
+  auto iter = begin(span);
 
-  while (iter != span_end)
+  while (iter != iter_end)
   {
     if (predicate(*iter))
     {
@@ -549,17 +570,16 @@ constexpr Span<T> find_if(Span<T> span, Predicate && predicate)
     ++iter;
   }
 
-  return Span<T>{iter, span_end};
+  return Span<T>{iter};
 }
 
 template <Range R, typename Target, typename Cmp = Eq>
 constexpr usize count(R && range, Target && target, Cmp && cmp = {})
 {
-  usize      count     = 0;
-  auto       iter      = begin(range);
-  auto const range_end = end(range);
+  usize count = 0;
+  auto  iter  = begin(range);
 
-  while (iter != range_end)
+  while (iter != iter_end)
   {
     if (cmp(*iter, target))
     {
@@ -576,10 +596,9 @@ constexpr usize count_if(R && range, Predicate && predicate)
 {
   usize count = 0;
 
-  auto       iter      = begin(range);
-  auto const range_end = end(range);
+  auto iter = begin(range);
 
-  while (iter != range_end)
+  while (iter != iter_end)
   {
     if (predicate(*iter))
     {
@@ -599,11 +618,10 @@ constexpr bool range_eq(A && a, B && b, Cmp && cmp = {})
     return false;
   }
 
-  auto       a_iter = begin(a);
-  auto const a_end  = end(a);
-  auto       b_iter = begin(b);
+  auto a_iter = begin(a);
+  auto b_iter = begin(b);
 
-  while (a_iter != a_end)
+  while (a_iter != iter_end)
   {
     if (!cmp(*a_iter, *b_iter))
     {
@@ -619,11 +637,10 @@ constexpr bool range_eq(A && a, B && b, Cmp && cmp = {})
 template <Range I, OutRange O, typename Map>
 constexpr void transform(I && in, O && out, Map && mapper)
 {
-  auto       in_iter  = begin(in);
-  auto const in_end   = end(in);
-  auto       out_iter = begin(out);
+  auto in_iter  = begin(in);
+  auto out_iter = begin(out);
 
-  while (in_iter != in_end)
+  while (in_iter != iter_end)
   {
     *out_iter = mapper(*in_iter);
     ++in_iter;
@@ -634,10 +651,9 @@ constexpr void transform(I && in, O && out, Map && mapper)
 template <OutRange O, typename Map>
 constexpr void transform(O && out, Map && mapper)
 {
-  auto       out_iter = begin(out);
-  auto const out_end  = end(out);
+  auto out_iter = begin(out);
 
-  while (out_iter != out_end)
+  while (out_iter != iter_end)
   {
     *out_iter = mapper(*out_iter);
     ++out_iter;
@@ -647,10 +663,9 @@ constexpr void transform(O && out, Map && mapper)
 template <Range R, typename Init, typename Reduce = Add>
 constexpr Init reduce(R && range, Init && init, Reduce && reducer = {})
 {
-  auto       iter      = begin(range);
-  auto const range_end = end(range);
+  auto iter = begin(range);
 
-  while (iter != range_end)
+  while (iter != iter_end)
   {
     init = reducer(static_cast<Init &&>(init), *iter);
     ++iter;
@@ -663,10 +678,9 @@ template <Range R, typename Init, typename Map, typename Reduce = Add>
 constexpr Init transform_reduce(R && range, Init && init, Map && mapper,
                                 Reduce && reducer = {})
 {
-  auto       iter      = begin(range);
-  auto const range_end = end(range);
+  auto iter = begin(range);
 
-  while (iter != range_end)
+  while (iter != iter_end)
   {
     init = reducer(static_cast<Init &&>(init), mapper(*iter));
     ++iter;
@@ -679,10 +693,9 @@ template <OutRange R, typename E, typename F, typename Cmp = Eq>
 constexpr void replace(R && range, E && target, F && replacement,
                        Cmp && cmp = {})
 {
-  auto       iter      = begin(range);
-  auto const range_end = end(range);
+  auto iter = begin(range);
 
-  while (iter != range_end)
+  while (iter != iter_end)
   {
     if (cmp(*iter, target))
     {
@@ -694,10 +707,9 @@ constexpr void replace(R && range, E && target, F && replacement,
 template <OutRange R, typename F, typename Test>
 constexpr void replace_if(R && range, F && replacement, Test && test)
 {
-  auto       iter      = begin(range);
-  auto const range_end = end(range);
+  auto iter = begin(range);
 
-  while (iter != range_end)
+  while (iter != iter_end)
   {
     if (test(*iter))
     {
@@ -988,6 +1000,11 @@ struct RunBatchIter
   {
     return run_iter_ != num_runs_;
   }
+
+  constexpr bool operator==(IterEnd) const
+  {
+    return !this->operator!=(iter_end);
+  }
 };
 
 template <typename Index, typename... T>
@@ -1107,6 +1124,11 @@ struct RunItemIter
   constexpr bool operator!=(IterEnd) const
   {
     return item_iter_ != num_items_;
+  }
+
+  constexpr bool operator==(IterEnd) const
+  {
+    return !this->operator!=(iter_end);
   }
 };
 

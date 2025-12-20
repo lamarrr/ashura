@@ -122,7 +122,7 @@ struct [[nodiscard]] Buffer
   /// @brief returns an iterator terminator
   constexpr auto end() const
   {
-    return IterEnd{};
+    return iter_end;
   }
 
   /// @brief returns a reference to the first element in the buffer
