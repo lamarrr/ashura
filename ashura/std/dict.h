@@ -115,6 +115,11 @@ struct [[nodiscard]] Dict
     {
       return iter_ != end_;
     }
+
+    constexpr bool operator==(IterEnd) const
+    {
+      return !this->operator!=(iter_end);
+    }
   };
 
   struct View
@@ -130,7 +135,7 @@ struct [[nodiscard]] Dict
 
     constexpr auto end() const
     {
-      return IterEnd{};
+      return iter_end;
     }
   };
 
@@ -577,7 +582,7 @@ struct [[nodiscard]] Dict
 
   constexpr auto end() const
   {
-    return IterEnd{};
+    return iter_end;
   }
 };
 
@@ -592,10 +597,13 @@ struct IsTriviallyRelocatable<Dict<K, V, H, KCmp, D>>
 };
 
 template <typename V, typename D = usize>
-using StrDict = Dict<Str, V, SpanHash, StrEq, D>;
+using StrDict = Dict<Str, V, SpanHash, SpanBitEq, D>;
 
 template <typename V, typename D = usize>
-using StrVecDict = Dict<Vec<char>, V, SpanHash, StrEq, D>;
+using ByteDict = Dict<Span<u8 const>, V, SpanHash, SpanBitEq, D>;
+
+template <typename V, typename D = usize>
+using StrVecDict = Dict<Vec<char>, V, SpanHash, SpanBitEq, D>;
 
 template <typename K, typename V, typename D = usize>
 using BitDict = Dict<K, V, BitHash, BitEq, D>;
