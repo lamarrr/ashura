@@ -1,6 +1,5 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
-#include "ashura/std/error.h"
 #include "ashura/std/types.h"
 
 namespace ash
@@ -119,9 +118,9 @@ struct [[nodiscard]] List
 
   struct Iter
   {
-    Node * iter_      = nullptr;
-    Node * head_      = nullptr;
-    sbool  past_head_ = true;
+    Node * iter_        = nullptr;
+    Node * cursor_      = nullptr;
+    bool   past_cursor_ = true;
 
     constexpr Node & operator*() const
     {
@@ -130,15 +129,82 @@ struct [[nodiscard]] List
 
     constexpr Iter & operator++()
     {
-      iter_      = iter_->next;
-      past_head_ = true;
+      iter_        = iter_->*next;
+      past_cursor_ = true;
       return *this;
     }
 
     constexpr bool operator!=(IterEnd) const
     {
-      sbool const finished = (past_head_ & iter_ == head_);
+      bool const finished = (past_cursor_ & iter_ == cursor_);
       return !finished;
+    }
+
+    constexpr bool operator==(IterEnd) const
+    {
+      return !this->operator!=(iter_end);
+    }
+  };
+
+  struct RevIter
+  {
+    Node * iter_        = nullptr;
+    Node * cursor_      = nullptr;
+    bool   past_cursor_ = true;
+
+    constexpr Node & operator*() const
+    {
+      return *(iter_->*prev);
+    }
+
+    constexpr RevIter & operator++()
+    {
+      iter_        = iter_->*prev;
+      past_cursor_ = true;
+      return *this;
+    }
+
+    constexpr bool operator!=(IterEnd) const
+    {
+      bool const finished = (past_cursor_ & iter_ == cursor_);
+      return !finished;
+    }
+
+    constexpr bool operator==(IterEnd) const
+    {
+      return !this->operator!=(iter_end);
+    }
+  };
+
+  struct View
+  {
+    Node * head_ = nullptr;
+
+    constexpr auto begin() const
+    {
+      return Iter{
+        .iter_ = head_, .cursor_ = head_, .past_cursor_ = (head_ == nullptr)};
+    }
+
+    constexpr auto end() const
+    {
+      return iter_end;
+    }
+  };
+
+  struct RevView
+  {
+    Node * head_ = nullptr;
+
+    constexpr auto begin() const
+    {
+      return RevIter{
+        .iter_ = head_, .cursor_ = head_, .past_cursor_ = (head_ == nullptr)};
+    }
+
+    constexpr auto end() const
+    {
+      return iter_end;
     }
   };
 
@@ -161,14 +227,17 @@ struct [[nodiscard]] List
 
   constexpr List & operator=(List && other)
   {
-    swap(head_, other.head_);
+    if (this == &other) [[unlikely]]
+    {
+      return *this;
+    }
+
+    head_       = other.head_;
+    other.head_ = nullptr;
     return *this;
   }
 
-  constexpr ~List()
-  {
-    CHECK(head_ == nullptr, "Linked list's elements were not released");
-  }
+  constexpr ~List() = default;
 
   constexpr void leak()
   {
@@ -221,6 +290,13 @@ struct [[nodiscard]] List
     node->*next = nullptr;
 
     return node;
+  }
+
+  static constexpr void unlink_at(Node * node)
+  {
+    intr::list::unlink<Node, prev, next>(node);
+    node->*prev = nullptr;
+    node->*next = nullptr;
   }
 
   /// @param node non-null node to push
@@ -277,15 +353,34 @@ struct [[nodiscard]] List
     list.leak();
   }
 
-  constexpr Iter begin() const
+  constexpr auto view() const
   {
-    return Iter{
-      .iter_ = head_, .head_ = head_, .past_head_ = (head_ == nullptr)};
+    return View{.head_ = head_};
+  }
+
+  constexpr auto rev_view() const
+  {
+    return RevView{.head_ = head_};
+  }
+
+  constexpr auto begin() const
+  {
+    return view().begin();
   }
 
   constexpr auto end() const
   {
-    return IterEnd{};
+    return view().end();
+  }
+
+  constexpr auto rbegin() const
+  {
+    return rev_view().begin();
+  }
+
+  constexpr auto rend() const
+  {
+    return rev_view().end();
   }
 };
 

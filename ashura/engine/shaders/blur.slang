@@ -32,7 +32,8 @@ static constexpr f32x2 VERTEX_BUFFER[] = {f32x2(-0.5, -0.5), f32x2(0.5, -0.5),
                                           f32x2(0.5, 0.5), f32x2(-0.5, 0.5)};
 
 [[shader("vertex")]]
-VertexOutput vert(u32 instance : SV_InstanceID, u32 vertex_idx : SV_VertexID)
+VertexOutput vert(u32 instance : SV_VulkanInstanceID,
+                  u32 vertex_idx : SV_VulkanVertexID)
 {
   f32x2 pos        = VERTEX_BUFFER[vertex_idx];
   f32x2 screen_pos = pos * 2;
@@ -43,8 +44,6 @@ VertexOutput vert(u32 instance : SV_InstanceID, u32 vertex_idx : SV_VertexID)
 }
 
 #if DOWNSAMPLE
-
-// [ ] config cmake
 
 [[shader("fragment")]]
 f32x4 frag(VertexOutput in) :

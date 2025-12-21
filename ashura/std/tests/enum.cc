@@ -11,8 +11,8 @@ TEST(EnumTest, Basic)
 
   static constexpr Enum<int, char, float> e{0.2F};
 
-  constexpr auto a = e.match([](f32) { return 1.0F; },        //
-                             [](f32) { return 0.5F; },        //
+  constexpr auto a = e.match([](f32) { return 1.0F; },    //
+                             [](f32) { return 0.5F; },    //
                              [](f32) { return 3.0F; });
 
   EXPECT_EQ(a, 3.0F);

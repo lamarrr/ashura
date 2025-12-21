@@ -21,7 +21,7 @@ TEST(SparseVecTest, Start)
   ASSERT_TRUE(f.push(1));
   ASSERT_EQ(f[0], 1);
   ASSERT_EQ(f.size(), 1);
-  ASSERT_TRUE(f.extend(span({2, 3, 4, 5, 6})));
+  ASSERT_TRUE(f.append(span({2, 3, 4, 5, 6})));
   ASSERT_EQ(f.size(), 6);
   ASSERT_EQ(f[5], 6);
   ASSERT_TRUE(f.fit());
@@ -51,7 +51,8 @@ TEST(SparseVecTest, Start)
   ASSERT_EQ(f.data(), nullptr);
   ASSERT_EQ(f.capacity(), 0);
 
-  CoreSparseVec<Vec<u64>, Vec<u64>, BitVec<u64>> set;
+  CoreSparseVec<u64, Vec<u64>, Vec<u64>, Vec<u64>, BitVec<u64>> set{
+    default_allocator};
 
   for (auto [a, b, c] : set)
   {

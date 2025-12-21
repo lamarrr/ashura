@@ -33,7 +33,7 @@ KeyState & KeyState::copy(KeyState const & other)
   any_down = other.any_down;
   any_up   = other.any_up;
   input    = other.input;
-  text.extend(other.text).unwrap();
+  text.append(other.text).unwrap();
   key_downs   = other.key_downs;
   key_ups     = other.key_ups;
   key_states  = other.key_states;
@@ -56,34 +56,41 @@ DropState & DropState::copy(DropState const & other)
 {
   event = other.event;
   data.clear();
-  data.extend(other.data).unwrap();
+  data.append(other.data).unwrap();
   return *this;
 }
 
-void InputState::stamp(time_point time, nanoseconds delta)
+void SystemState::stamp(time_point time, nanoseconds delta)
 {
   timestamp = time;
   timedelta = delta;
 }
 
-void InputState::clear()
+void SystemState::clear()
 {
   timestamp = {};
   timedelta = {};
-  window    = {};
-  mouse     = {};
   theme     = {};
+}
+
+SystemState & SystemState::copy(SystemState const & other)
+{
+  timestamp = other.timestamp;
+  timedelta = other.timedelta;
+  theme     = other.theme;
+  return *this;
+}
+
+void WindowState::clear()
+{
+  mouse = {};
   key.clear();
   drop.clear();
 }
 
-InputState & InputState::copy(InputState const & other)
+WindowState & WindowState::copy(WindowState const & other)
 {
-  timestamp = other.timestamp;
-  timedelta = other.timedelta;
-  window    = other.window;
-  mouse     = other.mouse;
-  theme     = other.theme;
+  mouse = other.mouse;
   key.copy(other.key);
   drop.copy(other.drop);
   return *this;

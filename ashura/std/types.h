@@ -45,12 +45,6 @@ typedef ptrdiff_t isize;
 typedef uintptr_t uptr;
 typedef intptr_t  iptr;
 
-typedef u8    bool8;
-typedef u16   bool16;
-typedef u32   bool32;
-typedef u64   bool64;
-typedef usize sbool;
-
 struct f8
 {
   u8 repr_;
@@ -442,6 +436,8 @@ constexpr Max   max;
 constexpr Swap  swap;
 constexpr Clamp clamp;
 
+// [ ] default eq, neq, lt, gt, leq overridable
+
 constexpr u8 sat_add(u8 a, u8 b)
 {
   return ((a + b) < a) ? U8_MAX : (a + b);
@@ -781,6 +777,9 @@ struct ref
 template <typename T>
 ref(T &) -> ref<T>;
 
+template <typename T>
+using InitList = std::initializer_list<T>;
+
 /// @brief A slice is a pair of integers: `offset` and `span` that represent a range of elements in any container.
 /// .offset can range from 0-`S::MAX`, `S::MAX` means the end of the range.
 /// .span can range from 0-`S::MAX`, `S::MAX` means to the end of the range.
@@ -800,9 +799,19 @@ struct [[nodiscard]] CoreSlice
   S offset = 0;
   S span   = 0;
 
-  static constexpr CoreSlice range(S begin, S end)
+  static constexpr CoreSlice offsets(S begin, S end)
   {
     return CoreSlice{.offset = begin, .span = static_cast<S>(end - begin)};
+  }
+
+  static constexpr CoreSlice elements(S first, S last)
+  {
+    return CoreSlice{.offset = first, .span = static_cast<S>(last - first + 1)};
+  }
+
+  static constexpr CoreSlice slice(S offset, S span)
+  {
+    return CoreSlice{.offset = offset, .span = span};
   }
 
   static constexpr CoreSlice all()
@@ -832,13 +841,13 @@ struct [[nodiscard]] CoreSlice
 
   constexpr CoreSlice operator()(S size) const
   {
-    return CoreSlice::range(min(offset, size),
-                            min(sat_add(offset, span), size));
+    return CoreSlice::offsets(min(offset, size),
+                              min(sat_add(offset, span), size));
   }
 
   constexpr CoreSlice operator()() const
   {
-    return CoreSlice::range(offset, sat_add(offset, span));
+    return CoreSlice::offsets(offset, sat_add(offset, span));
   }
 
   constexpr bool is_empty() const
@@ -849,6 +858,23 @@ struct [[nodiscard]] CoreSlice
   constexpr bool contains(CoreSlice other) const
   {
     return begin() <= other.begin() && end() >= other.end();
+  }
+
+  constexpr bool intersects(CoreSlice other) const
+  {
+    return max(begin(), other.begin()) < min(end(), other.end());
+  }
+
+  constexpr CoreSlice intersection(CoreSlice other) const
+  {
+    auto m0 = max(begin(), other.begin());
+    auto m1 = min(end(), other.end());
+    return m0 > m1 ? CoreSlice::slice(0, 0) : CoreSlice::offsets(m0, m1);
+  }
+
+  constexpr CoreSlice extend(S extension) const
+  {
+    return CoreSlice::offsets(begin(), sat_add(end(), extension));
   }
 
   constexpr bool contains(S item) const
@@ -921,6 +947,11 @@ struct [[nodiscard]] SpanIter
     return iter_ != end_;
   }
 
+  constexpr bool operator==(IterEnd) const
+  {
+    return !this->operator!=(iter_end);
+  }
+
   constexpr usize size() const
   {
     return static_cast<usize>(end_ - iter_);
@@ -952,6 +983,11 @@ struct [[nodiscard]] RevSpanIter
     return iter_ != begin_;
   }
 
+  constexpr bool operator==(IterEnd) const
+  {
+    return !this->operator!=(iter_end);
+  }
+
   constexpr usize size() const
   {
     return static_cast<usize>(iter_ - begin_);
@@ -973,7 +1009,7 @@ constexpr auto begin(T && a) -> decltype(a.begin())
 template <typename T, usize N>
 constexpr auto end(T (&)[N])
 {
-  return IterEnd{};
+  return iter_end;
 }
 
 template <typename T>
@@ -1067,7 +1103,7 @@ struct IterView
 
   constexpr auto end() const
   {
-    return IterEnd{};
+    return iter_end;
   }
 
   constexpr auto size() const requires (SizedIter<Iter>)
@@ -1187,6 +1223,7 @@ template <usize Alignment, typename T>
     return static_cast<T *>(__builtin_assume_aligned(ptr, Alignment));
   }
 }
+
 template <typename T>
 struct [[nodiscard]] Span
 {
@@ -1195,6 +1232,7 @@ struct [[nodiscard]] Span
   using Iter    = SpanIter<T>;
   using RevIter = RevSpanIter<T>;
   using Rev     = IterView<RevIter>;
+  using View    = Span<T>;
 
   T *   data_ = nullptr;
   usize size_ = 0;
@@ -1211,7 +1249,7 @@ struct [[nodiscard]] Span
   {
   }
 
-  constexpr Span(Iter iter, IterEnd = {}) : Span{iter.iter_, iter.end_}
+  constexpr Span(Iter iter) : Span{iter.iter_, iter.end_}
   {
   }
 
@@ -1267,7 +1305,7 @@ struct [[nodiscard]] Span
 
   constexpr auto end() const
   {
-    return IterEnd{};
+    return iter_end;
   }
 
   constexpr auto rev() const
@@ -1385,6 +1423,11 @@ struct [[nodiscard]] Span
   {
     return Span<U>{reinterpret_cast<U *>(data()), size_bytes() / sizeof(U)};
   }
+
+  constexpr View view() const
+  {
+    return *this;
+  }
 };
 
 template <typename T, usize N>
@@ -1406,7 +1449,7 @@ template <SpanContainer C>
 Span(C & container) -> Span<std::remove_pointer_t<decltype(data(container))>>;
 
 template <typename T>
-constexpr Span<T const> span(std::initializer_list<T> list)
+constexpr Span<T const> span(InitList<T> list)
 {
   return Span<T const>{list.begin(), list.size()};
 }
@@ -1450,6 +1493,9 @@ constexpr Span<u8> as_u8_span(T & obj)
 typedef Span<char const> Str;
 typedef Span<char>       MutStr;
 
+typedef Span<c16 const> Str16;
+typedef Span<c16>       MutStr16;
+
 typedef Span<c8 const> Str8;
 typedef Span<c8>       MutStr8;
 
@@ -1467,6 +1513,11 @@ constexpr Str operator""_str(char const * lit, usize n)
 constexpr Str8 operator""_str(c8 const * lit, usize n)
 {
   return Str8{lit, n};
+}
+
+constexpr Str16 operator""_str(c16 const * lit, usize n)
+{
+  return Str16{lit, n};
 }
 
 constexpr Str32 operator""_str(c32 const * lit, usize n)
@@ -1639,6 +1690,11 @@ struct BitSpanIter
   {
     return iter_ != end_;
   }
+
+  constexpr bool operator==(IterEnd) const
+  {
+    return !this->operator!=(iter_end);
+  }
 };
 
 template <typename R>
@@ -1698,7 +1754,7 @@ struct BitSpan
 
   constexpr auto end() const
   {
-    return IterEnd{};
+    return iter_end;
   }
 
   constexpr Span<R> repr() const
@@ -1743,12 +1799,18 @@ struct BitSpan
 
   constexpr void clear_all_bits() const requires (NonConst<R>)
   {
-    fill(repr(), (R) 0);
+    for (usize i = 0; i < atom_size(); ++i)
+    {
+      storage_[i] = 0;
+    }
   }
 
   constexpr void set_all_bits() const requires (NonConst<R>)
   {
-    fill(repr(), NumTraits<R>::MAX);
+    for (usize i = 0; i < atom_size(); ++i)
+    {
+      storage_[i] = NumTraits<R>::MAX;
+    }
   }
 
   constexpr usize find_set_bit()
@@ -1864,12 +1926,12 @@ struct Array
 
   constexpr auto end()
   {
-    return IterEnd{};
+    return iter_end;
   }
 
   constexpr auto end() const
   {
-    return IterEnd{};
+    return iter_end;
   }
 
   constexpr T & first()
@@ -2012,12 +2074,12 @@ struct Array<T, 0>
 
   constexpr auto end()
   {
-    return IterEnd{};
+    return iter_end;
   }
 
   constexpr auto end() const
   {
-    return IterEnd{};
+    return iter_end;
   }
 
   constexpr T & first() requires (SIZE > 1)
@@ -2124,7 +2186,7 @@ struct Bits
 
   constexpr auto end() const
   {
-    return IterEnd{};
+    return iter_end;
   }
 
   constexpr usize size() const
@@ -2377,6 +2439,36 @@ Fn(R (*)(Args...)) -> Fn<R(Args...)>;
 template <typename T, typename R, typename... Args>
 Fn(T *, R (*)(T *, Args...)) -> Fn<R(Args...)>;
 
+template <typename Tag, typename Sig>
+struct TagFn;
+
+template <typename Tag, typename R, typename... Args>
+struct TagFn<Tag, R(Args...)>
+{
+  using Thunk = R (*)(Tag, Args...);
+
+  Tag tag = {};
+
+  Thunk thunk = nullptr;
+
+  explicit constexpr TagFn() = default;
+
+  constexpr TagFn(TagFn const &)             = default;
+  constexpr TagFn(TagFn &&)                  = default;
+  constexpr TagFn & operator=(TagFn const &) = default;
+  constexpr TagFn & operator=(TagFn &&)      = default;
+  constexpr ~TagFn()                         = default;
+
+  constexpr TagFn(Tag tag, Thunk thunk) : tag{tag}, thunk{thunk}
+  {
+  }
+
+  constexpr R operator()(Args... args) const
+  {
+    return thunk(tag, static_cast<Args &&>(args)...);
+  }
+};
+
 struct Noop
 {
   template <typename... Args>
@@ -2500,15 +2592,6 @@ struct Pin<void>
   constexpr ~Pin()                       = default;
 };
 
-/// @brief In-place type constructor flag. Intended for functions that take
-/// generic types and want to overload with a second type that constructs the type using the
-/// provided arguments.
-struct Inplace
-{
-};
-
-inline constexpr Inplace inplace{};
-
 /// @brief Uninitialized storage
 template <usize Alignment, usize Capacity>
 struct InplaceStorage
@@ -2538,5 +2621,32 @@ struct alignas(u64) Version
                   .major   = ASH_MAJOR_VERSION,   \
                   .minor   = ASH_MINOR_VERSION,   \
                   .patch   = ASH_PATCH_VERSION})
+
+/// @brief In-place type constructor flag. Intended for functions that take
+/// generic types and want to overload with a second type that constructs the type using the
+/// provided arguments.
+struct Inplace
+{
+};
+
+inline constexpr Inplace inplace{};
+
+struct FromParts
+{
+};
+
+inline constexpr FromParts from_parts{};
+
+struct WithinCapacity
+{
+};
+
+inline constexpr WithinCapacity within_capacity{};
+
+template <typename T>
+T declval() noexcept
+{
+  static_assert(false, "declval not allowed in an evaluated context");
+}
 
 }    // namespace ash

@@ -158,7 +158,7 @@ void IViewSys::build(ui::Ctx const & ctx, RootView & root)
 
 void IViewSys::focus_order()
 {
-  ScopeTrace trace;
+  tracing::ScopeTrace trace;
 
   iota(focus_ord.view(), 0U);
 
@@ -174,7 +174,7 @@ void IViewSys::focus_order()
 
 void IViewSys::layout(f32x2 viewport_extent)
 {
-  ScopeTrace trace;
+  tracing::ScopeTrace trace;
 
   if (views.is_empty())
   {
@@ -272,7 +272,7 @@ void IViewSys::layout(f32x2 viewport_extent)
     {
       CRect const clip{.center = canvas_centers[i],
                        .extent = canvas_extents[i]};
-      clips[i] = clip.intersect(clips[parent_viewport]);
+      clips[i] = clip.intersection(clips[parent_viewport]);
     }
     else
     {
@@ -307,7 +307,7 @@ static constexpr Order z_cmp(i32 a_layer, i32 a_z_index, u16 a_depth,
 
 void IViewSys::stack()
 {
-  ScopeTrace trace;
+  tracing::ScopeTrace trace;
 
   if (views.is_empty())
   {
@@ -339,7 +339,7 @@ void IViewSys::stack()
 
 void IViewSys::visibility()
 {
-  ScopeTrace trace;
+  tracing::ScopeTrace trace;
 
   for (auto [i, children] : enumerate(nodes.children))
   {
@@ -365,7 +365,7 @@ void IViewSys::visibility()
 
 void IViewSys::render(Canvas & canvas)
 {
-  ScopeTrace trace;
+  tracing::ScopeTrace trace;
 
   for (auto i : z_ord)
   {
@@ -799,6 +799,7 @@ IViewSys::HitState IViewSys::point_seq(ui::Ctx const & ctx,
 
 void IViewSys::hit_seq(ui::Ctx const & ctx)
 {
+  tracing::ScopeTrace trace;
   // build hitstate from the ids
   // process event state
   // mark eventful views as hot
@@ -860,6 +861,7 @@ void IViewSys::hit_seq(ui::Ctx const & ctx)
 
 void IViewSys::focus_seq(ui::Ctx const & ctx)
 {
+  tracing::ScopeTrace trace;
   // view might be gone when we begin this frame so we can focus on the root view if it has disappeared
   focus_state =
     FocusState{.active = xframe_focus_state.active,
@@ -934,7 +936,7 @@ void IViewSys::compose_event(ui::ViewId id, ui::Events::Type event,
 
 void IViewSys::process_input(ui::Ctx const & ctx)
 {
-  ScopeTrace trace;
+  tracing::ScopeTrace trace;
 
   hit_seq(ctx);
   focus_seq(ctx);
@@ -981,7 +983,7 @@ Option<TextInputInfo> IViewSys::text_input() const
 bool IViewSys::tick(InputState const & input, ui::View & root, Canvas & canvas,
                     Fn<void(ui::Ctx const &)> loop)
 {
-  ScopeTrace trace;
+  tracing::ScopeTrace trace;
   // [ ] message propagation, i.e theme change
 
   clear_frame();

@@ -1,0 +1,1611 @@
+diff --git a/.clang-format b/.clang-format
+new file mode 100644
+index 0000000..3e5f49c
+--- /dev/null
++++ b/.clang-format
+@@ -0,0 +1 @@
++BasedOnStyle: Microsoft
+\ No newline at end of file
+diff --git a/.gitignore b/.gitignore
+index 72791bc..52a68be 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -24,3 +24,4 @@ xcuserdata/
+ *.moved-aside
+ *.xccheckout
+ *.xcscmblueprint
++/.cache
+\ No newline at end of file
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 114fab0..9a476ad 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -91,7 +91,7 @@ file(GLOB INTERNAL_HEADERS "Source/*.h")
+ 
+ if(SB_CONFIG_UNITY)
+   add_definitions(-DSB_CONFIG_UNITY)
+-  set(SHEENBIDI_SOURCES Source/SheenBidi.c)
++  set(SHEENBIDI_SOURCES Source/SheenBidi.c Source/SBAllocator.c)
+ else()
+   file(GLOB SHEENBIDI_SOURCES Source/*.c)
+ endif()
+diff --git a/Headers/SheenBidi/SBAlgorithm.h b/Headers/SheenBidi/SBAlgorithm.h
+index e1b382d..5ab3105 100644
+--- a/Headers/SheenBidi/SBAlgorithm.h
++++ b/Headers/SheenBidi/SBAlgorithm.h
+@@ -17,11 +17,13 @@
+ #ifndef _SB_PUBLIC_ALGORITHM_H
+ #define _SB_PUBLIC_ALGORITHM_H
+ 
++#include <SheenBidi/SBAllocator.h>
+ #include <SheenBidi/SBBase.h>
+ #include <SheenBidi/SBBidiType.h>
+ #include <SheenBidi/SBCodepointSequence.h>
+ #include <SheenBidi/SBParagraph.h>
+ 
++
+ SB_EXTERN_C_BEGIN
+ 
+ typedef struct _SBAlgorithm *SBAlgorithmRef;
+@@ -35,7 +37,7 @@ typedef struct _SBAlgorithm *SBAlgorithmRef;
+  * @return
+  *      A reference to an algorithm object if the call was successful, NULL otherwise.
+  */
+-SB_PUBLIC SBAlgorithmRef SBAlgorithmCreate(const SBCodepointSequence *codepointSequence);
++SB_PUBLIC SBAlgorithmRef SBAlgorithmCreate(SBAllocatorRef allocator, const SBCodepointSequence *codepointSequence);
+ 
+ /**
+  * Returns a direct pointer to the bidirectional types of code units, stored in the algorithm
+@@ -71,9 +73,9 @@ SB_PUBLIC const SBBidiType *SBAlgorithmGetBidiTypesPtr(SBAlgorithmRef algorithm)
+  *      On output, the length of paragraph separator. This parameter can be set to NULL if not
+  *      needed.
+  */
+-SB_PUBLIC void SBAlgorithmGetParagraphBoundary(SBAlgorithmRef algorithm,
+-    SBUInteger paragraphOffset, SBUInteger suggestedLength,
+-    SBUInteger *acutalLength, SBUInteger *separatorLength);
++SB_PUBLIC void SBAlgorithmGetParagraphBoundary(SBAlgorithmRef algorithm, SBUInteger paragraphOffset,
++                                               SBUInteger suggestedLength, SBUInteger *acutalLength,
++                                               SBUInteger *separatorLength);
+ 
+ /**
+  * Creates a paragraph object processed with Unicode Bidirectional Algorithm.
+@@ -96,8 +98,9 @@ SB_PUBLIC void SBAlgorithmGetParagraphBoundary(SBAlgorithmRef algorithm,
+  * @return
+  *      A reference to a paragraph object if the call was successful, NULL otherwise.
+  */
+-SB_PUBLIC SBParagraphRef SBAlgorithmCreateParagraph(SBAlgorithmRef algorithm,
+-    SBUInteger paragraphOffset, SBUInteger suggestedLength, SBLevel baseLevel);
++SB_PUBLIC SBParagraphRef SBAlgorithmCreateParagraph(SBAllocatorRef allocator, SBAlgorithmRef algorithm,
++                                                    SBUInteger paragraphOffset, SBUInteger suggestedLength,
++                                                    SBLevel baseLevel);
+ 
+ /**
+  * Increments the reference count of an algorithm object.
+@@ -116,7 +119,7 @@ SB_PUBLIC SBAlgorithmRef SBAlgorithmRetain(SBAlgorithmRef algorithm);
+  * @param algorithm
+  *      The algorithm object whose reference count will be decremented.
+  */
+-SB_PUBLIC void SBAlgorithmRelease(SBAlgorithmRef algorithm);
++SB_PUBLIC void SBAlgorithmRelease(SBAllocatorRef allocator, SBAlgorithmRef algorithm);
+ 
+ SB_EXTERN_C_END
+ 
+diff --git a/Headers/SheenBidi/SBAllocator.h b/Headers/SheenBidi/SBAllocator.h
+new file mode 100644
+index 0000000..0d52a05
+--- /dev/null
++++ b/Headers/SheenBidi/SBAllocator.h
+@@ -0,0 +1,37 @@
++/*
++ * Copyright (C) 2025 Muhammad Tayyab Akram
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef _SB_ALLOCATOR_H
++#define _SB_ALLOCATOR_H
++
++#include <SheenBidi/SBBase.h>
++
++SB_EXTERN_C_BEGIN
++
++typedef struct _SBAllocator
++{
++    void *user_data;
++
++    SBBoolean (*allocate)(void *user_data, SBUInteger alignment, SBUInteger size, void **out_memory);
++
++    void (*deallocate)(void *user_data, void *memory, SBUInteger alignment, SBUInteger size);
++} SBAllocator, *SBAllocatorRef;
++
++extern SBAllocatorRef SBDefaultAllocator;
++
++SB_EXTERN_C_END
++
++#endif
+\ No newline at end of file
+diff --git a/Headers/SheenBidi/SBLine.h b/Headers/SheenBidi/SBLine.h
+index 7c696f7..c8721a7 100644
+--- a/Headers/SheenBidi/SBLine.h
++++ b/Headers/SheenBidi/SBLine.h
+@@ -17,9 +17,11 @@
+ #ifndef _SB_PUBLIC_LINE_H
+ #define _SB_PUBLIC_LINE_H
+ 
++#include <SheenBidi/SBAllocator.h>
+ #include <SheenBidi/SBBase.h>
+ #include <SheenBidi/SBRun.h>
+ 
++
+ SB_EXTERN_C_BEGIN
+ 
+ typedef struct _SBLine *SBLineRef;
+@@ -60,7 +62,7 @@ SB_PUBLIC SBUInteger SBLineGetRunCount(SBLineRef line);
+  * @param line
+  *      The line from which to access the runs.
+  * @return
+- *      A valid pointer to an array of SBRun structures. 
++ *      A valid pointer to an array of SBRun structures.
+  */
+ SB_PUBLIC const SBRun *SBLineGetRunsPtr(SBLineRef line);
+ 
+@@ -81,7 +83,7 @@ SB_PUBLIC SBLineRef SBLineRetain(SBLineRef line);
+  * @param line
+  *      The line object whose reference count will be decremented.
+  */
+-SB_PUBLIC void SBLineRelease(SBLineRef line);
++SB_PUBLIC void SBLineRelease(SBAllocatorRef allocator, SBLineRef line);
+ 
+ SB_EXTERN_C_END
+ 
+diff --git a/Headers/SheenBidi/SBMirrorLocator.h b/Headers/SheenBidi/SBMirrorLocator.h
+index 452a597..a1a263e 100644
+--- a/Headers/SheenBidi/SBMirrorLocator.h
++++ b/Headers/SheenBidi/SBMirrorLocator.h
+@@ -17,10 +17,12 @@
+ #ifndef _SB_PUBLIC_MIRROR_LOCATOR_H
+ #define _SB_PUBLIC_MIRROR_LOCATOR_H
+ 
++#include <SheenBidi/SBAllocator.h>
+ #include <SheenBidi/SBBase.h>
+ #include <SheenBidi/SBCodepoint.h>
+ #include <SheenBidi/SBLine.h>
+ 
++
+ SB_EXTERN_C_BEGIN
+ 
+ typedef struct _SBMirrorLocator *SBMirrorLocatorRef;
+@@ -28,7 +30,8 @@ typedef struct _SBMirrorLocator *SBMirrorLocatorRef;
+ /**
+  * A structure containing the information about a code point having Bidi_Mirrored property.
+  */
+-typedef struct _SBMirrorAgent {
++typedef struct _SBMirrorAgent
++{
+     SBUInteger index;      /**< The absolute index of the code point. */
+     SBCodepoint mirror;    /**< The mirrored code point. */
+     SBCodepoint codepoint; /**< The actual code point. */
+@@ -40,7 +43,7 @@ typedef struct _SBMirrorAgent {
+  * @return
+  *      A reference to a mirror locator object.
+  */
+-SB_PUBLIC SBMirrorLocatorRef SBMirrorLocatorCreate(void);
++SB_PUBLIC SBMirrorLocatorRef SBMirrorLocatorCreate(SBAllocatorRef allocator);
+ 
+ /**
+  * Loads a line in the locator so that its mirror can be located.
+@@ -52,8 +55,8 @@ SB_PUBLIC SBMirrorLocatorRef SBMirrorLocatorCreate(void);
+  * @param stringBuffer
+  *      The string buffer from which the line's algorithm was created.
+  */
+-SB_PUBLIC void SBMirrorLocatorLoadLine(SBMirrorLocatorRef locator, SBLineRef line,
+-    void *stringBuffer);
++SB_PUBLIC void SBMirrorLocatorLoadLine(SBAllocatorRef allocator, SBMirrorLocatorRef locator, SBLineRef line,
++                                       void *stringBuffer);
+ 
+ /**
+  * Returns the agent containing the information of current located mirror.
+@@ -101,7 +104,7 @@ SB_PUBLIC SBMirrorLocatorRef SBMirrorLocatorRetain(SBMirrorLocatorRef locator);
+  * @param locator
+  *      The mirror locator object whose reference count will be decremented.
+  */
+-SB_PUBLIC void SBMirrorLocatorRelease(SBMirrorLocatorRef locator);
++SB_PUBLIC void SBMirrorLocatorRelease(SBAllocatorRef allocator, SBMirrorLocatorRef locator);
+ 
+ SB_EXTERN_C_END
+ 
+diff --git a/Headers/SheenBidi/SBParagraph.h b/Headers/SheenBidi/SBParagraph.h
+index 7f0df44..ee5aab0 100644
+--- a/Headers/SheenBidi/SBParagraph.h
++++ b/Headers/SheenBidi/SBParagraph.h
+@@ -78,8 +78,8 @@ SB_PUBLIC const SBLevel *SBParagraphGetLevelsPtr(SBParagraphRef paragraph);
+  * @return
+  *      A reference to a line object if the call was successful, NULL otherwise.
+  */
+-SB_PUBLIC SBLineRef SBParagraphCreateLine(SBParagraphRef paragraph, SBUInteger lineOffset,
+-    SBUInteger lineLength);
++SB_PUBLIC SBLineRef SBParagraphCreateLine(SBAllocatorRef allocator, SBParagraphRef paragraph, SBUInteger lineOffset,
++                                          SBUInteger lineLength);
+ 
+ /**
+  * Increments the reference count of a paragraph object.
+@@ -98,7 +98,7 @@ SB_PUBLIC SBParagraphRef SBParagraphRetain(SBParagraphRef paragraph);
+  * @param paragraph
+  *      The paragraph object whose reference count will be decremented.
+  */
+-SB_PUBLIC void SBParagraphRelease(SBParagraphRef paragraph);
++SB_PUBLIC void SBParagraphRelease(SBAllocatorRef allocator, SBParagraphRef paragraph);
+ 
+ SB_EXTERN_C_END
+ 
+diff --git a/Headers/SheenBidi/SBScriptLocator.h b/Headers/SheenBidi/SBScriptLocator.h
+index f3231b2..07bd329 100644
+--- a/Headers/SheenBidi/SBScriptLocator.h
++++ b/Headers/SheenBidi/SBScriptLocator.h
+@@ -17,10 +17,12 @@
+ #ifndef _SB_PUBLIC_SCRIPT_LOCATOR_H
+ #define _SB_PUBLIC_SCRIPT_LOCATOR_H
+ 
++#include <SheenBidi/SBAllocator.h>
+ #include <SheenBidi/SBBase.h>
+ #include <SheenBidi/SBCodepointSequence.h>
+ #include <SheenBidi/SBScript.h>
+ 
++
+ SB_EXTERN_C_BEGIN
+ 
+ typedef struct _SBScriptLocator *SBScriptLocatorRef;
+@@ -28,7 +30,8 @@ typedef struct _SBScriptLocator *SBScriptLocatorRef;
+ /**
+  * A structure containing the information about a run of code points having same script.
+  */
+-typedef struct _SBScriptAgent {
++typedef struct _SBScriptAgent
++{
+     SBUInteger offset; /**< The index to the first code unit of the run in source string. */
+     SBUInteger length; /**< The number of code units covering the length of the run. */
+     SBScript script;   /**< The script of the run. */
+@@ -40,7 +43,7 @@ typedef struct _SBScriptAgent {
+  * @return
+  *      A reference to a script locator object.
+  */
+-SB_PUBLIC SBScriptLocatorRef SBScriptLocatorCreate(void);
++SB_PUBLIC SBScriptLocatorRef SBScriptLocatorCreate(SBAllocatorRef allocator);
+ 
+ /**
+  * Loads a code point sequence in the locator so that its script runs can be located.
+@@ -50,8 +53,7 @@ SB_PUBLIC SBScriptLocatorRef SBScriptLocatorCreate(void);
+  * @param codepointSequence
+  *      The code point sequence which will be loaded in the locator.
+  */
+-SB_PUBLIC void SBScriptLocatorLoadCodepoints(SBScriptLocatorRef locator,
+-    const SBCodepointSequence *codepointSequence);
++SB_PUBLIC void SBScriptLocatorLoadCodepoints(SBScriptLocatorRef locator, const SBCodepointSequence *codepointSequence);
+ 
+ /**
+  * Returns the agent containing the information of current located script run.
+@@ -99,7 +101,7 @@ SB_PUBLIC SBScriptLocatorRef SBScriptLocatorRetain(SBScriptLocatorRef locator);
+  * @param locator
+  *      The script locator object whose reference count will be decremented.
+  */
+-SB_PUBLIC void SBScriptLocatorRelease(SBScriptLocatorRef locator);
++SB_PUBLIC void SBScriptLocatorRelease(SBAllocatorRef allocator, SBScriptLocatorRef locator);
+ 
+ SB_EXTERN_C_END
+ 
+diff --git a/Makefile b/Makefile
+index 25f6e20..96f67d5 100644
+--- a/Makefile
++++ b/Makefile
+@@ -36,6 +36,7 @@ DEBUG_SOURCES = $(SOURCE_DIR)/BidiChain.c \
+                 $(SOURCE_DIR)/PairingLookup.c \
+                 $(SOURCE_DIR)/RunQueue.c \
+                 $(SOURCE_DIR)/SBAlgorithm.c \
++                $(SOURCE_DIR)/SBAllocator.c \
+                 $(SOURCE_DIR)/SBBase.c \
+                 $(SOURCE_DIR)/SBCodepoint.c \
+                 $(SOURCE_DIR)/SBCodepointSequence.c \
+diff --git a/Source/BracketQueue.c b/Source/BracketQueue.c
+index f337e0a..8ae81cd 100644
+--- a/Source/BracketQueue.c
++++ b/Source/BracketQueue.c
+@@ -25,7 +25,7 @@
+ #include "SBCodepoint.h"
+ #include "BracketQueue.h"
+ 
+-static SBBoolean BracketQueueInsertElement(BracketQueueRef queue)
++static SBBoolean BracketQueueInsertElement(SBAllocatorRef allocator, BracketQueueRef queue)
+ {
+     if (queue->_rearTop != BracketQueueList_MaxIndex) {
+         queue->_rearTop += 1;
+@@ -34,7 +34,7 @@ static SBBoolean BracketQueueInsertElement(BracketQueueRef queue)
+         BracketQueueListRef rearList = previousList->next;
+ 
+         if (!rearList) {
+-            rearList = ObjectAddMemory(&queue->_object, sizeof(BracketQueueList));
++            rearList = ObjectAddMemory(allocator, &queue->_object, sizeof(BracketQueueList));
+             if (!rearList) {
+                 return SBFalse;
+             }
+@@ -93,13 +93,13 @@ SB_INTERNAL void BracketQueueReset(BracketQueueRef queue, SBBidiType direction)
+     queue->_direction = direction;
+ }
+ 
+-SB_INTERNAL SBBoolean BracketQueueEnqueue(BracketQueueRef queue,
++SB_INTERNAL SBBoolean BracketQueueEnqueue(SBAllocatorRef allocator, BracketQueueRef queue,
+    BidiLink priorStrongLink, BidiLink openingLink, SBCodepoint bracket)
+ {
+     /* The queue can only take a maximum of 63 elements. */
+     SBAssert(queue->count < BracketQueueGetMaxCapacity());
+ 
+-    if (BracketQueueInsertElement(queue)) {
++    if (BracketQueueInsertElement(allocator, queue)) {
+         BracketQueueListRef list = queue->_rearList;
+         SBInteger top = queue->_rearTop;
+ 
+@@ -219,7 +219,7 @@ SB_INTERNAL SBBidiType BracketQueueGetStrongType(BracketQueueRef queue)
+     return queue->_frontList->strongType[queue->_frontTop];
+ }
+ 
+-SB_INTERNAL void BracketQueueFinalize(BracketQueueRef queue)
++SB_INTERNAL void BracketQueueFinalize(SBAllocatorRef allocator, BracketQueueRef queue)
+ {
+-    ObjectFinalize(&queue->_object);
++    ObjectFinalize(allocator, &queue->_object);
+ }
+diff --git a/Source/BracketQueue.h b/Source/BracketQueue.h
+index bfe16d9..888f7c4 100644
+--- a/Source/BracketQueue.h
++++ b/Source/BracketQueue.h
+@@ -24,10 +24,11 @@
+ #include "BidiChain.h"
+ #include "Object.h"
+ 
+-#define BracketQueueList_Length         8
+-#define BracketQueueList_MaxIndex       (BracketQueueList_Length - 1)
++#define BracketQueueList_Length 8
++#define BracketQueueList_MaxIndex (BracketQueueList_Length - 1)
+ 
+-typedef struct _BracketQueueList {
++typedef struct _BracketQueueList
++{
+     SBCodepoint bracket[BracketQueueList_Length];
+     BidiLink priorStrongLink[BracketQueueList_Length];
+     BidiLink openingLink[BracketQueueList_Length];
+@@ -38,7 +39,8 @@ typedef struct _BracketQueueList {
+     struct _BracketQueueList *next;
+ } BracketQueueList, *BracketQueueListRef;
+ 
+-typedef struct _BracketQueue {
++typedef struct _BracketQueue
++{
+     Object _object;
+     BracketQueueList _firstList;
+     BracketQueueListRef _frontList;
+@@ -50,18 +52,17 @@ typedef struct _BracketQueue {
+     SBBidiType _direction;
+ } BracketQueue, *BracketQueueRef;
+ 
+-#define BracketQueueGetMaxCapacity()        63
++#define BracketQueueGetMaxCapacity() 63
+ 
+ SB_INTERNAL void BracketQueueInitialize(BracketQueueRef queue);
+ SB_INTERNAL void BracketQueueReset(BracketQueueRef queue, SBBidiType direction);
+ 
+-SB_INTERNAL SBBoolean BracketQueueEnqueue(BracketQueueRef queue,
+-    BidiLink priorStrongLink, BidiLink openingLink, SBCodepoint bracket);
++SB_INTERNAL SBBoolean BracketQueueEnqueue(SBAllocatorRef allocator, BracketQueueRef queue, BidiLink priorStrongLink,
++                                          BidiLink openingLink, SBCodepoint bracket);
+ SB_INTERNAL void BracketQueueDequeue(BracketQueueRef queue);
+ 
+ SB_INTERNAL void BracketQueueSetStrongType(BracketQueueRef queue, SBBidiType strongType);
+-SB_INTERNAL void BracketQueueClosePair(BracketQueueRef queue,
+-    BidiLink closingLink, SBCodepoint bracket);
++SB_INTERNAL void BracketQueueClosePair(BracketQueueRef queue, BidiLink closingLink, SBCodepoint bracket);
+ 
+ SB_INTERNAL SBBoolean BracketQueueShouldDequeue(BracketQueueRef queue);
+ 
+@@ -70,6 +71,6 @@ SB_INTERNAL BidiLink BracketQueueGetOpeningLink(BracketQueueRef queue);
+ SB_INTERNAL BidiLink BracketQueueGetClosingLink(BracketQueueRef queue);
+ SB_INTERNAL SBBidiType BracketQueueGetStrongType(BracketQueueRef queue);
+ 
+-SB_INTERNAL void BracketQueueFinalize(BracketQueueRef queue);
++SB_INTERNAL void BracketQueueFinalize(SBAllocatorRef allocator, BracketQueueRef queue);
+ 
+ #endif
+diff --git a/Source/IsolatingRun.c b/Source/IsolatingRun.c
+index 23ac44a..6c3853a 100644
+--- a/Source/IsolatingRun.c
++++ b/Source/IsolatingRun.c
+@@ -210,7 +210,7 @@ static BidiLink ResolveWeakTypes(IsolatingRunRef isolatingRun)
+     return priorLink;
+ }
+ 
+-static SBBoolean ResolveBrackets(IsolatingRunRef isolatingRun)
++static SBBoolean ResolveBrackets(SBAllocatorRef allocator, IsolatingRunRef isolatingRun)
+ {
+     const SBCodepointSequence *sequence = isolatingRun->codepointSequence;
+     SBUInteger paragraphOffset = isolatingRun->paragraphOffset;
+@@ -246,7 +246,7 @@ static SBBoolean ResolveBrackets(IsolatingRunRef isolatingRun)
+             switch (bracketType) {
+             case BracketTypeOpen:
+                 if (queue->count < BracketQueueGetMaxCapacity()) {
+-                    if (!BracketQueueEnqueue(queue, priorStrongLink, link, bracketValue)) {
++                    if (!BracketQueueEnqueue(allocator, queue, priorStrongLink, link, bracketValue)) {
+                         return SBFalse;
+                     }
+                 } else {
+@@ -477,7 +477,7 @@ SB_INTERNAL void IsolatingRunInitialize(IsolatingRunRef isolatingRun)
+     BracketQueueInitialize(&isolatingRun->_bracketQueue);
+ }
+ 
+-SB_INTERNAL SBBoolean IsolatingRunResolve(IsolatingRunRef isolatingRun)
++SB_INTERNAL SBBoolean IsolatingRunResolve(SBAllocatorRef allocator, IsolatingRunRef isolatingRun)
+ {
+     BidiLink lastLink;
+     BidiLink subsequentLink;
+@@ -502,7 +502,7 @@ SB_INTERNAL SBBoolean IsolatingRunResolve(IsolatingRunRef isolatingRun)
+     SB_LOG_BLOCK_CLOSER();
+ 
+     /* Rule N0 */
+-    if (!ResolveBrackets(isolatingRun)) {
++    if (!ResolveBrackets(allocator, isolatingRun)) {
+         return SBFalse;
+     }
+ 
+@@ -532,7 +532,7 @@ SB_INTERNAL SBBoolean IsolatingRunResolve(IsolatingRunRef isolatingRun)
+     return SBTrue;
+ }
+ 
+-SB_INTERNAL void IsolatingRunFinalize(IsolatingRunRef isolatingRun)
++SB_INTERNAL void IsolatingRunFinalize(SBAllocatorRef allocator, IsolatingRunRef isolatingRun)
+ {
+-    BracketQueueFinalize(&isolatingRun->_bracketQueue);
++    BracketQueueFinalize(allocator, &isolatingRun->_bracketQueue);
+ }
+diff --git a/Source/IsolatingRun.h b/Source/IsolatingRun.h
+index 8b49731..2bf5d74 100644
+--- a/Source/IsolatingRun.h
++++ b/Source/IsolatingRun.h
+@@ -40,8 +40,8 @@ typedef struct _IsolatingRun {
+ } IsolatingRun, *IsolatingRunRef;
+ 
+ SB_INTERNAL void IsolatingRunInitialize(IsolatingRunRef isolatingRun);
+-SB_INTERNAL SBBoolean IsolatingRunResolve(IsolatingRunRef isolatingRun);
++SB_INTERNAL SBBoolean IsolatingRunResolve(SBAllocatorRef allocator, IsolatingRunRef isolatingRun);
+ 
+-SB_INTERNAL void IsolatingRunFinalize(IsolatingRunRef isolatingRun);
++SB_INTERNAL void IsolatingRunFinalize(SBAllocatorRef allocator, IsolatingRunRef isolatingRun);
+ 
+ #endif
+diff --git a/Source/Object.c b/Source/Object.c
+index 829d9cb..44355d3 100644
+--- a/Source/Object.c
++++ b/Source/Object.c
+@@ -19,9 +19,10 @@
+ 
+ #include <SheenBidi/SBConfig.h>
+ 
++#include "Object.h"
+ #include "SBAssert.h"
+ #include "SBBase.h"
+-#include "Object.h"
++#include <stdalign.h>
+ 
+ /**
+  * Calculates the total size from a list of chunk sizes.
+@@ -39,15 +40,16 @@ static SBUInteger CalculateTotalSize(const SBUInteger *sizes, SBUInteger count)
+ }
+ 
+ /**
+- * Allocates a single block of memory large enough to store an optional header followed by a
+- * sequence of memory chunks. Initializes the `pointers` array with addresses to each chunk.
++ * Allocates a single block of memory large enough to store an optional header
++ * followed by a sequence of memory chunks. Initializes the `pointers` array
++ * with addresses to each chunk.
+  */
+-static void *AllocateMemory(SBUInteger headerSize, SBUInteger totalSize,
+-    const SBUInteger *sizes, SBUInteger count, void **pointers)
++static void *AllocateMemory(SBAllocatorRef allocator, SBUInteger headerSize, SBUInteger totalSize,
++                            const SBUInteger *sizes, SBUInteger count, void **pointers)
+ {
+-    void *base = malloc(headerSize + totalSize);
++    void *base = NULL;
+ 
+-    if (base) {
++    if (allocator->allocate(allocator->user_data, alignof(max_align_t), headerSize + totalSize, &base)) {
+         SBUInt8 *memory = (SBUInt8 *)base;
+         SBUInteger offset = headerSize;
+         SBUInteger index;
+@@ -61,7 +63,7 @@ static void *AllocateMemory(SBUInteger headerSize, SBUInteger totalSize,
+     return base;
+ }
+ 
+-SB_INTERNAL ObjectRef ObjectCreate(const SBUInteger *sizes, SBUInteger count, void **pointers)
++SB_INTERNAL ObjectRef ObjectCreate(SBAllocatorRef allocator, const SBUInteger *sizes, SBUInteger count, void **pointers)
+ {
+     SBUInteger totalSize = CalculateTotalSize(sizes, count);
+     ObjectRef object;
+@@ -69,7 +71,7 @@ SB_INTERNAL ObjectRef ObjectCreate(const SBUInteger *sizes, SBUInteger count, vo
+     /* Total size MUST be greater than the size of Object structure. */
+     SBAssert(totalSize > sizeof(Object));
+ 
+-    object = AllocateMemory(0, totalSize, sizes, count, pointers);
++    object = AllocateMemory(allocator, 0, totalSize, sizes, count, pointers);
+ 
+     if (object) {
+         ObjectInitialize(object);
+@@ -83,19 +85,19 @@ SB_INTERNAL void ObjectInitialize(ObjectRef object)
+     object->_memoryList = NULL;
+ }
+ 
+-SB_INTERNAL void *ObjectAddMemory(ObjectRef object, SBUInteger size)
++SB_INTERNAL void *ObjectAddMemory(SBAllocatorRef allocator, ObjectRef object, SBUInteger size)
+ {
+     void *pointer;
+ 
+-    if (ObjectAddMemoryWithChunks(object, &size, 1, &pointer)) {
++    if (ObjectAddMemoryWithChunks(allocator, object, &size, 1, &pointer)) {
+         return pointer;
+     }
+ 
+     return NULL;
+ }
+ 
+-SB_INTERNAL SBBoolean ObjectAddMemoryWithChunks(ObjectRef object,
+-    const SBUInteger *sizes, SBUInteger count, void **pointers)
++SB_INTERNAL SBBoolean ObjectAddMemoryWithChunks(SBAllocatorRef allocator, ObjectRef object, const SBUInteger *sizes,
++                                                SBUInteger count, void **pointers)
+ {
+     MemoryListRef memoryList = object->_memoryList;
+     SBUInteger totalSize = CalculateTotalSize(sizes, count);
+@@ -104,22 +106,28 @@ SB_INTERNAL SBBoolean ObjectAddMemoryWithChunks(ObjectRef object,
+     SBAssert(totalSize > 0);
+ 
+     if (memoryList) {
+-        MemoryBlockRef block = AllocateMemory(sizeof(MemoryBlock), totalSize, sizes, count, pointers);
++        MemoryBlockRef block = AllocateMemory(allocator, sizeof(MemoryBlock), totalSize, sizes, count, pointers);
+ 
+         if (block) {
+             block->next = NULL;
++            block->alignment = alignof(max_align_t);
++            block->size = totalSize;
+ 
+             memoryList->last->next = block;
+             memoryList->last = block;
+ 
+             return SBTrue;
+         }
+-    } else {
+-        memoryList = AllocateMemory(sizeof(MemoryList), totalSize, sizes, count, pointers);
++    }
++    else
++    {
++        memoryList = AllocateMemory(allocator, sizeof(MemoryList), totalSize, sizes, count, pointers);
+ 
+         if (memoryList) {
+             memoryList->first.next = NULL;
+             memoryList->last = &memoryList->first;
++            memoryList->first.alignment = alignof(max_align_t);
++            memoryList->first.size = totalSize;
+ 
+             object->_memoryList = memoryList;
+ 
+@@ -130,7 +138,7 @@ SB_INTERNAL SBBoolean ObjectAddMemoryWithChunks(ObjectRef object,
+     return SBFalse;
+ }
+ 
+-SB_INTERNAL void ObjectFinalize(ObjectRef object)
++SB_INTERNAL void ObjectFinalize(SBAllocatorRef allocator, ObjectRef object)
+ {
+     MemoryListRef memoryList = object->_memoryList;
+ 
+@@ -140,7 +148,7 @@ SB_INTERNAL void ObjectFinalize(ObjectRef object)
+         while (block) {
+             MemoryBlockRef next = block->next;
+             /* Free the block along with its data as they were allocated together. */
+-            free(block);
++            allocator->deallocate(allocator->user_data, block, block->alignment, block->size);
+ 
+             block = next;
+         }
+@@ -149,8 +157,8 @@ SB_INTERNAL void ObjectFinalize(ObjectRef object)
+     }
+ }
+ 
+-SB_INTERNAL void ObjectDispose(ObjectRef object)
++SB_INTERNAL void ObjectDispose(SBAllocatorRef allocator, ObjectRef object)
+ {
+-    ObjectFinalize(object);
++    ObjectFinalize(allocator, object);
+     free(object);
+ }
+diff --git a/Source/Object.h b/Source/Object.h
+index 40ec8a7..f2b4717 100644
+--- a/Source/Object.h
++++ b/Source/Object.h
+@@ -20,6 +20,8 @@
+ #include <SheenBidi/SBConfig.h>
+ 
+ #include "SBBase.h"
++#include <SheenBidi/SBAllocator.h>
++
+ 
+ /**
+  * Represents a single dynamically allocated memory block.
+@@ -27,6 +29,8 @@
+  */
+ typedef struct _MemoryBlock {
+     struct _MemoryBlock *next;
++    SBUInteger alignment;
++    SBUInteger size;
+ } MemoryBlock, *MemoryBlockRef;
+ 
+ /**
+@@ -56,7 +60,8 @@ typedef struct Object {
+  * @return
+  *      A pointer to the initialized Object, or NULL on failure.
+  */
+-SB_INTERNAL ObjectRef ObjectCreate(const SBUInteger *sizes, SBUInteger count, void **pointers);
++SB_INTERNAL ObjectRef ObjectCreate(SBAllocatorRef allocator, const SBUInteger *sizes, SBUInteger count,
++                                   void **pointers);
+ 
+ /**
+  * Initializes an already-allocated Object.
+@@ -67,7 +72,8 @@ SB_INTERNAL ObjectRef ObjectCreate(const SBUInteger *sizes, SBUInteger count, vo
+ SB_INTERNAL void ObjectInitialize(ObjectRef object);
+ 
+ /**
+- * Allocates and adds a single memory chunk to an existing Object, tracking it internally.
++ * Allocates and adds a single memory chunk to an existing Object, tracking it
++ * internally.
+  *
+  * @param object
+  *      The Object to which the memory is added.
+@@ -76,10 +82,11 @@ SB_INTERNAL void ObjectInitialize(ObjectRef object);
+  * @return
+  *      Pointer to the newly allocated memory, or NULL on failure.
+  */
+-SB_INTERNAL void *ObjectAddMemory(ObjectRef object, SBUInteger size);
++SB_INTERNAL void *ObjectAddMemory(SBAllocatorRef allocator, ObjectRef object, SBUInteger size);
+ 
+ /**
+- * Allocates and adds multiple memory chunks to an existing Object, tracking them internally.
++ * Allocates and adds multiple memory chunks to an existing Object, tracking
++ * them internally.
+  *
+  * @param object
+  *      The Object to which the chunks are added.
+@@ -92,8 +99,8 @@ SB_INTERNAL void *ObjectAddMemory(ObjectRef object, SBUInteger size);
+  * @return
+  *      `SBTrue` if successful, `SBFalse` otherwise.
+  */
+-SB_INTERNAL SBBoolean ObjectAddMemoryWithChunks(ObjectRef object,
+-    const SBUInteger *sizes, SBUInteger count, void **pointers);
++SB_INTERNAL SBBoolean ObjectAddMemoryWithChunks(SBAllocatorRef allocator, ObjectRef object, const SBUInteger *sizes,
++                                                SBUInteger count, void **pointers);
+ 
+ /**
+  * Frees all memory chunks added to the Object using ObjectAddMemory*.
+@@ -101,7 +108,7 @@ SB_INTERNAL SBBoolean ObjectAddMemoryWithChunks(ObjectRef object,
+  * @param object
+  *      The Object whose internal memory is released.
+  */
+-SB_INTERNAL void ObjectFinalize(ObjectRef object);
++SB_INTERNAL void ObjectFinalize(SBAllocatorRef allocator, ObjectRef object);
+ 
+ /**
+  * Frees the Object and all associated memory.
+@@ -109,6 +116,6 @@ SB_INTERNAL void ObjectFinalize(ObjectRef object);
+  * @param object
+  *      The Object to dispose.
+  */
+-SB_INTERNAL void ObjectDispose(ObjectRef object);
++SB_INTERNAL void ObjectDispose(SBAllocatorRef allocator, ObjectRef object);
+ 
+ #endif
+diff --git a/Source/RunQueue.c b/Source/RunQueue.c
+index 73e615d..1306c33 100644
+--- a/Source/RunQueue.c
++++ b/Source/RunQueue.c
+@@ -24,7 +24,7 @@
+ #include "SBAssert.h"
+ #include "RunQueue.h"
+ 
+-static SBBoolean RunQueueInsertElement(RunQueueRef queue)
++static SBBoolean RunQueueInsertElement(SBAllocatorRef allocator, RunQueueRef queue)
+ {
+     if (queue->_rearTop != RunQueueList_MaxIndex) {
+         queue->_rearTop += 1;
+@@ -33,7 +33,7 @@ static SBBoolean RunQueueInsertElement(RunQueueRef queue)
+         RunQueueListRef rearList = previousList->next;
+ 
+         if (!rearList) {
+-            rearList = ObjectAddMemory(&queue->_object, sizeof(RunQueueList));
++            rearList = ObjectAddMemory(allocator, &queue->_object, sizeof(RunQueueList));
+             if (!rearList) {
+                 return SBFalse;
+             }
+@@ -101,9 +101,9 @@ SB_INTERNAL void RunQueueInitialize(RunQueueRef queue)
+     queue->shouldDequeue = SBFalse;
+ }
+ 
+-SB_INTERNAL SBBoolean RunQueueEnqueue(RunQueueRef queue, const LevelRunRef levelRun)
++SB_INTERNAL SBBoolean RunQueueEnqueue(SBAllocatorRef allocator, RunQueueRef queue, const LevelRunRef levelRun)
+ {
+-    if (RunQueueInsertElement(queue)) {
++    if (RunQueueInsertElement(allocator, queue)) {
+         LevelRunRef element = &queue->_rearList->elements[queue->_rearTop];
+ 
+         /* Copy the level run into the current element. */
+@@ -158,7 +158,7 @@ SB_INTERNAL LevelRunRef RunQueueGetFront(RunQueueRef queue)
+     return &queue->_frontList->elements[queue->_frontTop];
+ }
+ 
+-SB_INTERNAL void RunQueueFinalize(RunQueueRef queue)
++SB_INTERNAL void RunQueueFinalize(SBAllocatorRef allocator, RunQueueRef queue)
+ {
+-    ObjectFinalize(&queue->_object);
++    ObjectFinalize(allocator, &queue->_object);
+ }
+diff --git a/Source/RunQueue.h b/Source/RunQueue.h
+index 77e76ba..0014720 100644
+--- a/Source/RunQueue.h
++++ b/Source/RunQueue.h
+@@ -48,11 +48,11 @@ typedef struct _RunQueue {
+ 
+ SB_INTERNAL void RunQueueInitialize(RunQueueRef queue);
+ 
+-SB_INTERNAL SBBoolean RunQueueEnqueue(RunQueueRef queue, const LevelRunRef levelRun);
++SB_INTERNAL SBBoolean RunQueueEnqueue(SBAllocatorRef allocator, RunQueueRef queue, const LevelRunRef levelRun);
+ SB_INTERNAL void RunQueueDequeue(RunQueueRef queue);
+ 
+ SB_INTERNAL LevelRunRef RunQueueGetFront(RunQueueRef queue);
+ 
+-SB_INTERNAL void RunQueueFinalize(RunQueueRef queue);
++SB_INTERNAL void RunQueueFinalize(SBAllocatorRef allocator, RunQueueRef queue);
+ 
+ #endif
+diff --git a/Source/SBAlgorithm.c b/Source/SBAlgorithm.c
+index a802f0c..e8a7187 100644
+--- a/Source/SBAlgorithm.c
++++ b/Source/SBAlgorithm.c
+@@ -31,7 +31,7 @@
+ #define BIDI_TYPES 1
+ #define COUNT      2
+ 
+-static SBAlgorithmRef AllocateAlgorithm(SBUInteger stringLength)
++static SBAlgorithmRef AllocateAlgorithm(SBAllocatorRef allocator, SBUInteger stringLength)
+ {
+     void *pointers[COUNT] = { NULL };
+     SBUInteger sizes[COUNT];
+@@ -39,7 +39,8 @@ static SBAlgorithmRef AllocateAlgorithm(SBUInteger stringLength)
+     sizes[ALGORITHM]  = sizeof(SBAlgorithm);
+     sizes[BIDI_TYPES] = sizeof(SBBidiType) * stringLength;
+ 
+-    if (ObjectCreate(sizes, COUNT, pointers)) {
++    if (ObjectCreate(allocator, sizes, COUNT, pointers))
++    {
+         SBAlgorithmRef algorithm = pointers[ALGORITHM];
+         SBBidiType *fixedTypes = pointers[BIDI_TYPES];
+ 
+@@ -69,7 +70,7 @@ static void DetermineBidiTypes(const SBCodepointSequence *sequence, SBBidiType *
+     }
+ }
+ 
+-static SBAlgorithmRef CreateAlgorithm(const SBCodepointSequence *codepointSequence)
++static SBAlgorithmRef CreateAlgorithm(SBAllocatorRef allocator, const SBCodepointSequence *codepointSequence)
+ {
+     SBUInteger stringLength = codepointSequence->stringLength;
+     SBAlgorithmRef algorithm;
+@@ -78,7 +79,7 @@ static SBAlgorithmRef CreateAlgorithm(const SBCodepointSequence *codepointSequen
+     SB_LOG_STATEMENT("Codepoints", 1, SB_LOG_CODEPOINT_SEQUENCE(codepointSequence));
+     SB_LOG_BLOCK_CLOSER();
+ 
+-    algorithm = AllocateAlgorithm(stringLength);
++    algorithm = AllocateAlgorithm(allocator, stringLength);
+ 
+     if (algorithm) {
+         algorithm->codepointSequence = *codepointSequence;
+@@ -96,10 +97,10 @@ static SBAlgorithmRef CreateAlgorithm(const SBCodepointSequence *codepointSequen
+     return algorithm;
+ }
+ 
+-SBAlgorithmRef SBAlgorithmCreate(const SBCodepointSequence *codepointSequence)
++SBAlgorithmRef SBAlgorithmCreate(SBAllocatorRef allocator, const SBCodepointSequence *codepointSequence)
+ {
+     if (SBCodepointSequenceIsValid(codepointSequence)) {
+-        return CreateAlgorithm(codepointSequence);
++        return CreateAlgorithm(allocator, codepointSequence);
+     }
+ 
+     return NULL;
+@@ -170,8 +171,8 @@ void SBAlgorithmGetParagraphBoundary(SBAlgorithmRef algorithm,
+     }
+ }
+ 
+-SBParagraphRef SBAlgorithmCreateParagraph(SBAlgorithmRef algorithm,
+-    SBUInteger paragraphOffset, SBUInteger suggestedLength, SBLevel baseLevel)
++SBParagraphRef SBAlgorithmCreateParagraph(SBAllocatorRef allocator, SBAlgorithmRef algorithm,
++                                          SBUInteger paragraphOffset, SBUInteger suggestedLength, SBLevel baseLevel)
+ {
+     const SBCodepointSequence *codepointSequence = &algorithm->codepointSequence;
+     SBUInteger stringLength = codepointSequence->stringLength;
+@@ -179,7 +180,7 @@ SBParagraphRef SBAlgorithmCreateParagraph(SBAlgorithmRef algorithm,
+     SBUIntegerNormalizeRange(stringLength, &paragraphOffset, &suggestedLength);
+ 
+     if (suggestedLength > 0) {
+-        return SBParagraphCreate(algorithm, paragraphOffset, suggestedLength, baseLevel);
++        return SBParagraphCreate(allocator, algorithm, paragraphOffset, suggestedLength, baseLevel);
+     }
+ 
+     return NULL;
+@@ -194,9 +195,9 @@ SBAlgorithmRef SBAlgorithmRetain(SBAlgorithmRef algorithm)
+     return algorithm;
+ }
+ 
+-void SBAlgorithmRelease(SBAlgorithmRef algorithm)
++void SBAlgorithmRelease(SBAllocatorRef allocator, SBAlgorithmRef algorithm)
+ {
+     if (algorithm && --algorithm->retainCount == 0) {
+-        ObjectDispose(&algorithm->_object);
++        ObjectDispose(allocator, &algorithm->_object);
+     }
+ }
+diff --git a/Source/SBAllocator.c b/Source/SBAllocator.c
+new file mode 100644
+index 0000000..9bd94c3
+--- /dev/null
++++ b/Source/SBAllocator.c
+@@ -0,0 +1,44 @@
++/*
++ * Copyright (C) 2025 Muhammad Tayyab Akram
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include <SheenBidi/SBAllocator.h>
++
++#include <stdlib.h>
++
++static SBBoolean SBDefaultAllocate(void *object_data, SBUInteger alignment, SBUInteger size, void **out_memory)
++{
++    (void)object_data;
++    (void)alignment;
++
++    void *mem = malloc(size);
++
++    *out_memory = mem;
++    return mem != NULL;
++}
++
++static void SBDefaultDeallocate(void *object_data, void *memory, SBUInteger alignment, SBUInteger size)
++{
++    (void)object_data;
++    (void)alignment;
++    (void)size;
++
++    free(memory);
++}
++
++static SBAllocator defaultAllocator = {
++    .user_data = NULL, .allocate = SBDefaultAllocate, .deallocate = SBDefaultDeallocate};
++
++SBAllocatorRef SBDefaultAllocator = &defaultAllocator;
+diff --git a/Source/SBLine.c b/Source/SBLine.c
+index c9fccad..a8c7b25 100644
+--- a/Source/SBLine.c
++++ b/Source/SBLine.c
+@@ -43,8 +43,8 @@ static void ResetLevels(LineContextRef context, SBLevel baseLevel, SBUInteger ch
+ #define LEVELS       0
+ #define COUNT        1
+ 
+-static SBBoolean InitializeLineContext(LineContextRef context,
+-    const SBBidiType *types, const SBLevel *levels, SBUInteger length, SBLevel baseLevel)
++static SBBoolean InitializeLineContext(SBAllocatorRef allocator, LineContextRef context, const SBBidiType *types,
++                                       const SBLevel *levels, SBUInteger length, SBLevel baseLevel)
+ {
+     SBBoolean isInitialized = SBFalse;
+     void *pointers[COUNT] = { NULL };
+@@ -54,7 +54,7 @@ static SBBoolean InitializeLineContext(LineContextRef context,
+ 
+     ObjectInitialize(&context->object);
+ 
+-    if (ObjectAddMemoryWithChunks(&context->object, sizes, COUNT, pointers)) {
++    if (ObjectAddMemoryWithChunks(allocator, &context->object, sizes, COUNT, pointers)) {
+         SBLevel *fixedLevels = pointers[LEVELS];
+ 
+         context->refTypes = types;
+@@ -72,16 +72,16 @@ static SBBoolean InitializeLineContext(LineContextRef context,
+ #undef LEVELS
+ #undef COUNT
+ 
+-static void FinalizeLineContext(LineContextRef context)
++static void FinalizeLineContext(SBAllocatorRef allocator, LineContextRef context)
+ {
+-    ObjectFinalize(&context->object);
++    ObjectFinalize(allocator, &context->object);
+ }
+ 
+ #define LINE  0
+ #define RUNS  1
+ #define COUNT 2
+ 
+-static SBLineRef AllocateLine(SBUInteger runCount)
++static SBLineRef AllocateLine(SBAllocatorRef allocator, SBUInteger runCount)
+ {
+     void *pointers[COUNT] = { NULL };
+     SBUInteger sizes[COUNT];
+@@ -89,7 +89,7 @@ static SBLineRef AllocateLine(SBUInteger runCount)
+     sizes[LINE] = sizeof(SBLine);
+     sizes[RUNS] = sizeof(SBRun) * runCount;
+ 
+-    if (runCount > 0 && ObjectCreate(sizes, COUNT, pointers)) {
++    if (runCount > 0 && ObjectCreate(allocator, sizes, COUNT, pointers)) {
+         SBLineRef line = pointers[LINE];
+         SBRun *runs = pointers[RUNS];
+ 
+@@ -257,8 +257,8 @@ static void ReorderRuns(SBRun *runs, SBUInteger runCount, SBLevel maxLevel)
+     }
+ }
+ 
+-SB_INTERNAL SBLineRef SBLineCreate(SBParagraphRef paragraph,
+-    SBUInteger lineOffset, SBUInteger lineLength)
++SB_INTERNAL SBLineRef SBLineCreate(SBAllocatorRef allocator, SBParagraphRef paragraph, SBUInteger lineOffset,
++                                   SBUInteger lineLength)
+ {
+     SBUInteger innerOffset = lineOffset - paragraph->offset;
+     const SBBidiType *refTypes = paragraph->refTypes + innerOffset;
+@@ -271,8 +271,9 @@ SB_INTERNAL SBLineRef SBLineCreate(SBParagraphRef paragraph,
+              && lineOffset >= paragraph->offset
+              && (lineOffset + lineLength) <= (paragraph->offset + paragraph->length));
+ 
+-    if (InitializeLineContext(&context, refTypes, refLevels, lineLength, paragraph->baseLevel)) {
+-        line = AllocateLine(context.runCount);
++    if (InitializeLineContext(allocator, &context, refTypes, refLevels, lineLength, paragraph->baseLevel))
++    {
++        line = AllocateLine(allocator, context.runCount);
+ 
+         if (line) {
+             line->runCount = InitializeRuns(line->fixedRuns, context.fixedLevels, lineLength, lineOffset);
+@@ -284,7 +285,7 @@ SB_INTERNAL SBLineRef SBLineCreate(SBParagraphRef paragraph,
+             line->retainCount = 1;
+         }
+ 
+-        FinalizeLineContext(&context);
++        FinalizeLineContext(allocator, &context);
+     }
+ 
+     return line;
+@@ -319,9 +320,9 @@ SBLineRef SBLineRetain(SBLineRef line)
+     return line;
+ }
+ 
+-void SBLineRelease(SBLineRef line)
++void SBLineRelease(SBAllocatorRef allocator, SBLineRef line)
+ {
+     if (line && --line->retainCount == 0) {
+-        ObjectDispose(&line->_object);
++        ObjectDispose(allocator, &line->_object);
+     }
+ }
+diff --git a/Source/SBLine.h b/Source/SBLine.h
+index b053919..f877a2a 100644
+--- a/Source/SBLine.h
++++ b/Source/SBLine.h
+@@ -36,7 +36,7 @@ typedef struct _SBLine {
+     SBUInteger retainCount;
+ } SBLine;
+ 
+-SB_INTERNAL SBLineRef SBLineCreate(SBParagraphRef paragraph,
+-    SBUInteger lineOffset, SBUInteger lineLength);
++SB_INTERNAL SBLineRef SBLineCreate(SBAllocatorRef allocator, SBParagraphRef paragraph, SBUInteger lineOffset,
++                                   SBUInteger lineLength);
+ 
+ #endif
+diff --git a/Source/SBMirrorLocator.c b/Source/SBMirrorLocator.c
+index ba98ece..0373304 100644
+--- a/Source/SBMirrorLocator.c
++++ b/Source/SBMirrorLocator.c
+@@ -23,12 +23,12 @@
+ #include "SBLine.h"
+ #include "SBMirrorLocator.h"
+ 
+-SBMirrorLocatorRef SBMirrorLocatorCreate(void)
++SBMirrorLocatorRef SBMirrorLocatorCreate(SBAllocatorRef allocator)
+ {
+     const SBUInteger size = sizeof(SBMirrorLocator);
+     void *pointer = NULL;
+ 
+-    if (ObjectCreate(&size, 1, &pointer)) {
++    if (ObjectCreate(allocator, &size, 1, &pointer)) {
+         SBMirrorLocatorRef locator = pointer;
+         locator->_line = NULL;
+         locator->retainCount = 1;
+@@ -39,9 +39,9 @@ SBMirrorLocatorRef SBMirrorLocatorCreate(void)
+     return pointer;
+ }
+ 
+-void SBMirrorLocatorLoadLine(SBMirrorLocatorRef locator, SBLineRef line, void *stringBuffer)
++void SBMirrorLocatorLoadLine(SBAllocatorRef allocator, SBMirrorLocatorRef locator, SBLineRef line, void *stringBuffer)
+ {
+-    SBLineRelease(locator->_line);
++    SBLineRelease(allocator, locator->_line);
+ 
+     if (line && stringBuffer == line->codepointSequence.stringBuffer) {
+         locator->_line = SBLineRetain(line);
+@@ -116,11 +116,11 @@ SBMirrorLocatorRef SBMirrorLocatorRetain(SBMirrorLocatorRef locator)
+ 
+     return locator;
+ }
+-
+-void SBMirrorLocatorRelease(SBMirrorLocatorRef locator)
++    
++void SBMirrorLocatorRelease(SBAllocatorRef allocator, SBMirrorLocatorRef locator)
+ {
+     if (locator && --locator->retainCount == 0) {
+-        SBLineRelease(locator->_line);
+-        ObjectDispose(&locator->_object);
++        SBLineRelease(allocator, locator->_line);
++        ObjectDispose(allocator, &locator->_object);
+     }
+ }
+diff --git a/Source/SBParagraph.c b/Source/SBParagraph.c
+index 8a64f09..33e8fde 100644
+--- a/Source/SBParagraph.c
++++ b/Source/SBParagraph.c
+@@ -43,15 +43,16 @@ typedef struct _ParagraphContext {
+ } ParagraphContext, *ParagraphContextRef;
+ 
+ static void PopulateBidiChain(BidiChainRef chain, const SBBidiType *types, SBUInteger length);
+-static SBBoolean ProcessRun(ParagraphContextRef context, const LevelRunRef levelRun, SBBoolean forceFinish);
++static SBBoolean ProcessRun(SBAllocatorRef allocator, ParagraphContextRef context, const LevelRunRef levelRun,
++                            SBBoolean forceFinish);
+ 
+ #define BIDI_LINKS        0
+ #define BIDI_TYPES        1
+ #define BIDI_FLAGS        2
+ #define COUNT             3
+ 
+-static SBBoolean InitializeParagraphContext(ParagraphContextRef context,
+-    const SBBidiType *types, SBLevel *levels, SBUInteger length)
++static SBBoolean InitializeParagraphContext(SBAllocatorRef allocator, ParagraphContextRef context,
++                                            const SBBidiType *types, SBLevel *levels, SBUInteger length)
+ {
+     SBBoolean isInitialized = SBFalse;
+     void *pointers[COUNT] = { NULL };
+@@ -63,7 +64,7 @@ static SBBoolean InitializeParagraphContext(ParagraphContextRef context,
+ 
+     ObjectInitialize(&context->object);
+ 
+-    if (ObjectAddMemoryWithChunks(&context->object, sizes, COUNT, pointers)) {
++    if (ObjectAddMemoryWithChunks(allocator, &context->object, sizes, COUNT, pointers)) {
+         BidiLink *fixedLinks = pointers[BIDI_LINKS];
+         SBBidiType *fixedTypes = pointers[BIDI_TYPES];
+         BidiFlag *fixedFlags = pointers[BIDI_FLAGS];
+@@ -86,19 +87,19 @@ static SBBoolean InitializeParagraphContext(ParagraphContextRef context,
+ #undef BIDI_FLAGS
+ #undef COUNT
+ 
+-static void FinalizeParagraphContext(ParagraphContextRef context)
++static void FinalizeParagraphContext(SBAllocatorRef allocator, ParagraphContextRef context)
+ {
+-    StatusStackFinalize(&context->statusStack);
+-    RunQueueFinalize(&context->runQueue);
+-    IsolatingRunFinalize(&context->isolatingRun);
+-    ObjectFinalize(&context->object);
++    StatusStackFinalize(allocator, &context->statusStack);
++    RunQueueFinalize(allocator, &context->runQueue);
++    IsolatingRunFinalize(allocator, &context->isolatingRun);
++    ObjectFinalize(allocator, &context->object);
+ }
+ 
+ #define PARAGRAPH 0
+ #define LEVELS    1
+ #define COUNT     2
+ 
+-static SBParagraphRef AllocateParagraph(SBUInteger length)
++static SBParagraphRef AllocateParagraph(SBAllocatorRef allocator, SBUInteger length)
+ {
+     void *pointers[COUNT] = { NULL };
+     SBUInteger sizes[COUNT];
+@@ -106,7 +107,7 @@ static SBParagraphRef AllocateParagraph(SBUInteger length)
+     sizes[PARAGRAPH] = sizeof(SBParagraph);
+     sizes[LEVELS]    = sizeof(SBLevel) * (length + 2);
+ 
+-    if (ObjectCreate(sizes, COUNT, pointers)) {
++    if (ObjectCreate(allocator, sizes, COUNT, pointers)) {
+         SBParagraphRef paragraph = pointers[PARAGRAPH];
+         SBLevel *levels = pointers[LEVELS];
+ 
+@@ -120,9 +121,9 @@ static SBParagraphRef AllocateParagraph(SBUInteger length)
+ #undef LEVELS
+ #undef COUNT
+ 
+-static void DisposeParagraph(SBParagraphRef paragraph)
++static void DisposeParagraph(SBAllocatorRef allocator, SBParagraphRef paragraph)
+ {
+-    ObjectDispose(&paragraph->_object);
++    ObjectDispose(allocator, &paragraph->_object);
+ }
+ 
+ static SBUInteger DetermineBoundary(SBAlgorithmRef algorithm, SBUInteger paragraphOffset, SBUInteger suggestedLength)
+@@ -265,7 +266,7 @@ static SBLevel DetermineParagraphLevel(BidiChainRef chain, SBLevel baseLevel)
+     return baseLevel;
+ }
+ 
+-static SBBoolean DetermineLevels(ParagraphContextRef context, SBLevel baseLevel)
++static SBBoolean DetermineLevels(SBAllocatorRef allocator, ParagraphContextRef context, SBLevel baseLevel)
+ {
+     BidiChainRef chain = &context->bidiChain;
+     StatusStackRef stack = &context->statusStack;
+@@ -296,7 +297,7 @@ static SBBoolean DetermineLevels(ParagraphContextRef context, SBLevel baseLevel)
+     overEmbedding = 0;
+     validIsolate = 0;
+ 
+-    StatusStackPush(stack, baseLevel, SBBidiTypeON, SBFalse);
++    StatusStackPush(allocator, stack, baseLevel, SBBidiTypeON, SBFalse);
+ 
+     BidiChainForEach(chain, roller, link) {
+         SBBoolean forceFinish = SBFalse;
+@@ -329,7 +330,7 @@ static SBBoolean DetermineLevels(ParagraphContextRef context, SBLevel baseLevel)
+         bnEquivalent = SBTrue;                                              \
+                                                                             \
+         if (newLevel <= SBLevelMax && !overIsolate && !overEmbedding) {     \
+-            if (!StatusStackPush(stack, newLevel, o, SBFalse)) {            \
++            if (!StatusStackPush(allocator, stack, newLevel, o, SBFalse)) {            \
+                 return SBFalse;                                             \
+             }                                                               \
+         } else {                                                            \
+@@ -350,7 +351,7 @@ static SBBoolean DetermineLevels(ParagraphContextRef context, SBLevel baseLevel)
+         if (newLevel <= SBLevelMax && !overIsolate && !overEmbedding) {     \
+             validIsolate += 1;                                              \
+                                                                             \
+-            if (!StatusStackPush(stack, newLevel, o, SBTrue)) {             \
++            if (!StatusStackPush(allocator, stack, newLevel, o, SBTrue)) {             \
+                 return SBFalse;                                             \
+             }                                                               \
+         } else {                                                            \
+@@ -462,7 +463,7 @@ static SBBoolean DetermineLevels(ParagraphContextRef context, SBLevel baseLevel)
+              * last code in the array.
+              */
+             StatusStackSetEmpty(stack);
+-            StatusStackPush(stack, baseLevel, SBBidiTypeON, SBFalse);
++            StatusStackPush(allocator, stack, baseLevel, SBBidiTypeON, SBFalse);
+ 
+             overIsolate = 0;
+             overEmbedding = 0;
+@@ -511,7 +512,7 @@ static SBBoolean DetermineLevels(ParagraphContextRef context, SBLevel baseLevel)
+ 
+             LevelRunInitialize(&levelRun, chain, firstLink, lastLink, sor, eor);
+ 
+-            if (!ProcessRun(context, &levelRun, forceFinish)) {
++            if (!ProcessRun(allocator, context, &levelRun, forceFinish)) {
+                 return SBFalse;
+             }
+ 
+@@ -529,11 +530,13 @@ static SBBoolean DetermineLevels(ParagraphContextRef context, SBLevel baseLevel)
+     return SBTrue;
+ }
+ 
+-static SBBoolean ProcessRun(ParagraphContextRef context, const LevelRunRef levelRun, SBBoolean forceFinish)
++static SBBoolean ProcessRun(SBAllocatorRef allocator, ParagraphContextRef context, const LevelRunRef levelRun,
++                            SBBoolean forceFinish)
+ {
+     RunQueueRef queue = &context->runQueue;
+ 
+-    if (!RunQueueEnqueue(queue, levelRun)) {
++    if (!RunQueueEnqueue(allocator, queue, levelRun))
++    {
+         return SBFalse;
+     }
+ 
+@@ -550,7 +553,7 @@ static SBBoolean ProcessRun(ParagraphContextRef context, const LevelRunRef level
+ 
+             isolatingRun->baseLevelRun = front;
+ 
+-            if (!IsolatingRunResolve(isolatingRun)) {
++            if (!IsolatingRunResolve(allocator, isolatingRun)) {
+                 return SBFalse;
+             }
+         }
+@@ -578,14 +581,14 @@ static void SaveLevels(BidiChainRef chain, SBLevel *levels, SBLevel baseLevel)
+     }
+ }
+ 
+-static SBBoolean ResolveParagraph(SBParagraphRef paragraph,
+-    SBAlgorithmRef algorithm, SBUInteger offset, SBUInteger length, SBLevel baseLevel)
++static SBBoolean ResolveParagraph(SBAllocatorRef allocator, SBParagraphRef paragraph, SBAlgorithmRef algorithm,
++                                  SBUInteger offset, SBUInteger length, SBLevel baseLevel)
+ {
+     const SBBidiType *bidiTypes = algorithm->fixedTypes + offset;
+     SBBoolean isSucceeded = SBFalse;
+     ParagraphContext context;
+ 
+-    if (InitializeParagraphContext(&context, bidiTypes, paragraph->fixedLevels, length)) {
++    if (InitializeParagraphContext(allocator, &context, bidiTypes, paragraph->fixedLevels, length)) {
+         SBLevel resolvedLevel = DetermineParagraphLevel(&context.bidiChain, baseLevel);
+ 
+         SB_LOG_BLOCK_OPENER("Determined Paragraph Level");
+@@ -598,7 +601,7 @@ static SBBoolean ResolveParagraph(SBParagraphRef paragraph,
+         context.isolatingRun.paragraphOffset = offset;
+         context.isolatingRun.paragraphLevel = resolvedLevel;
+ 
+-        if (DetermineLevels(&context, resolvedLevel)) {
++        if (DetermineLevels(allocator, &context, resolvedLevel)) {
+             SaveLevels(&context.bidiChain, ++paragraph->fixedLevels, resolvedLevel);
+ 
+             SB_LOG_BLOCK_OPENER("Determined Embedding Levels");
+@@ -615,14 +618,14 @@ static SBBoolean ResolveParagraph(SBParagraphRef paragraph,
+             isSucceeded = SBTrue;
+         }
+ 
+-        FinalizeParagraphContext(&context);
++        FinalizeParagraphContext(allocator, &context);
+     }
+ 
+     return isSucceeded;
+ }
+ 
+-SB_INTERNAL SBParagraphRef SBParagraphCreate(SBAlgorithmRef algorithm,
+-    SBUInteger paragraphOffset, SBUInteger suggestedLength, SBLevel baseLevel)
++SB_INTERNAL SBParagraphRef SBParagraphCreate(SBAllocatorRef allocator, SBAlgorithmRef algorithm,
++                                             SBUInteger paragraphOffset, SBUInteger suggestedLength, SBLevel baseLevel)
+ {
+     const SBCodepointSequence *codepointSequence = &algorithm->codepointSequence;
+     SBUInteger stringLength = codepointSequence->stringLength;
+@@ -645,14 +648,14 @@ SB_INTERNAL SBParagraphRef SBParagraphCreate(SBAlgorithmRef algorithm,
+     SB_LOG_STATEMENT("Actual Length", 1, SB_LOG_NUMBER(actualLength));
+     SB_LOG_BLOCK_CLOSER();
+ 
+-    paragraph = AllocateParagraph(actualLength);
++    paragraph = AllocateParagraph(allocator, actualLength);
+ 
+     if (paragraph) {
+-        if (ResolveParagraph(paragraph, algorithm, paragraphOffset, actualLength, baseLevel)) {
++        if (ResolveParagraph(allocator, paragraph, algorithm, paragraphOffset, actualLength, baseLevel)) {
+             return paragraph;
+         }
+ 
+-        DisposeParagraph(paragraph);
++        DisposeParagraph(allocator, paragraph);
+     }
+ 
+     SB_LOG_BREAKER();
+@@ -680,7 +683,8 @@ const SBLevel *SBParagraphGetLevelsPtr(SBParagraphRef paragraph)
+     return paragraph->fixedLevels;
+ }
+ 
+-SBLineRef SBParagraphCreateLine(SBParagraphRef paragraph, SBUInteger lineOffset, SBUInteger lineLength)
++SBLineRef SBParagraphCreateLine(SBAllocatorRef allocator, SBParagraphRef paragraph, SBUInteger lineOffset,
++                                SBUInteger lineLength)
+ {
+     SBUInteger paragraphOffset = paragraph->offset;
+     SBUInteger paragraphLength = paragraph->length;
+@@ -688,7 +692,7 @@ SBLineRef SBParagraphCreateLine(SBParagraphRef paragraph, SBUInteger lineOffset,
+     SBUInteger lineLimit = lineOffset + lineLength;
+ 
+     if (lineOffset < lineLimit && lineOffset >= paragraphOffset && lineLimit <= paragraphLimit) {
+-        return SBLineCreate(paragraph, lineOffset, lineLength);
++        return SBLineCreate(allocator, paragraph, lineOffset, lineLength);
+     }
+ 
+     return NULL;
+@@ -703,10 +707,10 @@ SBParagraphRef SBParagraphRetain(SBParagraphRef paragraph)
+     return paragraph;
+ }
+ 
+-void SBParagraphRelease(SBParagraphRef paragraph)
++void SBParagraphRelease(SBAllocatorRef allocator, SBParagraphRef paragraph)
+ {
+     if (paragraph && --paragraph->retainCount == 0) {
+-        SBAlgorithmRelease(paragraph->algorithm);
+-        DisposeParagraph(paragraph);
++        SBAlgorithmRelease(allocator, paragraph->algorithm);
++        DisposeParagraph(allocator, paragraph);
+     }
+ }
+diff --git a/Source/SBParagraph.h b/Source/SBParagraph.h
+index 3568f57..900ac47 100644
+--- a/Source/SBParagraph.h
++++ b/Source/SBParagraph.h
+@@ -35,7 +35,7 @@ typedef struct _SBParagraph {
+     SBUInteger retainCount;
+ } SBParagraph;
+ 
+-SB_INTERNAL SBParagraphRef SBParagraphCreate(SBAlgorithmRef algorithm,
+-    SBUInteger paragraphOffset, SBUInteger suggestedLength, SBLevel baseLevel);
++SB_INTERNAL SBParagraphRef SBParagraphCreate(SBAllocatorRef allocator, SBAlgorithmRef algorithm,
++                                             SBUInteger paragraphOffset, SBUInteger suggestedLength, SBLevel baseLevel);
+ 
+ #endif
+diff --git a/Source/SBScriptLocator.c b/Source/SBScriptLocator.c
+index 6d080c1..d54e7a0 100644
+--- a/Source/SBScriptLocator.c
++++ b/Source/SBScriptLocator.c
+@@ -22,6 +22,7 @@
+ #include "SBBase.h"
+ #include "SBCodepoint.h"
+ #include "SBCodepointSequence.h"
++#include "SBScriptLocator.h"
+ #include "ScriptLookup.h"
+ #include "ScriptStack.h"
+ #include "SBScriptLocator.h"
+@@ -33,12 +34,12 @@ static SBBoolean IsSimilarScript(SBScript lhs, SBScript rhs)
+         || lhs == rhs;
+ }
+ 
+-SBScriptLocatorRef SBScriptLocatorCreate(void)
++SBScriptLocatorRef SBScriptLocatorCreate(SBAllocatorRef allocator)
+ {
+     const SBUInteger size = sizeof(SBScriptLocator);
+     void *pointer = NULL;
+ 
+-    if (ObjectCreate(&size, 1, &pointer)) {
++    if (ObjectCreate(allocator, &size, 1, &pointer)) {
+         SBScriptLocatorRef locator = pointer;
+         locator->_codepointSequence.stringEncoding = SBStringEncodingUTF8;
+         locator->_codepointSequence.stringBuffer = NULL;
+@@ -171,9 +172,9 @@ SBScriptLocatorRef SBScriptLocatorRetain(SBScriptLocatorRef locator)
+     return locator;
+ }
+ 
+-void SBScriptLocatorRelease(SBScriptLocatorRef locator)
++void SBScriptLocatorRelease(SBAllocatorRef allocator, SBScriptLocatorRef locator)
+ {
+     if (locator && --locator->retainCount == 0) {
+-        ObjectDispose(&locator->_object);
++        ObjectDispose(allocator, &locator->_object);
+     }
+ }
+diff --git a/Source/SheenBidi.c b/Source/SheenBidi.c
+index 7640614..c89907f 100644
+--- a/Source/SheenBidi.c
++++ b/Source/SheenBidi.c
+@@ -29,6 +29,7 @@
+ #include "PairingLookup.c"
+ #include "RunQueue.c"
+ #include "SBAlgorithm.c"
++#include "SBAllocator.c"
+ #include "SBBase.c"
+ #include "SBCodepoint.c"
+ #include "SBCodepointSequence.c"
+diff --git a/Source/StatusStack.c b/Source/StatusStack.c
+index 1892b69..5d37b23 100644
+--- a/Source/StatusStack.c
++++ b/Source/StatusStack.c
+@@ -23,7 +23,7 @@
+ #include "SBBase.h"
+ #include "StatusStack.h"
+ 
+-static SBBoolean StatusStackInsertElement(StatusStackRef stack)
++static SBBoolean StatusStackInsertElement(SBAllocatorRef allocator, StatusStackRef stack)
+ {
+     if (stack->_peekTop != _StatusStackList_MaxIndex) {
+         stack->_peekTop += 1;
+@@ -32,7 +32,7 @@ static SBBoolean StatusStackInsertElement(StatusStackRef stack)
+         _StatusStackListRef peekList = previousList->next;
+ 
+         if (!peekList) {
+-            peekList = ObjectAddMemory(&stack->_object, sizeof(_StatusStackList));
++            peekList = ObjectAddMemory(allocator, &stack->_object, sizeof(_StatusStackList));
+             if (!peekList) {
+                 return SBFalse;
+             }
+@@ -61,13 +61,13 @@ SB_INTERNAL void StatusStackInitialize(StatusStackRef stack)
+     StatusStackSetEmpty(stack);
+ }
+ 
+-SB_INTERNAL SBBoolean StatusStackPush(StatusStackRef stack,
+-    SBLevel embeddingLevel, SBBidiType overrideStatus, SBBoolean isolateStatus)
++SB_INTERNAL SBBoolean StatusStackPush(SBAllocatorRef allocator, StatusStackRef stack, SBLevel embeddingLevel,
++                                      SBBidiType overrideStatus, SBBoolean isolateStatus)
+ {
+     /* The stack can hold upto 127 elements. */
+     SBAssert(stack->count <= 127);
+ 
+-    if (StatusStackInsertElement(stack)) {
++    if (StatusStackInsertElement(allocator, stack)) {
+         _StatusStackElementRef element = &stack->_peekList->elements[stack->_peekTop];
+         element->embeddingLevel = embeddingLevel;
+         element->overrideStatus = overrideStatus;
+@@ -115,7 +115,7 @@ SB_INTERNAL SBBoolean StatusStackGetIsolateStatus(StatusStackRef stack)
+     return stack->_peekList->elements[stack->_peekTop].isolateStatus;
+ }
+ 
+-SB_INTERNAL void StatusStackFinalize(StatusStackRef stack)
++SB_INTERNAL void StatusStackFinalize(SBAllocatorRef allocator, StatusStackRef stack)
+ {
+-    ObjectFinalize(&stack->_object);
++    ObjectFinalize(allocator, &stack->_object);
+ }
+diff --git a/Source/StatusStack.h b/Source/StatusStack.h
+index 468caf6..011fbc6 100644
+--- a/Source/StatusStack.h
++++ b/Source/StatusStack.h
+@@ -47,10 +47,10 @@ typedef struct _StatusStack {
+ } StatusStack, *StatusStackRef;
+ 
+ SB_INTERNAL void StatusStackInitialize(StatusStackRef stack);
+-SB_INTERNAL void StatusStackFinalize(StatusStackRef stack);
++SB_INTERNAL void StatusStackFinalize(SBAllocatorRef allocator, StatusStackRef stack);
+ 
+-SB_INTERNAL SBBoolean StatusStackPush(StatusStackRef stack,
+-   SBLevel embeddingLevel, SBBidiType overrideStatus, SBBoolean isolateStatus);
++SB_INTERNAL SBBoolean StatusStackPush(SBAllocatorRef allocator, StatusStackRef stack, SBLevel embeddingLevel,
++                                      SBBidiType overrideStatus, SBBoolean isolateStatus);
+ SB_INTERNAL void StatusStackPop(StatusStackRef stack);
+ SB_INTERNAL void StatusStackSetEmpty(StatusStackRef stack);
+ 
+diff --git a/Tests/AlgorithmTests.cpp b/Tests/AlgorithmTests.cpp
+index 59de2ee..bedfc3c 100644
+--- a/Tests/AlgorithmTests.cpp
++++ b/Tests/AlgorithmTests.cpp
+@@ -43,12 +43,12 @@ AlgorithmTests::AlgorithmTests(BidiTest *bidiTest, BidiCharacterTest *bidiCharac
+     : m_bidiTest(bidiTest)
+     , m_bidiCharacterTest(bidiCharacterTest)
+     , m_bidiMirroring(bidiMirroring)
+-    , m_mirrorLocator(SBMirrorLocatorCreate())
++    , m_mirrorLocator(SBMirrorLocatorCreate(SBDefaultAllocator))
+ {
+ }
+ 
+ AlgorithmTests::~AlgorithmTests() {
+-    SBMirrorLocatorRelease(m_mirrorLocator);
++    SBMirrorLocatorRelease(SBDefaultAllocator, m_mirrorLocator);
+ }
+ 
+ void AlgorithmTests::testAlgorithm() {
+@@ -89,8 +89,8 @@ void AlgorithmTests::testMulticharNewline()
+     sequence.stringBuffer = codepointArray;
+     sequence.stringLength = codepointCount;
+ 
+-    SBAlgorithmRef algorithm = SBAlgorithmCreate(&sequence);
+-    SBParagraphRef paragraph = SBAlgorithmCreateParagraph(algorithm, 0, codepointCount, 0);
++    SBAlgorithmRef algorithm = SBAlgorithmCreate(SBDefaultAllocator, &sequence);
++    SBParagraphRef paragraph = SBAlgorithmCreateParagraph(SBDefaultAllocator, algorithm, 0, codepointCount, 0);
+     SBUInteger offset = SBParagraphGetOffset(paragraph);
+     SBUInteger length = SBParagraphGetLength(paragraph);
+     const SBLevel *levels = SBParagraphGetLevelsPtr(paragraph);
+@@ -120,8 +120,8 @@ void AlgorithmTests::testMulticharNewline()
+         }
+     }
+ 
+-    SBParagraphRelease(paragraph);
+-    SBAlgorithmRelease(algorithm);
++    SBParagraphRelease(SBDefaultAllocator, paragraph);
++    SBAlgorithmRelease(SBDefaultAllocator, algorithm);
+ 
+     cout << failed << " error/s." << endl;
+     cout << endl;
+@@ -339,15 +339,15 @@ bool AlgorithmTests::conductTest() {
+     sequence.stringBuffer = m_genChars;
+     sequence.stringLength = m_charCount;
+ 
+-    SBAlgorithmRef algorithm = SBAlgorithmCreate(&sequence);
+-    SBParagraphRef paragraph = SBAlgorithmCreateParagraph(algorithm, 0, m_charCount, m_inputLevel);
++    SBAlgorithmRef algorithm = SBAlgorithmCreate(SBDefaultAllocator, &sequence);
++    SBParagraphRef paragraph = SBAlgorithmCreateParagraph(SBDefaultAllocator, algorithm, 0, m_charCount, m_inputLevel);
+     SBLevel paragraphlevel = SBParagraphGetBaseLevel(paragraph);
+     if (m_paragraphLevel == LEVEL_X) {
+         m_paragraphLevel = paragraphlevel;
+     }
+ 
+     if (paragraphlevel == m_paragraphLevel) {
+-        SBLineRef line = SBParagraphCreateLine(paragraph, 0, m_charCount);
++        SBLineRef line = SBParagraphCreateLine(SBDefaultAllocator, paragraph, 0, m_charCount);
+         m_runCount = SBLineGetRunCount(line);
+         m_runArray = SBLineGetRunsPtr(line);
+ 
+@@ -356,11 +356,11 @@ bool AlgorithmTests::conductTest() {
+ 
+         if (m_bidiMirroring) {
+             loadMirrors();
+-            SBMirrorLocatorLoadLine(m_mirrorLocator, line, (void *)m_genChars);
++            SBMirrorLocatorLoadLine(SBDefaultAllocator, m_mirrorLocator, line, (void *)m_genChars);
+             passed &= testMirrors();
+         }
+ 
+-        SBLineRelease(line);
++        SBLineRelease(SBDefaultAllocator, line);
+     } else {
+         if (Configuration::DISPLAY_ERROR_DETAILS) {
+             cout << "Test failed due to paragraph level mismatch." << endl;
+@@ -371,9 +371,9 @@ bool AlgorithmTests::conductTest() {
+         passed &= false;
+     }
+ 
+-    SBParagraphRelease(paragraph);
+-    SBAlgorithmRelease(algorithm);
+-    
++    SBParagraphRelease(SBDefaultAllocator, paragraph);
++    SBAlgorithmRelease(SBDefaultAllocator, algorithm);
++
+     return passed;
+ }
+ 
+diff --git a/Tests/RunQueueTests.cpp b/Tests/RunQueueTests.cpp
+index bff7400..c63b52b 100644
+--- a/Tests/RunQueueTests.cpp
++++ b/Tests/RunQueueTests.cpp
+@@ -83,7 +83,7 @@ void RunQueueTests::testInitialize() {
+     assert(queue.count == 0);
+     assert(queue.shouldDequeue == false);
+ 
+-    RunQueueFinalize(&queue);
++    RunQueueFinalize(SBDefaultAllocator, &queue);
+ }
+ 
+ void RunQueueTests::testBulkInsertion() {
+@@ -97,7 +97,7 @@ void RunQueueTests::testBulkInsertion() {
+         LevelRunRef run = &levelRuns[index];
+         initialize(run, index);
+ 
+-        RunQueueEnqueue(&queue, run);
++        RunQueueEnqueue(SBDefaultAllocator,&queue, run);
+         runCount += 1;
+ 
+         assert(queue.count == runCount);
+@@ -115,7 +115,7 @@ void RunQueueTests::testBulkInsertion() {
+         runCount -= 1;
+     }
+ 
+-    RunQueueFinalize(&queue);
++    RunQueueFinalize(SBDefaultAllocator, &queue);
+ }
+ 
+ #ifdef STANDALONE_TESTING
+diff --git a/Tests/ScriptLocatorTests.cpp b/Tests/ScriptLocatorTests.cpp
+index 854c4b6..d3b9d60 100644
+--- a/Tests/ScriptLocatorTests.cpp
++++ b/Tests/ScriptLocatorTests.cpp
+@@ -47,7 +47,7 @@ static void u32Test(const u32string string, const vector<run> runs)
+     sequence.stringBuffer = (void *)&string[0];
+     sequence.stringLength = string.length();
+ 
+-    SBScriptLocatorRef locator = SBScriptLocatorCreate();
++    SBScriptLocatorRef locator = SBScriptLocatorCreate(SBDefaultAllocator);
+     const SBScriptAgent *agent = SBScriptLocatorGetAgent(locator);
+ 
+     SBScriptLocatorLoadCodepoints(locator, &sequence);
+@@ -57,7 +57,7 @@ static void u32Test(const u32string string, const vector<run> runs)
+         output.push_back({agent->offset, agent->length, agent->script});
+     }
+ 
+-    SBScriptLocatorRelease(locator);
++    SBScriptLocatorRelease(SBDefaultAllocator, locator);
+ 
+     assert(runs == output);
+ }
+diff --git a/meson.build b/meson.build
+index 8b5d859..f044c1f 100644
+--- a/meson.build
++++ b/meson.build
+@@ -84,6 +84,7 @@ else
+     'Source/PairingLookup.c',
+     'Source/RunQueue.c',
+     'Source/SBAlgorithm.c',
++    'Source/SBAllocator.c',
+     'Source/SBBase.c',
+     'Source/SBCodepoint.c',
+     'Source/SBCodepointSequence.c',

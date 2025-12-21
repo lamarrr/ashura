@@ -8,13 +8,17 @@
 #include "ashura/engine/pipelines/quad.h"
 #include "ashura/engine/pipelines/sdf.h"
 #include "ashura/engine/pipelines/triangle_fill.h"
+#include "ashura/engine/pipelines/vector_path.h"
 #include "ashura/engine/systems.h"
+#include "ashura/std/trace.h"
 
 namespace ash
 {
 
 void IPipelineSys::init(Allocator allocator)
 {
+  tracing::ScopeTrace trace;
+
   Dyn sdf  = dyn<SdfPipeline>(inplace, allocator, allocator).unwrap();
   Dyn quad = dyn<QuadPipeline>(inplace, allocator, allocator).unwrap();
   Dyn triangle_fill =
@@ -25,6 +29,8 @@ void IPipelineSys::init(Allocator allocator)
     dyn<BezierStencilPipeline>(inplace, allocator, allocator).unwrap();
   Dyn blur = dyn<BlurPipeline>(inplace, allocator, allocator).unwrap();
   Dyn pbr  = dyn<PBRPipeline>(inplace, allocator, allocator).unwrap();
+  Dyn vector_path =
+    dyn<VectorPathPipeline>(inplace, allocator, allocator).unwrap();
 
   auto p_sdf            = sdf.get();
   auto p_quad           = quad.get();
@@ -33,8 +39,9 @@ void IPipelineSys::init(Allocator allocator)
   auto p_bezier_stencil = bezier_stencil.get();
   auto p_blur           = blur.get();
   auto p_pbr            = pbr.get();
+  auto p_vector_path    = vector_path.get();
 
-  Vec<Dyn<Pipeline>> all{allocator};
+  SparseVec<PipelineId, Dyn<Pipeline>> all{allocator};
 
   all.push(cast<Pipeline>(std::move(sdf))).unwrap();
   all.push(cast<Pipeline>(std::move(quad))).unwrap();
@@ -51,19 +58,22 @@ void IPipelineSys::init(Allocator allocator)
   bezier_stencil_ = p_bezier_stencil;
   blur_           = p_blur;
   pbr_            = p_pbr;
+  vector_path_    = p_vector_path;
   all_            = std::move(all);
+  allocator_      = allocator;
 
-  for (auto & pass : all)
+  for (auto [pass] : all)
   {
-    pass->acquire(sys.gpu->plan());
+    pass->acquire(gpu_sys_->current_plan());
   }
 }
 
-void IPipelineSys::uninit()
+void IPipelineSys::shutdown()
 {
-  for (auto const & p : all_)
+  WriteGuard guard{rw_lock_};
+  for (auto [p] : all_)
   {
-    p->release(sys.gpu->plan());
+    p->release(gpu_sys_->current_plan());
   }
 }
 
@@ -102,15 +112,27 @@ PBRPipeline & IPipelineSys::pbr() const
   return *pbr_;
 }
 
-void IPipelineSys::add_pipeline(Dyn<Pipeline> pipeline)
+VectorPathPipeline & IPipelineSys::vector_path() const
 {
-  pipeline->acquire(sys.gpu->plan());
-  all_.push(std::move(pipeline)).unwrap();
+  return *vector_path_;
+}
+
+Future<PipelineId> IPipelineSys::add_pipeline(Dyn<Pipeline> pipeline)
+{
+  return scheduler
+    ->run(allocator_, MainThread::Main,
+          [pipeline = std::move(pipeline), this]() mutable {
+            pipeline->acquire(gpu_sys_->current_plan());
+            WriteGuard guard{this->rw_lock_};
+            return this->all_.push(std::move(pipeline)).unwrap();
+          })
+    .unwrap();
 }
 
 Option<IPipeline &> IPipelineSys::get(Str label)
 {
-  for (auto & pass : all_)
+  ReadGuard guard{rw_lock_};
+  for (auto [pass] : all_)
   {
     if (mem::eq(pass->label(), label))
     {
@@ -119,6 +141,13 @@ Option<IPipeline &> IPipelineSys::get(Str label)
   }
 
   return none;
+}
+
+IPipeline & IPipelineSys::get(PipelineId id)
+{
+  ReadGuard guard{rw_lock_};
+  CHECK(all_.is_valid_id(id), "Invalid PipelineId");
+  return *all_[id].v0;
 }
 
 }    // namespace ash

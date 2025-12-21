@@ -10,23 +10,31 @@ namespace ash
 
 struct TriangleFillPipelineParams
 {
-  Framebuffer             framebuffer  = {};
-  Option<PipelineStencil> stencil      = none;
-  RectU                   scissor      = {};
-  gpu::Viewport           viewport     = {};
-  gpu::CullMode           cull_mode    = gpu::CullMode::None;
-  gpu::DescriptorSet      samplers     = nullptr;
-  gpu::DescriptorSet      textures     = nullptr;
-  GpuBufferSpan           world_to_ndc = {};
-  GpuBufferSpan           sets         = {};
-  GpuBufferSpan           vertices     = {};
-  GpuBufferSpan           indices      = {};
-  Span<u32 const>         index_counts = {};
+  struct State
+  {
+    gpu::CullMode           cull_mode  : 2;
+    gpu::FrontFace          front_face : 1;
+    RectU                   scissor;
+    gpu::Viewport           viewport;
+    Option<PipelineStencil> stencil;
+  };
+
+  Framebuffer        framebuffer;
+  gpu::DescriptorSet samplers;
+  gpu::DescriptorSet textures;
+  GpuBufferSpan      world_to_ndc;
+  GpuBufferSpan      sets;
+  GpuBufferSpan      vertices;
+  GpuBufferSpan      indices;
+  Span<u32 const>    index_runs;
+  Span<State const>  states;
+  Span<u32 const>    state_runs;
+  PipelineVariantId  variant;
 };
 
 struct TriangleFillPipeline final : IPipeline
 {
-  SparseVec<Tuple<Str, gpu::GraphicsPipeline>> pipelines_;
+  SparseVec<PipelineVariantId, Tuple<Str, gpu::GraphicsPipeline>> pipelines_;
 
   TriangleFillPipeline(Allocator);
 
@@ -51,8 +59,7 @@ struct TriangleFillPipeline final : IPipeline
   PipelineVariantId get_variant_id(Str label);
 
   void encode(gpu::CommandEncoder                encoder,
-              TriangleFillPipelineParams const & params,
-              PipelineVariantId                  variant);
+              TriangleFillPipelineParams const & params);
 };
 
 }    // namespace ash

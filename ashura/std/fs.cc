@@ -7,13 +7,10 @@
 namespace ash
 {
 
-constexpr usize PATH_RESERVED_SIZE = 256;
-
-Result<Void, IoErr> read_file(Str path, Vec<u8> & buff)
+Result<Void, IoErr> read_file(Str path, Vec<u8> & buff,
+                              Allocator scratch_allocator)
 {
-  u8                reserved[PATH_RESERVED_SIZE];
-  FallbackAllocator allocator{reserved, default_allocator};
-  Vec<char>         path_c_str{allocator};
+  Vec<char> path_c_str{scratch_allocator};
 
   if (!path_c_str.extend_uninit(path.size() + 1))
   {
@@ -69,11 +66,10 @@ Result<Void, IoErr> read_file(Str path, Vec<u8> & buff)
   return Ok{};
 }
 
-Result<Void, IoErr> write_to_file(Str path, Span<u8 const> buff, bool append)
+Result<Void, IoErr> write_to_file(Str path, Span<u8 const> buff, bool append,
+                                  Allocator scratch_allocator)
 {
-  u8                reserved[PATH_RESERVED_SIZE];
-  FallbackAllocator allocator{reserved, default_allocator};
-  Vec<char>         path_c_str{allocator};
+  Vec<char> path_c_str{scratch_allocator};
 
   if (!path_c_str.extend_uninit(path.size() + 1))
   {

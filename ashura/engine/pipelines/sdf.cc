@@ -3,6 +3,7 @@
 #include "ashura/engine/shader_system.h"
 #include "ashura/engine/systems.h"
 #include "ashura/std/math.h"
+#include "ashura/std/range.h"
 #include "ashura/std/sformat.h"
 
 namespace ash
@@ -20,11 +21,12 @@ Str SdfPipeline::label()
 gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
                                       gpu::Shader shader)
 {
-  u8 scratch_buffer_[1'024];
+  u8     scratch_buffer_[1'024];
+  IArena scratch_arena_{scratch_buffer_};
 
   auto & gpu = *plan->sys();
 
-  FallbackAllocator scratch{scratch_buffer_, gpu.allocator()};
+  IFallbackAllocator scratch{&scratch_arena_, gpu.allocator()};
 
   auto raster_state =
     gpu::RasterizationState{.depth_clamp_enable = false,
@@ -106,15 +108,17 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
 
 void SdfPipeline::acquire(GpuFramePlan plan)
 {
-  auto gradient_id = add_variant(
-    plan, "Gradient"_str, sys.shader->get("SDF.Gradient"_str).unwrap().shader);
+  auto gradient_id =
+    add_variant(plan, "gradient"_str,
+                sys.shader->get("defaults/sdf_gradient"_str).unwrap().shader);
   CHECK(gradient_id == GRADIENT, "");
-  auto noise_id = add_variant(plan, "Noise"_str,
-                              sys.shader->get("SDF.Noise"_str).unwrap().shader);
+  auto noise_id =
+    add_variant(plan, "noise"_str,
+                sys.shader->get("defaults/sdf_noise"_str).unwrap().shader);
   CHECK(noise_id == NOISE, "");
-  auto mesh_gradient_id =
-    add_variant(plan, "MeshGradient"_str,
-                sys.shader->get("SDF.MeshGradient"_str).unwrap().shader);
+  auto mesh_gradient_id = add_variant(
+    plan, "mesh_gradient"_str,
+    sys.shader->get("defaults/sdf_mesh_gradient"_str).unwrap().shader);
   CHECK(mesh_gradient_id == MESH_GRADIENT, "");
 }
 
@@ -128,15 +132,14 @@ PipelineVariantId SdfPipeline::add_variant(GpuFramePlan plan, Str label,
 
 void SdfPipeline::remove_variant(GpuFramePlan plan, PipelineVariantId id)
 {
-  auto pipeline = variants_[(usize) id].v0;
-  variants_.erase((usize) id);
+  auto pipeline = variants_[id].v0;
+  variants_.erase(id);
   plan->add_preframe_task(
     [d = plan->device(), p = pipeline.v1] { d->uninit(p); });
 }
 
 void SdfPipeline::encode(gpu::CommandEncoder       e,
-                         SdfPipelineParams const & params,
-                         PipelineVariantId         variant)
+                         SdfPipelineParams const & params)
 {
   InplaceVec<gpu::RenderingAttachment, 1> color;
 
@@ -163,14 +166,13 @@ void SdfPipeline::encode(gpu::CommandEncoder       e,
         .unwrap();
     });
 
-  auto stencil = params.stencil.map([&](PipelineStencil const &) {
-    return gpu::RenderingAttachment{
-      .view         = params.framebuffer.depth_stencil.stencil_view,
-      .resolve      = nullptr,
-      .resolve_mode = gpu::ResolveModes::None,
-      .load_op      = gpu::LoadOp::Load,
-      .store_op     = gpu::StoreOp::None,
-      .clear        = {}};
+  auto stencil = params.framebuffer.depth_stencil.map([&](auto const & s) {
+    return gpu::RenderingAttachment{.view         = s.stencil_view,
+                                    .resolve      = nullptr,
+                                    .resolve_mode = gpu::ResolveModes::None,
+                                    .load_op      = gpu::LoadOp::Load,
+                                    .store_op     = gpu::StoreOp::None,
+                                    .clear        = {}};
   });
 
   auto info =
@@ -180,18 +182,10 @@ void SdfPipeline::encode(gpu::CommandEncoder       e,
                        .depth_attachment   = {},
                        .stencil_attachment = stencil};
 
-  auto pipeline = variants_[(usize) variant].v0.v1;
+  auto pipeline = variants_[params.variant].v0.v1;
 
   e->begin_rendering(info);
   e->bind_graphics_pipeline(pipeline);
-  e->set_graphics_state(gpu::GraphicsState{
-    .scissor             = params.scissor,
-    .viewport            = params.viewport,
-    .stencil_test_enable = params.stencil.is_some(),
-    .front_face_stencil =
-      params.stencil.map([](auto s) { return s.front; }).unwrap_or(),
-    .back_face_stencil =
-      params.stencil.map([](auto s) { return s.back; }).unwrap_or()});
   e->bind_descriptor_sets(
     span({
       params.samplers,                                   // 0: samplers
@@ -203,7 +197,27 @@ void SdfPipeline::encode(gpu::CommandEncoder       e,
       params.world_to_ndc.slice.as_u32().offset,    // 2: world_to_ndc
       params.items.slice.as_u32().offset            // 3: items
     }));
-  e->draw({0, 4}, params.instances);
+
+  CHECK(size32(params.states) > 0, "");
+  CHECK(size32(params.state_runs) == (size32(params.states) + 1), "");
+  auto num_states = size32(params.states);
+
+  for (auto s : range(num_states))
+  {
+    auto & state = params.states[s];
+
+    e->set_graphics_state(gpu::GraphicsState{
+      .scissor             = state.scissor,
+      .viewport            = state.viewport,
+      .stencil_test_enable = state.stencil.is_some(),
+      .front_face_stencil =
+        state.stencil.map([](auto s) { return s.front; }).unwrap_or(),
+      .back_face_stencil =
+        state.stencil.map([](auto s) { return s.back; }).unwrap_or()});
+
+    e->draw({0, 4},
+            Slice32::offsets(params.state_runs[s], params.state_runs[s + 1]));
+  }
   e->end_rendering();
 }
 

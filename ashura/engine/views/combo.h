@@ -79,14 +79,14 @@ struct TextComboItem : ComboItem
     FontStyle const & font      = FontStyle{.font        = theme.body_font,
                                             .height      = theme.body_font_height,
                                             .line_height = theme.line_height},
-    Allocator      allocator = default_allocator);
+    Allocator         allocator = default_allocator);
 
   TextComboItem(
     Str8 text, TextStyle const & style = TextStyle{.color = theme.on_surface},
     FontStyle const & font      = FontStyle{.font        = theme.body_font,
                                             .height      = theme.body_font_height,
                                             .line_height = theme.line_height},
-    Allocator      allocator = default_allocator);
+    Allocator         allocator = default_allocator);
 
   TextComboItem(TextComboItem const &)             = delete;
   TextComboItem(TextComboItem &&)                  = default;
@@ -181,7 +181,7 @@ struct Combo : Flex
 
   Combo & on_selected(Fn<void(Option<usize>)> style);
 
-  Combo & items(std::initializer_list<ref<ComboItem>> list);
+  Combo & items(InitList<ref<ComboItem>> list);
 
   Combo & items(Span<ref<ComboItem> const> list);
 

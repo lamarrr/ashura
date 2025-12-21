@@ -6,8 +6,8 @@
 
 namespace ash
 {
-namespace ui
-{
+
+// [ ] do we need dynamic insertion/removal of views?
 
 struct RootView : ui::View
 {
@@ -52,12 +52,8 @@ struct RootView : ui::View
     return 0;
   }
 
-  constexpr virtual void render(Canvas                 canvas,
-                                ui::RenderInfo const & info) override
+  constexpr virtual void render(Canvas, ui::RenderInfo const &) override
   {
-    // [ ] Body
-    canvas->rect(ShapeInfo{
-      .area = info.canvas_region, .tint = mdc::GRAY_900, .clip = info.clip});
   }
 
   constexpr virtual Cursor cursor(f32x2, f32x2) override
@@ -83,6 +79,7 @@ enum class FocusAction : u8
 // [ ] view click area re-targeting
 
 typedef struct IViewSys * ViewSys;
+typedef struct IEngine *  Engine;
 
 /// @brief A compact View Hierarchy
 struct IViewSys
@@ -293,6 +290,9 @@ struct IViewSys
     layers{allocator},
     canvas_xfm{allocator},
     canvas_inv_xfm{allocator},
+    canvas_centers{allocator},
+    canvas_extents{allocator},
+    clips{allocator},
     z_ord{allocator},
     focus_ord{allocator},
     focus_idx{allocator},
@@ -311,9 +311,9 @@ struct IViewSys
   }
 
   IViewSys(IViewSys const &)             = delete;
-  IViewSys(IViewSys &&)                  = default;
+  IViewSys(IViewSys &&)                  = delete;
   IViewSys & operator=(IViewSys const &) = delete;
-  IViewSys & operator=(IViewSys &&)      = default;
+  IViewSys & operator=(IViewSys &&)      = delete;
   ~IViewSys()                            = default;
 
   void clear_frame();
@@ -408,8 +408,8 @@ struct IViewSys
   Option<TextInputInfo> text_input() const;
 
   // [ ] make positions relative to center of the screen; especially in the inputstate goptten from the view
-  bool tick(InputState const & input, ui::View & root, Canvas & canvas,
-            Fn<void(ui::Ctx const &)> loop);
+  bool tick(SystemState const & system_state, WindowState const & window_state,
+            Canvas canvas, Fn<ui::View &(Engine, ui::Ctx const &)> loop);
 };
 
 }    // namespace ash

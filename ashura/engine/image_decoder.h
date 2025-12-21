@@ -16,16 +16,16 @@ struct DecodedImageInfo
   gpu::Format format = gpu::Format::Undefined;
 };
 
-Result<DecodedImageInfo, ImageLoadErr> decode_webp(Span<u8 const> bytes,
-                                                   Vec<u8> &      channels);
+Result<DecodedImageInfo, SysErr> decode_webp(Span<u8 const> bytes,
+                                             Vec<u8> &      channels);
 
-Result<DecodedImageInfo, ImageLoadErr> decode_png(Span<u8 const> bytes,
-                                                  Vec<u8> &      channels);
+Result<DecodedImageInfo, SysErr> decode_png(Span<u8 const> bytes,
+                                            Vec<u8> &      channels);
 
-Result<DecodedImageInfo, ImageLoadErr> decode_jpg(Span<u8 const> bytes,
-                                                  Vec<u8> &      channels);
+Result<DecodedImageInfo, SysErr> decode_jpg(Span<u8 const> bytes,
+                                            Vec<u8> &      channels);
 
-Result<DecodedImageInfo, ImageLoadErr> decode_image(Span<u8 const> bytes,
-                                                    Vec<u8> &      channels);
+Result<DecodedImageInfo, SysErr> decode_image(Span<u8 const> bytes,
+                                              Vec<u8> &      channels);
 
 }    // namespace ash

@@ -140,7 +140,7 @@ static void render_image(Canvas & canvas, CRect const & region,
     .area{region.center + center, extent},
     .corner_radii = style.radii,
     .tint         = style.tint,
-    .sampler      = SamplerId::LinearClamped,
+    .sampler      = SamplerIndex::LinearClamped,
     .texture      = img.textures[0],
     .uv{uv0,                    uv1   },
     .clip = clip

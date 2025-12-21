@@ -63,17 +63,17 @@ struct [[nodiscard]] ColorImage
 
   gpu::ImageView view = nullptr;
 
-  gpu::DescriptorSet sampled_texture = nullptr;
+  gpu::DescriptorSet sampled_textures = nullptr;
 
-  gpu::DescriptorSet storage_texture = nullptr;
+  gpu::DescriptorSet storage_textures = nullptr;
 
-  gpu::DescriptorSet input_attachment = nullptr;
+  gpu::DescriptorSet input_attachments = nullptr;
 
-  static constexpr TextureIndex sampled_texture_index = TextureIndex::Base;
+  static constexpr TextureIndex sampled_texture_index = TextureIndex::Default;
 
-  static constexpr TextureIndex storage_texture_index = TextureIndex::Base;
+  static constexpr TextureIndex storage_texture_index = TextureIndex::Default;
 
-  static constexpr TextureIndex input_attachment_index = TextureIndex::Base;
+  static constexpr TextureIndex input_attachment_index = TextureIndex::Default;
 
   u32x3 extent() const;
 
@@ -127,20 +127,20 @@ struct [[nodiscard]] DepthStencilImage
 
   gpu::ImageView stencil_view = {};
 
-  gpu::DescriptorSet depth_sampled_texture = nullptr;
+  gpu::DescriptorSet depth_sampled_textures = nullptr;
 
-  gpu::DescriptorSet depth_storage_texture = nullptr;
+  gpu::DescriptorSet depth_storage_textures = nullptr;
 
-  gpu::DescriptorSet depth_input_attachment = nullptr;
+  gpu::DescriptorSet depth_input_attachments = nullptr;
 
-  static constexpr TextureIndex sampled_depth_texture_index =
-    TextureIndex::Base;
+  static constexpr TextureIndex depth_sampled_texture_index =
+    TextureIndex::Default;
 
-  static constexpr TextureIndex storage_depth_texture_index =
-    TextureIndex::Base;
+  static constexpr TextureIndex depth_storage_texture_index =
+    TextureIndex::Default;
 
-  static constexpr TextureIndex input_attachment_depth_index =
-    TextureIndex::Base;
+  static constexpr TextureIndex depth_input_attachment_index =
+    TextureIndex::Default;
 
   u32x3 extent() const;
 
@@ -155,7 +155,7 @@ struct [[nodiscard]] Framebuffer
   Option<ColorMsaaImage> color_msaa = none;
 
   /// @brief Combined depth and stencil aspect attachment
-  DepthStencilImage depth_stencil = {};
+  Option<DepthStencilImage> depth_stencil = none;
 
   u32x3 extent() const;
 
@@ -201,9 +201,9 @@ struct GpuQueries
 
   gpu::StatisticsQuery statistics = nullptr;
 
-  Vec<u64> cpu_timestamps;
+  Vec<u64> cpu_timestamps{noop_allocator};
 
-  Vec<gpu::PipelineStatistics> cpu_statistics;
+  Vec<gpu::PipelineStatistics> cpu_statistics{noop_allocator};
 
   void uninit(gpu::Device device);
 
@@ -232,6 +232,8 @@ struct GpuSysCfg
   u32 bindless_samplers_capacity                   = 1'024;
   u32 bindless_sampled_textures_capacity           = 8'192;
   u32 bindless_storage_textures_capacity           = 8'192;
+  u32 bindless_uniform_texel_buffers_capacity      = 1'024;
+  u32 bindless_storage_texel_buffers_capacity      = 1'024;
   u32 bindless_uniform_buffers_capacity            = 1'024;
   u32 bindless_read_storage_buffers_capacity       = 1'024;
   u32 bindless_read_write_storage_buffers_capacity = 1'024;
@@ -242,14 +244,10 @@ struct GpuSysCfg
 
 struct GpuSysPreferences
 {
-  u32                            buffering               = 4;
-  u32x2                          initial_extent          = {1'920, 1'080};
-  GpuSysCfg                      cfg                     = {};
-  Span<gpu::Format const>        color_formats           = {};
-  Span<gpu::Format const>        depth_stencil_formats   = {};
-  Span<gpu::SurfaceFormat const> swapchain_formats       = {};
-  Span<gpu::PresentMode const>   swapchain_present_modes = {};
-  gpu::CompositeAlpha swapchain_composite_alpha = gpu::CompositeAlpha::Opaque;
+  u32                     buffering             = 4;
+  GpuSysCfg               cfg                   = {};
+  Span<gpu::Format const> color_formats         = {};
+  Span<gpu::Format const> depth_stencil_formats = {};
 };
 
 struct GpuDescriptorsLayout
@@ -268,6 +266,14 @@ struct GpuDescriptorsLayout
   gpu::DescriptorSetLayout storage_textures = nullptr;
 
   u32 storage_textures_capacity = 0;
+
+  gpu::DescriptorSetLayout uniform_texel_buffers = nullptr;
+
+  u32 uniform_texel_buffers_capacity = 0;
+
+  gpu::DescriptorSetLayout storage_texel_buffers = nullptr;
+
+  u32 storage_texel_buffers_capacity = 0;
 
   /// @brief Single dynamic-offset constant buffer
   gpu::DescriptorSetLayout uniform_buffer = nullptr;
@@ -308,11 +314,11 @@ struct GpuDescriptors
 {
   gpu::DescriptorSet samplers = nullptr;
 
-  BitVec<u64> samplers_slots = {};
+  BitVec<u64> samplers_slots{noop_allocator};
 
   gpu::DescriptorSet sampled_textures = nullptr;
 
-  BitVec<u64> sampled_textures_slots = {};
+  BitVec<u64> sampled_textures_slots{noop_allocator};
 
   void uninit(gpu::Device device);
 
@@ -396,7 +402,7 @@ struct IGpuFramePlan
     state_{GpuFramePlanState::Reset},
     semaphore_{std::move(semaphore)},
     submission_stage_{0},
-    arena_{allocator}
+    arena_{allocator, ArenaPoolCfg{}}
   {
   }
 
@@ -468,15 +474,81 @@ struct IGpuFramePlan
   bool await(nanoseconds timeout);
 };
 
+struct TexelBufferUnion
+{
+  static constexpr gpu::BufferUsage USAGE =
+    gpu::BufferUsage::TransferSrc | gpu::BufferUsage::TransferDst |
+    gpu::BufferUsage::UniformTexelBuffer |
+    gpu::BufferUsage::StorageTexelBuffer | gpu::BufferUsage::UniformBuffer |
+    gpu::BufferUsage::StorageBuffer | gpu::BufferUsage::IndexBuffer |
+    gpu::BufferUsage::VertexBuffer | gpu::BufferUsage::IndirectBuffer;
+
+  struct View
+  {
+    gpu::BufferView    view                  = nullptr;
+    gpu::Format        format                = gpu::Format::Undefined;
+    gpu::DescriptorSet uniform_texel_buffers = nullptr;
+    gpu::DescriptorSet storage_texel_buffers = nullptr;
+
+    static constexpr TextureIndex uniform_texel_buffer_index =
+      TextureIndex::Default;
+
+    static constexpr TextureIndex storage_texel_buffer_index =
+      TextureIndex::Default;
+  };
+
+  static constexpr gpu::Format ALL_FORMATS[] = {
+    gpu::Format::R8_UNORM,
+    gpu::Format::R8_SNORM,
+    gpu::Format::R8_UINT,
+    gpu::Format::R8_SINT,
+    gpu::Format::R8G8B8A8_UNORM,
+    gpu::Format::R8G8B8A8_SNORM,
+    gpu::Format::R8G8B8A8_UINT,
+    gpu::Format::R8G8B8A8_SINT,
+    gpu::Format::R16_UINT,
+    gpu::Format::R16_SINT,
+    gpu::Format::R16_SFLOAT,
+    gpu::Format::R16G16_UINT,
+    gpu::Format::R16G16_SINT,
+    gpu::Format::R16G16_SFLOAT,
+    gpu::Format::R32_UINT,
+    gpu::Format::R32_SINT,
+    gpu::Format::R32_SFLOAT,
+    gpu::Format::R32G32_UINT,
+    gpu::Format::R32G32_SINT,
+    gpu::Format::R32G32_SFLOAT,
+    gpu::Format::R32G32B32A32_UINT,
+    gpu::Format::R32G32B32A32_SINT,
+    gpu::Format::R32G32B32A32_SFLOAT};
+
+  gpu::Buffer                              buffer           = {};
+  u32x2                                    tile_texel_count = {1, 1};
+  u32x2                                    tile_count       = {0, 0};
+  u32x2                                    extent           = {0, 0};
+  u32                                      sample_count     = 1;
+  InplaceVec<View, std::size(ALL_FORMATS)> views            = {};
+
+  View interpret(gpu::Format format) const;
+
+  void uninit(gpu::Device device);
+
+  static TexelBufferUnion create(GpuSys sys, u32x2 target_extent,
+                                 u32 sample_count, u32x2 tile_texel_count,
+                                 Span<gpu::Format const> formats, Str label,
+                                 Allocator scratch);
+};
+
 struct ImageUnion
 {
   ColorImage        color         = {};
   DepthStencilImage depth_stencil = {};
+  TexelBufferUnion  texel         = {};
   gpu::Alias        alias         = nullptr;
 
   void uninit(gpu::Device device);
 
-  static ImageUnion create(GpuSys sys, u32x2 target_size,
+  static ImageUnion create(GpuSys sys, u32x2 target_extent,
                            gpu::Format color_format,
                            gpu::Format depth_stencil_format, Str label,
                            Allocator scratch);
@@ -484,11 +556,11 @@ struct ImageUnion
 
 struct ScratchImages
 {
-  Vec<ImageUnion> images;
+  Vec<ImageUnion> images{noop_allocator};
 
   void uninit(gpu::Device device);
 
-  static ScratchImages create(GpuSys sys, u32 num_scratch, u32x2 target_size,
+  static ScratchImages create(GpuSys sys, u32 num_scratch, u32x2 target_extent,
                               gpu::Format color_format,
                               gpu::Format depth_stencil_format, Str label,
                               Allocator allocator, Allocator scratch);
@@ -496,7 +568,7 @@ struct ScratchImages
 
 struct ScratchBuffers
 {
-  Vec<GpuBuffer> buffers;
+  Vec<GpuBuffer> buffers{noop_allocator};
 
   void uninit(gpu::Device device);
 
@@ -509,17 +581,13 @@ struct ScratchBuffers
 
 struct GpuFrameResources
 {
-  GpuBuffer      buffer          = {};
-  ScratchBuffers scratch_buffers = {};
-  ScratchImages  scratch_images  = {};
-  GpuQueries     queries         = {};
+  GpuBuffer      buffer;
+  ScratchBuffers scratch_buffers;
+  ScratchImages  scratch_images;
+  GpuQueries     queries;
 
   void uninit(gpu::Device device);
 };
-
-// [ ] handle the case where swapchain might be deferred or not have images
-// [ ] we should sync and update texture configurations when swapchain config changes
-// [ ] to recreate swapchain, how do we wait correctly on the swapchain image presentation before re-creating?
 
 enum class ScratchTexureType : u8
 {
@@ -623,9 +691,6 @@ struct IGpuFrame
 
   GpuSys sys() const;
 
-  /// @brief Swapchain images must be manually acquired and blitted to
-  gpu::Swapchain swapchain() const;
-
   gpu::DescriptorSet sampled_textures() const;
 
   gpu::DescriptorSet samplers() const;
@@ -639,8 +704,6 @@ struct IGpuFrame
   Option<Tuple<gpu::StatisticsQuery, u32>> allocate_statistics();
 
   Span<ImageUnion const> get_scratch_images() const;
-
-  ImageUnion get_scratch_image(u32 index) const;
 
   Span<GpuBuffer const> get_scratch_buffers() const;
 
@@ -701,8 +764,6 @@ struct IGpuSys
 
   gpu::Device dev_;
 
-  gpu::Surface surface_;
-
   GpuSysCfg cfg_;
 
   gpu::DeviceProperties props_;
@@ -720,11 +781,9 @@ struct IGpuSys
 
   GpuDescriptorsLayout descriptors_layout_;
 
-  gpu::Swapchain swapchain_;
-
   gpu::QueueScope queue_scope_;
 
-  IFutex resources_lock_;
+  ISpinLock resources_lock_;
 
   SamplerCache sampler_cache_;
 
@@ -742,13 +801,12 @@ struct IGpuSys
 
   Scheduler scheduler_;
 
-  ThreadId thread_id_;
+  Option<Thread> thread_;
 
   IGpuSys() :
     initialized_{false},
-    allocator_{},
+    allocator_{noop_allocator},
     dev_{nullptr},
-    surface_{nullptr},
     cfg_{},
     props_{},
     pipeline_cache_{nullptr},
@@ -756,18 +814,17 @@ struct IGpuSys
     color_format_{gpu::Format::Undefined},
     depth_stencil_format_{gpu::Format::Undefined},
     descriptors_layout_{},
-    swapchain_{nullptr},
     queue_scope_{nullptr},
     resources_lock_{},
-    sampler_cache_{},
+    sampler_cache_{noop_allocator},
     descriptors_{},
     default_image_{nullptr},
     default_image_views_{},
     frame_ring_index_{0},
-    frames_{},
-    plans_{},
+    frames_{noop_allocator},
+    plans_{noop_allocator},
     scheduler_{nullptr},
-    thread_id_{ThreadId::Undefined}
+    thread_{}
   {
   }
 
@@ -778,14 +835,14 @@ struct IGpuSys
   ~IGpuSys()                           = default;
 
   /// @brief Uninitialize the gpu system and get the pipeline cache data
-  void uninit(Vec<u8> & cache);
+  void shutdown(Vec<u8> & cache);
 
   /// @brief Initialize the GPU system with the provided pipeline cache data and preference
   ///
   void init(Allocator allocator, gpu::Device device,
-            Span<u8 const> pipeline_cache_data, gpu::Surface surface,
+            Span<u8 const>            pipeline_cache_data,
             GpuSysPreferences const & preferences, Scheduler scheduler,
-            ThreadId thread_id);
+            Thread thread);
 
   SamplerIndex create_cached_sampler(gpu::SamplerInfo const & info);
 
@@ -801,7 +858,7 @@ struct IGpuSys
 
   Allocator allocator() const;
 
-  GpuFramePlan plan();
+  GpuFramePlan current_plan();
 
   gpu::Format color_format() const;
 
@@ -818,6 +875,8 @@ struct IGpuSys
   gpu::DescriptorSet sampled_textures() const;
 
   void submit_frame();
+
+  void await_idle();
 };
 
 }    // namespace ash

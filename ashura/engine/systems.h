@@ -33,17 +33,12 @@ struct Systems
   AudioSys     audio     = nullptr;
   VideoSys     video     = nullptr;
   AnimationSys animation = nullptr;
-  ViewSys      view      = nullptr;
 };
-
-// [ ] ensure main thread's scheduler tasks are executed
 
 extern Systems sys;
 
-// [ ] implement
-
 /// @brief Global system object. Designed for hooking across DLLs. Must be
 /// initialized at program startup.
-ASH_C_LINKAGE ASH_DLL_EXPORT void hook_system(Systems const * sys);
+ASH_C_LINKAGE ASH_DLL_EXPORT void hook_systems(Systems const * sys);
 
 }    // namespace ash

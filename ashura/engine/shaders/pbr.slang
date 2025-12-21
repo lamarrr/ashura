@@ -60,7 +60,8 @@ ConstantBuffer<ITEM_TYPE> item;
 StructuredBuffer<PunctualLight> lights;
 
 [[shader("vertex")]]
-VertexOutput vert(u32 vertex : SV_VertexID, u32 instance : SV_InstanceID)
+VertexOutput vert(u32 vertex : SV_VulkanVertexID,
+                  u32 instance : SV_VulkanInstanceID)
 {
   var   idx        = indices[vertex];
   var   vtx        = vertices[idx];

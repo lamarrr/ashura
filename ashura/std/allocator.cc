@@ -23,7 +23,7 @@
 #  define HAS_ALIGNED_ALLOC 0
 #endif
 
-#include <cstdio>
+#include <cstdio>    // NOLINT
 #include <cstdlib>
 #include <cstring>
 

@@ -30,28 +30,28 @@ constexpr f32x2 au_to_px(i32x2 au, f32 base)
   return f32x2{au_to_px(au.x(), base), au_to_px(au.y(), base)};
 }
 
-constexpr Str to_str(FontLoadErr err)
+constexpr Str to_str(SysErr err)
 {
   switch (err)
   {
-    case FontLoadErr::OutOfMemory:
+    case SysErr::OutOfMemory:
       return "OutOfMemory"_str;
-    case FontLoadErr::DecodeFailed:
+    case SysErr::DecodeFailed:
       return "DecodeFailed"_str;
-    case FontLoadErr::FaceNotFound:
+    case SysErr::FaceNotFound:
       return "FaceNotFound"_str;
-    case FontLoadErr::UnsupportedFormat:
+    case SysErr::UnsupportedFormat:
       return "UnsupportedFormat"_str;
-    case FontLoadErr::InvalidPath:
+    case SysErr::InvalidPath:
       return "InvalidPath"_str;
-    case FontLoadErr::IoErr:
+    case SysErr::IoErr:
       return "IoErr"_str;
     default:
       return "Unidentified"_str;
   }
 }
 
-inline void format(fmt::Sink sink, fmt::Spec, FontLoadErr const & err)
+inline void format(fmt::Sink sink, fmt::Spec, SysErr const & err)
 {
   sink(to_str(err));
 }
@@ -111,7 +111,7 @@ struct AtlasGlyph
   bool16 has_color = false;
   u16    layer     = 0;
   RectU  area      = {};
-  f32x2  uv[2]     = {};
+  CRect  uv        = {};
 };
 
 struct CpuFontAtlas
@@ -119,8 +119,8 @@ struct CpuFontAtlas
   i32             font_height = 0;
   u32x2           extent      = {};
   u32             num_layers  = 0;
-  Vec<AtlasGlyph> glyphs      = {};
-  Vec<u8>         channels    = {};
+  Vec<AtlasGlyph> glyphs;
+  Vec<u8>         channels;
 
   ImageLayerSpan<u8, 1> span() const
   {
@@ -131,11 +131,11 @@ struct CpuFontAtlas
 
 struct GpuFontAtlas
 {
-  Vec<TextureIndex> textures    = {};
+  Vec<TextureIndex> textures;
   ImageId           image       = ImageId::None;
   i32               font_height = 0;
   u32x2             extent      = {};
-  Vec<AtlasGlyph>   glyphs      = {};
+  Vec<AtlasGlyph>   glyphs;
 
   constexpr u32 num_layers() const
   {

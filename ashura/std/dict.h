@@ -2,6 +2,7 @@
 #pragma once
 #include "ashura/std/allocator.h"
 #include "ashura/std/error.h"
+#include "ashura/std/growth.h"
 #include "ashura/std/hash.h"
 #include "ashura/std/mem.h"
 #include "ashura/std/obj.h"
@@ -51,6 +52,7 @@ struct DictEntry<K, Void>
 };
 
 // [ ] default-hash, default-cmp
+// [ ] make it obey growth factors
 
 /// @brief Robin-hood open-address probing HashMap
 /// @tparam K key type
@@ -113,6 +115,11 @@ struct [[nodiscard]] Dict
     {
       return iter_ != end_;
     }
+
+    constexpr bool operator==(IterEnd) const
+    {
+      return !this->operator!=(iter_end);
+    }
   };
 
   struct View
@@ -128,7 +135,7 @@ struct [[nodiscard]] Dict
 
     constexpr auto end() const
     {
-      return IterEnd{};
+      return iter_end;
     }
   };
 
@@ -141,8 +148,7 @@ struct [[nodiscard]] Dict
   Hasher     hasher_;
   KeyCmp     cmp_;
 
-  constexpr Dict(Allocator allocator = {}, Hasher hasher = {},
-                 KeyCmp cmp = {}) :
+  constexpr Dict(Allocator allocator, Hasher hasher = {}, KeyCmp cmp = {}) :
     probe_dists_{nullptr},
     probes_{nullptr},
     num_probes_{0},
@@ -576,7 +582,7 @@ struct [[nodiscard]] Dict
 
   constexpr auto end() const
   {
-    return IterEnd{};
+    return iter_end;
   }
 };
 
@@ -591,10 +597,13 @@ struct IsTriviallyRelocatable<Dict<K, V, H, KCmp, D>>
 };
 
 template <typename V, typename D = usize>
-using StrDict = Dict<Str, V, SpanHash, StrEq, D>;
+using StrDict = Dict<Str, V, SpanHash, SpanBitEq, D>;
 
 template <typename V, typename D = usize>
-using StringDict = Dict<Vec<char>, V, SpanHash, StrEq, D>;
+using ByteDict = Dict<Span<u8 const>, V, SpanHash, SpanBitEq, D>;
+
+template <typename V, typename D = usize>
+using StrVecDict = Dict<Vec<char>, V, SpanHash, SpanBitEq, D>;
 
 template <typename K, typename V, typename D = usize>
 using BitDict = Dict<K, V, BitHash, BitEq, D>;

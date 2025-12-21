@@ -266,7 +266,6 @@ struct BindLocation
 };
 
 /// @brief An allocated block of memory that can be aliased by multiple resources.
-
 struct IAlias
 {
   AliasId       id             = AliasId::Undefined;
@@ -307,20 +306,20 @@ using BindLocations = SmallVec<BindLocation, 8, 0>;
 
 struct IBuffer
 {
-  VkBuffer         vk             = nullptr;
-  gpu::BufferUsage usage          = gpu::BufferUsage::None;
-  bool             host_mapped    = false;
-  u64              size           = 0;
-  MemoryInfo       memory         = {};
-  BindLocations    bind_locations = {};
+  VkBuffer         vk          = nullptr;
+  gpu::BufferUsage usage       = gpu::BufferUsage::None;
+  bool             host_mapped = false;
+  u64              size        = 0;
+  MemoryInfo       memory      = {};
+  BindLocations    bind_locations;
 };
 
 struct IBufferView
 {
-  VkBufferView  vk             = nullptr;
-  Buffer        buffer         = nullptr;
-  Slice64       slice          = {};
-  BindLocations bind_locations = {};
+  VkBufferView  vk     = nullptr;
+  Buffer        buffer = nullptr;
+  Slice64       slice  = {};
+  BindLocations bind_locations;
 };
 
 struct IImage
@@ -339,28 +338,28 @@ struct IImage
 
 struct IImageView
 {
-  VkImageView   vk             = nullptr;
-  Image         image          = nullptr;
-  gpu::Format   format         = gpu::Format::Undefined;
-  Slice32       mip_levels     = {};
-  Slice32       array_layers   = {};
-  BindLocations bind_locations = {};
+  VkImageView   vk           = nullptr;
+  Image         image        = nullptr;
+  gpu::Format   format       = gpu::Format::Undefined;
+  Slice32       mip_levels   = {};
+  Slice32       array_layers = {};
+  BindLocations bind_locations;
 };
 
 struct IDescriptorSetLayout
 {
   VkDescriptorSetLayout vk = nullptr;
 
-  SmallVec<gpu::DescriptorBindingInfo, 1, 0> bindings = {};
+  SmallVec<gpu::DescriptorBindingInfo, 1, 0> bindings;
 
   u32 num_variable_length = 0;
 
-  bool is_mutating = false;
+  bool is_readonly = false;
 };
 
-using SyncResources =
-  Enum<None, SmallVec<Buffer, 4, 0>, SmallVec<BufferView, 4, 0>,
-       SmallVec<ImageView, 4, 0>>;
+using SyncResources = Enum<None, SmallVec<Option<IBuffer &>, 4, 0>,
+                           SmallVec<Option<IBufferView &>, 4, 0>,
+                           SmallVec<Option<IImageView &>, 4, 0>>;
 
 struct DescriptorBinding
 {
@@ -381,9 +380,9 @@ struct IDescriptorSet
 
   DescriptorSetId id = DescriptorSetId::Undefined;
 
-  bool is_mutating = false;
+  bool is_readonly = false;
 
-  SmallVec<DescriptorBinding, 1, 0> bindings = {};
+  SmallVec<DescriptorBinding, 1, 0> bindings;
 
   static void remove_bind_loc(BindLocations &      locations,
                               BindLocation const & loc);
@@ -419,7 +418,7 @@ struct IGraphicsPipeline
 
   u32 num_sets = 0;
 
-  SmallVec<gpu::Format, 8, 0> color_fmts = {};
+  SmallVec<gpu::Format, 8, 0> color_fmts;
 
   Option<gpu::Format> depth_fmt = none;
 
@@ -486,7 +485,7 @@ struct IPhysicalDevice
 
 struct SwapchainPreference
 {
-  Vec<char>           label               = {};
+  Vec<char>           label;
   gpu::Surface        surface             = nullptr;
   gpu::SurfaceFormat  format              = {};
   gpu::ImageUsage     usage               = gpu::ImageUsage::None;
@@ -494,6 +493,9 @@ struct SwapchainPreference
   gpu::PresentMode    present_mode        = gpu::PresentMode::Immediate;
   u32x2               preferred_extent    = {};
   gpu::CompositeAlpha composite_alpha     = gpu::CompositeAlpha::None;
+
+  static Result<SwapchainPreference, Void> make(gpu::SwapchainInfo const & info,
+                                                Allocator allocator);
 };
 
 /// @param is_out_of_date can't present anymore
@@ -506,9 +508,9 @@ struct ISwapchain
 
   VkSurfaceKHR vk_surface = nullptr;
 
-  SmallVec<Image, 8, 0> images = {};
+  SmallVec<Image, 8, 0> images;
 
-  SmallVec<VkSemaphore, 8, 0> acquire_semaphores = {};
+  SmallVec<VkSemaphore, 8, 0> acquire_semaphores;
 
   u32 ring_index = 0;
 
@@ -532,7 +534,7 @@ struct ISwapchain
 
   gpu::CompositeAlpha composite_alpha = gpu::CompositeAlpha::None;
 
-  SwapchainPreference preference = {};
+  SwapchainPreference preference;
 };
 
 #define ASH_VK_CAST(Handle)                            \
@@ -972,16 +974,18 @@ struct HazardBarriers
 /// @brief Global synchronization state
 struct DeviceResourceStates
 {
-  CoreSparseMap<Vec<u32>,      // id-to-index map
+  CoreSparseVec<AliasId,
+                Vec<u32>,      // id-to-index map
                 Vec<Hazard>    // memory state
                 >
     alias_;
 
-  CoreSparseMap<Vec<u32>    // id-to-index map
+  CoreSparseVec<DescriptorSetId,
+                Vec<u32>    // id-to-index map
                 >
     descriptor_sets_;
 
-  ReadWriteLock lock_;
+  IRWLock lock_;
 
   DeviceResourceStates(Allocator allocator) :
     alias_{allocator},
@@ -1006,7 +1010,8 @@ struct EncoderResourceStates
   static constexpr VkPipelineStageFlags COMPUTE_DESCRIPTOR_STAGES =
     VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
 
-  CoreSparseMap<
+  CoreSparseVec<
+    AliasId,
     Vec<u32>,       // id-to-index map
     Vec<Hazard>,    // memory hazard so far
     BitVec<u64>,    // was the resource accessed?
@@ -1014,7 +1019,8 @@ struct EncoderResourceStates
     >
     alias_;
 
-  CoreSparseMap<
+  CoreSparseVec<
+    DescriptorSetId,
     Vec<u32>,    // id-to-index map
     Vec<
       u32>    // the last pass the descriptor set was accessed: initially U32_MAX
@@ -1129,15 +1135,15 @@ struct PassContext
 
   Option<IComputePipeline &> compute_pipeline = none;
 
-  SmallVec<gpu::RenderingAttachment, 8, 0> color_attachments = {};
+  SmallVec<gpu::RenderingAttachment, 8, 0> color_attachments;
 
   Option<gpu::RenderingAttachment> depth_attachment = none;
 
   Option<gpu::RenderingAttachment> stencil_attachment = none;
 
-  SmallVec<DescriptorSet, 8, 0> descriptor_sets = {};
+  SmallVec<DescriptorSet, 8, 0> descriptor_sets;
 
-  SmallVec<Buffer, 8, 0> vertex_buffers = {};
+  SmallVec<Buffer, 8, 0> vertex_buffers;
 
   Option<IBuffer &> index_buffer = none;
 
@@ -1173,7 +1179,7 @@ struct ICommandEncoder final : gpu::ICommandEncoder
   };
 
   Device               dev_;
-  ArenaPool            arena_;
+  IArenaPool           arena_;
   Status               status_;
   CommandBufferState   state_;
   Pass                 pass_;
@@ -1183,7 +1189,7 @@ struct ICommandEncoder final : gpu::ICommandEncoder
 
   ICommandEncoder(IDevice & dev, Allocator allocator) :
     dev_{&dev},
-    arena_{allocator},
+    arena_{allocator, ArenaPoolCfg{}},
     status_{Status::Success},
     state_{CommandBufferState::Reset},
     pass_{Pass::None},
@@ -1199,18 +1205,20 @@ struct ICommandEncoder final : gpu::ICommandEncoder
   ICommandEncoder & operator=(ICommandEncoder &&)      = delete;
   ~ICommandEncoder()                                   = default;
 
-  template <typename Cmd>
-  Cmd * push(Cmd const & cmd)
+  template <typename CmdImpl>
+  CmdImpl * push(CmdImpl const & cmd)
   {
-    Cmd * p_cmd;
+    CmdImpl * p_cmd;
     if (!arena_.nalloc(1, p_cmd))
     {
       return nullptr;
     }
 
-    new (p_cmd) Cmd{cmd};
+    new (p_cmd) CmdImpl{cmd};
 
-    tracker_.command(p_cmd);
+    tracker_.command((cmd::Cmd *) p_cmd);
+
+    return p_cmd;
   }
 
   virtual void begin() override;
@@ -1319,7 +1327,7 @@ struct ICommandBuffer final : gpu::ICommandBuffer
   Status                status_;
   CommandBufferState    state_;
   EncoderResourceStates resource_states_;
-  ArenaPool             arena_;
+  IArenaPool            arena_;
 
   ICommandBuffer(IDevice & dev, VkCommandPool vk_pool,
                  VkCommandBuffer vk_buffer, Allocator allocator) :
@@ -1330,7 +1338,7 @@ struct ICommandBuffer final : gpu::ICommandBuffer
     status_{Status::Success},
     state_{CommandBufferState::Reset},
     resource_states_{allocator},
-    arena_{allocator}
+    arena_{allocator, ArenaPoolCfg{}}
   {
   }
 
@@ -1575,6 +1583,10 @@ struct IDevice final : gpu::IDevice
   virtual Result<Void, Status> get_statistics_query_result(
     gpu::StatisticsQuery query, u32 first,
     Span<gpu::PipelineStatistics> statistics) override;
+
+  virtual Result<Void, Status>
+    mark_swapchain_out_of_date(gpu::Swapchain             swapchain,
+                               gpu::SwapchainInfo const & info) override;
 
   virtual Result<Void, Status> acquire_next(gpu::Swapchain swapchain) override;
 

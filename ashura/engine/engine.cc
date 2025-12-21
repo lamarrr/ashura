@@ -1,25 +1,47 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/engine/engine.h"
+#include "ashura/engine/animation_system.h"
+#include "ashura/engine/audio_system.h"
+#include "ashura/engine/file_system.h"
+#include "ashura/engine/font_system.h"
+#include "ashura/engine/gpu_system.h"
+#include "ashura/engine/image_system.h"
+#include "ashura/engine/pipeline_system.h"
+#include "ashura/engine/shader_system.h"
+#include "ashura/engine/systems.h"
+#include "ashura/engine/video_system.h"
+#include "ashura/engine/view_system.h"
+#include "ashura/engine/window_system.h"
 #include "ashura/std/async.h"
 #include "ashura/std/fs.h"
+#include "ashura/std/sformat.h"
 #include "ashura/std/trace.h"
 #include "simdjson.h"
 
 namespace ash
 {
 
-Result<EngineCfg> EngineCfg::parse(AllocatorRef allocator, Vec<u8> & json)
+Result<EngineCfg> EngineCfg::parse_json(Span<u8 const> json,
+                                        Allocator      allocator,
+                                        Allocator      scratch_allocator)
 {
-  EngineCfg out{.shaders{allocator},
-                .fonts{allocator},
-                .images{allocator},
-                .pipeline_cache{allocator}};
+  EngineCfg out{.window{.title{allocator}},
+                .font_paths{allocator},
+                .image_paths{allocator},
+                .working_dir_path{allocator},
+                .pipeline_cache_path{allocator}};
 
-  json.reserve(json.size() + simdjson::SIMDJSON_PADDING).unwrap();
+  Vec<u8> json_copy{scratch_allocator};
+  if (!(json_copy.reserve_extend(json.size() + simdjson::SIMDJSON_PADDING) &&
+        json_copy.append(json)))
+  {
+    return Err{};
+  }
 
   simdjson::ondemand::parser parser;
 
-  auto error = parser.iterate(json.data(), json.size_bytes(), json.capacity());
+  auto error = parser.iterate(json_copy.data(), json_copy.size_bytes(),
+                              json_copy.capacity());
 
   if (error.error() != simdjson::SUCCESS)
   {
@@ -35,7 +57,6 @@ Result<EngineCfg> EngineCfg::parse(AllocatorRef allocator, Vec<u8> & json)
   CHECK(version == "0.0.1", "");
 
   out.gpu.validation = cfg["gpu.validation"].get_bool().value();
-  out.gpu.vsync      = cfg["gpu.vsync"].get_bool().value();
 
   auto gpu_prefs = cfg["gpu.preferences"].get_array().value();
   CHECK(gpu_prefs.count_elements().value() <= 5, "");
@@ -95,68 +116,49 @@ Result<EngineCfg> EngineCfg::parse(AllocatorRef allocator, Vec<u8> & json)
       break;
   }
 
-  if (auto fps = cfg["gpu.max_fps"].get_int64();
-      fps.error() == simdjson::error_code::SUCCESS)
-  {
-    out.gpu.max_fps = fps.value();
-  }
-
+  auto title = cfg["window.title"].get_string().value();
+  out.window.title.append(span(title)).unwrap();
   out.window.resizable   = cfg["window.resizable"].get_bool().value();
   out.window.maximized   = cfg["window.maximized"].get_bool().value();
   out.window.full_screen = cfg["window.full_screen"].get_bool().value();
   out.window.borderless  = cfg["window.borderless"].get_bool().value();
+  out.window.vsync       = cfg["window.vsync"].get_bool().value();
   out.window.width       = (u32) clamp(cfg["window.width"].get_int64().value(),
                                        (i64) 0, (i64) U32_MAX);
   out.window.height      = (u32) clamp(cfg["window.height"].get_int64().value(),
                                        (i64) 0, (i64) U32_MAX);
 
-  auto shaders = cfg["shaders"].get_object().value();
-  for (auto entry : shaders)
-  {
-    std::string_view id   = entry.escaped_key().value();
-    std::string_view path = entry.value().get_string().value();
-    out.shaders
-      .push(vec(allocator, span(id)).unwrap(),
-            vec(allocator, span(path)).unwrap())
-      .unwrap();
-  }
-
-  auto fonts = cfg["fonts"].get_object().value();
-  for (auto entry : fonts)
-  {
-    std::string_view id   = entry.escaped_key().value();
-    std::string_view path = entry.value().get_string().value();
-    out.fonts
-      .push(vec(allocator, span(id)).unwrap(),
-            vec(allocator, span(path)).unwrap())
-      .unwrap();
-  }
-
   out.font_height =
     clamp((u32) cfg["fonts.height"].get_int64().value(), 16U, 256U);
-
-  auto images = cfg["images"].get_object().value();
-  for (auto entry : images)
-  {
-    std::string_view id   = entry.escaped_key().value();
-    std::string_view path = entry.value().get_string().value();
-    out.images
-      .push(vec(allocator, span(id)).unwrap(),
-            vec(allocator, span(path)).unwrap())
-      .unwrap();
-  }
 
   std::string_view pipeline_cache_path =
     cfg["cache.pipeline.path"].get_string().value();
 
-  out.pipeline_cache.extend(pipeline_cache_path).unwrap();
+  out.pipeline_cache_path.append(pipeline_cache_path).unwrap();
+
+  std::string_view working_dir_path =
+    cfg["paths.working_dir"].get_string().value();
+
+  out.working_dir_path.append(working_dir_path).unwrap();
 
   return Ok{std::move(out)};
 }
 
-static void window_event_listener(Engine * engine, WindowEvent const & event)
+static void system_event_listener(Engine engine, SystemEvent const & event)
 {
-  InputState & f = engine->input_state;
+  event.match(
+    [&](SystemTheme theme) {
+      SystemState & s = engine->state_;
+      s.theme.theme   = theme;
+      s.theme.changed = true;
+    },
+    [](SystemEventType) {});
+}
+
+static void window_event_listener(IEngine::WindowEntry * win,
+                                  WindowEvent const &    event)
+{
+  auto & s = win->state;
 
   event.match(
     [&](KeyEvent e) {
@@ -164,18 +166,18 @@ static void window_event_listener(Engine * engine, WindowEvent const & event)
       {
         case KeyAction::Press:
         {
-          f.key.any_down = true;
-          f.key.key_downs.set_bit((usize) e.key_code);
-          f.key.scan_downs.set_bit((usize) e.scan_code);
-          f.key.mod_downs |= e.modifiers;
+          s.key.any_down = true;
+          s.key.key_downs.set_bit((usize) e.key_code);
+          s.key.scan_downs.set_bit((usize) e.scan_code);
+          s.key.mod_downs |= e.modifiers;
         }
         break;
         case KeyAction::Release:
         {
-          f.key.any_up = true;
-          f.key.key_ups.set_bit((usize) e.key_code);
-          f.key.scan_ups.set_bit((usize) e.scan_code);
-          f.key.mod_ups |= e.modifiers;
+          s.key.any_up = true;
+          s.key.key_ups.set_bit((usize) e.key_code);
+          s.key.scan_ups.set_bit((usize) e.scan_code);
+          s.key.mod_ups |= e.modifiers;
         }
         break;
         default:
@@ -183,35 +185,35 @@ static void window_event_listener(Engine * engine, WindowEvent const & event)
       }
     },
     [&](MouseMotionEvent e) {
-      f.mouse.moved       = true;
-      f.mouse.position    = e.position;
-      f.mouse.translation = e.translation;
+      s.mouse.moved       = true;
+      s.mouse.position    = e.position;
+      s.mouse.translation = e.translation;
     },
     [&](MouseClickEvent e) {
-      f.mouse.num_clicks[(u32) e.button] = e.clicks;
-      f.mouse.position                   = e.position;
+      s.mouse.num_clicks[(u32) e.button] = e.clicks;
+      s.mouse.position                   = e.position;
       switch (e.action)
       {
         case KeyAction::Press:
-          f.mouse.downs |= static_cast<MouseButtons>(1U << (u32) e.button);
-          f.mouse.any_down = true;
+          s.mouse.downs |= static_cast<MouseButtons>(1U << (u32) e.button);
+          s.mouse.any_down = true;
           break;
         case KeyAction::Release:
-          f.mouse.ups |= static_cast<MouseButtons>(1U << (u32) e.button);
-          f.mouse.any_up = true;
+          s.mouse.ups |= static_cast<MouseButtons>(1U << (u32) e.button);
+          s.mouse.any_up = true;
           break;
         default:
           break;
       }
     },
     [&](MouseWheelEvent e) {
-      f.mouse.scrolled          = true;
-      f.mouse.position          = e.position;
-      f.mouse.wheel_translation = e.translation;
+      s.mouse.scrolled          = true;
+      s.mouse.position          = e.position;
+      s.mouse.wheel_translation = e.translation;
     },
     [&](TextInputEvent e) {
-      f.key.input = true;
-      f.key.text.extend(e.text).unwrap();
+      s.key.input = true;
+      s.key.text.append(e.text).unwrap();
     },
     [&](WindowEventType e) {
       switch (e)
@@ -222,29 +224,29 @@ static void window_event_listener(Engine * engine, WindowEvent const & event)
         case WindowEventType::Moved:
           break;
         case WindowEventType::Resized:
-          f.window.resized = true;
+          s.resized = true;
           break;
         case WindowEventType::SurfaceResized:
-          f.window.surface_resized = true;
+          s.surface_resized = true;
           break;
         case WindowEventType::Minimized:
         case WindowEventType::Maximized:
         case WindowEventType::Restored:
           break;
         case WindowEventType::MouseEnter:
-          f.mouse.in = true;
+          s.mouse.in = true;
           break;
         case WindowEventType::MouseLeave:
-          f.mouse.out = true;
+          s.mouse.out = true;
           break;
         case WindowEventType::KeyboardFocusIn:
-          f.key.in = true;
+          s.key.in = true;
           break;
         case WindowEventType::KeyboardFocusOut:
-          f.key.out = true;
+          s.key.out = true;
           break;
         case WindowEventType::CloseRequested:
-          f.window.close_requested = true;
+          s.close_requested = true;
           break;
         case WindowEventType::Occluded:
         case WindowEventType::EnterFullScreen:
@@ -261,304 +263,366 @@ static void window_event_listener(Engine * engine, WindowEvent const & event)
           switch (e)
           {
             case DropEventType::DropBegin:
-              f.drop.event = DropState::Event::Begin;
+              s.drop.event = DropState::Event::Begin;
               break;
             case DropEventType::DropComplete:
-              f.drop.event = DropState::Event::End;
+              s.drop.event = DropState::Event::End;
               break;
             default:
               break;
           }
         },
-        [&](DropPositionEvent e) { f.mouse.position = e.pos; },
+        [&](DropPositionEvent e) { s.mouse.position = e.pos; },
         [&](DropFileEvent e) {
-          f.drop.data.clear();
-          f.drop.data.extend(e.path.as_u8()).unwrap();
-          f.drop.event = DropState::Event::FilePath;
+          s.drop.data.clear();
+          s.drop.data.append(e.path.as_u8()).unwrap();
+          s.drop.event = DropState::Event::FilePath;
         },
         [&](DropTextEvent e) {
-          f.drop.data.clear();
-          f.drop.data.extend(e.text.as_u8()).unwrap();
-          f.drop.event = DropState::Event::Bytes;
+          s.drop.data.clear();
+          s.drop.data.append(e.text.as_u8()).unwrap();
+          s.drop.event = DropState::Event::Bytes;
         });
     });
 }
 
-Dyn<Engine *> Engine::create(AllocatorRef allocator, Str config_path,
-                             Str working_dir)
+Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
+                            Callbacks callbacks, WindowLoop loop)
 {
-  Dyn<Logger *> logger =
-    dyn<Logger>(inplace, default_allocator, span<LogSink *>({&stdio_sink}))
+  tracing::ScopeTrace _;
+
+  Dyn<Logger> logger =
+    dyn<ILogger>(inplace, default_allocator, span<ILogSink *>({&stdio_sink}))
       .unwrap();
   hook_logger(logger);
-  trace("Initializing Engine, config_path: {} and working dir: {} "_str,
-        config_path, working_dir);
 
-  trace("Loading Engine config file"_str);
-
-  Vec<u8> json{allocator};
-
-  read_file(config_path, json).unwrap("Error opening config file"_str);
-
-  EngineCfg cfg = EngineCfg::parse(allocator, json).unwrap();
-
-  trace("Initializing Core Systems"_str);
-
-  FileSystem file_sys{allocator};
-
-  Dyn<gpu::Instance *> instance =
-    gpu::create_vulkan_instance(allocator, cfg.gpu.validation).unwrap();
-
-  gpu::Device * device =
-    instance->create_device(allocator, cfg.gpu.preferences, cfg.gpu.buffering)
-      .unwrap();
-
-  trace("Loading Pipeline cache from disk"_str);
+  trace("Initializing Engine Core Systems"_str);
+  trace("Loading Graphics Pipeline Cache From {}"_str,
+        cfg.pipeline_cache_path.view());
 
   Vec<u8> pipeline_cache{allocator};
-  read_file(cfg.pipeline_cache, pipeline_cache)
+  read_file(cfg.pipeline_cache_path, pipeline_cache, allocator)
     .match([](Void) {},
            [](IoErr err) {
              CHECK(err == IoErr::InvalidFileOrDir, "Io Error Occured");
            });
 
-  GpuSystem gpu_sys = GpuSystem::create(
-    allocator, *device, pipeline_cache, cfg.gpu.hdr, cfg.gpu.buffering,
-    cfg.gpu.msaa_level, Vec2U{cfg.window.width, cfg.window.height});
+  constexpr Str const dedicated_thread_names[] = {
+    "GpuThread"_str,
+    "AudioThread"_str,
+    "VideoThread"_str,
+  };
+  constexpr DedicatedThread                  gpu_thread   = DedicatedThread{0};
+  [[maybe_unused]] constexpr DedicatedThread audio_thread = DedicatedThread{1};
+  [[maybe_unused]] constexpr DedicatedThread video_thread = DedicatedThread{2};
 
-  ImageSystem image_sys{allocator};
-
-  Dyn<FontSystem *> font_sys = FontSystem::create(allocator);
-
-  ShaderSystem shader_sys{allocator};
-
-  Dyn<WindowSystem *> window_sys = WindowSystem::create_SDL(allocator);
-
-  trace("Creating Root Window"_str);
-
-  Window window = window_sys->create_window(*instance, "Ashura"_str).unwrap();
-
-  if (cfg.window.maximized)
-  {
-    window_sys->maximize(window);
-  }
-  else
-  {
-    window_sys->set_extent(window, Vec2U{cfg.window.width, cfg.window.height});
-  }
-
-  if (cfg.window.full_screen)
-  {
-    window_sys->make_fullscreen(window);
-  }
-  else
-  {
-    window_sys->make_windowed(window);
-  }
-
-  if (cfg.window.borderless)
-  {
-    window_sys->make_borderless(window);
-  }
-  else
-  {
-    window_sys->make_bordered(window);
-  }
-
-  if (cfg.window.resizable)
-  {
-    window_sys->make_resizable(window);
-  }
-  else
-  {
-    window_sys->make_unresizable(window);
-  }
-
-  ClipBoard & clipboard = window_sys->get_clipboard();
-
-  gpu::Surface surface = window_sys->get_surface(window);
-
-  gpu::PresentMode present_mode =
-    cfg.gpu.vsync ? gpu::PresentMode::Fifo : gpu::PresentMode::Immediate;
-
-  Renderer renderer = Renderer::create(allocator);
-
-  Canvas canvas{allocator};
-
-  ui::System ui_sys{allocator};
-
-  Vec<char> working_dir_copy = vec<char>(allocator, working_dir).unwrap();
-
+  u32 const num_dedicated_threads =
+    size(dedicated_thread_names);    // gpu/render, audio, video,
   u32 const hardware_concurrency = std::thread::hardware_concurrency();
+  u32 const min_worker_threads   = 1;
+  u32 const total_concurrency = max(num_dedicated_threads + min_worker_threads +
+                                      // main thread
+                                      1,
+                                    hardware_concurrency);
+  u32 const num_worker_threads =
+    total_concurrency - (num_dedicated_threads + 1);
 
-  u32 const num_worker_threads = max(hardware_concurrency, 2U) - 1U;
+  Vec<SchedulerThreadInfo> dedicated_thread_infos{allocator};
 
-  nanoseconds const max_thread_sleep = 5ms;
-
-  Vec<nanoseconds> worker_thread_sleep{allocator};
-
-  for (u32 i = 0; i < num_worker_threads; i++)
+  for (auto [i, name] : enumerate(dedicated_thread_names))
   {
-    worker_thread_sleep.push(max_thread_sleep).unwrap();
+    dedicated_thread_infos.push(SchedulerThreadInfo{.name = name}).unwrap();
   }
 
-  Dyn<Scheduler *> scheduler = Scheduler::create(
-    allocator, std::this_thread::get_id(), {}, worker_thread_sleep);
+  Vec<StrVec>              worker_thread_names{allocator};
+  Vec<SchedulerThreadInfo> worker_thread_infos{allocator};
+
+  for (auto i : range(num_worker_threads))
+  {
+    worker_thread_names.push(sformat(allocator, "WorkerThread {}", i).unwrap())
+      .unwrap();
+    worker_thread_infos
+      .push(SchedulerThreadInfo{.name = worker_thread_names.last()})
+      .unwrap();
+  }
+
+  Dyn<Scheduler> scheduler = IScheduler::create(
+    SchedulerInfo{.allocator         = allocator,
+                  .dedicated_threads = dedicated_thread_infos,
+                  .worker_threads    = worker_thread_infos,
+                  .main_thread_id    = std::this_thread::get_id()});
+
+  ash::sys.sched = scheduler;
+
+  Dyn<FileSys> file_sys = dyn<IFileSys>(inplace, allocator, allocator).unwrap();
+
+  ash::sys.file = file_sys;
+
+  Dyn<WindowSys> window_sys = IWindowSys::create_SDL(allocator);
+
+  ash::sys.win = window_sys;
+
+  Dyn<gpu::Instance> gpu_instance =
+    gpu::create_vulkan_instance(allocator, cfg.gpu.validation).unwrap();
+
+  gpu::Device gpu_device =
+    gpu_instance->create_device(allocator, cfg.gpu.preferences).unwrap();
+
+  Dyn<GpuSys> gpu_sys = dyn<IGpuSys>(inplace, allocator).unwrap();
+
+  ash::sys.gpu = gpu_sys;
+
+  auto gpu_pref =
+    GpuSysPreferences{.buffering             = cfg.gpu.buffering,
+                      .cfg                   = GpuSysCfg{},
+                      .color_formats         = ColorImage::SDR_FORMATS,
+                      .depth_stencil_formats = DepthStencilImage::FORMATS};
+
+  gpu_sys->init(allocator, gpu_device, pipeline_cache.view(), gpu_pref,
+                scheduler.get(), gpu_thread);
+
+  Dyn<ImageSys> image_sys =
+    dyn<IImageSys>(inplace, allocator, allocator, gpu_sys.get(), file_sys.get())
+      .unwrap();
+
+  ash::sys.image = image_sys;
+
+  Dyn<FontSys> font_sys = IFontSys::create(allocator);
+
+  ash::sys.font = font_sys;
+
+  Dyn<ShaderSys> shader_sys =
+    dyn<IShaderSys>(inplace, allocator, gpu_sys.get(), file_sys.get()).unwrap();
+
+  shader_sys->init(allocator);
+
+  ash::sys.shader = shader_sys;
+
+  Dyn<PipelineSys> pipeline_sys =
+    dyn<IPipelineSys>(inplace, allocator, gpu_sys.get()).unwrap();
+
+  ash::sys.pipeline = pipeline_sys;
+
+  pipeline_sys->init(allocator);
+
+  Dyn<ViewSys> view_sys = dyn<IViewSys>(inplace, allocator, allocator).unwrap();
 
   trace("All Core Systems Initialized"_str);
 
-  nanoseconds min_frame_interval = 0ns;
+  Dyn<Engine> engine = dyn<IEngine>(inplace, allocator).unwrap();
 
-  if (cfg.gpu.max_fps.is_some())
-  {
-    f64 const max_fpns          = cfg.gpu.max_fps.v() * (1 / 1'000'000'000.0);
-    f64 const min_frame_time_ns = 1 / max_fpns;
-    min_frame_interval = nanoseconds{(nanoseconds::rep) min_frame_time_ns};
-  }
-
-  Dyn<Engine *> engine =
-    dyn<Engine>(inplace, allocator, allocator, std::move(logger),
-                std::move(scheduler), std::move(file_sys), std::move(instance),
-                *device, std::move(gpu_sys), std::move(image_sys),
-                std::move(font_sys), std::move(shader_sys),
-                std::move(window_sys), window, clipboard, surface, present_mode,
-                std::move(renderer), std::move(canvas), std::move(ui_sys),
-                std::move(working_dir_copy), std::move(cfg.pipeline_cache),
-                min_frame_interval)
-      .unwrap();
+  engine->allocator_    = allocator;
+  engine->sys_          = Systems{.logger   = std::move(logger),
+                                  .sched    = std::move(scheduler),
+                                  .file     = std::move(file_sys),
+                                  .gpu      = std::move(gpu_sys),
+                                  .image    = std::move(image_sys),
+                                  .font     = std::move(font_sys),
+                                  .shader   = std::move(shader_sys),
+                                  .win      = std::move(window_sys),
+                                  .pipeline = std::move(pipeline_sys),
+                                  .audio{},
+                                  .video{},
+                                  .animation{}};
+  engine->gpu_instance_ = std::move(gpu_instance);
+  engine->gpu_device_   = std::move(gpu_device);
+  engine->buffering_    = cfg.gpu.buffering;
+  engine->state_        = SystemState{allocator};
+  engine->paths_        = Paths{
+           .working_dir = vec::copy(allocator, cfg.working_dir_path.view()).unwrap(),
+           .pipeline_cache =
+      vec::copy(allocator, cfg.pipeline_cache_path.view()).unwrap()};
+  engine->callbacks_ = std::move(callbacks);
 
   hook_engine(engine);
 
-  engine->engage_(cfg);
+  engine->sys_.win->listen({engine.get(), system_event_listener});
+  trace("Creating Root Window"_str);
+
+  engine->window_ = engine->add_window_(cfg.window, std::move(loop));
 
   return engine;
 }
 
-void Engine::engage_(EngineCfg const & cfg)
+Dyn<IEngine::WindowEntry *> IEngine::add_window_(EngineCfg::Window const & cfg,
+                                                 WindowLoop                loop)
 {
-  window_sys->listen({this, [](Engine * engine, SystemEvent const & event) {
-                        event.match(
-                          [&](SystemTheme theme) {
-                            InputState & f  = engine->input_state;
-                            f.theme.theme   = theme;
-                            f.theme.changed = true;
-                          },
-                          [](SystemEventType) {});
-                      }});
+  auto entry    = dyn<WindowEntry>(inplace, allocator_).unwrap();
+  entry->engine = this;
 
-  window_sys->listen(window, {this, window_event_listener});
+  auto window = &sys_.win->create_window(gpu_instance_, cfg.title).unwrap();
 
-  Vec<AnyFuture> futures{allocator};
+  entry->win      = window;
+  entry->state    = WindowState{allocator_};
+  entry->surface  = sys_.win->get_surface(window);
+  entry->view_sys = dyn<IViewSys>(inplace, allocator_, allocator_).unwrap();
+  entry->canvas   = dyn<ICanvas>(inplace, allocator_, allocator_).unwrap();
+  entry->loop     = std::move(loop);
+  entry->present_mode_preference =
+    cfg.vsync ? gpu::PresentMode::Fifo : gpu::PresentMode::Immediate;
 
-  Vec<char> resolved_path{allocator};
+  sys_.win->listen(window, {entry.get(), window_event_listener});
 
-  for (auto & [label, path] : cfg.shaders)
+  if (cfg.maximized)
   {
-    resolved_path.clear();
-    path_join(working_dir, path, resolved_path).unwrap();
-    trace("Loading shader: {} from : {}"_str, label, resolved_path);
-    futures.push(shader_sys.load_from_path(std::move(label), resolved_path))
-      .unwrap();
+    sys_.win->maximize(window);
+  }
+  else
+  {
+    sys_.win->set_extent(window, u32x2{cfg.width, cfg.height});
   }
 
-  for (auto & [label, path] : cfg.fonts)
+  if (cfg.full_screen)
   {
-    resolved_path.clear();
-    path_join(working_dir, path, resolved_path).unwrap();
-    trace("Loading font: {} from: {}"_str, label, resolved_path);
-    futures
-      .push(font_sys->load_from_path(std::move(label), resolved_path,
-                                     cfg.font_height, 0))
-      .unwrap();
+    sys_.win->make_fullscreen(window);
+  }
+  else
+  {
+    sys_.win->make_windowed(window);
   }
 
-  for (auto & [label, path] : cfg.images)
+  if (cfg.borderless)
   {
-    resolved_path.clear();
-    path_join(working_dir, path, resolved_path).unwrap();
-    trace("Loading image: {}  from: {}"_str, label, resolved_path);
-    futures.push(image_sys.load_from_path(std::move(label), resolved_path))
-      .unwrap();
+    sys_.win->make_borderless(window);
+  }
+  else
+  {
+    sys_.win->make_bordered(window);
   }
 
-  trace("Waiting for resources"_str);
-  while (!await_futures(futures, 0ns))
+  if (cfg.resizable)
   {
-    gpu_sys.frame(nullptr);
-    scheduler->run_main_loop(1ms, 1ms);
+    sys_.win->make_resizable(window);
+  }
+  else
+  {
+    sys_.win->make_unresizable(window);
   }
 
-  trace("All resources loaded"_str);
-
-  renderer.acquire();
+  return entry;
 }
 
-void Engine::shutdown()
+void IEngine::remove_window_(IEngine::WindowEntry & entry)
 {
+  sys_.gpu->await_idle();
+  entry.swapchain.match([&](gpu::ISwapchain & sc) { gpu_device_->uninit(&sc); },
+                        []() {});
+  sys_.win->uninit_window(entry.win);
+}
+
+void IEngine::poll_inputs_(time_point prev_frame_end, time_point frame_start)
+{
+  tracing::ScopeTrace _;
+
+  auto const timedelta = frame_start - prev_frame_end;
+
+  state_.clear();
+
+  {
+    window_->state.clear();
+  }
+
+  state_.stamp(frame_start, timedelta);
+  state_.theme.theme = sys_.win->get_theme();
+  sys_.win->poll_events();
+
+  auto [mouse_btns, mouse_pos, mouse_window] = sys_.win->get_mouse_state();
+
+  Bits<u64, NUM_KEY_CODES>  key_states;
+  Bits<u64, NUM_SCAN_CODES> scan_states;
+
+  auto [kb_mods, kb_window] =
+    sys_.win->get_keyboard_state(scan_states.view(), key_states.view());
+
+  {
+    auto & s         = window_->state;
+    s.extent         = sys_.win->get_extent(window_->win);
+    s.surface_extent = sys_.win->get_surface_extent(window_->win);
+
+    if (mouse_window.ptr() == window_->win)
+    {
+      s.mouse.focused  = true;
+      s.mouse.position = mouse_pos - 0.5F * static_cast<f32x2>(s.extent);
+      s.mouse.states   = mouse_btns;
+    }
+
+    if (kb_window.ptr() == window_->win)
+    {
+      s.key.focused     = true;
+      s.key.mod_states  = kb_mods;
+      s.key.scan_states = scan_states;
+      s.key.key_states  = key_states;
+    }
+  }
+}
+
+void IEngine::shutdown()
+{
+  tracing::ScopeTrace _;
+
   trace("Shutting down engine"_str);
+  callbacks_.pre_shutdown(this);
 
   scheduler->shutdown();
 
-  device->wait_idle().unwrap();
+  gpu_device_->await_idle().unwrap();
 
-  renderer.release();
-  device->uninit(swapchain);
-  swapchain = nullptr;
+  remove_window_(*window_);
 
-  window_sys->uninit_window(window);
-  window = nullptr;
-  window_sys->shutdown();
+  sys_.pipeline->shutdown();
+  sys_.win->shutdown();
+  sys_.shader->shutdown();
+  sys_.font->shutdown();
+  sys_.image->shutdown();
 
-  shader_sys.shutdown();
-  font_sys->shutdown();
-  image_sys.shutdown();
+  Vec<u8> pipeline_cache{allocator_};
 
-  Vec<u8> pipeline_cache{allocator};
-
-  gpu_sys.shutdown(pipeline_cache);
+  sys_.gpu->shutdown(pipeline_cache);
 
   if (!pipeline_cache.is_empty())
   {
-    write_to_file(pipeline_cache_path, pipeline_cache, false)
+    write_to_file(paths_.pipeline_cache, pipeline_cache, false, allocator_)
       .match(
         [&](Void) {
-          trace("Saved pipeline cache to: {}"_str, pipeline_cache_path);
+          trace("Saved pipeline cache to: {}"_str, paths_.pipeline_cache);
         },
         [&](IoErr err) {
           error("Error {} writing pipeline cache to {}"_str, err,
-                pipeline_cache_path);
+                paths_.pipeline_cache);
         });
   }
 
-  canvas.reset();
+  sys_.file->shutdown();
+  sys_.sched->shutdown();
 
-  window_sys->shutdown();
-  shader_sys.shutdown();
-  font_sys->shutdown();
-  image_sys.shutdown();
+  gpu_instance_->uninit(gpu_device_);
 
-  instance->uninit(device.ptr());
+  callbacks_.post_shutdown(this);
 
   trace("Engine Uninitialized"_str);
 }
 
-void Engine::recreate_swapchain_()
+Option<gpu::SwapchainInfo>
+  IEngine::create_swapchain_info_(WindowEntry const & w)
 {
   gpu::SurfaceCapabilities capabilities =
-    device->get_surface_capabilities(surface).unwrap();
+    gpu_device_->get_surface_capabilities(w.surface).unwrap();
   CHECK(has_bits(capabilities.image_usage, gpu::ImageUsage::TransferDst |
                                              gpu::ImageUsage::ColorAttachment),
         "");
 
-  Vec<gpu::SurfaceFormat> formats{allocator};
-  device->get_surface_formats(surface, formats).unwrap();
+  Vec<gpu::SurfaceFormat> formats{allocator_};
+  gpu_device_->get_surface_formats(w.surface, formats).unwrap();
 
-  Vec<gpu::PresentMode> present_modes{allocator};
-  device->get_surface_present_modes(surface, present_modes).unwrap();
+  Vec<gpu::PresentMode> present_modes{allocator_};
+  gpu_device_->get_surface_present_modes(w.surface, present_modes).unwrap();
 
-  Vec2U surface_extent = window_sys->get_surface_extent(window);
-  surface_extent.x     = max(surface_extent.x, 1U);
-  surface_extent.y     = max(surface_extent.y, 1U);
+  u32x2 surface_extent = sys_.win->get_surface_extent(w.win);
+
+  if (surface_extent.any_zero())
+  {
+    return none;
+  }
 
   gpu::ColorSpace preferred_color_spaces[] = {
     gpu::ColorSpace::DCI_P3_NONLINEAR,
@@ -578,7 +642,7 @@ void Engine::recreate_swapchain_()
     gpu::ColorSpace::PASS_THROUGH};
 
   gpu::PresentMode preferred_present_modes[] = {
-    present_mode_preference, gpu::PresentMode::Immediate,
+    w.present_mode_preference, gpu::PresentMode::Immediate,
     gpu::PresentMode::Mailbox, gpu::PresentMode::Fifo,
     gpu::PresentMode::FifoRelaxed};
 
@@ -632,173 +696,161 @@ void Engine::recreate_swapchain_()
     }
   }
 
-  gpu::SwapchainInfo info{.label  = "Window Swapchain"_str,
-                          .format = format,
-                          .usage  = gpu::ImageUsage::TransferDst |
-                                   gpu::ImageUsage::ColorAttachment,
-                          .preferred_buffering = gpu_sys.buffering_,
-                          .present_mode        = present_mode,
-                          .preferred_extent    = surface_extent,
-                          .composite_alpha     = alpha};
-
-  if (swapchain == nullptr)
-  {
-    swapchain = device->create_swapchain(surface, info).unwrap();
-  }
-  else
-  {
-    device->invalidate_swapchain(swapchain, info).unwrap();
-  }
+  return gpu::SwapchainInfo{.label   = "Window Swapchain"_str,
+                            .surface = w.surface,
+                            .format  = format,
+                            .usage   = gpu::ImageUsage::TransferDst |
+                                     gpu::ImageUsage::ColorAttachment,
+                            .preferred_buffering = buffering_,
+                            .present_mode        = present_mode,
+                            .preferred_extent    = surface_extent,
+                            .composite_alpha     = alpha};
 }
 
-time_point Engine::get_inputs_(time_point prev_frame_end)
+void IEngine::run()
 {
-  ScopeTrace poll_trace{
-    {"frame.event_poll"_str, 0}
-  };
-  input_state.clear();
-
-  auto const frame_start = steady_clock::now();
-  auto const timedelta   = frame_start - prev_frame_end;
-
-  input_state.stamp(frame_start, timedelta);
-  window_sys->poll_events();
-
-  input_state.window.surface_extent = window_sys->get_surface_extent(window);
-  input_state.window.extent         = window_sys->get_extent(window);
-
-  input_state.theme.theme = window_sys->get_theme();
-
-  auto [mouse_btns, mouse_pos, mouse_window] = window_sys->get_mouse_state();
-  input_state.mouse.focused                  = (mouse_window == window);
-  input_state.mouse.position =
-    mouse_pos - 0.5F * as_vec2(input_state.window.extent);
-  input_state.mouse.states = mouse_btns;
-
-  auto [kb_mods, kb_window] = window_sys->get_keyboard_state(
-    input_state.key.scan_states.view(), input_state.key.key_states.view());
-
-  input_state.key.focused    = (kb_window == window);
-  input_state.key.mod_states = kb_mods;
-
-  return frame_start;
-}
-
-void Engine::run(ui::View & view, Fn<void(ui::Ctx const &)> loop)
-{
+  tracing::ScopeTrace _;
   trace("Starting Engine Run Loop"_str);
-
-  if (swapchain == nullptr)
-  {
-    recreate_swapchain_();
-  }
 
   bool                  running            = true;
   Option<Cursor>        cursor             = Cursor::Default;
   Option<TextInputInfo> current_input_info = none;
   time_point            frame_end          = steady_clock::now();
 
-  window_sys->set_cursor(cursor);
+  sys_.win->set_cursor(cursor);
 
   while (running)
   {
-    ScopeTrace frame_trace{{"frame"_str}};
+    tracing::ScopeTrace frame_trace{"frame"_str};
 
-    auto const frame_start = get_inputs_(frame_end);
+    auto const frame_start = steady_clock::now();
+    poll_inputs_(frame_end, frame_start);
+    auto * plan = sys_.gpu->current_plan();
 
-    if (input_state.window.resized || input_state.window.surface_resized)
+    plan->await(nanoseconds::max());
+    plan->reset();
+    plan->begin();
+
+    u32x2 required_framebuffer_extent = window_->state.surface_extent;
+
+    plan->set_target(GpuFrameTargetInfo{.extent = required_framebuffer_extent,
+                                        .color_format         = {},
+                                        .depth_stencil_format = {}});
+
     {
-      gpu_sys.recreate_framebuffers(input_state.window.surface_extent);
+      if (window_->swapchain.is_none())
+      {
+        create_swapchain_info_(*window_).match([&](gpu::SwapchainInfo info) {
+          window_->swapchain = *gpu_device_->create_swapchain(info).unwrap();
+        });
+      }
+      else
+      {
+        // if swapchain extent is 0, defer creation until first resize event
+        if ((window_->state.resized || window_->state.surface_resized) &&
+            !(window_->state.extent.any_zero() ||
+              window_->state.surface_extent.any_zero()))
+        {
+          create_swapchain_info_(*window_).match([&](gpu::SwapchainInfo info) {
+            plan->add_preframe_task([dev       = plan->device(),
+                                     swapchain = &window_->swapchain.v(),
+                                     info] {
+              dev->mark_swapchain_out_of_date(swapchain, info).unwrap();
+            });
+          });
+        }
+      }
     }
 
-    ScopeTrace record_trace{{"frame.record"_str}};
-
-    canvas.begin_recording(
-      gpu::Viewport{
-        .offset{0, 0},
-        .extent    = as_vec2(input_state.window.surface_extent),
-        .min_depth = 0,
-        .max_depth = 1
-    },
-      as_vec2(input_state.window.extent), input_state.window.surface_extent);
-
-    running = ui_sys.tick(input_state, view, canvas, loop);
+    {
+      plan->add_preframe_task(
+        [swapchain = &window_->swapchain.v(), dev = plan->device()] {
+          dev->acquire_next(swapchain).unwrap();
+        });
+    }
 
     {
-      // [ ] squircle for blur shape
-      // [ ] masks for blur shape
-      canvas.squircle(ShapeInfo{
-        .area{{0, 0}, {200, 200}},
-        .corner_radii = Vec4::splat(5),
-        .tint         = ColorGradient{ios::DARK_GREEN}
-      });
+      tracing::ScopeTrace record_trace{"frame.record"_str};
 
-      // [ ] blur should not use alpha
-      // [ ] clear the blur scratch buffer!
-      // [ ] sample rect needs tol span the blur radius, it is currently not doing that and leading to artefacts across the edges
-      // [ ] the rect (unrounded) blur's rectangle coordinates are incorrects and are below the expected position
-      canvas.blur(
-        CRect{
-          .extent{400, 400}
+      auto & w = *window_;
+
+      // [ ] framebuffer extent would be larger than surface extent since we render multiple windows into one
+      // image
+      w.canvas->begin(
+        gpu::Viewport{
+          .offset{0, 0},
+          .extent    = w.state.surface_extent.to<f32>(),
+          .min_depth = 0,
+          .max_depth = 1
       },
-        Vec2::splat(2), Vec4::splat(100));
+        w.state.extent.to<f32>(), w.state.surface_extent);
+      w.view_sys->tick(state_, w.state, w.canvas, w.loop);
+
+      if (w.state.extent.all_nonzero() && w.state.surface_extent.all_nonzero())
+      {
+        plan->add_pass([swapchain = &w.swapchain.v()](GpuFrame            frame,
+                                                      gpu::CommandEncoder enc) {
+          auto * dev   = frame->dev();
+          auto   state = dev->get_swapchain_state(swapchain).unwrap();
+
+          gpu::ImageCopy const copies[] = {
+            {.src_layers = {.aspects   = gpu::ImageAspects::Color,
+                            .mip_level = 0,
+                            .array_layers{0, 1}},
+             .src_area   = {{0, 0, 0}, state.extent.append(1)},
+             .dst_layers = {.aspects   = gpu::ImageAspects::Color,
+                            .mip_level = 0,
+                            .array_layers{0, 1}}}
+          };
+
+          state.current_image.match([&](u32 i) {
+            auto image = frame->get_scratch_images()[0];
+            enc->copy_image(image.color.image, state.images[i], copies);
+            enc->present(swapchain);
+          });
+        });
+      }
+
+      w.canvas->end();
+      w.canvas->execute(plan);
+      w.canvas->reset();
     }
 
-    auto current_cursor = ui_sys.cursor;
+    // [ ] always-on borderless windows
 
-    if (current_cursor != cursor)
     {
-      cursor = current_cursor;
-      window_sys->set_cursor(current_cursor);
+      if (window_->state.mouse.focused)
+      {
+        sys_.win->set_cursor(window_->view_sys->cursor);
+      }
+
+      if (window_->state.key.focused)
+      {
+        auto text = window_->view_sys->text_input();
+        if (text != current_input_info)
+        {
+          sys_.win->set_text_input(window_->win, text);
+          current_input_info = text;
+        }
+      }
     }
 
-    auto input_info = ui_sys.text_input();
+    plan->end();
+    sys_.gpu->submit_frame();
 
-    if (input_info != current_input_info)
-    {
-      window_sys->set_text_input(window, input_info);
-      current_input_info = input_info;
-    }
+    frame_end = steady_clock::now();
 
-    canvas.end_recording();
-
-    renderer.render_canvas(gpu_sys.frame_graph_, canvas, gpu_sys.fb_,
-                           gpu_sys.scratch_color_,
-                           gpu_sys.scratch_depth_stencil_);
-    gpu_sys.frame(swapchain);
-
-    frame_end             = steady_clock::now();
-    auto const frame_time = frame_end - frame_start;
-
-    if (frame_time < min_frame_interval)
-    {
-      auto const sleep_dur = min_frame_interval - frame_time;
-      std::this_thread::sleep_for(sleep_dur);
-    }
+    sys_.sched->run_main_loop(milliseconds{10}, nanoseconds{500});
   }
 
   trace("Ended Engine Run Loop");
 }
 
-Storage<Systems> systems_storage;
-
-void hook_engine(Engine * instance)
+void hook_engine(Engine instance)
 {
-  if (instance == nullptr)
-  {
-    ash::logger    = nullptr;
-    ash::engine    = nullptr;
-    ash::scheduler = nullptr;
-    ash::sys       = nullptr;
-    return;
-  }
-
-  ash::logger    = instance->logger;
-  ash::engine    = instance;
-  ash::scheduler = instance->scheduler;
-  ash::sys = new (systems_storage.storage_) Systems{instance->get_systems()};
+  ash::engine = instance;
 }
 
 }    // namespace ash
 
-ash::Engine * ::ash::engine = nullptr;
+::ash::Engine ::ash::engine = nullptr;

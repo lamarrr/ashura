@@ -13,9 +13,14 @@
 namespace ash
 {
 
-typedef struct Window_T * Window;
+typedef struct IWindow * Window;
 
 typedef struct IWindowSys * WindowSys;
+
+enum class WindowListenerId : usize
+{
+  Undefined = USIZE_MAX
+};
 
 struct IWindowSys
 {
@@ -25,7 +30,8 @@ struct IWindowSys
 
   virtual void shutdown() = 0;
 
-  virtual Option<Window> create_window(gpu::Instance instance, Str title) = 0;
+  virtual Option<IWindow &> create_window(gpu::Instance instance,
+                                          Str           title) = 0;
 
   virtual void uninit_window(Window window) = 0;
 
@@ -82,11 +88,12 @@ struct IWindowSys
 
   virtual void make_unresizable(Window window) = 0;
 
-  virtual u64 listen(Fn<void(SystemEvent const &)> callback) = 0;
+  virtual WindowListenerId listen(Fn<void(SystemEvent const &)> callback) = 0;
 
-  virtual u64 listen(Window window, Fn<void(WindowEvent const &)> callback) = 0;
+  virtual WindowListenerId listen(Window                        window,
+                                  Fn<void(WindowEvent const &)> callback) = 0;
 
-  virtual void unlisten(Window window, u64 listener) = 0;
+  virtual void unlisten(Window window, WindowListenerId listener) = 0;
 
   virtual Result<> set_hit_test(Window window, Fn<WindowRegion(u32x2)> hit) = 0;
 
@@ -98,10 +105,10 @@ struct IWindowSys
 
   virtual ClipBoard get_clipboard() = 0;
 
-  virtual Tuple<KeyModifiers, Window>
+  virtual Tuple<KeyModifiers, Option<IWindow &>>
     get_keyboard_state(BitSpan<u64> scan_state, BitSpan<u64> key_state) = 0;
 
-  virtual Tuple<MouseButtons, f32x2, Window> get_mouse_state() = 0;
+  virtual Tuple<MouseButtons, f32x2, Option<IWindow &>> get_mouse_state() = 0;
 
   virtual void set_text_input(Window window, Option<TextInputInfo> info) = 0;
 

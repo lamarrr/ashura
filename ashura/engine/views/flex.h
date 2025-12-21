@@ -52,7 +52,7 @@ struct Flex : View
 
   Flex & item_frame(Frame frame);
 
-  Flex & items(std::initializer_list<ref<View>> list);
+  Flex & items(InitList<ref<View>> list);
 
   Flex & items(Span<ref<View> const> list);
 

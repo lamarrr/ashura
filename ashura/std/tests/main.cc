@@ -10,7 +10,7 @@
 int main(int argc, char ** argv)
 {
   using namespace ash;
-  Logger logger{&stdio_sink};
+  ILogger logger{&stdio_sink};
   hook_logger(&logger);
   defer logger_{[&] { hook_logger(nullptr); }};
   testing::InitGoogleTest(&argc, argv);

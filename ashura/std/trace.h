@@ -2,113 +2,133 @@
 #pragma once
 
 #include "ashura/std/async.h"
-#include "ashura/std/dict.h"
 #include "ashura/std/time.h"
 #include "ashura/std/types.h"
 #include "ashura/std/vec.h"
 
 namespace ash
 {
+/// Functional Requirements
+///
+/// - Record function scopes and time entry points or additional scope-related meta-data
+/// - Record component values: strings, floats, integers, booleans, blobs, meta-data
+/// - Re-play scalar values in-memory for visualizers
+/// - Save traces to disk
+/// - Thread-safe, fast, 0-overhead
+/// - Configurable frame size, clear time-interval
+///
 
-struct TraceRecord
+namespace tracing
 {
-  Str label = {};
 
-  u64 id = 0;
-
-  SourceLocation loc = {};
-
-  i64 i = 0;
-
-  f64 f = 0;
-
-  nanoseconds begin = {};
-
-  nanoseconds end = {};
+struct I64
+{
+  i64 value = 0;
 };
 
-struct TraceEvent
+struct F64
 {
-  Str label = {};
-
-  u64 id = 0;
+  f64 value = 0.0;
 };
 
-struct TraceEventHash
+struct I64Range
 {
-  usize operator()(TraceEvent const & event) const
+  i64 begin = 0;
+  i64 end   = 0;
+};
+
+struct F64Range
+{
+  f64 begin = 0;
+  f64 end   = 0;
+};
+
+template <typename Data>
+struct Record
+{
+  u64            variant  = 0;
+  SourceLocation location = {};
+  Str            label    = ""_str;
+  Data           data     = {};
+};
+
+using I64Record      = Record<I64>;
+using F64Record      = Record<F64>;
+using I64RangeRecord = Record<I64Range>;
+using F64RangeRecord = Record<F64Range>;
+
+struct EventData
+{
+  Str label = ""_str;
+
+  Str type = ""_str;
+
+  Str unit = ""_str;
+
+  /// @brief encoded with "property0=value0;property1=value1;"
+  Str attributes = ""_str;
+};
+
+template <typename Record>
+struct EventSink
+{
+  EventData          event_;
+  Vec<Record>        records_storage_;
+  RingBuffer<Record> records_;
+  usize              num_written_;
+  usize              num_read_;
+  alignas(CACHELINE_ALIGNMENT) ISpinLock spin_lock_;
+
+  EventSink(EventData event, Vec<Record> buffer) :
+    event_{event},
+    records_storage_{std::move(buffer)},
+    records_{records_storage_.data(), records_storage_.capacity()},
+    num_written_{0},
+    num_read_{0},
+    spin_lock_{}
   {
-    return hash_combine(span_hash(event.label), bit_hash(event.id));
+    CHECK(is_pow2(buffer.capacity()), "");
+  }
+
+  EventSink(EventSink const &)             = delete;
+  EventSink(EventSink &&)                  = default;
+  EventSink & operator=(EventSink const &) = delete;
+  EventSink & operator=(EventSink &&)      = default;
+  ~EventSink()                             = default;
+
+  void trace(Record const & record)
+  {
+    LockGuard guard{spin_lock_};
+    records_.push_overrun(record);
+    num_written_++;
+  }
+
+  /// @brief drain all available records into `out`
+  /// @returns number of elements left in the RingBuffer after the operation
+  usize drain(Buffer<Record> & out)
+  {
+    LockGuard guard{spin_lock_};
+    return records_.pop_many(out);
   }
 };
 
-struct TraceEventEq
-{
-  bool operator()(TraceEvent const & a, TraceEvent const & b) const
-  {
-    return str_eq(a.label, b.label) && a.id == b.id;
-  }
-};
-
-struct TraceSink
-{
-  virtual void trace(TraceEvent event, Span<TraceRecord const> records) = 0;
-};
-
-struct NoopTraceSink final : TraceSink
-{
-  virtual void trace(TraceEvent, Span<TraceRecord const>) override
-  {
-  }
-};
-
-struct FileTraceSink final : TraceSink
-{
-  std::FILE * file = nullptr;
-
-  FileTraceSink();
-
-  virtual void trace(TraceEvent              event,
-                     Span<TraceRecord const> records) override;
-};
-
-struct MemoryTraceSink final : TraceSink
-{
-  typedef Dict<TraceEvent, Vec<TraceRecord>, TraceEventHash, TraceEventEq>
-    Records;
-
-  std::mutex mutex_;
-
-  Allocator allocator_;
-
-  FileTraceSink * upstream_ = nullptr;
-
-  /// @brief Number of records for each trace event before a flush happens
-  usize buffer_size_ = 2'048;
-
-  Records traces_;
-
-  MemoryTraceSink(Allocator allocator);
-
-  virtual void trace(TraceEvent event, Span<TraceRecord const> records);
-
-  void flush();
-};
-
-extern TraceSink * trace_sink;
-
-ASH_DLL_EXPORT ASH_C_LINKAGE void hook_trace_sink(TraceSink * instance);
+extern EventSink<I64RangeRecord> & get_scope_trace_sink();
 
 struct ScopeTrace
 {
-  TraceEvent event;
+  I64RangeRecord record_;
 
-  TraceRecord record;
-
-  ScopeTrace(TraceEvent     event = TraceEvent{.label = "[Scope]"_str, .id = 0},
-             SourceLocation loc   = SourceLocation::current()) :
-    event{event},
-    record{.loc = loc, .begin = steady_clock::now().time_since_epoch()}
+  ScopeTrace(Str label = SourceLocation::current().function, u64 variant = 0,
+             SourceLocation loc = SourceLocation::current()) :
+    record_{
+      .variant  = variant,
+      .location = loc,
+      .label    = label,
+      .data     = I64Range{.begin = static_cast<nanoseconds>(
+                                  steady_clock::now().time_since_epoch())
+                                  .count(),
+                           .end = 0}
+  }
   {
   }
 
@@ -119,11 +139,11 @@ struct ScopeTrace
 
   ~ScopeTrace()
   {
-    record.end = steady_clock::now().time_since_epoch();
-    trace_sink->trace(event, Span{&record, 1});
+    record_.data.end =
+      static_cast<nanoseconds>(steady_clock::now().time_since_epoch()).count();
+    get_scope_trace_sink().trace(record_);
   }
 };
 
-inline NoopTraceSink noop_trace_sink;
-
+}    // namespace tracing
 }    // namespace ash

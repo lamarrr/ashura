@@ -40,8 +40,8 @@ ConstantBuffer<f32x4x4> world_to_ndc;
 [[vk::binding(0, 3)]]
 StructuredBuffer<ITEM_TYPE> composites;
 
-[[shader("vertex")]] VertexOutput vert(u32 instance : SV_InstanceID,
-                                       u32 vertex : SV_VertexID)
+[[shader("vertex")]] VertexOutput vert(u32 instance : SV_VulkanInstanceID,
+                                       u32 vertex : SV_VulkanVertexID)
 {
   f32x2 bbox_rel_pos = VERTEX_BUFFER[vertex];
   var   composite    = composites[instance];
@@ -200,7 +200,6 @@ StructuredBuffer<ITEM_TYPE> composites;
       return material.flood(frag, edge_signed_dist, edge_mask, samplers,
                             textures);
     }
-    break;
     case SdfShadeType::Softened:
     {
       f32 edge_mask = sdf::antialiased_mask(edge_signed_dist);
@@ -211,7 +210,6 @@ StructuredBuffer<ITEM_TYPE> composites;
                              soften_signed_dist, soften_alpha, samplers,
                              textures);
     }
-    break;
     case SdfShadeType::Feathered:
     {
       f32 edge_mask           = sdf::antialiased_mask(edge_signed_dist);
@@ -221,7 +219,6 @@ StructuredBuffer<ITEM_TYPE> composites;
                               feather_signed_dist, feather_alpha, samplers,
                               textures);
     }
-    break;
     case SdfShadeType::Stroked:
     {
       f32 edge_mask = sdf::antialiased_mask(edge_signed_dist);
@@ -231,7 +228,6 @@ StructuredBuffer<ITEM_TYPE> composites;
       return material.stroke(frag, edge_signed_dist, edge_mask,
                              ring_signed_dist, ring_mask, samplers, textures);
     }
-    break;
     default:
       return f32x4(0);
   }

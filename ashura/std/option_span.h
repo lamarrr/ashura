@@ -38,6 +38,11 @@ struct OptionSpanIter
   {
     return span_ != iter_end;
   }
+
+  constexpr bool operator==(IterEnd) const
+  {
+    return !this->operator!=(iter_end);
+  }
 };
 
 template <typename T, typename MaskRepr>
@@ -83,7 +88,7 @@ struct OptionSpan
 
   constexpr auto end() const
   {
-    return IterEnd{};
+    return iter_end;
   }
 
   constexpr bool is_some(usize i) const
@@ -191,6 +196,11 @@ struct OptionBitIter
   {
     return span_ != iter_end;
   }
+
+  constexpr bool operator==(IterEnd) const
+  {
+    return !this->operator!=(iter_end);
+  }
 };
 
 template <typename Repr, typename MaskRepr>
@@ -236,7 +246,7 @@ struct OptionBitSpan
 
   constexpr auto end() const
   {
-    return IterEnd{};
+    return iter_end;
   }
 
   constexpr bool is_some(usize i) const

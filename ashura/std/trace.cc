@@ -1,47 +1,74 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/std/trace.h"
+#include "ashura/std/list.h"
 
 namespace ash
 {
-
-TraceSink * trace_sink = &noop_trace_sink;
-
-ASH_DLL_EXPORT ASH_C_LINKAGE void hook_trace_sink(TraceSink * instance)
+namespace tracing
 {
-  trace_sink = instance;
-}
 
-void FileTraceSink::trace(TraceEvent event, Span<TraceRecord const> records)
+struct EventSinkHook
 {
-  // [ ] output as json,csv
-  // [ ] what frequency? per-thread buffer? when to flush? etc.
-  // [ ] file utils, truncate, flush
-}
+  EventSinkHook *           next;
+  EventSinkHook *           prev;
+  EventSink<I64RangeRecord> v;
 
-void MemoryTraceSink::trace(TraceEvent event, Span<TraceRecord const> records)
-{
-  LockGuard guard{mutex_};
+  static void push(EventSinkHook *);
 
-  auto [_, current_records] =
-    traces_.push(event, Vec<TraceRecord>{allocator_}, nullptr, false).unwrap();
+  static void pop(EventSinkHook *);
 
-  if (current_records.size() + records.size() > buffer_size_)
+  template <typename... Args>
+  EventSinkHook(Args &&... args) : v{static_cast<Args &&>(args)...}
   {
-    upstream_->trace(event, current_records);
-    current_records.clear();
+    push(this);
   }
 
-  current_records.extend(records).unwrap();
-}
+  EventSinkHook(EventSinkHook const &)             = delete;
+  EventSinkHook(EventSinkHook &&)                  = delete;
+  EventSinkHook & operator=(EventSinkHook const &) = delete;
+  EventSinkHook & operator=(EventSinkHook &&)      = delete;
 
-void MemoryTraceSink::flush()
-{
-  LockGuard guard{mutex_};
-  for (auto & [event, records] : traces_)
+  ~EventSinkHook()
   {
-    upstream_->trace(event, records);
-    records.clear();
+    pop(this);
   }
+};
+
+struct EventSinkHooks
+{
+  std::mutex          lock;
+  List<EventSinkHook> sinks;
+};
+
+static EventSinkHooks thread_event_sinks;
+
+void EventSinkHook::push(EventSinkHook * hook)
+{
+  LockGuard guard{thread_event_sinks.lock};
+  thread_event_sinks.sinks.push_front(hook);
 }
 
+void EventSinkHook::pop(EventSinkHook * hook)
+{
+  LockGuard guard{thread_event_sinks.lock};
+  thread_event_sinks.sinks.unlink_at(hook);
+}
+
+EventSink<I64RangeRecord> & get_scope_trace_sink()
+{
+  static constexpr usize CFG_BUFFER_SIZE = 4'096;
+
+  static thread_local EventSinkHook hook{[] {
+    return EventSink<I64RangeRecord>{
+      EventData{.label = "ScopeTrace"_str,
+                .type  = "I64Range"_str,
+                .unit  = "nanoseconds"_str},
+      Vec<I64RangeRecord>::make(CFG_BUFFER_SIZE, default_allocator).unwrap()
+    };
+  }()};
+
+  return hook.v;
+}
+
+}    // namespace tracing
 }    // namespace ash

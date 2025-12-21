@@ -102,6 +102,7 @@ struct SdfGradientMaterial : SdfMaterial
   }
 };
 
+// https://www.shadertoy.com/view/DdcfzH
 struct SdfNoiseMaterial : SdfMaterial
 {
   f32x4        intensity;

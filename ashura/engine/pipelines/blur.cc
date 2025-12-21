@@ -26,9 +26,10 @@ Str BlurPipeline::label()
 gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
                                       gpu::Shader shader)
 {
-  u8                scratch_buffer_[1'024];
-  auto &            gpu = *plan->sys();
-  FallbackAllocator scratch{scratch_buffer_, gpu.allocator()};
+  u8                 scratch_buffer_[1'024];
+  IArena             scratch_arena_{scratch_buffer_};
+  auto &             gpu = *plan->sys();
+  IFallbackAllocator scratch{&scratch_arena_, gpu.allocator()};
 
   auto tagged_label =
     sformat(scratch, "Blur Graphics Pipeline: {}"_str, label).unwrap();
@@ -108,11 +109,12 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
 
 void BlurPipeline::acquire(GpuFramePlan plan)
 {
-  downsample_pipeline_ =
-    create_pipeline(plan, "Downsample"_str,
-                    sys.shader->get("Blur.Downsample"_str).unwrap().shader);
+  downsample_pipeline_ = create_pipeline(
+    plan, "Downsample"_str,
+    sys.shader->get("defaults/blur_downsample"_str).unwrap().shader);
   upsample_pipeline_ = create_pipeline(
-    plan, "Upsample"_str, sys.shader->get("Blur.Upsample"_str).unwrap().shader);
+    plan, "Upsample"_str,
+    sys.shader->get("defaults/blur_upsample"_str).unwrap().shader);
 }
 
 void BlurPipeline::release(GpuFramePlan plan)
@@ -140,7 +142,7 @@ void BlurPipeline::encode(gpu::CommandEncoder        e,
 
   auto stencil = params.stencil.map([&](PipelineStencil const &) {
     return gpu::RenderingAttachment{
-      .view         = params.framebuffer.depth_stencil.stencil_view,
+      .view         = params.framebuffer.depth_stencil.v().stencil_view,
       .resolve      = nullptr,
       .resolve_mode = gpu::ResolveModes::None,
       .load_op      = gpu::LoadOp::Load,

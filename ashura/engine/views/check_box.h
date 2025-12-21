@@ -52,14 +52,14 @@ struct CheckBox : View
            FontStyle const & font      = FontStyle{.font   = theme.icon_font,
                                                    .height = theme.body_font_height,
                                                    .line_height = 1.0F},
-           Allocator      allocator = default_allocator);
+           Allocator         allocator = default_allocator);
 
   CheckBox(Str8              text,
            TextStyle const & style     = TextStyle{.color = theme.on_surface},
            FontStyle const & font      = FontStyle{.font   = theme.icon_font,
                                                    .height = theme.body_font_height,
                                                    .line_height = 1.0F},
-           Allocator      allocator = default_allocator);
+           Allocator         allocator = default_allocator);
 
   CheckBox(CheckBox const &)             = delete;
   CheckBox(CheckBox &&)                  = default;

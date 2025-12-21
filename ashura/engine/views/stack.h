@@ -36,7 +36,7 @@ struct Stack : View
 
   Stack & frame(Frame frame);
 
-  Stack & items(std::initializer_list<ref<View>> list);
+  Stack & items(InitList<ref<View>> list);
 
   Stack & items(Span<ref<View> const> list);
 

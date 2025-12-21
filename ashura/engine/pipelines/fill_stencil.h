@@ -10,18 +10,25 @@ namespace ash
 
 struct FillStencilPipelineParams
 {
-  DepthStencilImage stencil          = {};
-  RectU             scissor          = {};
-  gpu::Viewport     viewport         = {};
-  FillRule          fill_rule        = FillRule::EvenOdd;
-  bool              invert           = false;
-  gpu::FrontFace    front_face       = gpu::FrontFace::CounterClockWise;
-  GpuBufferSpan     world_to_ndc     = {};
-  GpuBufferSpan     world_transforms = {};
-  GpuBufferSpan     vertices         = {};
-  GpuBufferSpan     indices          = {};
-  Span<u32 const>   index_counts     = {};
-  Span<u32 const>   write_masks      = {};
+  struct State
+  {
+    FillRule       fill_rule  : 1;
+    bool           invert     : 1;
+    gpu::FrontFace front_face : 1;
+    u32            write_mask;
+    RectU          scissor;
+    gpu::Viewport  viewport;
+  };
+
+  gpu::RenderingAttachment stencil_attachment;
+  RectU                    render_area;
+  GpuBufferSpan            world_to_ndc;
+  GpuBufferSpan            world_transforms;
+  GpuBufferSpan            vertices;
+  GpuBufferSpan            indices;
+  Span<u32 const>          index_runs;
+  Span<State const>        states;
+  Span<u32 const>          state_runs;
 };
 
 struct FillStencilPipeline final : IPipeline

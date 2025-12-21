@@ -11,11 +11,15 @@ TEST(AsyncTest, Basic)
 {
   using namespace ash;
 
-  RcSemaphore sem = semaphore({}).unwrap();
+  RcSemaphore sem = semaphore(default_allocator).unwrap();
 
-  Dyn<Scheduler> sched =
-    IScheduler::create({}, std::this_thread::get_id(),
-                       span<nanoseconds>({1ns, 2ns}), span({2ns, 5ns}));
+  Dyn<Scheduler> sched = IScheduler::create(SchedulerInfo{
+    .allocator = default_allocator,
+    .dedicated_threads =
+      span({SchedulerThreadInfo{"0"_str}, SchedulerThreadInfo{"1"_str}}),
+    .worker_threads =
+      span({SchedulerThreadInfo{"2"_str}, SchedulerThreadInfo{"3"_str}}),
+    .main_thread_id = std::this_thread::get_id()});
 
   hook_scheduler(sched);
 
@@ -24,18 +28,21 @@ TEST(AsyncTest, Basic)
     hook_scheduler(nullptr);
   }};
 
-  Stream<int> s = stream({}, 1, 20).unwrap();
+  Stream<int> s = stream(default_allocator, 1, 20).unwrap();
 
-  sched->once([]() { info("Hi"); }, AwaitStreams{{s.alias()}, {0}});
-  sched->once([]() { info("Hello"); });
-  sched->once([]() { info("Sshh"); });
+  sched->once(
+    WorkerThread::Any, []() { info("Hi"); }, AwaitStreams{{s.alias()}, {0}});
+  sched->once(WorkerThread::Any, []() { info("Hello"); }, ready);
+  sched->once(WorkerThread::Any, []() { info("Sshh"); }, ready);
   info("scheduled");
-  sched->once([]() { info("Timer passed"); },
-              Delay{.from = steady_clock::now(), .delay = 1ms});
+  sched->once(
+    WorkerThread::Any, []() { info("Timer passed"); },
+    Delay{.from = steady_clock::now(), .delay = 1ms});
 
-  auto fut = future<int>({}).unwrap();
+  auto fut = future<int>(default_allocator).unwrap();
 
   sched->loop(
+    WorkerThread::Any,
     [x = (u64) 0, f = fut.alias(), s = s.alias()]() mutable -> bool {
       x++;
       info("iteration: {}", x);
@@ -53,13 +60,14 @@ TEST(AsyncTest, Basic)
   fut.yield(69).unwrap();
 
   sched->shard<int *>(
-    rc<int>(inplace, {}, 0).unwrap(),
+    WorkerThread::Any, rc<int>(inplace, default_allocator, 0).unwrap(),
     [](TaskInstance shard, int * pcount) {
       std::atomic_ref count_ref{*pcount};
       int             count = count_ref.fetch_add(1);
-      info("shard: {}  of {}, sync i: {}", shard.idx, shard.n, count);
+      info("shard: {}  of {}, sync i: {}", shard.idx, shard.dim, count);
     },
-    10);
+    20, ready);
 
-  std::this_thread::sleep_for(500ms);
+  sched->request_drain();
+  sched->await_drain(nanoseconds::max());
 }

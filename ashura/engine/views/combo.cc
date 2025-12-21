@@ -255,7 +255,7 @@ Combo & Combo::on_selected(Fn<void(Option<usize>)> style)
   return *this;
 }
 
-Combo & Combo::items(std::initializer_list<ref<ComboItem>> list)
+Combo & Combo::items(InitList<ref<ComboItem>> list)
 {
   return items(span(list));
 }
@@ -271,7 +271,7 @@ Combo & Combo::items(Span<ref<ComboItem> const> list)
     item->state_.id         = i;
   }
 
-  items_.extend(list).unwrap();
+  items_.append(list).unwrap();
   return *this;
 }
 

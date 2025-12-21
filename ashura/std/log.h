@@ -65,8 +65,7 @@ struct ILogger
     num_sinks_ = sinks.size();
   }
 
-  constexpr ILogger(std::initializer_list<LogSink const> sinks) :
-    ILogger{span(sinks)}
+  constexpr ILogger(InitList<LogSink const> sinks) : ILogger{span(sinks)}
   {
   }
 
@@ -139,7 +138,7 @@ struct ILogger
     Buffer<fmt::Op> ops{ops_scratch};
 
     auto format_sink = [&](Str str) {
-      if (!buffer.extend(str))
+      if (!buffer.append(str))
       {
         for (auto & sink : sinks())
         {
@@ -148,7 +147,7 @@ struct ILogger
 
         buffer.clear();
 
-        if (!buffer.extend(str))
+        if (!buffer.append(str))
         {
           for (auto & sink : sinks())
           {

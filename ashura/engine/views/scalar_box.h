@@ -142,7 +142,7 @@ struct ScalarDragBox : View
     FontStyle const & font      = FontStyle{.font        = theme.body_font,
                                             .height      = theme.body_font_height,
                                             .line_height = theme.line_height},
-    Allocator      allocator = default_allocator);
+    Allocator         allocator = default_allocator);
 
   ScalarDragBox(ScalarDragBox const &)             = delete;
   ScalarDragBox(ScalarDragBox &&)                  = default;
@@ -193,7 +193,7 @@ struct ScalarBox : Flex
     FontStyle const & text_font         = FontStyle{.font   = theme.body_font,
                                                     .height = theme.body_font_height,
                                                     .line_height = theme.line_height},
-    Allocator      allocator         = default_allocator);
+    Allocator         allocator         = default_allocator);
 
   ScalarBox(ScalarBox const &)             = delete;
   ScalarBox(ScalarBox &&)                  = default;

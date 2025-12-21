@@ -90,28 +90,6 @@ constexpr void copy_assign(Span<T> src, Span<U> dst)
   copy_assign(src, dst.data());
 }
 
-/// @brief Move-construct object from src to an uninitialized memory range
-/// dst_mem and destroy object at src_mem, leaving src's objects uninitialized.
-template <NonConst T>
-constexpr void relocate(Span<T> src, T * dst)
-{
-  if constexpr (TriviallyRelocatable<T>)
-  {
-    mem::move(src, dst);
-  }
-  else
-  {
-    move_construct(src, dst);
-    destruct(src);
-  }
-}
-
-template <NonConst T>
-constexpr void relocate(Span<T> src, Span<T> dst)
-{
-  relocate(src, dst.data());
-}
-
 /// @brief Same as relocate but for non-overlapping memory placements
 ///
 /// @note src_mem and dst_mem must not be same nor overlapping.

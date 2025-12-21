@@ -17,9 +17,10 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
                                       gpu::Shader      shader,
                                       gpu::PolygonMode polygon_mode)
 {
-  u8                scratch_buffer_[1'024];
-  auto &            gpu = *plan->sys();
-  FallbackAllocator scratch{scratch_buffer_, gpu.allocator()};
+  u8                 scratch_buffer_[1'024];
+  IArena             scratch_arena_{scratch_buffer_};
+  auto &             gpu = *plan->sys();
+  IFallbackAllocator scratch{&scratch_arena_, gpu.allocator()};
 
   auto tagged_label =
     sformat(scratch, "PBR Graphics Pipeline: {}"_str, label).unwrap();
@@ -117,8 +118,8 @@ PBRPipeline::PBRPipeline(Allocator allocator) : variants_{allocator}
 
 void PBRPipeline::acquire(GpuFramePlan plan)
 {
-  auto id = add_variant(plan, "Base"_str,
-                        sys.shader->get("PBR.Base"_str).unwrap().shader);
+  auto id = add_variant(
+    plan, "base"_str, sys.shader->get("defaults/pbr_base"_str).unwrap().shader);
   CHECK(id == PipelineVariantId::Base, "");
 }
 
@@ -133,9 +134,9 @@ PipelineVariantId PBRPipeline::add_variant(GpuFramePlan plan, Str label,
 
 void PBRPipeline::remove_variant(GpuFramePlan plan, PipelineVariantId id)
 {
-  auto pipeline = variants_[(usize) id].v0.v1;
+  auto pipeline = variants_[id].v0.v1;
 
-  variants_.erase((usize) id);
+  variants_.erase(id);
 
   plan->add_preframe_task([p = pipeline, d = plan->device()] {
     d->uninit(p.fill);
@@ -145,8 +146,7 @@ void PBRPipeline::remove_variant(GpuFramePlan plan, PipelineVariantId id)
 }
 
 void PBRPipeline::encode(gpu::CommandEncoder       e,
-                         PBRPipelineParams const & params,
-                         PipelineVariantId         variant)
+                         PBRPipelineParams const & params)
 {
   InplaceVec<gpu::RenderingAttachment, 1> color;
 
@@ -173,22 +173,22 @@ void PBRPipeline::encode(gpu::CommandEncoder       e,
         .unwrap();
     });
 
-  auto depth = gpu::RenderingAttachment{
-    .view         = params.framebuffer.depth_stencil.depth_view,
-    .resolve      = nullptr,
-    .resolve_mode = gpu::ResolveModes::None,
-    .load_op      = gpu::LoadOp::Load,
-    .store_op     = gpu::StoreOp::Store,
-    .clear        = {}};
+  auto depth = params.framebuffer.depth_stencil.map([](auto & s) {
+    return gpu::RenderingAttachment{.view         = s.depth_view,
+                                    .resolve      = nullptr,
+                                    .resolve_mode = gpu::ResolveModes::None,
+                                    .load_op      = gpu::LoadOp::Load,
+                                    .store_op     = gpu::StoreOp::Store,
+                                    .clear        = {}};
+  });
 
-  auto stencil = params.stencil.map([&](PipelineStencil const &) {
-    return gpu::RenderingAttachment{
-      .view         = params.framebuffer.depth_stencil.stencil_view,
-      .resolve      = nullptr,
-      .resolve_mode = gpu::ResolveModes::None,
-      .load_op      = gpu::LoadOp::Load,
-      .store_op     = gpu::StoreOp::None,
-      .clear        = {}};
+  auto stencil = params.framebuffer.depth_stencil.map([&](auto & s) {
+    return gpu::RenderingAttachment{.view         = s.stencil_view,
+                                    .resolve      = nullptr,
+                                    .resolve_mode = gpu::ResolveModes::None,
+                                    .load_op      = gpu::LoadOp::Load,
+                                    .store_op     = gpu::StoreOp::None,
+                                    .clear        = {}};
   });
 
   auto info =
@@ -200,7 +200,7 @@ void PBRPipeline::encode(gpu::CommandEncoder       e,
 
   e->begin_rendering(info);
 
-  auto pipelines = variants_[(usize) variant].v0.v1;
+  auto pipelines = variants_[params.variant].v0.v1;
 
   auto pipeline = pipelines.fill;
 
@@ -231,7 +231,7 @@ void PBRPipeline::encode(gpu::CommandEncoder       e,
       params.stencil.map([](auto s) { return s.back; }
            ).unwrap_or(),
     .cull_mode                = params.cull_mode,
-    .front_face               = gpu::FrontFace::CounterClockWise,
+    .front_face               = params.front_face,
     .depth_test_enable        = true,
     .depth_compare_op         = gpu::CompareOp::Less,
     .depth_write_enable       = true,

@@ -252,6 +252,11 @@ struct Utf8DecodeIter
     return iter_ != iter_end;
   }
 
+  constexpr bool operator==(IterEnd) const
+  {
+    return !this->operator!=(iter_end);
+  }
+
   constexpr auto max_size() const requires (SizedIter<Iter>)
   {
     return iter_.size() * 4;
@@ -290,6 +295,11 @@ struct Utf8EncodeIter
   constexpr bool operator!=(IterEnd) const
   {
     return iter_ != iter_end;
+  }
+
+  constexpr bool operator==(IterEnd) const
+  {
+    return !this->operator!=(iter_end);
   }
 
   constexpr auto max_size() const requires (SizedIter<Iter>)

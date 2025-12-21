@@ -1,7 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/engine/gpu_system.h"
-#include "ashura/engine/shaders.gen.h"
+#include "ashura/engine/shaders/items.gen.h"
 #include "ashura/gpu/gpu.h"
 #include "ashura/std/types.h"
 
@@ -44,8 +44,8 @@ enum class FillRule : u32
 
 using BlendMode     = shader::BlendMode;
 using BezierRegions = shader::BezierRegions;
-using SdfShapeType  = shader::sdf::ShapeType;
-using SdfBlendOp    = shader::sdf::BlendOp;
-using ShadeType     = shader::sdf::ShadeType;
+using SdfShapeType  = shader::SdfShapeType;
+using SdfBlendOp    = shader::SdfBlendOp;
+using ShadeType     = shader::SdfShadeType;
 
 }    // namespace ash

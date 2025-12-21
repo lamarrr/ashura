@@ -2,6 +2,7 @@
 #pragma once
 
 #include "ashura/engine/errors.h"
+#include "ashura/engine/systems.h"
 #include "ashura/gpu/gpu.h"
 #include "ashura/std/async.h"
 #include "ashura/std/types.h"
@@ -27,7 +28,7 @@ struct Shader
 {
   ShaderId id{};
 
-  Vec<char> label{};
+  Vec<char> label;
 
   gpu::Shader shader = nullptr;
 
@@ -37,35 +38,47 @@ struct Shader
   }
 };
 
-typedef struct IShaderSys * ShaderSys;
-
 struct IShaderSys
 {
-  Allocator         allocator_;
-  SparseVec<Shader> shaders_;
+  Allocator                   allocator_;
+  RWLock                      rw_lock_;
+  SparseVec<ShaderId, Shader> shaders_;
+  GpuSys                      gpu_sys_;
+  FileSys                     file_sys_;
+  Scheduler                   scheduler_;
 
-  IShaderSys(Allocator allocator) : allocator_{allocator}, shaders_{allocator}
+  IShaderSys(GpuSys gpu_sys, FileSys file_sys, Scheduler scheduler) :
+    allocator_{noop_allocator},
+    rw_lock_{},
+    shaders_{noop_allocator},
+    gpu_sys_{gpu_sys},
+    file_sys_{file_sys},
+    scheduler_{scheduler}
   {
   }
 
   IShaderSys(IShaderSys const &)             = delete;
-  IShaderSys(IShaderSys &&)                  = default;
+  IShaderSys(IShaderSys &&)                  = delete;
   IShaderSys & operator=(IShaderSys const &) = delete;
-  IShaderSys & operator=(IShaderSys &&)      = default;
+  IShaderSys & operator=(IShaderSys &&)      = delete;
   ~IShaderSys()                              = default;
+
+  AwaitFuturesVec init(Allocator allocator);
 
   void shutdown();
 
-  Result<ShaderInfo, ShaderLoadErr> load_from_memory(Vec<char>       label,
-                                                     Span<u32 const> spirv);
+  Result<ShaderId, SysErr> load_from_memory(Str label, Span<u32 const> spirv);
 
-  Future<Result<ShaderInfo, ShaderLoadErr>> load_from_path(Vec<char> label,
-                                                           Str       path);
+  Future<Result<ShaderId, SysErr>> load_from_path(Str label, Str path);
 
   ShaderInfo get(ShaderId id);
 
   Option<ShaderInfo> get(Str label);
 
+  void unload_(ShaderId);
+
+  /// @warning Resources are not reference counted. Holding on to their info
+  /// structs after unloading them will be catastrophic
   void unload(ShaderId);
 };
 

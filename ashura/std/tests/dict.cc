@@ -5,7 +5,7 @@
 TEST(DictTest, Insertion)
 {
   using namespace ash;
-  StrDict<int> dict;
+  StrDict<int> dict{default_allocator};
   EXPECT_FALSE(dict.has("A"_str));
 
   ASSERT_TRUE(dict.push("A"_str, 0).is_ok());
