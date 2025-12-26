@@ -22,6 +22,4 @@ struct HalfGrowth
   }
 };
 
-using Growth = HalfGrowth;
-
 }    // namespace ash

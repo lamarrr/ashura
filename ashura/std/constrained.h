@@ -1,16 +1,33 @@
+#pragma once
+#include "ashura/std/error.h"
+
+namespace ash
+{
+
 struct NonZeroConstraint
 {
-  static constexpr void check(auto);
+  static constexpr void check(auto v)
+  {
+    CHECK(v != static_cast<decltype(v)>(0), "Value must be non-zero");
+  }
 };
 
 struct NonNullConstraint
 {
-  static constexpr void check(auto);
+  static constexpr void check(auto * p)
+  {
+    CHECK(p != nullptr, "Pointer must be non-null");
+  }
 };
 
-struct Pow2Constraint
+struct NonZeroPow2Constraint
 {
-  static constexpr void check(auto);
+  static constexpr void check(auto v)
+  {
+    CHECK(v != static_cast<decltype(v)>(0) &&
+            ((v & (v - 1)) == static_cast<decltype(v)>(0)),
+          "Value must be non-zero power of 2");
+  }
 };
 
 struct AssumeConstrained
@@ -19,15 +36,14 @@ struct AssumeConstrained
 
 inline constexpr AssumeConstrained assume_constrained{};
 
-// [ ] add tests
-template <typename T, typename Constraint = NonZeroConstraint>
+template <typename T, typename Constraint>
 struct Constrained
 {
   T value_;
 
   constexpr Constrained(T value) : value_{value}
   {
-    Constraint::check(value);
+    Constraint::check(value_);
   }
 
   constexpr Constrained(AssumeConstrained, T value) : value_{value}
@@ -69,4 +85,6 @@ template <typename T>
 using NonNull = Constrained<T, NonNullConstraint>;
 
 template <typename T>
-using Pow2 = Constrained<T, Pow2Constraint>;
+using NonZeroPow2 = Constrained<T, NonZeroPow2Constraint>;
+
+}    // namespace ash

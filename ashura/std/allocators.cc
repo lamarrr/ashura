@@ -68,8 +68,8 @@ struct ThreadArenaHook
 
 struct ThreadArenaSinks
 {
-  std::mutex            lock;
-  List<ThreadArenaHook> sinks;
+  ISpinLock             lock;
+  List<ThreadArenaHook> sinks{};
 };
 
 static ThreadArenaSinks thread_arena_sinks{};
@@ -83,7 +83,7 @@ void ThreadArenaHook::push(ThreadArenaHook * hook)
 void ThreadArenaHook::pop(ThreadArenaHook * hook)
 {
   LockGuard guard{thread_arena_sinks.lock};
-  thread_arena_sinks.sinks.unlink_at(hook);
+  thread_arena_sinks.sinks.pop_at(hook);
 }
 
 Allocator get_thread_arena_upstream()

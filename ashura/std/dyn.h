@@ -143,9 +143,17 @@ template <typename Fn, typename Lambda>
 constexpr Result<Dyn<Fn>, Void> dyn_lambda(Allocator allocator,
                                            Lambda && lambda)
 {
-  auto dyn_lambda = dyn(allocator, static_cast<Lambda &&>(lambda)).unwrap();
-  Fn   func{lambda.get()};
-  return transmute(std::move(lambda), func);
+  auto dyn_lambda_r = dyn(allocator, static_cast<Lambda &&>(lambda));
+
+  if (dyn_lambda_r.is_err()) [[unlikely]]
+  {
+    return Err{};
+  }
+
+  auto dyn_lambda = dyn_lambda_r.unwrap();
+
+  Fn func{dyn_lambda.get()};
+  return Ok{transmute(std::move(dyn_lambda), func)};
 }
 
 template <typename Handle>

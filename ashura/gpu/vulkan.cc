@@ -1676,9 +1676,10 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
   auto validation_enabled =
     enable_validation &&
     !find(load_extensions.view(), cstr(VK_EXT_DEBUG_UTILS_EXTENSION_NAME),
-          str_eq)
+          span_bit_eq)
        .is_empty() &&
-    !find(load_layers.view(), DEBUG_LAYER_EXTENSION_NAME, str_eq).is_empty();
+    !find(load_layers.view(), DEBUG_LAYER_EXTENSION_NAME, span_bit_eq)
+       .is_empty();
 
   // setup before vkInstance to allow debug reporter report
   // messages through the pointer to it
@@ -1707,7 +1708,7 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
 
   auto has_portability_ext =
     !find(load_extensions.view(),
-          cstr(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME), str_eq)
+          cstr(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME), span_bit_eq)
        .is_empty();
 
   Vec<char const *> load_extensions_c{scratch_};
@@ -2159,7 +2160,7 @@ Result<gpu::Device, Status>
 
   auto has_debug_marker_ext =
     !find(load_extensions.view(), cstr(VK_EXT_DEBUG_MARKER_EXTENSION_NAME),
-          str_eq)
+          span_bit_eq)
        .is_empty();
 
   Vec<Str> optional_layers{scratch_};

@@ -384,48 +384,40 @@ struct [[nodiscard]] RingBuffer
   /// @brief the memory storage for the elements
   T * storage_;
 
-  /// @param number of elements that are available to be consumed
-  usize size_;
+  usize mask_;
 
-  /// @param capacity must be a power of 2
-  usize capacity_;
+  usize read_iter_;
 
-  /// @param next element to be yielded to the consumer
-  usize consume_next_;
+  usize write_iter_;
 
   /// @brief Construct a RingBuffer using pre-allocated memory
-  /// @param storage the memory storage to use for the elements
-  /// @param size the initial assumed size of the buffer
-  /// @param capacity the initial non-zero power-of-2 capacity for the buffer
-  /// @param consume_next the index of the first element to be consumed
-  constexpr RingBuffer(T * storage, usize size, usize capacity,
-                       usize consume_next) :
+  constexpr RingBuffer(T * storage, usize pow2_capacity) :
     storage_{storage},
-    size_{size},
-    capacity_{capacity},
-    consume_next_{consume_next}
+    mask_{pow2_capacity - 1},
+    read_iter_{0},
+    write_iter_{0}
+  {
+  }
+
+  constexpr RingBuffer(Span<T> span) : RingBuffer{span.data(), span.size()}
   {
   }
 
   /// @brief Construct an empty RingBuffer
-  constexpr RingBuffer() :
-    storage_{nullptr},
-    size_{0},
-    capacity_{0},
-    consume_next_{0}
+  constexpr RingBuffer() : RingBuffer{nullptr, 0}
   {
   }
 
   constexpr RingBuffer(RingBuffer && other) :
     storage_{other.storage_},
-    size_{other.size_},
-    capacity_{other.capacity_},
-    consume_next_{other.consume_next_}
+    mask_{other.mask_},
+    read_iter_{other.read_iter_},
+    write_iter_{other.write_iter_}
   {
-    other.storage_      = nullptr;
-    other.size_         = 0;
-    other.capacity_     = 0;
-    other.consume_next_ = 0;
+    other.storage_    = nullptr;
+    other.mask_       = 0;
+    other.read_iter_  = 0;
+    other.write_iter_ = 0;
   }
 
   constexpr RingBuffer & operator=(RingBuffer && other)
@@ -435,15 +427,15 @@ struct [[nodiscard]] RingBuffer
       return *this;
     }
 
-    storage_      = other.storage_;
-    size_         = other.size_;
-    capacity_     = other.capacity_;
-    consume_next_ = other.consume_next_;
+    storage_    = other.storage_;
+    mask_       = other.mask_;
+    read_iter_  = other.read_iter_;
+    write_iter_ = other.write_iter_;
 
-    other.storage_      = nullptr;
-    other.size_         = 0;
-    other.capacity_     = 0;
-    other.consume_next_ = 0;
+    other.storage_    = nullptr;
+    other.mask_       = 0;
+    other.read_iter_  = 0;
+    other.write_iter_ = 0;
 
     return *this;
   }
@@ -452,10 +444,21 @@ struct [[nodiscard]] RingBuffer
   constexpr RingBuffer & operator=(RingBuffer const &) = delete;
   constexpr ~RingBuffer()                              = default;
 
+  constexpr usize masked(usize index) const
+  {
+    return index & mask_;
+  }
+
+  /// @brief Returns element capacity of the RingBuffer
+  constexpr usize capacity() const
+  {
+    return mask_ + 1;
+  }
+
   /// @brief check if the RingBuffer is empty
   constexpr bool is_empty() const
   {
-    return size_ == 0;
+    return size() == 0;
   }
 
   /// @brief Returns the pointer to the elements of the RingBuffer
@@ -467,19 +470,13 @@ struct [[nodiscard]] RingBuffer
   /// @brief Returns the number of elements in the RingBuffer
   constexpr usize size() const
   {
-    return size_;
+    return write_iter_ - read_iter_;
   }
 
   /// @brief Returns byte-size of the elements in the RingBuffer
   constexpr usize size_bytes() const
   {
-    return sizeof(T) * size_;
-  }
-
-  /// @brief Returns element capacity of the RingBuffer
-  constexpr usize capacity() const
-  {
-    return capacity_;
+    return sizeof(T) * size();
   }
 
   /// @brief Try to pop one element from the RingBuffer
@@ -487,15 +484,13 @@ struct [[nodiscard]] RingBuffer
   /// @returns true if the operation was successful
   [[nodiscard]] constexpr bool pop(T & out)
   {
-    if (size_ == 0) [[unlikely]]
+    if (is_empty()) [[unlikely]]
     {
       return false;
     }
 
-    out = storage_[consume_next_];
-
-    consume_next_ = (consume_next_ + 1) & (capacity_ - 1);
-    size_--;
+    out = storage_[masked(read_iter_)];
+    read_iter_++;
 
     return true;
   }
@@ -503,21 +498,50 @@ struct [[nodiscard]] RingBuffer
   /// @brief Try to push one element from the RingBuffer
   /// @returns true if there's enough memory to push an element onto the RingBuffer
   template <typename... Args>
-  [[nodiscard]] constexpr bool push(Args &&... args)
+  [[nodiscard]] constexpr bool try_push(Args &&... args)
   {
-    if (size_ == capacity_) [[unlikely]]
+    if (size() == capacity()) [[unlikely]]
     {
       return false;
     }
 
-    usize const produce_next = (consume_next_ + size_) & (capacity_ - 1);
-    new (storage_ + produce_next) T{static_cast<Args &&>(args)...};
-
-    size_++;
+    new (storage_ + masked(write_iter_)) T{static_cast<Args &&>(args)...};
+    write_iter_++;
 
     return true;
   }
+
+  [[nodiscard]] constexpr bool try_append(Span<T const> span)
+  {
+    if ((size() + span.size()) > capacity()) [[unlikely]]
+    {
+      return false;
+    }
+
+    mem::copy(span, storage_ + masked(write_iter_));
+    write_iter_ += span.size();
+
+    return true;
+  }
+
+  template <typename... Args>
+  constexpr void push_overrun(Args &&... args)
+  {
+    if (size() == capacity())
+    {
+      read_iter_++;
+    }
+
+    new (storage_ + masked(write_iter_)) T{static_cast<Args &&>(args)...};
+    write_iter_++;
+  }
 };
+
+template <typename T>
+RingBuffer(Span<T>) -> RingBuffer<T>;
+
+template <typename T, usize N>
+RingBuffer(T (&)[N]) -> RingBuffer<T>;
 
 template <typename T>
 struct IsTriviallyRelocatable<RingBuffer<T>>

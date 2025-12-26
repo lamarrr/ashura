@@ -43,8 +43,18 @@ typedef struct ILogger *  Logger;
 
 struct ILogSink
 {
-  virtual void log(LogLevel level, Str log_message) = 0;
-  virtual void flush()                              = 0;
+  ILogSink * next = nullptr;
+  ILogSink * prev = nullptr;
+
+  virtual void log(LogLevel level, Str log_message)
+  {
+    (void) level;
+    (void) log_message;
+  }
+
+  virtual void flush()
+  {
+  }
 };
 
 /// @brief Logger needs to use fixed-size memory as malloc can fail and make
@@ -52,33 +62,16 @@ struct ILogSink
 /// limited to `BUFFER_CAPACITY`.
 struct ILogger
 {
-  static constexpr usize MAX_SINKS       = 32;
-  static constexpr usize BUFFER_CAPACITY = 8_KB;
+  static constexpr usize BUFFER_CAPACITY = 16_KB;
 
-  LogSink sinks_[MAX_SINKS];
-  usize   num_sinks_;
+  ILogSink head_;
 
-  constexpr ILogger(Span<LogSink const> sinks) : sinks_{}, num_sinks_{0}
-  {
-    sinks = sinks.slice(0, MAX_SINKS);
-    obj::copy_assign(sinks, sinks_);
-    num_sinks_ = sinks.size();
-  }
-
-  constexpr ILogger(InitList<LogSink const> sinks) : ILogger{span(sinks)}
-  {
-  }
-
+  ILogger(Span<LogSink const> sinks);
   constexpr ILogger(ILogger const &)             = delete;
   constexpr ILogger(ILogger &&)                  = default;
   constexpr ILogger & operator=(ILogger &&)      = default;
   constexpr ILogger & operator=(ILogger const &) = delete;
   constexpr ~ILogger()                           = default;
-
-  constexpr Span<LogSink const> sinks() const
-  {
-    return Span{sinks_, num_sinks_};
-  }
 
   template <typename... Args>
   bool debug(Str fstr, Args const &... args)
@@ -116,48 +109,25 @@ struct ILogger
     return log(LogLevel::Fatal, fstr, args...);
   }
 
-  void flush()
-  {
-    for (auto & sink : sinks())
-    {
-      sink->flush();
-    }
-  }
+  void flush();
+
+  void write_to_sinks(LogLevel level, Str str, Buffer<char> & buffer);
+
+  void flush_buffer(LogLevel level, Buffer<char> & buffer);
 
   template <typename... Args>
   bool log(LogLevel level, Str fstr, Args const &... args)
   {
     static_assert(sizeof...(args) <= fmt::MAX_ARGS);
 
-    char buffer_scratch[BUFFER_CAPACITY];
+    char            ops_scratch[sizeof(fmt::Op) * (fmt::MAX_ARGS * 2)];
+    Buffer<fmt::Op> ops{span(ops_scratch).reinterpret<fmt::Op>()};
+    char            buffer_scratch[BUFFER_CAPACITY];
+    Buffer<char>    buffer{buffer_scratch};
 
-    fmt::Op ops_scratch[fmt::MAX_ARGS * 2];
+    auto sink_writer = [&](Str str) { write_to_sinks(level, str, buffer); };
 
-    Buffer<char> buffer{buffer_scratch};
-
-    Buffer<fmt::Op> ops{ops_scratch};
-
-    auto format_sink = [&](Str str) {
-      if (!buffer.append(str))
-      {
-        for (auto & sink : sinks())
-        {
-          sink->log(level, buffer);
-        }
-
-        buffer.clear();
-
-        if (!buffer.append(str))
-        {
-          for (auto & sink : sinks())
-          {
-            sink->log(level, str);
-          }
-        }
-      }
-    };
-
-    fmt::Context ctx{&format_sink, std::move(ops)};
+    fmt::Context ctx{&sink_writer, std::move(ops)};
 
     if (fmt::Result result = ctx.format(fstr, args...);
         result.error != fmt::Error::None)
@@ -181,10 +151,8 @@ struct ILogger
       }
     }
 
-    for (auto & sink : sinks())
-    {
-      sink->log(level, buffer);
-    }
+    // flush remaining buffer content to sinks
+    flush_buffer(level, buffer);
 
     return true;
   }
@@ -214,24 +182,6 @@ struct ILogger
   }
 };
 
-struct StdioSink : ILogSink
-{
-  std::mutex mutex;
-
-  void log(LogLevel level, Str log_message) override;
-  void flush() override;
-};
-
-extern StdioSink stdio_sink;
-
-struct FileSink : ILogSink
-{
-  std::FILE * file = nullptr;
-  std::mutex  mutex;
-
-  void log(LogLevel level, Str log_message) override;
-  void flush() override;
-};
 
 extern Logger logger;
 

@@ -12,10 +12,158 @@
 #include "ashura/std/vec.h"
 #include <thread>
 
+#if ASH_OS_WINDOWS
+#  include <Windows.h>
+#else
+#  if ASH_OS_LINUX
+#    include <linux/futex.h>
+#  else
+#    if ASH_OS_APPLE
+#      include <sys/ulock.h>
+#    endif
+#  endif
+#endif
+
 namespace ash
 {
 
-inline constexpr usize TASK_ARENA_SIZE = PAGE_SIZE;
+#if ASH_OS_WINDOWS
+
+struct SyncLib
+{
+  typedef BOOL WINAPI (*PFn_WaitOnAddress)(
+    _In_reads_bytes_(AddressSize) volatile VOID * Address,
+    _In_reads_bytes_(AddressSize) PVOID CompareAddress, _In_ SIZE_T AddressSize,
+    _In_opt_ DWORD dwMilliseconds);
+
+  typedef VOID WINAPI (*PFn_WakeByAddressAll)(_In_ PVOID Address);
+
+  HMODULE              lib              = nullptr;
+  PFn_WaitOnAddress    WaitOnAddress    = nullptr;
+  PFn_WakeByAddressAll WakeByAddressAll = nullptr;
+
+  void load()
+  {
+    lib = LoadLibraryW(L"API-MS-Win-Core-Synch-l1-2-0.dll");
+    CHECK(lib != nullptr, "Failed to load API-MS-Win-Core-Synch-l1-2-0.dll");
+
+    WaitOnAddress = (PFn_WaitOnAddress) GetProcAddress(lib, "WaitOnAddress");
+    CHECK(WaitOnAddress != nullptr,
+          "Failed to get address of WaitOnAddress from "
+          "API-MS-Win-Core-Synch-l1-2-0.dll");
+
+    WakeByAddressAll =
+      (PFn_WakeByAddressAll) GetProcAddress(lib, "WakeByAddressAll");
+    CHECK(WakeByAddressAll != nullptr,
+          "Failed to get address of WakeByAddressAll from "
+          "API-MS-Win-Core-Synch-l1-2-0.dll");
+  }
+};
+
+#else
+
+struct SyncLib
+{
+  void load()
+  {
+  }
+};
+
+#endif
+
+static SyncLib   sync_lib;
+static SyncLib * sink_lib_ptr;
+
+SyncLib & get_sync_lib()
+{
+  CHECK(sink_lib_ptr != nullptr, "Sync lib not initialized");
+  return *sink_lib_ptr;
+}
+
+void init_sync_runtime()
+{
+  sync_lib.load();
+  sink_lib_ptr = &sync_lib;
+}
+
+void IWaitToken::os_notify()
+{
+#if ASH_OS_WINDOWS
+
+  get_sync_lib().WakeByAddressAll(&state__);
+
+#else
+
+#  if ASH_OS_APPLE
+
+  __ulock_wake(UL_COMPARE_AND_WAIT | ULF_WAKE_ALL, &state__, 0);
+
+#  else
+
+#    if ASH_OS_LINUX
+
+  futex(&state__, FUTEX_WAKE_PRIVATE, I32_MAX, nullptr, nullptr);
+
+#    endif
+
+#  endif
+
+#endif
+}
+
+void IWaitToken::os_wait(u32 old_state, std::memory_order order)
+{
+  // [ ] handle errors
+
+#if ASH_OS_WINDOWS
+
+  std::atomic_ref state{state__};
+
+  do
+  {
+    // might wake up spuriously
+    get_sync_lib().WaitOnAddress((u32 *) &state__, (PVOID) &old_state,
+                                 sizeof(old_state), U32_MAX);
+  } while (state.load(order) == old_state);
+
+#else
+
+#  if ASH_OS_APPLE
+  std::atomic_ref state{state__};
+
+  do
+  {
+    __ulock_wait(UL_COMPARE_AND_WAIT, (u32 *) &state__, (u64) old_state,
+                 U32_MAX);
+  } while (state.load(order) == old_state);
+
+#  else
+
+#    if ASH_OS_LINUX
+  std::atomic_ref state{state__};
+
+  do
+  {
+    futex((i32 *) &state__, FUTEX_WAIT_PRIVATE, (i32) old_state, nullptr,
+          nullptr);
+  } while (state.load(order) == old_state);
+
+#    else
+
+  std::atomic_ref state{state__};
+  usize           poll = 0;
+  do
+  {
+    backoff_yield(poll);
+    poll++;
+  } while (state.load(order) == old_state);
+
+#    endif
+
+#  endif
+
+#endif
+}
 
 /// @brief Memory is returned back to the scheduler once ac reaches 0.
 ///
@@ -27,12 +175,12 @@ struct TaskArena : Pin<>
   TaskArena *      prev = nullptr;
   AtomicAliasCount ac{};
   IArena           arena{};
+  Layout           arena_layout{};
 
-  static constexpr auto flex()
+  static constexpr auto flex(Layout arena_layout)
   {
     return Flex<TaskArena, u8>{
-      {layout_of<TaskArena>,
-       Layout{.alignment = MAX_STANDARD_ALIGNMENT, .size = TASK_ARENA_SIZE}}
+      {layout_of<TaskArena>, arena_layout}
     };
   }
 };
@@ -78,29 +226,20 @@ struct Task
   }
 };
 
+inline constexpr usize TASK_ARENA_SIZE     = 32_KB;
+inline constexpr usize MAX_TASK_FRAME_SIZE = 8_KB;
+
 static_assert(TASK_ARENA_SIZE != 0,
               "Task arena size must be a non-zero power of 2");
 
 static_assert(is_pow2((u64) TASK_ARENA_SIZE),
               "Task arena size must be a non-zero power of 2");
 
-static_assert(TASK_ARENA_SIZE >= (MAX_TASK_FRAME_SIZE << 2),
+static_assert(TASK_ARENA_SIZE >= MAX_TASK_FRAME_SIZE << 1,
               "Task arena size is too small");
 
 static_assert(MAX_TASK_FRAME_SIZE >= MAX_STANDARD_ALIGNMENT,
               "Maximum task frame size is too small");
-
-// assuming it has maximum alignment as well, although this would typically be
-// maximum of MAX_STANDARD_ALIGNMENT
-inline constexpr Layout MAX_TASK_FRAME_LAYOUT{.alignment = MAX_TASK_FRAME_SIZE,
-                                              .size      = MAX_TASK_FRAME_SIZE};
-
-inline constexpr Layout MAX_TASK_FLEX_LAYOUT =
-  Task::flex(MAX_TASK_FRAME_LAYOUT).layout();
-
-static_assert(TASK_ARENA_SIZE >= MAX_TASK_FLEX_LAYOUT.size,
-              "Task arena size is too small to fit the maximum task frame and "
-              "task context");
 
 struct TaskAllocator
 {
@@ -175,7 +314,8 @@ struct TaskAllocator
 
   bool alloc_arena(TaskArena *& out)
   {
-    auto const   flex   = TaskArena::flex();
+    auto const flex = TaskArena::flex(
+      Layout{.alignment = MAX_STANDARD_ALIGNMENT, .size = TASK_ARENA_SIZE});
     Layout const layout = flex.layout();
 
     u8 * stack;
@@ -194,7 +334,7 @@ struct TaskAllocator
 
   void dealloc_arena(TaskArena * arena)
   {
-    source->dealloc(TaskArena::flex().layout(), (u8 *) arena);
+    source->dealloc(arena->flex(arena->arena_layout).layout(), (u8 *) arena);
   }
 
   bool request_arena(TaskArena *& out)
@@ -289,6 +429,7 @@ struct TaskAllocator
 struct TaskQueue
 {
   ISpinLock     lock{};
+  IWaitToken    task_wait_token{0U};
   List<Task>    tasks{};
   TaskAllocator allocator;
 
@@ -325,6 +466,8 @@ struct TaskQueue
   {
     LockGuard guard{lock};
     tasks.push_back(t);
+    task_wait_token.store(1U, std::memory_order_release);
+    task_wait_token.os_notify();
   }
 
   void push_task(TaskInfo const & info)
@@ -347,13 +490,15 @@ struct alignas(CACHELINE_ALIGNMENT) TaskThread
 {
   ThreadType  type;
   TaskQueue   queue;
-  ISemaphore  drain_semaphore;
+  IWaitToken  shutdown_token;
+  u64         stop_token;
   std::thread thread;
 
   TaskThread(Allocator allocator, ThreadType type) :
     type{type},
     queue{allocator},
-    drain_semaphore{}
+    shutdown_token{0U},
+    stop_token{0}
   {
   }
 
@@ -415,12 +560,24 @@ struct ASH_DLL_EXPORT SchedulerImpl final : IScheduler
 
     for (auto & t : worker_threads_)
     {
-      (void) t->drain_semaphore.complete(0);
+      std::atomic_ref stop_token{t->stop_token};
+      stop_token.store(1U, std::memory_order_release);
     }
 
     for (auto & t : dedicated_threads_)
     {
-      (void) t->drain_semaphore.complete(0);
+      std::atomic_ref stop_token{t->stop_token};
+      stop_token.store(1U, std::memory_order_release);
+    }
+
+    for (auto & t : worker_threads_)
+    {
+      t->shutdown_token.os_wait(0, std::memory_order_acquire);
+    }
+
+    for (auto & t : dedicated_threads_)
+    {
+      t->shutdown_token.os_wait(0, std::memory_order_acquire);
     }
 
     for (auto & t : worker_threads_)
@@ -448,24 +605,20 @@ struct ASH_DLL_EXPORT SchedulerImpl final : IScheduler
     joined_ = true;
   }
 
-  static void thread_loop(TaskAllocator & a, TaskQueue & q, Semaphore s)
+  static void thread_loop(TaskAllocator & a, TaskQueue & q,
+                          WaitToken drain_wait_token, u64 & stop_token_)
   {
-    u64 poll = 0;
+    u64             poll = 0;
+    std::atomic_ref stop_token{stop_token_};
 
-    while (true)
+    // stop execution once drain token is signaled
+    while (!stop_token.load(std::memory_order_relaxed)) [[likely]]
     {
       Task * task = q.pop_task();
 
       if (task == nullptr) [[unlikely]]
       {
-        // stop execution once all tasks are done and drain semaphore is signaled
-        if (s->is_completed(0)) [[unlikely]]
-        {
-          (void) s->complete();
-          break;
-        }
-
-        yielding_backoff(poll);
+        backoff_yield(poll);
         poll++;
         continue;
       }
@@ -520,6 +673,9 @@ struct ASH_DLL_EXPORT SchedulerImpl final : IScheduler
 
       a.release_task(task);
     }
+
+    drain_wait_token->store(1U, std::memory_order_release);
+    drain_wait_token->os_notify();
   }
 
   static void main_thread_loop(TaskAllocator & a, TaskQueue & q,
@@ -623,55 +779,34 @@ struct ASH_DLL_EXPORT SchedulerImpl final : IScheduler
     main_thread_loop(main_queue_.allocator, main_queue_, duration, poll_max);
   }
 
-  virtual void request_drain() override
+  virtual void request_thread_shutdown(Thread thread) override
   {
-    for (auto & t : dedicated_threads_)
-    {
-      (void) t->drain_semaphore.complete(0);
-    }
-    for (auto & t : worker_threads_)
-    {
-      (void) t->drain_semaphore.complete(0);
-    }
-  }
-
-  virtual bool await_drain(nanoseconds timeout) override
-  {
-    Vec<Semaphore> semaphores{allocator_};
-    Vec<u64>       stages{allocator_};
-
-    semaphores.reserve(dedicated_threads_.size() + worker_threads_.size())
-      .unwrap();
-    stages.reserve(dedicated_threads_.size() + worker_threads_.size()).unwrap();
-
-    for (auto & t : dedicated_threads_)
-    {
-      semaphores.push(&t->drain_semaphore).unwrap();
-      stages.push(1ULL).unwrap();
-    }
-
-    for (auto & t : worker_threads_)
-    {
-      semaphores.push(&t->drain_semaphore).unwrap();
-      stages.push(1ULL).unwrap();
-    }
-
-    return await_semaphores(semaphores, stages, timeout);
-  }
-
-  virtual Semaphore get_drain_semaphore(Thread thread) override
-  {
-    return thread.match(
-      [&](WorkerThread) -> Semaphore {
-        CHECK(false, "Worker threads do not have individual drain semaphores");
+    thread.match(
+      [&](WorkerThread) {
+        CHECK(false, "Worker threads cannot be shutdown individually");
       },
-      [&](DedicatedThread t) -> Semaphore {
+      [&](DedicatedThread t) {
         CHECK((u32) t < num_dedicated(), "Invalid dedicated thread id");
-        return &dedicated_threads_[(u32) t]->drain_semaphore;
+        auto &          token = dedicated_threads_[(u32) t]->stop_token;
+        std::atomic_ref token_ref{token};
+        token_ref.store(true, std::memory_order_relaxed);
       },
-      [&](MainThread) -> Semaphore {
-        CHECK(false, "Main thread does not have a drain semaphore");
-      });
+      [&](MainThread) { CHECK(false, "Main thread cannot be shutdown"); });
+  }
+
+  virtual void await_thread_shutdown(Thread thread) override
+  {
+    thread.match(
+      [&](WorkerThread) {
+        CHECK(false, "Worker threads cannot be shutdown individually");
+      },
+      [&](DedicatedThread t) {
+        CHECK((u32) t < num_dedicated(), "Invalid dedicated thread id");
+        auto & tok = dedicated_threads_[(u32) t]->shutdown_token;
+        tok.os_wait(0U, std::memory_order_acquire);
+      },
+      [&](MainThread) { CHECK(false, "Main thread cannot be shutdown"); });
+  }
   }
 };
 
@@ -692,7 +827,7 @@ Dyn<Scheduler> IScheduler::create(SchedulerInfo const & info)
         set_thread_name(thread_name);
         thread_name.reset();
         SchedulerImpl::thread_loop(t->queue.allocator, t->queue,
-                                     &t->drain_semaphore);
+                                     &t->shutdown_token, t->stop_token);
       }};
     impl->dedicated_threads_.push(std::move(thread)).unwrap();
   }
@@ -708,7 +843,8 @@ Dyn<Scheduler> IScheduler::create(SchedulerInfo const & info)
                    thread_name = std::move(thread_name)] mutable {
         set_thread_name(thread_name);
         thread_name.reset();
-        SchedulerImpl::thread_loop(q->allocator, *q, &t->drain_semaphore);
+        SchedulerImpl::thread_loop(q->allocator, *q, &t->shutdown_token,
+                                   t->stop_token);
       }};
     impl->worker_threads_.push(std::move(thread)).unwrap();
   }

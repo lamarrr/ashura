@@ -36,8 +36,8 @@ struct EventSinkHook
 
 struct EventSinkHooks
 {
-  std::mutex          lock;
-  List<EventSinkHook> sinks;
+  ISpinLock           lock;
+  List<EventSinkHook> sinks{};
 };
 
 static EventSinkHooks thread_event_sinks;
@@ -51,7 +51,7 @@ void EventSinkHook::push(EventSinkHook * hook)
 void EventSinkHook::pop(EventSinkHook * hook)
 {
   LockGuard guard{thread_event_sinks.lock};
-  thread_event_sinks.sinks.unlink_at(hook);
+  thread_event_sinks.sinks.pop_at(hook);
 }
 
 EventSink<I64RangeRecord> & get_scope_trace_sink()

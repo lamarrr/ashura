@@ -59,7 +59,7 @@ struct [[nodiscard]] Vec
     other.storage_   = nullptr;
     other.size_      = 0;
     other.capacity_  = 0;
-    other.allocator_ = default_allocator;
+    other.allocator_ = noop_allocator;
   }
 
   constexpr Vec & operator=(Vec && other)
@@ -300,7 +300,7 @@ struct [[nodiscard]] Vec
 
   constexpr Result<> shrink()
   {
-    return shrink_to_(Growth::grow(size_));
+    return shrink_to_(HalfGrowth::grow(size_));
   }
 
   constexpr Result<> shrink_clear()
@@ -323,7 +323,7 @@ struct [[nodiscard]] Vec
       return Ok{};
     }
 
-    return reserve(max(target_capacity, Growth::grow(capacity_)));
+    return reserve(max(target_capacity, HalfGrowth::grow(capacity_)));
   }
 
   constexpr Result<> grow_extend(usize extension)
@@ -532,7 +532,7 @@ struct [[nodiscard]] Vec
     return Ok{};
   }
 
-  constexpr Result<> extend_move(Span<Type> span)
+  constexpr Result<> append_move(Span<Type> span)
   {
     auto const pos = size_;
 
@@ -650,14 +650,14 @@ struct [[nodiscard]] Vec
     return append(span);
   }
 
-  constexpr Result<> extend_move(WithinCapacity, Span<Type> span)
+  constexpr Result<> append_move(WithinCapacity, Span<Type> span)
   {
     if (size() + span.size() > capacity()) [[unlikely]]
     {
       return Err{};
     }
 
-    return extend_move(span);
+    return append_move(span);
   }
 
   constexpr Result<> resize(WithinCapacity, usize new_size)
@@ -669,15 +669,25 @@ struct [[nodiscard]] Vec
 
     return resize(new_size);
   }
+
+  constexpr Result<> resize_uninit(WithinCapacity, usize new_size)
+  {
+    if (new_size > capacity()) [[unlikely]]
+    {
+      return Err{};
+    }
+
+    return resize_uninit(new_size);
+  }
 };
 
 namespace vec
 {
 
-template <typename T>
-constexpr Result<Vec<remove_const<T>>> copy(Allocator allocator, Span<T> data)
+template <typename T, usize MinAlignment = SIMD_ALIGNMENT>
+constexpr auto copy(Allocator allocator, Span<T> data)
 {
-  Result out = Vec<remove_const<T>>::make(data.size(), allocator);
+  Result out = Vec<remove_const<T>, MinAlignment>::make(data.size(), allocator);
 
   if (!out)
   {
@@ -689,18 +699,18 @@ constexpr Result<Vec<remove_const<T>>> copy(Allocator allocator, Span<T> data)
   return out;
 }
 
-template <typename T>
+template <typename T, usize MinAlignment = SIMD_ALIGNMENT>
 requires (NonConst<T>)
-constexpr Result<Vec<T>> move(Allocator allocator, Span<T> data)
+constexpr auto move(Allocator allocator, Span<T> data)
 {
-  Result out = Vec<T>::make(data.size(), allocator);
+  Result out = Vec<T, MinAlignment>::make(data.size(), allocator);
 
   if (!out)
   {
     return out;
   }
 
-  out.v().extend_move(data).unwrap();
+  out.v().append_move(data).unwrap();
 
   return out;
 }
@@ -772,7 +782,7 @@ struct [[nodiscard]] SmallVec
     other.storage_   = nullptr;
     other.size_      = 0;
     other.capacity_  = 0;
-    other.allocator_ = default_allocator;
+    other.allocator_ = noop_allocator;
   }
 
   constexpr SmallVec & operator=(SmallVec && other)
@@ -1062,7 +1072,7 @@ struct [[nodiscard]] SmallVec
 
   constexpr Result<> shrink()
   {
-    return shrink_to_(Growth::grow(size_));
+    return shrink_to_(HalfGrowth::grow(size_));
   }
 
   constexpr Result<> shrink_clear()
@@ -1085,7 +1095,7 @@ struct [[nodiscard]] SmallVec
       return Ok{};
     }
 
-    return reserve(max(target_capacity, Growth::grow(capacity_)));
+    return reserve(max(target_capacity, HalfGrowth::grow(capacity_)));
   }
 
   constexpr Result<> grow_extend(usize extension)
@@ -1293,7 +1303,7 @@ struct [[nodiscard]] SmallVec
     return Ok{};
   }
 
-  constexpr Result<> extend_move(Span<Type> span)
+  constexpr Result<> append_move(Span<Type> span)
   {
     auto const pos = size_;
 
@@ -1411,14 +1421,14 @@ struct [[nodiscard]] SmallVec
     return append(span);
   }
 
-  constexpr Result<> extend_move(WithinCapacity, Span<Type> span)
+  constexpr Result<> append_move(WithinCapacity, Span<Type> span)
   {
     if (size() + span.size() > capacity()) [[unlikely]]
     {
       return Err{};
     }
 
-    return extend_move(span);
+    return append_move(span);
   }
 
   constexpr Result<> resize(WithinCapacity, usize new_size)
@@ -1430,7 +1440,54 @@ struct [[nodiscard]] SmallVec
 
     return resize(new_size);
   }
+
+  constexpr Result<> resize_uninit(WithinCapacity, usize new_size)
+  {
+    if (new_size > capacity()) [[unlikely]]
+    {
+      return Err{};
+    }
+
+    return resize_uninit(new_size);
+  }
 };
+
+namespace small_vec
+{
+
+template <usize InlineCapacity, typename T, usize MinAlignment = SIMD_ALIGNMENT>
+constexpr auto copy(Allocator allocator, Span<T> data)
+{
+  Result out = SmallVec<remove_const<T>, InlineCapacity, MinAlignment>::make(
+    data.size(), allocator);
+
+  if (!out)
+  {
+    return out;
+  }
+
+  out.v().append(data).unwrap();
+
+  return out;
+}
+
+template <usize InlineCapacity, typename T, usize MinAlignment = SIMD_ALIGNMENT>
+requires (NonConst<T>)
+constexpr auto move(Allocator allocator, Span<T> data)
+{
+  Result out =
+    SmallVec<T, InlineCapacity, MinAlignment>::make(data.size(), allocator);
+
+  if (!out)
+  {
+    return out;
+  }
+
+  out.v().append_move(data).unwrap();
+
+  return out;
+}
+}    // namespace small_vec
 
 /// @brief InplaceVec doesn't use SIMD_ALIGNMENT as it is usually in-place and
 /// compacted along with other struct members/stack variables.
@@ -1794,7 +1851,7 @@ struct [[nodiscard]] InplaceVec
     return Ok{};
   }
 
-  constexpr Result<> extend_move(Span<Type> span)
+  constexpr Result<> append_move(Span<Type> span)
   {
     auto const pos = size_;
 
@@ -1848,6 +1905,42 @@ struct [[nodiscard]] InplaceVec
     return View{data(), size()};
   }
 };
+
+namespace inplace_vec
+{
+
+template <usize InlineCapacity, typename T, usize MinAlignment = alignof(T)>
+constexpr auto copy(Span<T> data)
+{
+  using R = Result<InplaceVec<remove_const<T>, InlineCapacity, MinAlignment>>;
+
+  InplaceVec<remove_const<T>, InlineCapacity, MinAlignment> out{};
+
+  if (!out.append(data))
+  {
+    return R{Err{}};
+  }
+
+  return Ok{std::move(out)};
+}
+
+template <usize InlineCapacity, typename T, usize MinAlignment = alignof(T)>
+requires (NonConst<T>)
+constexpr auto move(Span<T> data)
+{
+  using R = Result<InplaceVec<T, InlineCapacity, MinAlignment>>;
+
+  InplaceVec<T, InlineCapacity, MinAlignment> out{};
+
+  if (!out.append_move(data))
+  {
+    return R{Err{}};
+  }
+
+  return Ok{std::move(out)};
+}
+
+}    // namespace inplace_vec
 
 template <typename Vec>
 struct [[nodiscard]] CoreBitVec
@@ -1908,6 +2001,26 @@ struct [[nodiscard]] CoreBitVec
   constexpr bool is_empty() const
   {
     return size_ == 0;
+  }
+
+  constexpr View leak()
+  {
+    auto old = view();
+    size_    = 0;
+    repr_.leak();
+    return old;
+  }
+
+  static constexpr Result<CoreBitVec> make(usize capacity, Allocator allocator)
+  {
+    CoreBitVec out{allocator};
+
+    if (!out.reserve(capacity))
+    {
+      return Err{};
+    }
+
+    return Ok{static_cast<CoreBitVec &&>(out)};
   }
 
   constexpr auto begin() const
@@ -2149,13 +2262,35 @@ struct [[nodiscard]] CoreBitVec
   {
     return View{repr_, size()};
   }
+
+  constexpr Result<> resize(WithinCapacity, usize new_size)
+  {
+    if (new_size > capacity()) [[unlikely]]
+    {
+      return Err{};
+    }
+
+    return resize(new_size);
+  }
+
+  constexpr Result<> resize_uninit(WithinCapacity, usize new_size)
+  {
+    if (new_size > capacity()) [[unlikely]]
+    {
+      return Err{};
+    }
+
+    return resize_uninit(new_size);
+  }
 };
 
-template <typename R>
-using BitVec = CoreBitVec<Vec<R>>;
+template <typename R, usize MinAlignment = SIMD_ALIGNMENT>
+using BitVec = CoreBitVec<Vec<R, MinAlignment>>;
 
-template <typename R, usize MinBitCapacity = 64>
-using SmallBitVec = CoreBitVec<SmallVec<R, atom_size_for<R>(MinBitCapacity)>>;
+template <typename R, usize MinBitCapacity = 64,
+          usize MinAlignment = SIMD_ALIGNMENT>
+using SmallBitVec =
+  CoreBitVec<SmallVec<R, atom_size_for<R>(MinBitCapacity), MinAlignment>>;
 
 /// @brief Sparse Vector (a.k.a Sparse Set) are used for stable ID-tagging of
 /// objects in high-perf scenarious i.e. ECS, where a stable identity is needed

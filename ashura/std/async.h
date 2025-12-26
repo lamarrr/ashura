@@ -26,7 +26,99 @@
 
 namespace ash
 {
-inline void yielding_backoff(u64 poll)
+
+typedef struct IWaitToken * WaitToken;
+
+/// @brief A wait token for sleeping and waking up threads.
+struct [[nodiscard]] IWaitToken
+{
+  u32 state__;
+
+  constexpr IWaitToken(u32 state) : state__{state}
+  {
+  }
+
+  bool cmpxchg_weak(u32 & expected, u32 desired, std::memory_order success,
+                    std::memory_order failure)
+  {
+    std::atomic_ref state{state__};
+    return state.compare_exchange_weak(expected, desired, success, failure);
+  }
+
+  bool cmpxchg_strong(u32 & expected, u32 desired, std::memory_order success,
+                      std::memory_order failure)
+  {
+    std::atomic_ref state{state__};
+    return state.compare_exchange_strong(expected, desired, success, failure);
+  }
+
+  void store(u32 state, std::memory_order order)
+  {
+    std::atomic_ref state_ref{state__};
+    state_ref.store(state, order);
+  }
+
+  u32 load(std::memory_order order)
+  {
+    std::atomic_ref state{state__};
+    return state.load(order);
+  }
+
+  void os_notify();
+
+  void os_wait(u32 old_state, std::memory_order order);
+};
+
+typedef struct IFutex * Futex;
+
+struct [[nodiscard]] IFutex
+{
+  IWaitToken token_;
+
+  IFutex() : token_{0U}
+  {
+  }
+
+  void lock()
+  {
+    u32 expected = 0;
+    u32 target   = 1;
+    while (!token_.cmpxchg_weak(expected, target, std::memory_order_acquire,
+                                std::memory_order_relaxed))
+    {
+      token_.os_wait(1U, std::memory_order_acquire);
+      expected = 0;
+    }
+  }
+
+  void unlock()
+  {
+    token_.store(0U, std::memory_order_release);
+    token_.os_notify();
+  }
+};
+
+// [ ] MT-Safety:
+// [ ] Contract-Safety:
+inline void backoff_pause(u64 poll)
+{
+  if (poll < 8)
+  {
+    return;
+  }
+
+#if ASH_CFG(ARCH, X86) || ASH_CFG(ARCH, X86_64)
+  _mm_pause();
+#else
+#  if ASH_CFG(ARCH, ARM32) || ASH_CFG(ARCH, ARM64)
+  __asm("yield");
+#  endif
+#endif
+
+  return;
+}
+
+inline void backoff_yield(u64 poll)
 {
   if (poll < 8)
   {
@@ -42,8 +134,6 @@ inline void yielding_backoff(u64 poll)
     __asm("yield");
 #  endif
 #endif
-
-    return;
   }
 
   std::this_thread::yield();
@@ -54,7 +144,7 @@ typedef struct ISpinLock * SpinLock;
 
 /// @brief Fast user-space spinlock suitable for deterministic and short critical sections.
 /// The spinlock is unpaced and can cause cache invalidation and inefficient CPU usage, use with caution.
-struct ISpinLock
+struct [[nodiscard]] ISpinLock
 {
   usize flag_ = false;
 
@@ -68,7 +158,7 @@ struct ISpinLock
       expected, target, std::memory_order_acquire, std::memory_order_relaxed))
     {
       expected = false;
-      yielding_backoff(poll);
+      backoff_pause(poll);
       poll++;
     }
   }
@@ -92,7 +182,7 @@ struct ISpinLock
 
 typedef struct ITicketSpinLock * TicketSpinLock;
 
-struct ITicketSpinLock
+struct [[nodiscard]] ITicketSpinLock
 {
   usize front_ = 0;
   usize back_  = 0;
@@ -114,7 +204,7 @@ struct ITicketSpinLock
         return;
       }
 
-      yielding_backoff(poll);
+      backoff_pause(poll);
       poll++;
     }
   }
@@ -137,10 +227,20 @@ struct ITicketSpinLock
   }
 };
 
-struct ISeqLock
+// [ ] https://en.wikipedia.org/wiki/Seqlock
+struct [[nodiscard]] ISequenceLock
 {
   usize version_ = 0;
+
+  void begin_read();
+  void end_read();
+
+  void begin_write();
+  void end_write();
 };
+
+// [ ] https://lwn.net/Articles/262464/
+struct Rcu;
 
 template <typename L>
 struct LockGuard
@@ -166,9 +266,9 @@ struct LockGuard
   }
 };
 
-typedef struct IRWLock * RWLock;
+typedef struct IRWSpinLock * RWSpinLock;
 
-struct IRWLock
+struct [[nodiscard]] IRWSpinLock
 {
   usize state_ = 0;
 
@@ -193,7 +293,7 @@ struct IRWLock
         target = expected + 1;
       }
 
-      yielding_backoff(poll);
+      backoff_pause(poll);
       poll++;
     }
   }
@@ -217,7 +317,7 @@ struct IRWLock
       expected = 0;
       target   = USIZE_MAX;
 
-      yielding_backoff(poll);
+      backoff_pause(poll);
       poll++;
     }
   }
@@ -235,12 +335,12 @@ struct IRWLock
   }
 };
 
-template <typename RWLock>
+template <typename RWLockType>
 struct ReadGuard
 {
-  RWLock * lock_;
+  RWLockType * lock_;
 
-  explicit ReadGuard(RWLock & lock) : lock_{&lock}
+  explicit ReadGuard(RWLockType & lock) : lock_{&lock}
   {
     lock_->lock_read();
   }
@@ -259,12 +359,12 @@ struct ReadGuard
   }
 };
 
-template <typename RWLock>
+template <typename RWSpinLockType>
 struct WriteGuard
 {
-  RWLock * lock_;
+  RWSpinLockType * lock_;
 
-  explicit WriteGuard(RWLock & lock) : lock_{&lock}
+  explicit WriteGuard(RWSpinLockType & lock) : lock_{&lock}
   {
     lock_->lock_write();
   }
@@ -295,7 +395,7 @@ enum class FutureStage : u64
 /// will be successful. This means we don't need to use locks to guard the
 /// object.
 template <typename T>
-struct AtomicInit
+struct [[nodiscard]] AtomicInit
 {
   FutureStage stage_;
 
@@ -370,29 +470,29 @@ struct AtomicInit
   }
 };
 
-template <typename T, typename RWLock>
-struct [[nodiscard]] Sync
+template <typename T, typename RWSpinLock>
+struct [[nodiscard]] ISync
 {
-  RWLock lock_;
+  IRWSpinLock lock_;
 
   T data_;
 
   template <typename... Args>
-  constexpr Sync(Args &&... args) :
+  constexpr ISync(Args &&... args) :
     lock_{},
     data_{static_cast<Args &&>(args)...}
   {
   }
 
-  constexpr Sync(Sync const &) = delete;
+  constexpr ISync(ISync const &) = delete;
 
-  constexpr Sync(Sync &&) = delete;
+  constexpr ISync(ISync &&) = delete;
 
-  constexpr Sync & operator=(Sync const &) = delete;
+  constexpr ISync & operator=(ISync const &) = delete;
 
-  constexpr Sync & operator=(Sync &&) = delete;
+  constexpr ISync & operator=(ISync &&) = delete;
 
-  constexpr ~Sync() = default;
+  constexpr ~ISync() = default;
 
   template <Callable<T &> Op>
   void read(Op && op)
@@ -409,9 +509,9 @@ struct [[nodiscard]] Sync
   }
 };
 
-typedef struct ISemaphore * Semaphore;
+typedef struct ITimelineSemaphore * TimelineSemaphore;
 
-/// @brief A CPU Timeline Semaphore used for synchronization in multi-stage cooperative multitasking jobs.
+/// @brief A CPU Timeline TimelineSemaphore used for synchronization in multi-stage cooperative multitasking jobs.
 /// Unlike typical Binary/Counting Semaphores, A timeline semaphore is a monotonic counter
 /// representing the stages of an operation.
 /// - Guarantees Forward Progress
@@ -423,23 +523,23 @@ typedef struct ISemaphore * Semaphore;
 /// - No deadlocks can occur when synchronization is done using this. This also enables cooperative synchronization between systems processing different
 /// stages of an operation without explicit sync between them.
 ///
-/// Semaphore can only move from state `i` to state `i+n` where n > 1.
+/// TimelineSemaphore can only move from state `i` to state `i+n` where n > 1.
 ///
-/// Semaphore should ideally not be destroyed before completion as there could
+/// TimelineSemaphore should ideally not be destroyed before completion as there could
 /// possibly be other tasks awaiting it.
 ///
 /// Semaphores never overflow.
 /// It can have a maximum of U64_MAX stages.
 /// U64_MAX is often used to denote that all operations are completed.
-struct ISemaphore
+struct [[nodiscard]] ITimelineSemaphore
 {
   u64 stage_;
 
-  constexpr ISemaphore() : stage_{0}
+  constexpr ITimelineSemaphore() : stage_{0}
   {
   }
 
-  constexpr ISemaphore(u64 initial_stage) : stage_{initial_stage}
+  constexpr ITimelineSemaphore(u64 initial_stage) : stage_{initial_stage}
   {
   }
 
@@ -520,183 +620,83 @@ struct ISemaphore
     return current;
   }
 
-  /// @brief Await completion of this semaphore at stage `stage` for `timeout` duration
+  /// @brief Poll completion of this semaphore at stage `stage` for `timeout` duration
   /// @param stage stage to wait for
   /// @param timeout duration to wait for
-  [[nodiscard]] bool await(u64 stage, nanoseconds timeout);
+  [[nodiscard]] bool poll(u64 stage);
 };
 
-typedef Rc<Semaphore> RcSemaphore;
+typedef Rc<TimelineSemaphore> RcTimelineSemaphore;
 
-typedef Dyn<Semaphore> DynSemaphore;
+typedef Dyn<TimelineSemaphore> DynTimelineSemaphore;
 
 /// @brief Create an independently allocated semaphore object
-inline Result<RcSemaphore> semaphore(Allocator allocator, u64 initial_stage = 0)
+inline Result<RcTimelineSemaphore> semaphore(Allocator allocator,
+                                             u64       initial_stage = 0)
 {
-  return rc<ISemaphore>(inplace, allocator, initial_stage);
+  return rc<ITimelineSemaphore>(inplace, allocator, initial_stage);
 }
 
 namespace impl
 {
 
-/// @brief Await semaphores at the specified stages.
+/// @brief Poll semaphores at the specified stages.
 /// @param sems semaphores to wait for
 /// @param stages stages of the semaphores to wait for completion of. must be <
 /// semaphore.num_stages or == U64_MAX. U64_MAX meaning waiting for all stages'
 /// completion.
-/// @param timeout timeout to stop attempting to wait for the semaphores. when
-/// timeout is 0, there's an immediate result, and when timeout is
-/// nanoseconds::max() it waits for the semaphores forever untilt they are
-/// ready.
 /// @param any if to wait for all semaphores or atleast 1 semaphore.
-/// @returns returns if the semaphore await operation completed successfully
-/// based on the `any` criteria.
+/// @returns returns true if the semaphore poll operation completed successfully
 template <typename Sem, typename Stage, typename SemaphoreKey,
           typename StageKey>
-[[nodiscard]] bool await_semaphores(Span<Sem> semaphores, Span<Stage> stages,
-                                    nanoseconds     timeout,
-                                    SemaphoreKey && semaphore_key = {},
-                                    StageKey &&     stage_key     = {})
+[[nodiscard]] bool poll_semaphores(Span<Sem> semaphores, Span<Stage> stages,
+                                   SemaphoreKey && semaphore_key = {},
+                                   StageKey &&     stage_key     = {})
 {
   CHECK(semaphores.size() == stages.size(), "");
   usize const n = semaphores.size();
 
-  // number of times we've polled so far, counting begins from 0
-  u64 poll = 0;
-
-  // avoid sys-calls unless absolutely needed
-  steady_clock::time_point poll_begin{};
-
-  // speeds up checks for the 'all' case. points to the next semaphore to be
-  // checked
-  usize next = 0;
-
-  while (true)
+  for (usize i = 0; i < n; i++)
   {
-    for (; next < n; next++)
-    {
-      ISemaphore & semaphore = semaphore_key(semaphores[next]);
-      u64 const    stage     = stage_key(stages[next]);
-      bool const   is_ready  = semaphore.is_completed(stage);
+    ITimelineSemaphore & semaphore = semaphore_key(semaphores[i]);
+    u64 const            stage     = stage_key(stages[i]);
+    bool const           is_ready  = semaphore.is_completed(stage);
 
-      if (!is_ready)
-      {
-        break;
-      }
-    }
-
-    if (next == n)
-    {
-      return true;
-    }
-
-    // fast-path to avoid syscalls
-    if (timeout <= nanoseconds{0}) [[likely]]
+    if (!is_ready)
     {
       return false;
     }
-
-    // fast-path to avoid syscalls
-    if (timeout == nanoseconds::max()) [[likely]]
-    {
-      // infinite timeout
-    }
-    else
-    {
-      if (poll_begin == steady_clock::time_point{}) [[unlikely]]
-      {
-        poll_begin = steady_clock::now();
-      }
-
-      nanoseconds const past = steady_clock::now() - poll_begin;
-
-      if (past > timeout) [[unlikely]]
-      {
-        return false;
-      }
-    }
-
-    yielding_backoff(poll);
-    poll++;
   }
 
-  return false;
+  return true;
 }
 
 template <typename Future, typename FutureStageKey>
-[[nodiscard]] bool await_futures(Span<Future> futures, nanoseconds timeout,
-                                 FutureStageKey && stage_key = {})
+[[nodiscard]] bool poll_futures(Span<Future>      futures,
+                                FutureStageKey && stage_key = {})
 {
   usize const n = futures.size();
 
-  // number of times we've polled so far, counting begins from 0
-  u64 poll = 0;
-
-  // avoid sys-calls unless absolutely needed
-  steady_clock::time_point poll_begin{};
-
-  // speeds up checks for the 'all' case. points to the next semaphore to be
-  // checked
-  usize next = 0;
-
-  while (true)
+  for (usize i = 0; i < n; i++)
   {
-    for (; next < n; next++)
-    {
-      FutureStage &   stage = stage_key(futures[next]);
-      std::atomic_ref stage_ref{stage};
-      bool const      is_ready =
-        stage_ref.load(std::memory_order_acquire) == FutureStage::Yielded;
+    FutureStage &   stage = stage_key(futures[i]);
+    std::atomic_ref stage_ref{stage};
+    bool const      is_ready =
+      stage_ref.load(std::memory_order_acquire) == FutureStage::Yielded;
 
-      if (!is_ready)
-      {
-        break;
-      }
-    }
-
-    if (next == n)
-    {
-      return true;
-    }
-
-    // fast-path to avoid syscalls
-    if (timeout <= nanoseconds{0}) [[likely]]
+    if (!is_ready)
     {
       return false;
     }
-
-    // fast-path to avoid syscalls
-    if (timeout == nanoseconds::max()) [[likely]]
-    {
-      // infinite timeout
-    }
-    else
-    {
-      if (poll_begin == steady_clock::time_point{}) [[unlikely]]
-      {
-        poll_begin = steady_clock::now();
-      }
-
-      nanoseconds const past = steady_clock::now() - poll_begin;
-
-      if (past > timeout) [[unlikely]]
-      {
-        return false;
-      }
-    }
-
-    yielding_backoff(poll);
-    poll++;
   }
 
-  return false;
+  return true;
 }
 
-[[nodiscard]] inline bool await_futures(Span<FutureStage * const> futures,
-                                        nanoseconds               timeout)
+[[nodiscard]] inline bool poll_futures(Span<FutureStage * const> futures)
 {
-  return await_futures(futures, timeout,
-                       [](auto const & f) -> FutureStage & { return *f; });
+  return poll_futures(futures,
+                      [](auto const & f) -> FutureStage & { return *f; });
 }
 
 }    // namespace impl
@@ -715,11 +715,11 @@ struct [[nodiscard]] Stream
 
   Rc<T *> data_;
 
-  RcSemaphore semaphore_;
+  RcTimelineSemaphore semaphore_;
 
-  Stream(Rc<T *> data, RcSemaphore semaphore) :
+  Stream(Rc<T *> data, RcTimelineSemaphore semaphore) :
     data_{static_cast<Rc<T *> &&>(data)},
-    semaphore_{static_cast<RcSemaphore &&>(semaphore)}
+    semaphore_{static_cast<RcTimelineSemaphore &&>(semaphore)}
   {
   }
 
@@ -772,7 +772,7 @@ Result<Stream<T>> stream(Inplace, Allocator allocator, u64 num_stages,
 
   return Ok{
     Stream<T>{static_cast<Rc<T *> &&>(data.v()),
-              static_cast<RcSemaphore &&>(sem.v())}
+              static_cast<RcTimelineSemaphore &&>(sem.v())}
   };
 }
 
@@ -784,11 +784,11 @@ Result<Stream<T>> stream(Allocator allocator, u64 num_stages, T value)
 
 struct [[nodiscard]] AnyStream
 {
-  RcSemaphore semaphore_;
+  RcTimelineSemaphore semaphore_;
 
   template <typename T>
   AnyStream(Stream<T> stream) :
-    semaphore_{static_cast<RcSemaphore &&>(stream.semaphore_)}
+    semaphore_{static_cast<RcTimelineSemaphore &&>(stream.semaphore_)}
   {
   }
 
@@ -904,8 +904,6 @@ struct [[nodiscard]] AnyFuture
   }
 };
 
-inline constexpr usize MAX_TASK_FRAME_SIZE = 4_KB;
-
 template <typename P>
 concept Poll = requires (P p) {
   { p() && true };
@@ -920,7 +918,7 @@ template <typename F>
 concept TaskFrame = requires (F f) {
   { !f.poll() };
   { !f.run() };
-} && (sizeof(F) <= MAX_TASK_FRAME_SIZE);
+};
 
 enum class TaskState : u8
 {
@@ -1009,54 +1007,48 @@ struct TaskInstance
   u64 idx = 0;
 };
 
-[[nodiscard]] inline bool await_semaphores(Span<Semaphore const> semaphores,
-                                           Span<u64 const>       stages,
-                                           nanoseconds           timeout)
+[[nodiscard]] inline bool
+  poll_semaphores(Span<TimelineSemaphore const> semaphores,
+                  Span<u64 const>               stages)
 {
-  return impl::await_semaphores(
-    semaphores, stages, timeout, [](Semaphore s) -> ISemaphore & { return *s; },
+  return impl::poll_semaphores(
+    semaphores, stages,
+    [](TimelineSemaphore s) -> ITimelineSemaphore & { return *s; },
     [](u64 stage) -> u64 { return stage; });
 }
 
-[[nodiscard]] inline bool ISemaphore::await(u64 stage, nanoseconds timeout)
+[[nodiscard]] inline bool ITimelineSemaphore::poll(u64 stage)
 {
-  return await_semaphores(span({this}), span({stage}), timeout);
+  return poll_semaphores(span({this}), span({stage}));
 }
 
-[[nodiscard]] inline bool await_streams(Span<AnyStream const> streams,
-                                        Span<u64 const>       stages,
-                                        nanoseconds           timeout)
+[[nodiscard]] inline bool poll_streams(Span<AnyStream const> streams,
+                                       Span<u64 const>       stages)
 {
-  return impl::await_semaphores(
-    streams, stages, timeout,
-    [](AnyStream const & s) -> ISemaphore & { return *s.semaphore_; },
+  return impl::poll_semaphores(
+    streams, stages,
+    [](AnyStream const & s) -> ITimelineSemaphore & { return *s.semaphore_; },
     [](u64 stage) -> u64 { return stage; });
 }
 
-[[nodiscard]] inline bool await_futures(Span<AnyFuture const> futures,
-                                        nanoseconds           timeout)
+[[nodiscard]] inline bool poll_futures(Span<AnyFuture const> futures)
 {
-  return impl::await_futures(
-    futures, timeout,
-    [](AnyFuture const & f) -> FutureStage & { return *f.state_; });
+  return impl::poll_futures(
+    futures, [](AnyFuture const & f) -> FutureStage & { return *f.state_; });
 }
 
 template <typename T>
-[[nodiscard]] inline bool await_futures(Span<Future<T> const> futures,
-                                        nanoseconds           timeout)
+[[nodiscard]] inline bool poll_futures(Span<Future<T> const> futures)
 {
-  return impl::await_futures(
-    futures, timeout,
-    [](Future<T> const & f) -> FutureStage & { return *f.state_; });
+  return impl::poll_futures(
+    futures, [](Future<T> const & f) -> FutureStage & { return *f.state_; });
 }
 
 template <typename T>
-[[nodiscard]] inline bool await_futures(Span<Future<T>> futures,
-                                        nanoseconds     timeout)
+[[nodiscard]] inline bool poll_futures(Span<Future<T>> futures)
 {
-  return impl::await_futures(
-    futures, timeout,
-    [](Future<T> const & f) -> FutureStage & { return *f.state_; });
+  return impl::poll_futures(
+    futures, [](Future<T> const & f) -> FutureStage & { return *f.state_; });
 }
 
 template <usize N>
@@ -1067,7 +1059,7 @@ struct [[nodiscard]] AwaitStreams
 
   bool operator()() const
   {
-    return await_streams(streams, stages, 0ns);
+    return poll_streams(streams, stages);
   }
 };
 
@@ -1078,7 +1070,7 @@ struct [[nodiscard]] AwaitFutures
 
   [[nodiscard]] bool operator()() const
   {
-    return await_futures(futures, 0ns);
+    return poll_futures(futures);
   }
 };
 
@@ -1091,7 +1083,7 @@ struct [[nodiscard]] AwaitFuturesVec
 
   [[nodiscard]] bool operator()() const
   {
-    return await_futures(futures.view(), 0ns);
+    return poll_futures(futures.view());
   }
 };
 
@@ -1205,16 +1197,11 @@ struct IScheduler
   /// the task queue is empty
   virtual void run_main_loop(nanoseconds duration, nanoseconds poll_max) = 0;
 
-  /// @brief Request that all threads shutdown once all work on the threads are finished executing and there's no more
-  /// work left to do
-  virtual void request_drain() = 0;
+  virtual void request_thread_shutdown(Thread thread) = 0;
 
-  /// @brief Await all threads to be drained of work
-  virtual bool await_drain(nanoseconds timeout) = 0;
+  virtual void await_thread_shutdown(Thread thread) = 0;
 
-  /// @brief Get the drain semaphore of the specified thread
-  /// @param thread the index of the thread to get the semaphore of
-  virtual Semaphore get_drain_semaphore(Thread thread) = 0;
+  virtual bool has_pending_tasks() = 0;
 
   /// @brief Schedule a task to run
   /// @param thread the thread to run the task on
@@ -1308,8 +1295,8 @@ struct IScheduler
       {
         return apply(
           [](auto &... f) {
-            FutureStage * stages[] = {&f.state_.get().stage_...};
-            return impl::await_futures(stages, 0ns);
+            FutureStage * stages[] = {&f.state_.get()->stage_...};
+            return impl::poll_futures(stages);
           },
           awaits);
       }
@@ -1353,16 +1340,19 @@ struct IScheduler
         {
           case 0:
           {
-            FutureStage * stages[] = {&await.state_.get().stage_};
-            return impl::await_futures(stages, 0ns);
+            FutureStage * stages[] = {&await.state_.get()->stage_};
+            return impl::poll_futures(stages);
           }
 
           case 1:
           {
             auto &        r0       = await.get();
-            FutureStage * stages[] = {&r0.v().state_.get().stage_};
-            return impl::await_futures(stages, 0ns);
+            FutureStage * stages[] = {&r0.v().state_.get()->stage_};
+            return impl::poll_futures(stages);
           }
+
+          default:
+            ASH_UNREACHABLE;
         }
       }
 
@@ -1400,6 +1390,9 @@ struct IScheduler
             yield_fut.yield(flatten_func(std::move(r1))).unwrap();
             return false;
           }
+
+          default:
+            ASH_UNREACHABLE;
         }
       }
     };

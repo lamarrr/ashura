@@ -261,7 +261,7 @@ struct IArenaPool final : IAllocator
   };
 
   /// @brief list of arenas
-  List<ArenaNode> arenas_;
+  List<ArenaNode> arenas_{};
 
   /// @brief configuration of the arena
   ArenaPoolCfg cfg_ = {};
@@ -304,7 +304,7 @@ struct IArenaPool final : IAllocator
   }
 
   /// @brief get the total capacity of the pool
-  [[nodiscard]] usize capacity() const
+  [[nodiscard]] usize capacity()
   {
     usize s = 0;
     for (auto & arena : arenas_)
@@ -316,7 +316,7 @@ struct IArenaPool final : IAllocator
   }
 
   /// @brief get the total memory usage of the pool out of its capacity
-  [[nodiscard]] usize used() const
+  [[nodiscard]] usize used()
   {
     usize s = 0;
     for (auto & arena : arenas_)
@@ -328,7 +328,7 @@ struct IArenaPool final : IAllocator
   }
 
   /// @brief get the available capacity of the pool
-  [[nodiscard]] usize available() const
+  [[nodiscard]] usize available()
   {
     usize s = 0;
     for (auto & arena : arenas_)
@@ -355,7 +355,7 @@ struct IArenaPool final : IAllocator
   void reset()
   {
     uninit();
-    arenas_ = {};
+    arenas_.clear();
   }
 
   /// @copydoc IAllocator::alloc

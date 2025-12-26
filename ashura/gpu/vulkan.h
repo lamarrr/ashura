@@ -985,7 +985,7 @@ struct DeviceResourceStates
                 >
     descriptor_sets_;
 
-  IRWLock lock_;
+  IRWSpinLock lock_;
 
   DeviceResourceStates(Allocator allocator) :
     alias_{allocator},
