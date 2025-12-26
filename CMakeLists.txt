@@ -176,8 +176,7 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/lamarrr/SheenBidi.git
   # GIT_TAG v2.9.0
   GIT_TAG sballocator
-  CONFIGURE_COMMAND "" BUILD_COMMAND ""
-  )
+  CONFIGURE_COMMAND "" BUILD_COMMAND "")
 
 FetchContent_Declare(
   WebP
@@ -239,7 +238,6 @@ FetchContent_MakeAvailable(fast_float)
 FetchContent_MakeAvailable(simdjson)
 FetchContent_MakeAvailable(libpng)
 FetchContent_MakeAvailable(gtest)
-FetchContent_MakeAvailable(slang)
 
 set(xxHash_INCLUDE_DIR ${xxhash_SOURCE_DIR})
 set(fast_float_INCLUDE_DIR ${fast_float_SOURCE_DIR}/include)
