@@ -19,13 +19,10 @@ Str QuadPipeline::label()
 }
 
 gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
-                                      gpu::Shader shader)
+                                      gpu::Shader shader, Allocator,
+                                      Allocator   scratch)
 {
-  u8     scratch_buffer_[1'024];
-  IArena scratch_arena_{scratch_buffer_};
   auto & gpu = *plan->sys();
-
-  IFallbackAllocator scratch{&scratch_arena_, gpu.allocator()};
 
   auto raster_state =
     gpu::RasterizationState{.depth_clamp_enable = false,
@@ -74,7 +71,7 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
   };
 
   auto tagged_label =
-    sformat(scratch_, "Quad Graphics Pipeline: {}"_str, label).unwrap();
+    sformat(scratch, "Quad Graphics Pipeline: {}"_str, label).unwrap();
 
   auto pipeline_info = gpu::GraphicsPipelineInfo{
     .label         = tagged_label,
@@ -105,18 +102,21 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
   return gpu.device()->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
-void QuadPipeline::acquire(GpuFramePlan plan)
+void QuadPipeline::acquire(GpuFramePlan plan, Allocator allocator,
+                           Allocator scratch)
 {
-  auto id =
-    add_variant(plan, "base"_str,
-                sys.shader->get("defaults/quad_base"_str).unwrap().shader);
+  auto id = add_variant(
+    plan, "base"_str, sys.shader->get("defaults/quad_base"_str).unwrap().shader,
+    allocator, scratch);
   CHECK(id == PipelineVariantId::Base, "");
 }
 
 PipelineVariantId QuadPipeline::add_variant(GpuFramePlan plan, Str label,
-                                            gpu::Shader shader)
+                                            gpu::Shader shader,
+                                            Allocator   allocator,
+                                            Allocator   scratch)
 {
-  auto pipeline = create_pipeline(plan, label, shader);
+  auto pipeline = create_pipeline(plan, label, shader, allocator, scratch);
   auto id       = variants_.push(Tuple{label, pipeline}).unwrap();
   return (PipelineVariantId) id;
 }
@@ -125,7 +125,8 @@ void QuadPipeline::remove_variant(GpuFramePlan plan, PipelineVariantId id)
 {
   auto pipeline = variants_[id].v0.v1;
   variants_.erase(id);
-  plan->add_preframe_task([p = pipeline, d = plan->device()] { d->uninit(p); });
+  plan->add_preframe_task(
+    [p = pipeline, d = plan->device()](GpuFrame) { d->uninit(p); });
 }
 
 void QuadPipeline::encode(gpu::CommandEncoder        e,
@@ -212,11 +213,12 @@ void QuadPipeline::encode(gpu::CommandEncoder        e,
   e->end_rendering();
 }
 
-void QuadPipeline::release(GpuFramePlan plan)
+void QuadPipeline::release(GpuFramePlan plan, Allocator, Allocator)
 {
   for (auto [v] : variants_)
   {
-    plan->add_preframe_task([d = plan->device(), p = v.v1] { d->uninit(p); });
+    plan->add_preframe_task(
+      [d = plan->device(), p = v.v1](GpuFrame) { d->uninit(p); });
   }
 }
 

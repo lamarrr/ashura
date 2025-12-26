@@ -15,12 +15,10 @@ Str PBRPipeline::label()
 
 gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
                                       gpu::Shader      shader,
-                                      gpu::PolygonMode polygon_mode)
+                                      gpu::PolygonMode polygon_mode, Allocator,
+                                      Allocator        scratch)
 {
-  u8                 scratch_buffer_[1'024];
-  IArena             scratch_arena_{scratch_buffer_};
-  auto &             gpu = *plan->sys();
-  IFallbackAllocator scratch{&scratch_arena_, gpu.allocator()};
+  auto & gpu = *plan->sys();
 
   auto tagged_label =
     sformat(scratch, "PBR Graphics Pipeline: {}"_str, label).unwrap();
@@ -103,12 +101,16 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
 }
 
 PBRPipeline::Pipeline create_pipeline(GpuFramePlan plan, Str label,
-                                      gpu::Shader shader)
+                                      gpu::Shader shader, Allocator allocator,
+                                      Allocator scratch)
 {
   return {
-    .fill  = create_pipeline(plan, label, shader, gpu::PolygonMode::Fill),
-    .line  = create_pipeline(plan, label, shader, gpu::PolygonMode::Line),
-    .point = create_pipeline(plan, label, shader, gpu::PolygonMode::Point),
+    .fill  = create_pipeline(plan, label, shader, gpu::PolygonMode::Fill,
+                             allocator, scratch),
+    .line  = create_pipeline(plan, label, shader, gpu::PolygonMode::Line,
+                             allocator, scratch),
+    .point = create_pipeline(plan, label, shader, gpu::PolygonMode::Point,
+                             allocator, scratch),
   };
 }
 
@@ -116,17 +118,21 @@ PBRPipeline::PBRPipeline(Allocator allocator) : variants_{allocator}
 {
 }
 
-void PBRPipeline::acquire(GpuFramePlan plan)
+void PBRPipeline::acquire(GpuFramePlan plan, Allocator allocator,
+                          Allocator scratch)
 {
   auto id = add_variant(
-    plan, "base"_str, sys.shader->get("defaults/pbr_base"_str).unwrap().shader);
+    plan, "base"_str, sys.shader->get("defaults/pbr_base"_str).unwrap().shader,
+    allocator, scratch);
   CHECK(id == PipelineVariantId::Base, "");
 }
 
 PipelineVariantId PBRPipeline::add_variant(GpuFramePlan plan, Str label,
-                                           gpu::Shader shader)
+                                           gpu::Shader shader,
+                                           Allocator   allocator,
+                                           Allocator   scratch)
 {
-  auto pipeline = create_pipeline(plan, label, shader);
+  auto pipeline = create_pipeline(plan, label, shader, allocator, scratch);
   auto id = (PipelineVariantId) variants_.push(Tuple{label, pipeline}).unwrap();
   CHECK(id == PipelineVariantId::Base, "");
   return id;
@@ -138,7 +144,7 @@ void PBRPipeline::remove_variant(GpuFramePlan plan, PipelineVariantId id)
 
   variants_.erase(id);
 
-  plan->add_preframe_task([p = pipeline, d = plan->device()] {
+  plan->add_preframe_task([p = pipeline, d = plan->device()](GpuFrame) {
     d->uninit(p.fill);
     d->uninit(p.line);
     d->uninit(p.point);
@@ -256,11 +262,11 @@ void PBRPipeline::encode(gpu::CommandEncoder       e,
   e->end_rendering();
 }
 
-void PBRPipeline::release(GpuFramePlan plan)
+void PBRPipeline::release(GpuFramePlan plan, Allocator, Allocator)
 {
   for (auto [v] : variants_)
   {
-    plan->add_preframe_task([p = v.v1, d = plan->device()] {
+    plan->add_preframe_task([p = v.v1, d = plan->device()](GpuFrame) {
       d->uninit(p.fill);
       d->uninit(p.line);
       d->uninit(p.point);

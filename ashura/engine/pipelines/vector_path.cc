@@ -16,12 +16,10 @@ Str VectorPathPipeline::label()
 }
 
 gpu::GraphicsPipeline create_coverage_pipeline(GpuFramePlan plan, Str label,
-                                               gpu::Shader shader)
+                                               gpu::Shader shader, Allocator,
+                                               Allocator   scratch)
 {
-  u8                 scratch_buffer_[1'024];
-  IArena             scratch_arena_{scratch_buffer_};
-  auto &             gpu = *plan->sys();
-  IFallbackAllocator scratch{&scratch_arena_, gpu.allocator()};
+  auto & gpu = *plan->sys();
 
   auto tagged_label =
     sformat(scratch, "VectorPath Coverage Graphics Pipeline: {}"_str, label)
@@ -95,12 +93,10 @@ gpu::GraphicsPipeline create_coverage_pipeline(GpuFramePlan plan, Str label,
 }
 
 gpu::GraphicsPipeline create_fill_pipeline(GpuFramePlan plan, Str label,
-                                           gpu::Shader shader)
+                                           gpu::Shader shader, Allocator,
+                                           Allocator   scratch)
 {
-  u8                 scratch_buffer_[1'024];
-  IArena             scratch_arena_{scratch_buffer_};
-  auto &             gpu = *plan->sys();
-  IFallbackAllocator scratch{&scratch_arena_, gpu.allocator()};
+  auto & gpu = *plan->sys();
 
   auto tagged_label =
     sformat(scratch, "VectorPath Fill Graphics Pipeline: {}"_str, label)
@@ -189,19 +185,23 @@ VectorPathPipeline::VectorPathPipeline(Allocator allocator) :
 {
 }
 
-void VectorPathPipeline::acquire(GpuFramePlan plan)
+void VectorPathPipeline::acquire(GpuFramePlan plan, Allocator allocator,
+                                 Allocator scratch)
 {
   auto id = add_fill_variant(
     plan, "base"_str,
-    sys.shader->get("defaults/vector_path_base"_str).unwrap().shader);
+    sys.shader->get("defaults/vector_path_base"_str).unwrap().shader, allocator,
+    scratch);
   CHECK(id == PipelineVariantId::Base, "");
 }
 
 PipelineVariantId VectorPathPipeline::add_fill_variant(GpuFramePlan plan,
                                                        Str          label,
-                                                       gpu::Shader  shader)
+                                                       gpu::Shader  shader,
+                                                       Allocator    allocator,
+                                                       Allocator    scratch)
 {
-  auto pipeline = create_fill_pipeline(plan, label, shader);
+  auto pipeline = create_fill_pipeline(plan, label, shader, allocator, scratch);
   auto id       = fill_pipelines_.push(Tuple{label, pipeline}).unwrap();
   return (PipelineVariantId) id;
 }
@@ -212,7 +212,7 @@ void VectorPathPipeline::remove_fill_variant(GpuFramePlan      plan,
   auto pipeline = fill_pipelines_[id];
   fill_pipelines_.erase(id);
   plan->add_preframe_task(
-    [p = pipeline.v0, d = plan->device()] { d->uninit(p.v1); });
+    [p = pipeline.v0, d = plan->device()](GpuFrame) { d->uninit(p.v1); });
 }
 
 void VectorPathPipeline::encode(gpu::CommandEncoder                      e,
@@ -373,13 +373,14 @@ void VectorPathPipeline::encode(gpu::CommandEncoder                  e,
   e->end_rendering();
 }
 
-void VectorPathPipeline::release(GpuFramePlan plan)
+void VectorPathPipeline::release(GpuFramePlan plan, Allocator, Allocator)
 {
   plan->add_preframe_task(
-    [p = coverage_pipeline_, d = plan->device()] { d->uninit(p); });
+    [p = coverage_pipeline_, d = plan->device()](GpuFrame) { d->uninit(p); });
   for (auto [v] : fill_pipelines_)
   {
-    plan->add_preframe_task([p = v.v1, d = plan->device()] { d->uninit(p); });
+    plan->add_preframe_task(
+      [p = v.v1, d = plan->device()](GpuFrame) { d->uninit(p); });
   }
 }
 

@@ -38,9 +38,11 @@ struct BlurPipeline final : IPipeline
 
   virtual Str label() override;
 
-  virtual void acquire(GpuFramePlan plan) override;
+  virtual void acquire(GpuFramePlan plan, Allocator allocator,
+                       Allocator scratch) override;
 
-  virtual void release(GpuFramePlan plan) override;
+  virtual void release(GpuFramePlan plan, Allocator allocator,
+                       Allocator scratch) override;
 
   void encode(gpu::CommandEncoder encoder, BlurPipelineParams const & params);
 };

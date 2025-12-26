@@ -24,12 +24,10 @@ Str BlurPipeline::label()
 }
 
 gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
-                                      gpu::Shader shader)
+                                      gpu::Shader shader, Allocator,
+                                      Allocator   scratch)
 {
-  u8                 scratch_buffer_[1'024];
-  IArena             scratch_arena_{scratch_buffer_};
-  auto &             gpu = *plan->sys();
-  IFallbackAllocator scratch{&scratch_arena_, gpu.allocator()};
+  auto & gpu = *plan->sys();
 
   auto tagged_label =
     sformat(scratch, "Blur Graphics Pipeline: {}"_str, label).unwrap();
@@ -107,23 +105,26 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
   return gpu.device()->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
-void BlurPipeline::acquire(GpuFramePlan plan)
+void BlurPipeline::acquire(GpuFramePlan plan, Allocator allocator,
+                           Allocator scratch)
 {
   downsample_pipeline_ = create_pipeline(
     plan, "Downsample"_str,
-    sys.shader->get("defaults/blur_downsample"_str).unwrap().shader);
+    sys.shader->get("defaults/blur_downsample"_str).unwrap().shader, allocator,
+    scratch);
   upsample_pipeline_ = create_pipeline(
     plan, "Upsample"_str,
-    sys.shader->get("defaults/blur_upsample"_str).unwrap().shader);
+    sys.shader->get("defaults/blur_upsample"_str).unwrap().shader, allocator,
+    scratch);
 }
 
-void BlurPipeline::release(GpuFramePlan plan)
+void BlurPipeline::release(GpuFramePlan plan, Allocator, Allocator)
 {
-  plan->add_preframe_task(
-    [p0 = downsample_pipeline_, p1 = upsample_pipeline_, d = plan->device()] {
-      d->uninit(p0);
-      d->uninit(p1);
-    });
+  plan->add_preframe_task([p0 = downsample_pipeline_, p1 = upsample_pipeline_,
+                           d = plan->device()](GpuFrame) {
+    d->uninit(p0);
+    d->uninit(p1);
+  });
 }
 
 void BlurPipeline::encode(gpu::CommandEncoder        e,

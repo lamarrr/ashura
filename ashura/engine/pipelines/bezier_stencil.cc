@@ -18,7 +18,7 @@ Str BezierStencilPipeline::label()
   return "BezierStencil"_str;
 }
 
-void BezierStencilPipeline::acquire(GpuFramePlan plan)
+void BezierStencilPipeline::acquire(GpuFramePlan plan, Allocator, Allocator)
 {
   auto & gpu = *plan->sys();
 
@@ -142,10 +142,10 @@ void BezierStencilPipeline::encode(gpu::CommandEncoder                 e,
   e->end_rendering();
 }
 
-void BezierStencilPipeline::release(GpuFramePlan plan)
+void BezierStencilPipeline::release(GpuFramePlan plan, Allocator, Allocator)
 {
   plan->add_preframe_task(
-    [p = pipeline_, d = plan->device()] { d->uninit(p); });
+    [p = pipeline_, d = plan->device()](GpuFrame) { d->uninit(p); });
 }
 
 }    // namespace ash

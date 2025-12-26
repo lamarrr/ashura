@@ -15,12 +15,10 @@ Str TriangleFillPipeline::label()
 }
 
 gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
-                                      gpu::Shader shader)
+                                      gpu::Shader shader, Allocator,
+                                      Allocator   scratch)
 {
-  u8                 scratch_buffer_[1'024];
-  IArena             scratch_arena_{scratch_buffer_};
-  auto &             gpu = *plan->sys();
-  IFallbackAllocator scratch{&scratch_arena_, gpu.allocator()};
+  auto & gpu = *plan->sys();
 
   auto tagged_label =
     sformat(scratch, "TriangleFill Graphics Pipeline: {}"_str, label).unwrap();
@@ -107,19 +105,23 @@ TriangleFillPipeline::TriangleFillPipeline(Allocator allocator) :
 {
 }
 
-void TriangleFillPipeline::acquire(GpuFramePlan plan)
+void TriangleFillPipeline::acquire(GpuFramePlan plan, Allocator allocator,
+                                   Allocator scratch)
 {
   auto id = add_variant(
     plan, "base"_str,
-    sys.shader->get("defaults/triangle_fill_base"_str).unwrap().shader);
+    sys.shader->get("defaults/triangle_fill_base"_str).unwrap().shader,
+    allocator, scratch);
   CHECK(id == PipelineVariantId::Base, "");
 }
 
 PipelineVariantId TriangleFillPipeline::add_variant(GpuFramePlan plan,
                                                     Str          label,
-                                                    gpu::Shader  shader)
+                                                    gpu::Shader  shader,
+                                                    Allocator    allocator,
+                                                    Allocator    scratch)
 {
-  auto pipeline = create_pipeline(plan, label, shader);
+  auto pipeline = create_pipeline(plan, label, shader, allocator, scratch);
   auto id       = pipelines_.push(Tuple{label, pipeline}).unwrap();
   return (PipelineVariantId) id;
 }
@@ -130,7 +132,7 @@ void TriangleFillPipeline::remove_variant(GpuFramePlan      plan,
   auto pipeline = pipelines_[id];
   pipelines_.erase(id);
   plan->add_preframe_task(
-    [p = pipeline.v0, d = plan->device()] { d->uninit(p.v1); });
+    [p = pipeline.v0, d = plan->device()](GpuFrame) { d->uninit(p.v1); });
 }
 
 void TriangleFillPipeline::encode(gpu::CommandEncoder                e,
@@ -229,11 +231,12 @@ void TriangleFillPipeline::encode(gpu::CommandEncoder                e,
   e->end_rendering();
 }
 
-void TriangleFillPipeline::release(GpuFramePlan plan)
+void TriangleFillPipeline::release(GpuFramePlan plan, Allocator, Allocator)
 {
   for (auto [v] : pipelines_)
   {
-    plan->add_preframe_task([p = v.v1, d = plan->device()] { d->uninit(p); });
+    plan->add_preframe_task(
+      [p = v.v1, d = plan->device()](GpuFrame) { d->uninit(p); });
   }
 }
 

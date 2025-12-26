@@ -19,14 +19,10 @@ Str SdfPipeline::label()
 }
 
 gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
-                                      gpu::Shader shader)
+                                      gpu::Shader shader, Allocator,
+                                      Allocator   scratch)
 {
-  u8     scratch_buffer_[1'024];
-  IArena scratch_arena_{scratch_buffer_};
-
   auto & gpu = *plan->sys();
-
-  IFallbackAllocator scratch{&scratch_arena_, gpu.allocator()};
 
   auto raster_state =
     gpu::RasterizationState{.depth_clamp_enable = false,
@@ -106,26 +102,32 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
   return gpu.device()->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
-void SdfPipeline::acquire(GpuFramePlan plan)
+void SdfPipeline::acquire(GpuFramePlan plan, Allocator allocator,
+                          Allocator scratch)
 {
   auto gradient_id =
     add_variant(plan, "gradient"_str,
-                sys.shader->get("defaults/sdf_gradient"_str).unwrap().shader);
+                sys.shader->get("defaults/sdf_gradient"_str).unwrap().shader,
+                allocator, scratch);
   CHECK(gradient_id == GRADIENT, "");
   auto noise_id =
     add_variant(plan, "noise"_str,
-                sys.shader->get("defaults/sdf_noise"_str).unwrap().shader);
+                sys.shader->get("defaults/sdf_noise"_str).unwrap().shader,
+                allocator, scratch);
   CHECK(noise_id == NOISE, "");
   auto mesh_gradient_id = add_variant(
     plan, "mesh_gradient"_str,
-    sys.shader->get("defaults/sdf_mesh_gradient"_str).unwrap().shader);
+    sys.shader->get("defaults/sdf_mesh_gradient"_str).unwrap().shader,
+    allocator, scratch);
   CHECK(mesh_gradient_id == MESH_GRADIENT, "");
 }
 
 PipelineVariantId SdfPipeline::add_variant(GpuFramePlan plan, Str label,
-                                           gpu::Shader shader)
+                                           gpu::Shader shader,
+                                           Allocator   allocator,
+                                           Allocator   scratch)
 {
-  auto pipeline = create_pipeline(plan, label, shader);
+  auto pipeline = create_pipeline(plan, label, shader, allocator, scratch);
   auto id       = variants_.push(Tuple{label, pipeline}).unwrap();
   return (PipelineVariantId) id;
 }
@@ -135,7 +137,7 @@ void SdfPipeline::remove_variant(GpuFramePlan plan, PipelineVariantId id)
   auto pipeline = variants_[id].v0;
   variants_.erase(id);
   plan->add_preframe_task(
-    [d = plan->device(), p = pipeline.v1] { d->uninit(p); });
+    [d = plan->device(), p = pipeline.v1](GpuFrame) { d->uninit(p); });
 }
 
 void SdfPipeline::encode(gpu::CommandEncoder       e,
@@ -221,11 +223,12 @@ void SdfPipeline::encode(gpu::CommandEncoder       e,
   e->end_rendering();
 }
 
-void SdfPipeline::release(GpuFramePlan plan)
+void SdfPipeline::release(GpuFramePlan plan, Allocator, Allocator)
 {
   for (auto [v] : variants_)
   {
-    plan->add_preframe_task([d = plan->device(), p = v.v1] { d->uninit(p); });
+    plan->add_preframe_task(
+      [d = plan->device(), p = v.v1](GpuFrame) { d->uninit(p); });
   }
 }
 

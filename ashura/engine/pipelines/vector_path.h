@@ -64,12 +64,15 @@ struct VectorPathPipeline final : IPipeline
 
   virtual Str label() override;
 
-  virtual void acquire(GpuFramePlan plan) override;
+  virtual void acquire(GpuFramePlan plan, Allocator allocator,
+                       Allocator scratch) override;
 
-  virtual void release(GpuFramePlan plan) override;
+  virtual void release(GpuFramePlan plan, Allocator allocator,
+                       Allocator scratch) override;
 
   PipelineVariantId add_fill_variant(GpuFramePlan plan, Str label,
-                                     gpu::Shader shader);
+                                     gpu::Shader shader, Allocator allocator,
+                                     Allocator scratch);
 
   void remove_fill_variant(GpuFramePlan plan, PipelineVariantId id);
 
