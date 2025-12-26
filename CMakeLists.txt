@@ -150,11 +150,6 @@ FetchContent_Declare(
   OVERRIDE_FIND_PACKAGE)
 
 FetchContent_Declare(
-  slang
-  GIT_REPOSITORY https://github.com/shader-slang/slang.git
-  GIT_TAG v2025.18)
-
-FetchContent_Declare(
   VulkanMemoryAllocator
   GIT_REPOSITORY
     https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
@@ -178,11 +173,11 @@ FetchContent_Declare(
 
 FetchContent_Declare(
   SheenBidi
-  GIT_REPOSITORY https://github.com/Tehreer/SheenBidi.git
-  GIT_TAG v2.9.0
+  GIT_REPOSITORY https://github.com/lamarrr/SheenBidi.git
+  # GIT_TAG v2.9.0
+  GIT_TAG sballocator
   CONFIGURE_COMMAND "" BUILD_COMMAND ""
-  PATCH_COMMAND git apply --ignore-whitespace
-                ${CMAKE_CURRENT_SOURCE_DIR}/patches/SheenBidi/SBAllocator.patch)
+  )
 
 FetchContent_Declare(
   WebP
@@ -458,8 +453,7 @@ if(NOT ASH_EXCLUDE_ENGINE)
   target_link_libraries(
     ashura_engine
     PUBLIC ashura_std ashura_gpu
-    PRIVATE slang
-            SDL3::SDL3-static
+    PRIVATE SDL3::SDL3-static
             harfbuzz
             CURL::libcurl
             freetype
