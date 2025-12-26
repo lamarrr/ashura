@@ -1,5 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/std/panic.h"
+#include "ashura/std/list.h"
 
 namespace ash
 {
@@ -15,13 +16,30 @@ void exception_panic_handler()
   throw Panic{};
 }
 
-ASH_C_LINKAGE ASH_DLL_EXPORT u64 * panic_count = &panic_count_impl;
+void trap_panic_handler()
+{
+  __builtin_trap();
+}
 
-ASH_C_LINKAGE ASH_DLL_EXPORT PanicHandler panic_handler =
-#if defined(ASH_PANIC_EXCEPTION)
-  exception_panic_handler;
-#else
-  noop_panic_handler;
-#endif
+ASH_C_LINKAGE ASH_DLL_EXPORT u64 * panic_count = &panic_count_impl;
+ASH_C_LINKAGE ASH_DLL_EXPORT List<IPanicHandler> panic_handlers{};
+
+ASH_C_LINKAGE ASH_DLL_EXPORT void handle_panic()
+{
+  for (auto & handler : panic_handlers)
+  {
+    handler.func();
+  }
+}
+
+ASH_C_LINKAGE ASH_DLL_EXPORT void add_panic_handler(IPanicHandler * handler)
+{
+  panic_handlers.push_back(handler);
+}
+
+ASH_C_LINKAGE ASH_DLL_EXPORT void remove_panic_handler(IPanicHandler * handler)
+{
+  panic_handlers.pop_at(handler);
+}
 
 }    // namespace ash

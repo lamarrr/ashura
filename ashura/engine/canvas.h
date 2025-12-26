@@ -1,5 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
+#include "ashura/engine/color_gradient.h"
 #include "ashura/engine/encoders.h"
 #include "ashura/engine/pipeline.h"
 #include "ashura/engine/text.h"
@@ -114,7 +115,6 @@ void tesselate_curves(Vec<f32x2> & curves, Span<CurveType const> segment_types,
 };    // namespace path
 
 /// @brief The base Canvas Shape Description
-
 struct Shape
 {
   /// @brief Object-world-space transform matrix

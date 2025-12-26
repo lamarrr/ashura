@@ -104,7 +104,7 @@ namespace ash
 namespace rect_pack
 {
 
-struct rect
+struct Rect
 {
   u32 id = 0;
 
@@ -114,13 +114,13 @@ struct rect
   // output:
   i32x2 pos;
 
-  bool32 was_packed = 0;
+  bool was_packed = 0;
 };
 
 constexpr int rect_height_compare(void const * a, void const * b)
 {
-  rect const * p = (rect const *) a;
-  rect const * q = (rect const *) b;
+  Rect const * p = (Rect const *) a;
+  Rect const * q = (Rect const *) b;
   if (p->extent.y() > q->extent.y())
     return -1;
   if (p->extent.y() < q->extent.y())
@@ -478,7 +478,7 @@ inline void init(Context & ctx, i32x2 extent, Node * nodes, i32 num_nodes)
 //
 // The function returns 1 if all of the rectangles were successfully
 // packed and 0 otherwise.
-inline bool pack_rects(Context & ctx, rect * rects, i32 num_rects)
+inline bool pack_rects(Context & ctx, Rect * rects, i32 num_rects)
 {
   // we use the 'was_packed' field internally to allow sorting/unsorting
   for (i32 i = 0; i < num_rects; ++i)

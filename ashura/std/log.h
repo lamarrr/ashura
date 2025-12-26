@@ -174,14 +174,10 @@ struct ILogger
                         stderr);
     }
     flush();
-    if (panic_handler != nullptr)
-    {
-      panic_handler();
-    }
+    handle_panic();
     std::abort();
   }
 };
-
 
 extern Logger logger;
 

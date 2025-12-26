@@ -261,7 +261,7 @@ struct [[nodiscard]] ListView
     head_->*PREV = head_;
   }
 
-  [[nodiscard]] constexpr Node *  head() const
+  [[nodiscard]] constexpr Node * head() const
   {
     return head_;
   }

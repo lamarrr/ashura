@@ -74,7 +74,7 @@ struct [[nodiscard]] Rc
     return *this;
   }
 
- constexpr ~Rc()
+  constexpr ~Rc()
   {
     uninit();
   }

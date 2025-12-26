@@ -385,5 +385,4 @@ inline constexpr u8x4 BLACK = {0x00, 0x00, 0x00, 0xFF};
 
 }    // namespace mdc
 
-
 }    // namespace ash
