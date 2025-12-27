@@ -108,10 +108,10 @@ struct FontMetrics
 /// @param uv normalized texture coordinates of this glyph in the layer
 struct AtlasGlyph
 {
-  bool16 has_color = false;
-  u16    layer     = 0;
-  RectU  area      = {};
-  CRect  uv        = {};
+  bool  has_color = false;
+  u16   layer     = 0;
+  RectU area      = {};
+  CRect uv        = {};
 };
 
 struct CpuFontAtlas
@@ -145,7 +145,8 @@ struct GpuFontAtlas
 
 enum class FontId : u64
 {
-  None = U64_MAX
+  Default = 0,
+  None    = U64_MAX
 };
 
 /// @param postscript_name ASCII. i.e. RobotoBold

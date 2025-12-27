@@ -370,112 +370,112 @@ struct Events
     }
   };
 
-  Bits::Type bits = Bits::None;
+  Bits::Type bits_ = Bits::None;
 
   /// @brief The view's hit data
-  Option<HitInfo> hit_info = none;
+  Option<HitInfo> hit_info_ = none;
 
   /// @brief Scroll request
-  Option<ScrollInfo> scroll_info = none;
+  Option<ScrollInfo> scroll_info_ = none;
 
   constexpr bool mount() const
   {
-    return bits & Bits::Mount;
+    return bits_ & Bits::Mount;
   }
 
   constexpr bool pointer_in() const
   {
-    return bits & Bits::PointerIn;
+    return bits_ & Bits::PointerIn;
   }
 
   constexpr bool pointer_out() const
   {
-    return bits & Bits::PointerOut;
+    return bits_ & Bits::PointerOut;
   }
 
   constexpr bool pointer_over() const
   {
-    return bits & Bits::PointerOver;
+    return bits_ & Bits::PointerOver;
   }
 
   constexpr bool pointer_down() const
   {
-    return bits & Bits::PointerDown;
+    return bits_ & Bits::PointerDown;
   }
 
   constexpr bool pointer_up() const
   {
-    return bits & Bits::PointerUp;
+    return bits_ & Bits::PointerUp;
   }
 
   constexpr bool scroll() const
   {
-    return bits & Bits::Scroll;
+    return bits_ & Bits::Scroll;
   }
 
   constexpr bool drag_start() const
   {
-    return bits & Bits::DragStart;
+    return bits_ & Bits::DragStart;
   }
 
   constexpr bool drag_update() const
   {
-    return bits & Bits::DragUpdate;
+    return bits_ & Bits::DragUpdate;
   }
 
   constexpr bool drag_end() const
   {
-    return bits & Bits::DragEnd;
+    return bits_ & Bits::DragEnd;
   }
 
   constexpr bool drag_in() const
   {
-    return bits & Bits::DragIn;
+    return bits_ & Bits::DragIn;
   }
 
   constexpr bool drag_out() const
   {
-    return bits & Bits::DragOut;
+    return bits_ & Bits::DragOut;
   }
 
   constexpr bool drag_over() const
   {
-    return bits & Bits::DragOver;
+    return bits_ & Bits::DragOver;
   }
 
   constexpr bool drop() const
   {
-    return bits & Bits::Drop;
+    return bits_ & Bits::Drop;
   }
 
   constexpr bool focus_in() const
   {
-    return bits & Bits::FocusIn;
+    return bits_ & Bits::FocusIn;
   }
 
   constexpr bool focus_out() const
   {
-    return bits & Bits::FocusOut;
+    return bits_ & Bits::FocusOut;
   }
 
   constexpr bool focus_over() const
   {
-    return bits & Bits::FocusOver;
+    return bits_ & Bits::FocusOver;
   }
 
   constexpr bool key_down() const
   {
-    return bits & Bits::KeyDown;
+    return bits_ & Bits::KeyDown;
   }
 
   constexpr bool key_up() const
   {
-    return bits & Bits::KeyUp;
+    return bits_ & Bits::KeyUp;
   }
 
   constexpr bool text_input() const
   {
-    return bits & Bits::TextInput;
+    return bits_ & Bits::TextInput;
   }
 };
 
@@ -485,106 +485,252 @@ struct FocusRect
   CRect clip = {};
 };
 
-struct DropCtx
+struct CoreTheme
 {
-  enum class Phase : u8
-  {
-    None  = 0,
-    Begin = 1,
-    Over  = 2,
-    End   = 3
-  };
-
-  Phase phase = Phase::None;
-
-  /// @brief Current drop data type
-  DropType type = DropType::None;
-
-  /// @brief Drag data associated with the current drag operation (if any, otherwise empty)
-  Vec<u8> data;
-
-  explicit DropCtx(Allocator allocator) : data{allocator}
-  {
-  }
-
-  DropCtx(DropCtx const &)             = delete;
-  DropCtx & operator=(DropCtx const &) = delete;
-  DropCtx(DropCtx &&)                  = default;
-  DropCtx & operator=(DropCtx &&)      = default;
-  ~DropCtx()                           = default;
-
-  void clear();
-
-  DropCtx & copy(DropCtx const & other);
+  u8x4   background       = {};
+  u8x4   surface          = {};
+  u8x4   surface_variant  = {};
+  u8x4   primary          = {};
+  u8x4   primary_variant  = {};
+  u8x4   error            = {};
+  u8x4   warning          = {};
+  u8x4   success          = {};
+  u8x4   active           = {};
+  u8x4   inactive         = {};
+  u8x4   on_background    = {};
+  u8x4   on_surface       = {};
+  u8x4   on_primary       = {};
+  u8x4   on_error         = {};
+  u8x4   on_warning       = {};
+  u8x4   on_success       = {};
+  u8x4   focus            = {};
+  u8x4   highlight        = {};
+  u8x4   caret            = {};
+  f32    head_font_height = {};
+  f32    body_font_height = {};
+  f32    line_height      = {};
+  FontId head_font        = FontId::Default;
+  FontId body_font        = FontId::Default;
+  FontId icon_font        = FontId::Default;
 };
 
-/// @brief Global View Context, Properties of the context all the views for
-/// a specific window are in.
-struct Ctx
+extern CoreTheme default_core_theme();
+
+struct InputScope
 {
-  /// @brief Timestamp of current frame
-  time_point timestamp;
+  SystemState * sys_;
 
-  /// @brief Time elapsed between previous and current frame
-  nanoseconds timedelta;
+  WindowState * win_;
 
-  WindowState window;
-
-  /// @brief Windows' current frame mouse state
-  MouseState mouse;
-
-  /// @brief Windows' current frame keyboard state
-  KeyState key;
-
-  DropCtx drop;
-
-  /// @brief Is the application closing
-  bool closing;
-
-  /// @brief Canvas-space region the system is currently focused on
-  Option<FocusRect> focused;
-
-  Option<Cursor> cursor;
-
-  void * user_data = nullptr;
-
-  Ctx(Allocator allocator, void * user_data) :
-    timestamp{},
-    timedelta{},
-    window{},
-    mouse{},
-    key{allocator},
-    drop{allocator},
-    closing{false},
-    focused{none},
-    cursor{none},
-    user_data{user_data}
+  InputScope(SystemState & sys, WindowState & win) : sys_{&sys}, win_{&win}
   {
   }
 
-  Ctx(Ctx const &)             = delete;
-  Ctx(Ctx &&)                  = default;
-  Ctx & operator=(Ctx const &) = delete;
-  Ctx & operator=(Ctx &&)      = default;
-  ~Ctx()                       = default;
+  InputScope(InputScope const &)             = delete;
+  InputScope(InputScope &&)                  = default;
+  InputScope & operator=(InputScope const &) = delete;
+  InputScope & operator=(InputScope &&)      = default;
+  ~InputScope()                              = default;
 
-  void tick(InputState const & input);
+  time_point timestamp() const
+  {
+    return sys_->timestamp();
+  }
+
+  nanoseconds timedelta() const
+  {
+    return sys_->timedelta();
+  }
+
+  WindowState const & window() const
+  {
+    return *win_;
+  }
+
+  KeyState const & key() const
+  {
+    return win_->key();
+  }
+
+  MouseState const & mouse() const
+  {
+    return win_->mouse();
+  }
+
+  DropState const & drop() const
+  {
+    return win_->drop();
+  }
+
+  SystemState const & system() const
+  {
+    return *sys_;
+  }
+
+  ThemeState const & theme() const
+  {
+    return sys_->theme();
+  }
+};
+
+using UserDataMap = ByteDict<Dyn<void *>>;
+
+struct ViewSysScope
+{
+  /// @brief Canvas-space region the system is currently focused on
+  Option<FocusRect> focus_rect_;
+
+  Option<Cursor> cursor_;
+
+  CoreTheme core_theme_;
+
+  bool closing_;
+
+  bool closing_deferred_;
+
+  /// @brief Current frame id
+  u64 frame_ = 0;
+
+  UserDataMap user_data_map_;
+
+  ViewSysScope(CoreTheme const & core_theme, UserDataMap user_data_map) :
+    focus_rect_{none},
+    cursor_{none},
+    core_theme_{core_theme},
+    closing_{false},
+    closing_deferred_{false},
+    frame_{0},
+    user_data_map_{std::move(user_data_map)}
+  {
+  }
+
+  Option<FocusRect> focus_rect() const
+  {
+    return focus_rect_;
+  }
+
+  Option<Cursor> cursor() const
+  {
+    return cursor_;
+  }
+
+  CoreTheme const & core_theme() const
+  {
+    return core_theme_;
+  }
+
+  bool closing() const
+  {
+    return closing_;
+  }
+
+  bool closing_deferred() const
+  {
+    return closing_deferred_;
+  }
+
+  u64 frame() const
+  {
+    return frame_;
+  }
+
+  Option<void *> get_user_data(Span<u8 const> tag) const;
+};
+
+/// @brief Global View Scope, Properties of the scope all the views for
+/// a specific window are in.
+struct Scope
+{
+  InputScope input_;
+
+  ViewSysScope * view_;
+
+  Scope(InputScope input, ViewSysScope & view) :
+    input_{std::move(input)},
+    view_{&view}
+  {
+  }
+
+  Scope(Scope const &)             = delete;
+  Scope(Scope &&)                  = default;
+  Scope & operator=(Scope const &) = delete;
+  Scope & operator=(Scope &&)      = default;
+  ~Scope()                         = default;
+
+  time_point timestamp() const
+  {
+    return input_.timestamp();
+  }
+
+  nanoseconds timedelta() const
+  {
+    return input_.timedelta();
+  }
+
+  WindowState const & window() const
+  {
+    return input_.window();
+  }
+
+  KeyState const & key() const
+  {
+    return input_.key();
+  }
+
+  MouseState const & mouse() const
+  {
+    return input_.mouse();
+  }
+
+  DropState const & drop() const
+  {
+    return input_.drop();
+  }
+
+  SystemState const & system() const
+  {
+    return input_.system();
+  }
+
+  ThemeState const & theme() const
+  {
+    return input_.theme();
+  }
+
+  CoreTheme const & core_theme() const
+  {
+    return view_->core_theme();
+  }
+
+  Option<FocusRect> focus_rect() const
+  {
+    return view_->focus_rect();
+  }
+
+  Option<void *> get_user_data(Span<u8 const> tag) const
+  {
+    return view_->get_user_data(tag);
+  }
+};
+
+enum class TabIndex : i32
+{
+  Auto = I32_MAX
 };
 
 /// @brief Makes a zoom transform matrix relative to the center of a viewport.
 /// defines the translation and scaling components.
 /// @return zoom transform matrix
-
-struct State
+struct ViewState
 {
   /// @brief Tab Index for Focus-Based Navigation. desired tab index, `None`
   /// means the default tab order based on the hierarchy of the parent to
   /// children and siblings (depth-first traversal). Negative values are
   /// focused before positive values.
-  Option<i32> tab = none;
+  TabIndex tab_index = TabIndex::Auto;
 
   /// @brief If set, will be treated as a text input area
-  Option<TextInputInfo> text = none;
+  TextInputInfo text = {};
 
   /// @brief If the view should be hidden from view (will not receive
   /// visual events, but still receive tick events)
@@ -617,38 +763,6 @@ struct State
   /// @brief Request the view system to defer shutdown to next frame
   bool defer_close : 1 = false;
 };
-
-struct Theme
-{
-  u8x4   background       = {};
-  u8x4   surface          = {};
-  u8x4   surface_variant  = {};
-  u8x4   primary          = {};
-  u8x4   primary_variant  = {};
-  u8x4   error            = {};
-  u8x4   warning          = {};
-  u8x4   success          = {};
-  u8x4   active           = {};
-  u8x4   inactive         = {};
-  u8x4   on_background    = {};
-  u8x4   on_surface       = {};
-  u8x4   on_primary       = {};
-  u8x4   on_error         = {};
-  u8x4   on_warning       = {};
-  u8x4   on_success       = {};
-  u8x4   focus            = {};
-  u8x4   highlight        = {};
-  u8x4   caret            = {};
-  f32    head_font_height = {};
-  f32    body_font_height = {};
-  f32    line_height      = {};
-  FontId head_font        = FontId::None;
-  FontId body_font        = FontId::None;
-  FontId icon_font        = FontId::None;
-  void * user_data        = nullptr;
-};
-
-extern Theme theme;
 
 struct Layout
 {
@@ -697,8 +811,20 @@ struct LayerStack
 
 inline constexpr LayerStack LAYERS;
 
-// [ ] Message-oriented architecture, fn-state hook for message querying + message queue? or just hashmap. state hook can modify0
-// [ ] fn-style and state hooks for renderers?
+struct ViewInternalState
+{
+  i32           tab_index       = 0;
+  u16           viewport        = 0;
+  bool          hidden      : 1 = false;
+  bool          pointable   : 1 = false;
+  bool          clickable   : 1 = false;
+  bool          scrollable  : 1 = false;
+  bool          draggable   : 1 = false;
+  bool          droppable   : 1 = false;
+  bool          focusable   : 1 = false;
+  bool          is_viewport : 1 = false;
+  TextInputInfo input           = {};
+};
 
 /// @brief Base view class.
 /// Views are plain visual elements that define spatial relationships,
@@ -712,14 +838,14 @@ inline constexpr LayerStack LAYERS;
 struct View
 {
   /// @brief Id of the view if mounted, otherwise `ViewId::None`
-  ViewId id_;
 
-  bool hot_;
+  ViewId id_ = ViewId::None;
 
-  constexpr View() : id_{ViewId::None}, hot_{false}
-  {
-  }
+  bool hot_ = false;
 
+  ViewInternalState state_ = {};
+
+  constexpr View()                         = default;
   constexpr View(View const &)             = default;
   constexpr View(View &&)                  = default;
   constexpr View & operator=(View const &) = default;
@@ -736,13 +862,13 @@ struct View
   /// dispatch and lightweight processing related to the GUI. heavy-weight and
   /// non-sub-millisecond tasks should be dispatched to a subsystem that would
   /// handle it. i.e. using the multi-tasking or asset-loading systems.
-  /// @param ctx the associated context of the previous frame
+  /// @param scope the associated scope of the previous frame
   /// @param events events due to the previous frame's state
   /// @param build callback to be called to insert subviews.
-  constexpr virtual State tick(Ctx const & ctx, Events const & events,
-                               Fn<void(View &)> build)
+  constexpr virtual ViewState tick(Scope const & scope, Events const & events,
+                                   Fn<void(View &)> build)
   {
-    (void) ctx;
+    (void) scope;
     (void) events;
     (void) build;
     return {};

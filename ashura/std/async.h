@@ -27,6 +27,9 @@
 namespace ash
 {
 
+// [ ] check runtime status in worker threads; to allow proper shutdown
+
+
 typedef struct IWaitToken * WaitToken;
 
 /// @brief A wait token for sleeping and waking up threads.
@@ -38,15 +41,17 @@ struct [[nodiscard]] IWaitToken
   {
   }
 
-  bool cmpxchg_weak(u32 & expected, u32 desired, std::memory_order success,
-                    std::memory_order failure)
+  [[nodiscard]] bool cmpxchg_weak(u32 & expected, u32 desired,
+                                  std::memory_order success,
+                                  std::memory_order failure)
   {
     std::atomic_ref state{state__};
     return state.compare_exchange_weak(expected, desired, success, failure);
   }
 
-  bool cmpxchg_strong(u32 & expected, u32 desired, std::memory_order success,
-                      std::memory_order failure)
+  [[nodiscard]] bool cmpxchg_strong(u32 & expected, u32 desired,
+                                    std::memory_order success,
+                                    std::memory_order failure)
   {
     std::atomic_ref state{state__};
     return state.compare_exchange_strong(expected, desired, success, failure);
@@ -58,7 +63,7 @@ struct [[nodiscard]] IWaitToken
     state_ref.store(state, order);
   }
 
-  u32 load(std::memory_order order)
+  [[nodiscard]] u32 load(std::memory_order order)
   {
     std::atomic_ref state{state__};
     return state.load(order);
@@ -98,8 +103,6 @@ struct [[nodiscard]] IFutex
   }
 };
 
-// [ ] MT-Safety:
-// [ ] Contract-Safety:
 inline void backoff_pause(u64 poll)
 {
   if (poll < 8)
@@ -1200,8 +1203,6 @@ struct IScheduler
   virtual void request_thread_shutdown(Thread thread) = 0;
 
   virtual void await_thread_shutdown(Thread thread) = 0;
-
-  virtual bool has_pending_tasks() = 0;
 
   /// @brief Schedule a task to run
   /// @param thread the thread to run the task on

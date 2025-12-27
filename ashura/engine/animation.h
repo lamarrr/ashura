@@ -364,9 +364,9 @@ struct Timeline
                    timestamps_.view().slice(times_offset, durations.size()),
                    run_time);
 
-    easings_.extend_move(easings).unwrap();
+    easings_.append_move(easings).unwrap();
 
-    frames_.extend_move(frames).unwrap();
+    frames_.append_move(frames).unwrap();
 
     return *this;
   }

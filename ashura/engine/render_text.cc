@@ -497,8 +497,6 @@ EditText::Renderer EditText::default_renderer()
     [](Allocator allocator, Rc<Str32> str) -> RenderText {
       RenderText text{allocator};
       text.text(std::move(str));
-      // [ ] style text
-
       return text;
     });
 }

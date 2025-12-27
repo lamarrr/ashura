@@ -34,7 +34,7 @@ struct IPipelineSys
   BlurPipeline *                       blur_;
   PBRPipeline *                        pbr_;
   VectorPathPipeline *                 vector_path_;
-  RWLock                               rw_lock_;
+  IRWSpinLock                          rw_lock_;
   SparseVec<PipelineId, Dyn<Pipeline>> all_;
   GpuSys                               gpu_sys_;
   Allocator                            allocator_;

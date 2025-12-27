@@ -11,7 +11,7 @@ TEST(AsyncTest, Basic)
 {
   using namespace ash;
 
-  RcSemaphore sem = semaphore(default_allocator).unwrap();
+  RcTimelineSemaphore sem = semaphore(default_allocator).unwrap();
 
   Dyn<Scheduler> sched = IScheduler::create(SchedulerInfo{
     .allocator = default_allocator,
@@ -45,12 +45,12 @@ TEST(AsyncTest, Basic)
     WorkerThread::Any,
     [x = (u64) 0, f = fut.alias(), s = s.alias()]() mutable -> bool {
       x++;
-      info("iteration: {}", x);
-      info("future value: {}", f.get());
+      info("iteration: {}"_str, x);
+      info("future value: {}"_str, f.get());
       s.yield_unsequenced([x](int & v) { v = x; }, 1);
       if (x == 10)
       {
-        info("loop exited");
+        info("loop exited"_str);
         return false;
       }
 
@@ -68,6 +68,7 @@ TEST(AsyncTest, Basic)
     },
     20, ready);
 
-  sched->request_drain();
-  sched->await_drain(nanoseconds::max());
+  sched->run_main_loop(10ms, 500s);
+
+  sched->shutdown();
 }

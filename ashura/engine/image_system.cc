@@ -323,10 +323,12 @@ void IImageSys::unload_(ImageId id)
   for (gpu::ImageView view : image.views)
   {
     gpu_sys_->current_plan()->add_preframe_task(
-      [view, dev = gpu_sys_->device()] { dev->uninit(view); });
+      [view, dev = gpu_sys_->device()](GpuFrame) { dev->uninit(view); });
   }
   gpu_sys_->current_plan()->add_preframe_task(
-    [image = image.image, dev = gpu_sys_->device()] { dev->uninit(image); });
+    [image = image.image, dev = gpu_sys_->device()](GpuFrame) {
+      dev->uninit(image);
+    });
 
   images_.erase(id);
 }

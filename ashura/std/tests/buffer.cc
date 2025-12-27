@@ -47,8 +47,10 @@ TEST(RingBufferTest, Basic)
   ring.push_overrun(16);
   ASSERT_EQ(ring.size(), 16);
   ASSERT_EQ(ring.storage_[0], 16);
-  
+
+  i32 out;
+  EXPECT_TRUE(ring.pop(out));
+  ASSERT_EQ(out, 1);
 
   // [ ] test pop
-  // [ ] test pop_many
 }

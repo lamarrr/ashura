@@ -771,6 +771,8 @@ enum class TextCapitalization : u8
 
 struct TextInputInfo
 {
+  bool enabled : 1 = false;
+
   TextInputType type : 4 = TextInputType::Text;
 
   bool multiline : 1 = false;
@@ -787,9 +789,10 @@ struct TextInputInfo
 
   constexpr bool operator==(TextInputInfo const & other) const
   {
-    return type == other.type && multiline == other.multiline &&
-           esc_input == other.esc_input && tab_input == other.tab_input &&
-           cap == other.cap && autocorrect == other.autocorrect;
+    return enabled == other.enabled && type == other.type &&
+           multiline == other.multiline && esc_input == other.esc_input &&
+           tab_input == other.tab_input && cap == other.cap &&
+           autocorrect == other.autocorrect;
   }
 };
 
@@ -923,62 +926,57 @@ struct IClipBoard
   virtual Result<> set(Str mime, Span<u8 const> data) = 0;
 };
 
-enum class DropType : u8
-{
-  None     = 0,
-  FilePath = 1,
-  Bytes    = 2
-};
-
 struct KeyState
 {
   /// @brief Current window keyboard focus state
-  bool focused : 1 = false;
+  bool focused_ : 1 = false;
 
   /// @brief Did the window gain keyboard focus on this frame?
-  bool in : 1 = false;
+  bool in_ : 1 = false;
 
   /// @brief Did the window lose keyboard focus on this frame?
-  bool out : 1 = false;
+  bool out_ : 1 = false;
 
   /// @brief Is any of the keys pressed on this frame
-  bool any_down : 1 = false;
+  bool any_down_ : 1 = false;
 
   /// @brief Is any of the keys released on this frame
-  bool any_up : 1 = false;
+  bool any_up_ : 1 = false;
 
   /// @brief If a text input came in
-  bool input : 1 = false;
-
-  /// @brief Current text input data from the IME or keyboard
-  Vec<c8> text;
-
-  /// @brief Bit mask of all the keys that were pressed on this frame
-  Bits<u64, NUM_KEY_CODES> key_downs{};
-
-  /// @brief Bit mask of all the keys that were released on this frame
-  Bits<u64, NUM_KEY_CODES> key_ups{};
-
-  /// @brief Bit mask of all the key states
-  Bits<u64, NUM_KEY_CODES> key_states{};
-
-  /// @brief Bit mask of all the keys that were pressed on this frame, indexed using the scancode
-  Bits<u64, NUM_SCAN_CODES> scan_downs{};
-
-  /// @brief Bit mask of all the keys that were released on this frame, indexed using the scancode
-  Bits<u64, NUM_SCAN_CODES> scan_ups{};
-
-  /// @brief Bit mask of all the key states, indexed using the scancode
-  Bits<u64, NUM_SCAN_CODES> scan_states{};
+  bool input_ : 1 = false;
 
   /// @brief Hold state of the key modifiers on this frame
-  KeyModifiers mod_downs = KeyModifiers::None;
+  KeyModifiers mod_downs_ = KeyModifiers::None;
 
-  KeyModifiers mod_ups = KeyModifiers::None;
+  KeyModifiers mod_ups_ = KeyModifiers::None;
 
-  KeyModifiers mod_states = KeyModifiers::None;
+  KeyModifiers mod_states_ = KeyModifiers::None;
 
-  explicit KeyState(Allocator allocator) : text{allocator}
+  /// @brief Bit mask of all the keys that were pressed on this frame
+  Bits<u64, NUM_KEY_CODES> key_downs_{};
+
+  /// @brief Bit mask of all the keys that were released on this frame
+  Bits<u64, NUM_KEY_CODES> key_ups_{};
+
+  /// @brief Bit mask of all the key states
+  Bits<u64, NUM_KEY_CODES> key_states_{};
+
+  /// @brief Bit mask of all the keys that were pressed on this frame, indexed using the scancode
+  Bits<u64, NUM_SCAN_CODES> scan_downs_{};
+
+  /// @brief Bit mask of all the keys that were released on this frame, indexed using the scancode
+  Bits<u64, NUM_SCAN_CODES> scan_ups_{};
+
+  /// @brief Bit mask of all the key states, indexed using the scancode
+  Bits<u64, NUM_SCAN_CODES> scan_states_{};
+
+  Allocator allocator_;
+
+  /// @brief Current text input data from the IME or keyboard
+  Option<StrVec8> text_{none};
+
+  explicit KeyState(Allocator allocator) : allocator_{allocator}
   {
   }
 
@@ -988,147 +986,272 @@ struct KeyState
   KeyState & operator=(KeyState &&)      = default;
   ~KeyState()                            = default;
 
-  constexpr bool down(KeyCode k) const
+  bool focused() const
   {
-    return key_downs[(usize) k];
+    return focused_;
   }
 
-  constexpr bool up(KeyCode k) const
+  bool in() const
   {
-    return key_ups[(usize) k];
+    return in_;
   }
 
-  constexpr bool held(KeyCode k) const
+  bool out() const
   {
-    return key_states[(usize) k];
+    return out_;
   }
 
-  constexpr bool down(ScanCode k) const
+  bool any_down() const
   {
-    return scan_downs[(usize) k];
+    return any_down_;
   }
 
-  constexpr bool up(ScanCode k) const
+  bool any_up() const
   {
-    return scan_ups[(usize) k];
+    return any_up_;
   }
 
-  constexpr bool held(ScanCode k) const
+  bool input() const
   {
-    return scan_states[(usize) k];
+    return input_;
   }
 
-  constexpr bool down(KeyModifiers mods) const
+  bool down(KeyCode k) const
   {
-    return has_bits(mod_downs, mods);
+    return key_downs_[(usize) k];
   }
 
-  constexpr bool up(KeyModifiers mods) const
+  bool up(KeyCode k) const
   {
-    return has_bits(mod_ups, mods);
+    return key_ups_[(usize) k];
   }
 
-  constexpr bool held(KeyModifiers mods) const
+  bool held(KeyCode k) const
   {
-    return has_bits(mod_states, mods);
+    return key_states_[(usize) k];
   }
 
-  void clear();
+  bool down(ScanCode k) const
+  {
+    return scan_downs_[(usize) k];
+  }
 
-  KeyState & copy(KeyState const & other);
+  bool up(ScanCode k) const
+  {
+    return scan_ups_[(usize) k];
+  }
+
+  bool held(ScanCode k) const
+  {
+    return scan_states_[(usize) k];
+  }
+
+  bool down(KeyModifiers mods) const
+  {
+    return has_bits(mod_downs_, mods);
+  }
+
+  bool up(KeyModifiers mods) const
+  {
+    return has_bits(mod_ups_, mods);
+  }
+
+  bool held(KeyModifiers mods) const
+  {
+    return has_bits(mod_states_, mods);
+  }
+
+  Option<Str8> input_text() const
+  {
+    if (text_.is_none())
+    {
+      return none;
+    }
+
+    return text_->view().as_const();
+  }
+
+  Result<KeyState> copy(Allocator allocator) const;
+
+  void start_frame();
 };
 
 struct MouseState
 {
   /// @brief Current window mouse focus state
-  bool focused : 1 = false;
+  bool focused_ : 1 = false;
 
   /// @brief Did the mouse enter the window on this frame?
-  bool in : 1 = false;
+  bool in_ : 1 = false;
 
   /// @brief Did the mouse leave the window on this frame?
-  bool out : 1 = false;
+  bool out_ : 1 = false;
 
   /// @brief Did the mouse move on this frame?
-  bool moved : 1 = false;
+  bool moved_ : 1 = false;
 
   /// @brief Did the mouse wheel get scrolled on this frame?
-  bool scrolled : 1 = false;
+  bool scrolled_ : 1 = false;
 
   /// @brief Is any of the keys pressed on this frame
-  bool any_down : 1 = false;
+  bool any_down_ : 1 = false;
 
   /// @brief Is any of the keys released on this frame
-  bool any_up : 1 = false;
+  bool any_up_ : 1 = false;
 
   /// @brief Which mouse buttons were pressed on this frame
-  MouseButtons downs{};
+  MouseButtons downs_{};
 
   /// @brief Which mouse buttons were released on this frame
-  MouseButtons ups{};
+  MouseButtons ups_{};
 
   /// @brief The current state of each mouse button
-  MouseButtons states{};
+  MouseButtons states_{};
 
   /// @brief Number of times the mouse was clicked so far
-  Array<u32, NUM_MOUSE_BUTTONS> num_clicks{};
+  Array<u32, NUM_MOUSE_BUTTONS> num_clicks_{};
 
   /// @brief The position of the mouse on this frame
-  Option<f32x2> position = none;
+  Option<f32x2> position_ = none;
 
   /// @brief Translation of the mouse on this frame
-  Option<f32x2> translation = none;
+  Option<f32x2> translation_ = none;
 
   /// @brief Translation of the mouse wheel on this frame
-  Option<i32x2> wheel_translation = none;
+  Option<i32x2> wheel_translation_ = none;
 
-  constexpr bool down(MouseButton btn) const
+  bool focused() const
   {
-    return has_bits(downs, static_cast<MouseButtons>(1 << (usize) btn));
+    return focused_;
   }
 
-  constexpr bool up(MouseButton btn) const
+  bool in() const
   {
-    return has_bits(ups, static_cast<MouseButtons>(1 << (usize) btn));
+    return in_;
   }
 
-  constexpr bool held(MouseButton btn) const
+  bool out() const
   {
-    return has_bits(states, static_cast<MouseButtons>(1 << (usize) btn));
+    return out_;
   }
 
-  constexpr u32 clicks(MouseButton btn) const
+  bool moved() const
   {
-    return num_clicks[(usize) btn];
+    return moved_;
   }
+
+  bool scrolled() const
+  {
+    return scrolled_;
+  }
+
+  bool any_down() const
+  {
+    return any_down_;
+  }
+
+  bool any_up() const
+  {
+    return any_up_;
+  }
+
+  bool down(MouseButton btn) const
+  {
+    return has_bits(downs_, static_cast<MouseButtons>(1 << (usize) btn));
+  }
+
+  bool up(MouseButton btn) const
+  {
+    return has_bits(ups_, static_cast<MouseButtons>(1 << (usize) btn));
+  }
+
+  bool held(MouseButton btn) const
+  {
+    return has_bits(states_, static_cast<MouseButtons>(1 << (usize) btn));
+  }
+
+  u32 clicks(MouseButton btn) const
+  {
+    return num_clicks_[(usize) btn];
+  }
+
+  Option<f32x2> position() const
+  {
+    return position_;
+  }
+
+  Option<f32x2> translation() const
+  {
+    return translation_;
+  }
+
+  Option<i32x2> wheel_translation() const
+  {
+    return wheel_translation_;
+  }
+
+  MouseState copy() const;
+
+  void start_frame();
 };
 
 struct ThemeState
 {
   /// @brief The theme changed
-  bool changed = false;
+  bool changed_ : 1 = false;
 
   /// @brief The current theme gotten from the window manager
-  SystemTheme theme = SystemTheme::Unknown;
+  SystemTheme theme_ : 2 = SystemTheme::Unknown;
+
+  bool changed() const
+  {
+    return changed_;
+  }
+
+  SystemTheme theme() const
+  {
+    return theme_;
+  }
+
+  ThemeState copy() const;
+
+  void start_frame();
 };
 
 struct DropState
 {
+  /// @brief Current drop data type
+  struct DropFilePath
+  {
+    StrVec path;
+  };
+
+  struct DropText
+  {
+    StrVec8 text;
+  };
+
   enum class Event : u8
   {
     None     = 0,
     Begin    = 1,
-    FilePath = 2,
-    Bytes    = 3,
-    End      = 4
+    Data     = 2,
+    Position = 3,
+    Complete = 4
   };
 
-  Event event = Event::None;
+  Allocator allocator_;
+
+  bool active_ = false;
+
+  Event event_ = Event::None;
 
   /// @brief Drag data associated with the current drag operation (if any, otherwise empty)
-  Vec<u8> data;
+  Enum<None, DropFilePath, DropText> data_;
 
-  explicit DropState(Allocator allocator) : data{allocator}
+  Option<f32x2> position_ = none;
+
+  explicit DropState(Allocator allocator) : allocator_{allocator}, data_{none}
   {
   }
 
@@ -1138,22 +1261,43 @@ struct DropState
   DropState & operator=(DropState &&)      = default;
   ~DropState()                             = default;
 
-  void clear();
+  bool active() const
+  {
+    return active_;
+  }
 
-  DropState & copy(DropState const & other);
+  Event event() const
+  {
+    return event_;
+  }
+
+  auto const & data() const
+  {
+    return data_;
+  }
+
+  Option<f32x2> position() const
+  {
+    return position_;
+  }
+
+  Result<DropState> copy(Allocator allocator) const;
+
+  void start_frame();
 };
 
 struct SystemState
 {
   /// @brief Timestamp of current frame
-  time_point timestamp;
+  time_point timestamp_;
 
   /// @brief Time elapsed between previous and current frame
-  nanoseconds timedelta;
+  nanoseconds timedelta_;
 
-  ThemeState theme;
+  /// @brief Current system theme state
+  ThemeState theme_;
 
-  explicit SystemState(Allocator) : timestamp{}, timedelta{}, theme{}
+  explicit SystemState() : timestamp_{}, timedelta_{}, theme_{}
   {
   }
 
@@ -1163,42 +1307,78 @@ struct SystemState
   SystemState & operator=(SystemState &&)      = default;
   ~SystemState()                               = default;
 
-  void stamp(time_point time, nanoseconds delta);
+  time_point timestamp() const
+  {
+    return timestamp_;
+  }
 
-  void clear();
+  nanoseconds timedelta() const
+  {
+    return timedelta_;
+  }
 
-  SystemState & copy(SystemState const & other);
+  ThemeState const & theme() const
+  {
+    return theme_;
+  }
+
+  SystemState copy() const;
+
+  void start_frame(time_point time, nanoseconds delta);
 };
 
 struct WindowState
 {
   /// @brief Extent of the viewport the windows' views are in
-  u32x2 extent = {};
+  u32x2 extent_ = {};
 
   /// @brief Then windows' backing surface extent
-  u32x2 surface_extent = {};
+  u32x2 surface_extent_ = {};
+
+  bool shown_ : 1 = false;
+
+  bool hidden_ : 1 = false;
+
+  bool exposed_ : 1 = false;
+
+  bool moved_ : 1 = false;
 
   /// @brief Did a window resize happen
-  bool resized = true;
+  bool resized_ : 1 = false;
 
   /// @brief Did a window surface resize happen
-  bool surface_resized = true;
+  bool surface_resized_ : 1 = false;
+
+  bool minimized_ : 1 = false;
+
+  bool maximized_ : 1 = false;
+
+  bool restored_ : 1 = false;
 
   /// @brief Is the application requested to close
-  bool close_requested = false;
+  bool close_requested_ : 1 = false;
+
+  bool occluded_ : 1 = false;
+
+  bool enter_fullscreen_ : 1 = false;
+
+  bool leave_fullscreen_ : 1 = false;
+
+  f32 scroll_delta_ = 100.0F;
 
   /// @brief Windows' current frame keyboard state
-  KeyState key;
+  KeyState key_;
 
   /// @brief Windows' current frame mouse state
-  MouseState mouse;
+  MouseState mouse_;
 
-  DropState drop;
+  /// @brief Windows' current frame drop state
+  DropState drop_;
 
   explicit WindowState(Allocator allocator) :
-    key{allocator},
-    mouse{},
-    drop{allocator}
+    key_{allocator},
+    mouse_{},
+    drop_{allocator}
   {
   }
 
@@ -1208,9 +1388,54 @@ struct WindowState
   WindowState & operator=(WindowState &&)      = default;
   ~WindowState()                               = default;
 
-  void clear();
+  u32x2 extent() const
+  {
+    return extent_;
+  }
 
-  WindowState & copy(WindowState const & other);
+  u32x2 surface_extent() const
+  {
+    return surface_extent_;
+  }
+
+  bool resized() const
+  {
+    return resized_;
+  }
+
+  bool surface_resized() const
+  {
+    return surface_resized_;
+  }
+
+  bool close_requested() const
+  {
+    return close_requested_;
+  }
+
+  f32 scroll_delta() const
+  {
+    return scroll_delta_;
+  }
+
+  KeyState & key()
+  {
+    return key_;
+  }
+
+  MouseState & mouse()
+  {
+    return mouse_;
+  }
+
+  DropState & drop()
+  {
+    return drop_;
+  }
+
+  Result<WindowState> copy(Allocator allocator) const;
+
+  void start_frame();
 };
 
 }    // namespace ash

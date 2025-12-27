@@ -5,6 +5,8 @@
 namespace ash
 {
 
+// [ ] add backtrace support
+
 struct Panic
 {
 };

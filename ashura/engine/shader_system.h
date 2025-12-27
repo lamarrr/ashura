@@ -41,7 +41,7 @@ struct Shader
 struct IShaderSys
 {
   Allocator                   allocator_;
-  RWLock                      rw_lock_;
+  IRWSpinLock                 rw_lock_;
   SparseVec<ShaderId, Shader> shaders_;
   GpuSys                      gpu_sys_;
   FileSys                     file_sys_;

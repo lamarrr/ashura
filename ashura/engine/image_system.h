@@ -64,7 +64,7 @@ struct IImageSys
 {
   Allocator                 allocator_;
   SparseVec<ImageId, Image> images_;
-  RWLock                    rw_lock_;
+  IRWSpinLock               rw_lock_;
   GpuSys                    gpu_sys_;
   FileSys                   file_sys_;
   Scheduler                 scheduler_;
@@ -94,13 +94,14 @@ struct IImageSys
                   Span<gpu::ImageViewInfo const> view_infos);
 
   // Not MT-safe. Main-thread only.
-  Result<ImageInfo, SysErr>
-    upload_(Str label, gpu::ImageInfo const & info,
-            Span<gpu::ImageViewInfo const> view_infos, Span<u8 const> channels);
+  Result<ImageInfo, SysErr> upload_(Str label, gpu::ImageInfo const & info,
+                                    Span<gpu::ImageViewInfo const> view_infos,
+                                    Span<u8 const>                 channels);
 
   Future<Result<ImageInfo, SysErr>>
     load_from_memory(Str label, gpu::ImageInfo const & info,
-                     Span<gpu::ImageViewInfo const> view_infos, RcBlob8 channels);
+                     Span<gpu::ImageViewInfo const> view_infos,
+                     RcBlob8                        channels);
 
   Future<Result<ImageInfo, SysErr>> load_from_path(Str label, Str path);
 
@@ -110,6 +111,8 @@ struct IImageSys
 
   void unload_(ImageId id);
 
+  /// @warning Resources are not reference counted. Holding on to their info
+  /// structs after unloading them will be catastrophic
   void unload(ImageId id);
 };
 

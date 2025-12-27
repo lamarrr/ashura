@@ -32,7 +32,7 @@ struct WindowImpl
   }
 };
 
-struct ClipBoardImpl : IClipBoard
+struct ClipBoardImpl final : IClipBoard
 {
   static constexpr usize MAX_MIME_SIZE = 256;
   Vec<u8>                local_;
@@ -113,7 +113,7 @@ struct ClipBoardImpl : IClipBoard
   }
 };
 
-struct WindowSysImpl : IWindowSys
+struct WindowSysImpl final : IWindowSys
 {
   Allocator                                                  allocator;
   SparseVec<WindowListenerId, Fn<void(SystemEvent const &)>> listeners;

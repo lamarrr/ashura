@@ -19,6 +19,8 @@ typedef struct IVideoSys *     VideoSys;
 typedef struct IAnimationSys * AnimationSys;
 typedef struct IViewSys *      ViewSys;
 
+// [ ] document MT-Safety contracts
+// [ ] document Safety contracts
 struct Systems
 {
   Logger       logger    = nullptr;

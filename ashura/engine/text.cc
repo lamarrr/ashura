@@ -616,7 +616,7 @@ void TextLayout::render(TextRenderer renderer, TextRenderInfo const & info,
               .push(TextPlacement::Caret{
                 .bbox{.center = center, .extent = extent},
                 .line   = iln,
-                .column = 0, // [ ] fill
+                .column = 0,
                 .caret  = ln.carets.first(),
             })
               .unwrap();

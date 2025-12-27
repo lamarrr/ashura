@@ -1,5 +1,4 @@
 /// SPDX-License-Identifier: MIT
-#pragma once
 #include "ashura/engine/encoders.h"
 #include "ashura/engine/pipeline_system.h"
 #include "ashura/engine/pipelines/bezier_stencil.h"

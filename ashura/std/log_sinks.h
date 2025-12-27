@@ -7,23 +7,23 @@
 namespace ash
 {
 
-struct StdioSink : ILogSink
+struct StdioSink final : ILogSink
 {
   alignas(CACHELINE_ALIGNMENT) IFutex futex{};
 
-  void log(LogLevel level, Str log_message) override;
-  void flush() override;
+  virtual void log(LogLevel level, Str log_message) override;
+  virtual void flush() override;
 };
 
 extern StdioSink stdio_sink;
 
-struct FileSink : ILogSink
+struct FileSink final : ILogSink
 {
   std::FILE * file = nullptr;
   alignas(CACHELINE_ALIGNMENT) IFutex futex{};
 
-  void log(LogLevel level, Str log_message) override;
-  void flush() override;
+  virtual void log(LogLevel level, Str log_message) override;
+  virtual void flush() override;
 };
 
 }    // namespace ash

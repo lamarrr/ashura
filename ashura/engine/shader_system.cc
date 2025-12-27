@@ -90,7 +90,8 @@ AwaitFuturesVec IShaderSys::init(Allocator allocator)
       .push(scheduler_
               ->run(allocator_, WorkerThread::Any,
                     [label, spirv, this]() mutable -> Result<ShaderId, SysErr> {
-                      return load_from_memory(label, spirv.reinterpret<u32>());
+                      return load_from_memory(label,
+                                              spirv.reinterpret<u32 const>());
                     })
               .unwrap())
       .unwrap();
@@ -178,7 +179,7 @@ void IShaderSys::unload_(ShaderId id)
 {
   Shader & shader = shaders_[id].v0;
   gpu_sys_->current_plan()->add_preframe_task(
-    [shader_h = shader.shader, dev = gpu_sys_->device()] {
+    [shader_h = shader.shader, dev = gpu_sys_->device()](GpuFrame) {
       dev->uninit(shader_h);
     });
   shaders_.erase(id);

@@ -11,7 +11,7 @@
 namespace ash
 {
 
-static constexpr u32 num_control_points(CurveType curve)
+constexpr u32 num_control_points(CurveType curve)
 {
   switch (curve)
   {
@@ -27,7 +27,7 @@ static constexpr u32 num_control_points(CurveType curve)
   }
 }
 
-static constexpr u32 num_quadratic_beziers(CurveType curve)
+constexpr u32 num_quadratic_beziers(CurveType curve)
 {
   switch (curve)
   {

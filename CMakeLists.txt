@@ -312,6 +312,7 @@ add_library(
   ashura/std/fs.cc
   ashura/std/hash.cc
   ashura/std/log.cc
+  ashura/std/log_sinks.cc
   ashura/std/panic.cc
   ashura/std/thread.cc
   ashura/std/trace.cc)
@@ -407,7 +408,6 @@ if(NOT ASH_EXCLUDE_ENGINE)
     ashura/engine/pipeline_system.cc
     ashura/engine/pipeline.cc
     ashura/engine/render_text.cc
-    ashura/engine/scene.cc
     ashura/engine/shader_system.cc
     ashura/engine/systems.cc
     ashura/engine/text.cc
@@ -426,27 +426,28 @@ if(NOT ASH_EXCLUDE_ENGINE)
     ashura/engine/pipelines/triangle_fill.cc
     ashura/engine/pipelines/vector_path.cc
     # VIEWS
-    ashura/engine/views/button.cc
-    ashura/engine/views/check_box.cc
-    ashura/engine/views/color_picker.cc
-    ashura/engine/views/combo.cc
-    ashura/engine/views/flex.cc
-    ashura/engine/views/focus_view.cc
-    ashura/engine/views/icon.cc
-    ashura/engine/views/image.cc
-    ashura/engine/views/input.cc
-    ashura/engine/views/list.cc
-    ashura/engine/views/modal.cc
-    ashura/engine/views/plot.cc
-    ashura/engine/views/radio.cc
-    ashura/engine/views/scalar_box.cc
-    ashura/engine/views/scroll_view.cc
-    ashura/engine/views/slider.cc
-    ashura/engine/views/space.cc
-    ashura/engine/views/stack.cc
-    ashura/engine/views/switch.cc
-    ashura/engine/views/table.cc
-    ashura/engine/views/text.cc)
+    # ashura/engine/views/button.cc
+    # ashura/engine/views/check_box.cc
+    # ashura/engine/views/color_picker.cc
+    # ashura/engine/views/combo.cc
+    # ashura/engine/views/flex.cc
+    # ashura/engine/views/focus_view.cc
+    # ashura/engine/views/icon.cc
+    # ashura/engine/views/image.cc
+    # ashura/engine/views/input.cc
+    # ashura/engine/views/list.cc
+    # ashura/engine/views/modal.cc
+    # ashura/engine/views/plot.cc
+    # ashura/engine/views/radio.cc
+    # ashura/engine/views/scalar_box.cc
+    # ashura/engine/views/scroll_view.cc
+    # ashura/engine/views/slider.cc
+    # ashura/engine/views/space.cc
+    # ashura/engine/views/stack.cc
+    # ashura/engine/views/switch.cc
+    # ashura/engine/views/table.cc
+    # ashura/engine/views/text.cc
+  )
 
   target_link_libraries(
     ashura_engine

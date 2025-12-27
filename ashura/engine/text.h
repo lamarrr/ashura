@@ -1,6 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 
+#include "ashura/engine/color_gradient.h"
 #include "ashura/engine/font.h"
 #include "ashura/std/color.h"
 #include "ashura/std/types.h"
@@ -407,7 +408,7 @@ struct TextCursor
 struct FontStyle
 {
   /// @brief font to use to render the text
-  FontId font = FontId::None;
+  FontId font = FontId::Default;
 
   f32 height = 20;
 
@@ -434,7 +435,7 @@ struct TextStyle
   /// @brief offset from center of glyph
   f32x2 shadow_offset = f32x2{0, 0};
 
-  ColorGradient foreground = {};
+  ColorGradient foreground = ColorGradient{colors::BLACK};
 
   ColorGradient background = {};
 
@@ -771,7 +772,6 @@ struct TextPlacement
 
   struct Highlight
   {
-    // [ ] indices; slice32 span; so we know if it spans the entire line
     CRect bbox = {};
 
     usize line = 0;

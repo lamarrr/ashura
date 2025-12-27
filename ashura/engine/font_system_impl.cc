@@ -9,19 +9,21 @@
 
 extern "C"
 {
-#include "SBAlgorithm.h"
-#include "SBParagraph.h"
-#include "SBScriptLocator.h"
+#include "SheenBidi/SBAlgorithm.h"
+#include "SheenBidi/SBParagraph.h"
+#include "SheenBidi/SBScriptLocator.h"
 #include "hb.h"
 }
 
 namespace ash
 {
 
-Dyn<FontSys> IFontSys::create(Allocator allocator)
+Dyn<FontSys> IFontSys::create(Allocator allocator, FileSys file_sys,
+                              ImageSys image_sys, Scheduler scheduler)
 {
-  return cast<FontSys>(
-    dyn<FontSysImpl>(inplace, allocator, allocator).unwrap());
+  return cast<FontSys>(dyn<FontSysImpl>(inplace, allocator, allocator, file_sys,
+                                        image_sys, scheduler)
+                         .unwrap());
 }
 
 FontImpl::~FontImpl()
@@ -47,11 +49,6 @@ FontInfo FontImpl::info()
                 .ellipsis_glyph    = ellipsis_glyph,
                 .metrics           = metrics};
 
-  if (cpu_atlas.is_some())
-  {
-    info.cpu_atlas = cpu_atlas.v();
-  }
-
   if (gpu_atlas.is_some())
   {
     info.gpu_atlas = gpu_atlas.v();
@@ -64,21 +61,39 @@ FontSysImpl::~FontSysImpl()
 {
 }
 
+AwaitFuturesVec FontSysImpl::init()
+{
+  static constexpr u8 ROBOTO_FONT_DATA[] = {
+#embed "assets/fonts/Roboto/Roboto-Regular.ttf"
+  };
+  static constexpr u32 FONT_RASTER_HEIGHT = 64U;
+  static constexpr u32 FONT_FACE          = 0U;
+
+  auto fut = load_from_memory("Default"_str, static_rc(span(ROBOTO_FONT_DATA)),
+                              FONT_RASTER_HEIGHT, FONT_FACE);
+
+  Vec<AnyFuture> await_futures{allocator_};
+  await_futures.push(std::move(fut)).unwrap();
+  return AwaitFuturesVec{std::move(await_futures)};
+}
+
 void FontSysImpl::shutdown()
 {
+  WriteGuard guard{rw_lock_};
   while (!fonts_.is_empty())
   {
-    unload(FontId{fonts_.to_id(0)});
+    unload_(fonts_.to_id(0));
   }
 }
 
-Result<Dyn<Font>, FontLoadErr>
-  FontSysImpl::decode_(Str label_ref, Span<u8 const> encoded, u32 face)
+Result<Dyn<Font>, SysErr> FontSysImpl::decode_(Str            label_ref,
+                                               Span<u8 const> encoded, u32 face)
 {
-  Vec<char> font_data{allocator_};
+  tracing::ScopeTrace trace;
+  Vec<char>           font_data{allocator_};
   if (!font_data.append(encoded.as_char()))
   {
-    return Err{FontLoadErr::OutOfMemory};
+    return Err{SysErr::OutOfMemory};
   }
 
   hb_blob_t * hb_blob =
@@ -87,7 +102,7 @@ Result<Dyn<Font>, FontLoadErr>
 
   if (hb_blob == nullptr)
   {
-    return Err{FontLoadErr::DecodeFailed};
+    return Err{SysErr::DecodeFailed};
   }
 
   defer hb_blob_{[&] {
@@ -101,14 +116,14 @@ Result<Dyn<Font>, FontLoadErr>
 
   if (face >= num_faces)
   {
-    return Err{FontLoadErr::FaceNotFound};
+    return Err{SysErr::FaceNotFound};
   }
 
   hb_face_t * hb_face = hb_face_create(hb_blob, face);
 
   if (hb_face == nullptr)
   {
-    return Err{FontLoadErr::DecodeFailed};
+    return Err{SysErr::DecodeFailed};
   }
 
   defer hb_face_{[&] {
@@ -122,7 +137,7 @@ Result<Dyn<Font>, FontLoadErr>
 
   if (hb_font == nullptr)
   {
-    return Err{FontLoadErr::DecodeFailed};
+    return Err{SysErr::DecodeFailed};
   }
 
   hb_font_set_scale(hb_font, AU_UNIT, AU_UNIT);
@@ -137,7 +152,7 @@ Result<Dyn<Font>, FontLoadErr>
   FT_Library ft_lib;
   if (FT_Error err = FT_Init_FreeType(&ft_lib); err != 0)
   {
-    return Err{FontLoadErr::DecodeFailed};
+    return Err{SysErr::DecodeFailed};
   }
 
   defer ft_lib_{[&] {
@@ -154,13 +169,13 @@ Result<Dyn<Font>, FontLoadErr>
                            (FT_Long) font_data.size(), 0, &ft_face);
       err != 0)
   {
-    return Err{FontLoadErr::DecodeFailed};
+    return Err{SysErr::DecodeFailed};
   }
 
   if (FT_Error err = FT_Set_Char_Size(ft_face, AU_UNIT, AU_UNIT, 72, 72);
       err != 0)
   {
-    return Err{FontLoadErr::DecodeFailed};
+    return Err{SysErr::DecodeFailed};
   }
 
   defer ft_face_{[&] {
@@ -208,7 +223,7 @@ Result<Dyn<Font>, FontLoadErr>
 
   if (!glyphs.resize(num_glyphs))
   {
-    return Err{FontLoadErr::OutOfMemory};
+    return Err{SysErr::OutOfMemory};
   }
 
   for (auto [i, metric] : enumerate<u32>(glyphs))
@@ -232,7 +247,7 @@ Result<Dyn<Font>, FontLoadErr>
 
   if (!label.append(label_ref))
   {
-    return Err{FontLoadErr::OutOfMemory};
+    return Err{SysErr::OutOfMemory};
   }
 
   Result font = dyn<FontImpl>(
@@ -244,7 +259,7 @@ Result<Dyn<Font>, FontLoadErr>
 
   if (!font)
   {
-    return Err{FontLoadErr::OutOfMemory};
+    return Err{SysErr::OutOfMemory};
   }
 
   hb_blob = nullptr;
@@ -256,7 +271,8 @@ Result<Dyn<Font>, FontLoadErr>
   return Ok{cast<ash::Font>(std::move(font.v()))};
 }
 
-Result<> FontSysImpl::rasterize(Font font_, u32 font_height)
+Result<CpuFontAtlas, SysErr> FontSysImpl::rasterize_(Font font_,
+                                                     u32  font_height)
 {
   tracing::ScopeTrace  trace;
   FontImpl &           font             = (FontImpl &) *font_;
@@ -269,21 +285,19 @@ Result<> FontSysImpl::rasterize(Font font_, u32 font_height)
   static_assert(MIN_ATLAS_EXTENT <= 1'024,
                 "Font atlas extent too large for GPU platform");
 
-  font.cpu_atlas.unwrap_none("CPU font atlas has already been loaded"_str);
-
   CpuFontAtlas atlas{.glyphs{allocator_}, .channels{allocator_}};
 
   auto num_glyphs = size32(font.glyphs);
 
   if (!atlas.glyphs.resize(num_glyphs))
   {
-    return Err{};
+    return Err{SysErr::OutOfMemory};
   }
 
   if (FT_Error err = FT_Set_Pixel_Sizes(font.ft_face, font_height, font_height);
       err != 0)
   {
-    return Err{};
+    return Err{SysErr::DecodeFailed};
   }
 
   static constexpr u16 GLYPH_PADDING = 1;
@@ -312,11 +326,11 @@ Result<> FontSysImpl::rasterize(Font font_, u32 font_height)
 
   u32 num_layers = 0;
   {
-    Vec<rect_pack::rect> rects{allocator_};
+    Vec<rect_pack::Rect> rects{allocator_};
 
     if (!rects.resize_uninit(num_glyphs))
     {
-      return Err{};
+      return Err{SysErr::OutOfMemory};
     }
 
     for (auto [i, gl, ag, rect] :
@@ -331,7 +345,7 @@ Result<> FontSysImpl::rasterize(Font font_, u32 font_height)
         padded_extent = ag.area.extent + GLYPH_PADDING * 2;
       }
 
-      rect = rect_pack::rect{.id         = i,
+      rect = rect_pack::Rect{.id         = i,
                              .extent     = padded_extent.to<i32>(),
                              .pos        = {},
                              .was_packed = false};
@@ -341,7 +355,7 @@ Result<> FontSysImpl::rasterize(Font font_, u32 font_height)
     auto                 num_nodes = atlas_extent.x();
     nodes.resize_uninit(num_nodes).unwrap();
 
-    Span<rect_pack::rect> unpacked = rects;
+    Span<rect_pack::Rect> unpacked = rects;
 
     while (!unpacked.is_empty())
     {
@@ -352,11 +366,11 @@ Result<> FontSysImpl::rasterize(Font font_, u32 font_height)
       rect_pack::pack_rects(ctx, unpacked.data(), (i32) size32(unpacked));
 
       auto [just_packed, still_unpacked] = partition(
-        unpacked, [](rect_pack::rect const & r) { return r.was_packed; });
+        unpacked, [](rect_pack::Rect const & r) { return r.was_packed; });
 
       CHECK(!just_packed.is_empty(), "");
 
-      for (rect_pack::rect const & r : just_packed)
+      for (rect_pack::Rect const & r : just_packed)
       {
         atlas.glyphs[r.id].layer = num_layers;
       }
@@ -393,7 +407,7 @@ Result<> FontSysImpl::rasterize(Font font_, u32 font_height)
 
   if (!atlas.channels.resize(atlas_size))
   {
-    return Err{};
+    return Err{SysErr::OutOfMemory};
   }
 
   ImageLayerSpan<u8, 4> atlas_span{
@@ -455,38 +469,28 @@ Result<> FontSysImpl::rasterize(Font font_, u32 font_height)
   atlas.extent      = atlas_extent;
   atlas.num_layers  = num_layers;
 
-  font.cpu_atlas = std::move(atlas);
-
-  return Ok{};
+  return Ok{std::move(atlas)};
 }
 
-FontId FontSysImpl::upload_(Dyn<Font> font_)
+Future<Result<GpuFontAtlas, SysErr>>
+  FontSysImpl::upload_atlas_to_gpu_(Str                      label_span,
+                                    Rc<CpuFontAtlas const *> atlas)
 {
-  FontImpl & font = (FontImpl &) *font_.get();
-  CHECK(font.cpu_atlas.is_some(), "");
-  CHECK(font.gpu_atlas.is_none(), "");
-
-  CpuFontAtlas & atlas = font.cpu_atlas.v();
-
-  CHECK(atlas.num_layers > 0, "");
-  CHECK(atlas.extent.x() > 0, "");
-  CHECK(atlas.extent.y() > 0, "");
-
-  GpuFontAtlas gpu_atlas{.textures{allocator_},
-                         .font_height = atlas.font_height,
-                         .extent      = atlas.extent,
-                         .glyphs{allocator_}};
-
-  gpu_atlas.glyphs.append(atlas.glyphs).unwrap();
+  CHECK(atlas->num_layers > 0, "");
+  CHECK(atlas->extent.x() > 0, "");
+  CHECK(atlas->extent.y() > 0, "");
 
   constexpr gpu::Format   format = gpu::Format::B8G8R8A8_UNORM;
   Vec<gpu::ImageViewInfo> view_infos{allocator_};
 
-  for (u32 i = 0; i < atlas.num_layers; i++)
+  StrVec label{allocator_};
+  label.append(label_span).unwrap();
+
+  for (u32 i : range(atlas->num_layers))
   {
     view_infos
       .push(gpu::ImageViewInfo{
-        .label        = font.label,
+        .label        = label,
         .view_type    = gpu::ImageViewType::Type2D,
         .view_format  = format,
         .mapping      = {},
@@ -497,119 +501,180 @@ FontId FontSysImpl::upload_(Dyn<Font> font_)
       .unwrap();
   }
 
-  ImageInfo image =
-    sys.image
-      ->load_from_memory(font.label.clone().unwrap(),
-                         gpu::ImageInfo{.label  = font.label,
-                                        .type   = gpu::ImageType::Type2D,
-                                        .format = format,
-                                        .usage  = gpu::ImageUsage::Sampled |
-                                                 gpu::ImageUsage::TransferDst |
-                                                 gpu::ImageUsage::TransferSrc,
-                                        .aspects    = gpu::ImageAspects::Color,
-                                        .extent     = atlas.extent.append(1),
-                                        .mip_levels = 1,
-                                        .array_layers = atlas.num_layers,
-                                        .sample_count = gpu::SampleCount::C1},
-                         view_infos, atlas.channels)
+  auto load_fut = image_sys_->load_from_memory(
+    label,
+    gpu::ImageInfo{.label  = label,
+                   .type   = gpu::ImageType::Type2D,
+                   .format = format,
+                   .usage  = gpu::ImageUsage::Sampled |
+                            gpu::ImageUsage::TransferDst |
+                            gpu::ImageUsage::TransferSrc,
+                   .aspects      = gpu::ImageAspects::Color,
+                   .extent       = atlas->extent.append(1),
+                   .mip_levels   = 1,
+                   .array_layers = atlas->num_layers,
+                   .sample_count = gpu::SampleCount::C1},
+    view_infos, transmute(atlas.alias(), atlas->channels.view().as_const()));
+
+  Vec<AtlasGlyph> gpu_glyphs{allocator_};
+  gpu_glyphs.append(atlas->glyphs).unwrap();
+
+  return scheduler_
+    ->then(
+      allocator_, WorkerThread::Any,
+      [allocator = allocator_, font_height = atlas->font_height,
+       glyphs =
+         std::move(gpu_glyphs)](Result<ImageInfo, SysErr> & err) mutable {
+        using R = Result<GpuFontAtlas, SysErr>;
+        return err.match(
+          [&](ImageInfo const & image) -> R {
+            GpuFontAtlas gpu_atlas{.textures{allocator},
+                                   .image       = image.id,
+                                   .font_height = font_height,
+                                   .extent      = image.info.extent.xy(),
+                                   .glyphs      = std::move(glyphs)};
+            gpu_atlas.textures.append(image.textures).unwrap();
+            gpu_atlas.image = image.id;
+            return Ok{std::move(gpu_atlas)};
+          },
+          [](SysErr err) -> R { return Err{err}; });
+      },
+      std::move(load_fut))
+    .unwrap();
+}
+
+Future<Result<FontId, SysErr>> FontSysImpl::load_from_memory(Str     label_span,
+                                                             RcBlob8 encoded,
+                                                             u32 font_height,
+                                                             u32 face)
+{
+  StrVec label{allocator_};
+  label.append(label_span).unwrap();
+
+  // [ ] using trace span id in logging
+
+  auto decode_fut =
+    scheduler_
+      ->run(allocator_, WorkerThread::Any,
+            [encoded = std::move(encoded), label = std::move(label), this,
+             face]() mutable { return decode_(label, encoded, face); })
       .unwrap();
 
-  gpu_atlas.textures.append(image.textures).unwrap();
-  gpu_atlas.image = image.id;
-
-  font.gpu_atlas = std::move(gpu_atlas);
-
-  // unload CPU atlas
-  font.cpu_atlas = none;
-
-  FontId id = FontId{fonts_.push(std::move(font_)).unwrap()};
-
-  return id;
-}
-
-Future<Result<FontId, FontLoadErr>>
-  FontSysImpl::load_from_memory(Vec<char> label, Vec<u8> encoded,
-                                u32 font_height, u32 face)
-{
-  Future fut = future<Result<FontId, FontLoadErr>>(allocator_).unwrap();
-  scheduler->once(
-    [fut = fut.alias(), encoded = std::move(encoded), label = std::move(label),
-     this, face, font_height]() mutable {
-      decode_(label, encoded, face)
-        .match(
-          [&, this](Dyn<Font> & font) {
-            trace("Rasterizing font: {} @{}px"_str, label, font_height);
-            rasterize(font, font_height)
-              .match(
-                [&, this](Void) {
-                  scheduler->once(
-                    [font = std::move(font), this,
-                     fut  = std::move(fut)]() mutable {
-                      trace("Rasterized font {}, num layers = {}"_str,
-                            font->info().label,
-                            font->info().cpu_atlas.v().num_layers);
-
-                      FontId id = upload_(std::move(font));
-
-                      fut.yield(Ok{id}).unwrap();
-                    },
-                    Ready{}, MainThread::Main);
-                },
-                [&](Void) {
-                  fut.yield(Err{FontLoadErr::OutOfMemory}).unwrap();
-                });
-          },
-          [&](FontLoadErr err) { fut.yield(Err{err}).unwrap(); });
-    },
-    Ready{}, WorkerThread::Any);
-
-  return fut;
-}
-
-Future<Result<FontId, FontLoadErr>> FontSysImpl::load_from_path(Vec<char> label,
-                                                                Str       path,
-                                                                u32 font_height,
-                                                                u32 face)
-{
-  Future file_load_fut = sys.file->load_file(allocator_, path);
-
-  Future fut = future<Result<FontId, FontLoadErr>>(allocator_).unwrap();
-
-  scheduler->once(
-    [file_load_fut = file_load_fut.alias(), fut = fut.alias(), this,
-     label = std::move(label), font_height, face]() mutable {
-      file_load_fut.get().match(
-        [&](Vec<u8> & encoded) {
-          Future mem_load_fut = load_from_memory(
-            std::move(label), std::move(encoded), font_height, face);
-
-          scheduler->once(
-            [fut = fut.alias(), mem_load_fut = mem_load_fut.alias()]() {
-              fut.yield(mem_load_fut.get()).unwrap();
+  auto raster_fut =
+    scheduler_
+      ->then(
+        allocator_, WorkerThread::Any,
+        [encoded = std::move(encoded), label = std::move(label), this,
+         font_height](Result<Dyn<Font>, SysErr> & r) mutable {
+          using R = Result<CpuFontAtlas, SysErr>;
+          return r.match(
+            [&](Dyn<Font> & f) -> R {
+              trace("Rasterizing font: {} @{}px"_str, label, font_height);
+              return rasterize_(f, font_height);
             },
-            AwaitFutures{mem_load_fut.alias()}, WorkerThread::Any);
+            [](SysErr err) -> R { return Err{err}; });
         },
-        [&](IoErr err) {
-          fut
-            .yield(Err{err == IoErr::InvalidFileOrDir ?
-                         FontLoadErr::InvalidPath :
-                         FontLoadErr::IoErr})
-            .unwrap();
-        });
-    },
-    AwaitFutures{file_load_fut.alias()});
+        decode_fut.alias())
+      .unwrap();
 
-  return fut;
+  auto upload_fut =
+    scheduler_
+      ->then(
+        allocator_, WorkerThread::Any,
+        [this,
+         decode_fut = decode_fut.alias()](Result<CpuFontAtlas, SysErr> & r) {
+          using R = Result<Future<Result<GpuFontAtlas, SysErr>>, SysErr>;
+          return r.match(
+            [&](CpuFontAtlas & cpu_atlas) -> R {
+              auto rc_atlas =
+                rc<CpuFontAtlas>(allocator_, std::move(cpu_atlas)).unwrap();
+              auto & font       = *decode_fut.get().v();
+              auto   label      = font.info().label.view();
+              auto   upload_fut = upload_atlas_to_gpu_(
+                label,
+                transmute(rc_atlas.alias(),
+                            static_cast<CpuFontAtlas const *>(rc_atlas.get())));
+              return Ok{std::move(upload_fut)};
+            },
+            [](SysErr err) -> R { return Err{err}; });
+        },
+        std::move(raster_fut))
+      .unwrap();
+
+  auto flattened_upload_fut =
+    scheduler_->flatten(allocator_, WorkerThread::Any, std::move(upload_fut))
+      .unwrap();
+
+  auto ret_fut = scheduler_
+                   ->then(
+                     allocator_, WorkerThread::Any,
+                     [decode_fut = decode_fut.alias(),
+                      this](Result<GpuFontAtlas, SysErr> & r) {
+                       using R = Result<FontId, SysErr>;
+
+                       return r.match(
+                         [&](GpuFontAtlas & gpu_atlas) -> R {
+                           return Ok{add_font_(decode_fut.get().unwrap(),
+                                               std::move(gpu_atlas))};
+                         },
+                         [](SysErr err) -> R { return Err{err}; });
+                     },
+                     std::move(flattened_upload_fut))
+                   .unwrap();
+
+  return ret_fut;
+}
+
+Future<Result<FontId, SysErr>> FontSysImpl::load_from_path(Str label_span,
+                                                           Str path,
+                                                           u32 font_height,
+                                                           u32 face)
+{
+  Future file_load_fut = file_sys_->load_file(allocator_, path);
+  StrVec label{allocator_};
+  label.append(label_span).unwrap();
+
+  auto load_fut =
+    scheduler_
+      ->then(
+        allocator_, WorkerThread::Any,
+        [label = std::move(label), this, font_height,
+         face](Result<Vec<u8>, SysErr> & r) {
+          using R = Result<Future<Result<FontId, SysErr>>, SysErr>;
+          return r.match(
+            [&](Vec<u8> & data) -> R {
+              auto blob_span = data.view().as_const();
+              auto blob  = rc<Vec<u8>>(allocator_, std::move(data)).unwrap();
+              auto blob8 = transmute(std::move(blob), blob_span);
+              return Ok{
+                load_from_memory(label, std::move(blob8), font_height, face)};
+            },
+            [&](SysErr err) -> R { return Err{err}; });
+        },
+        file_load_fut.alias())
+      .unwrap();
+
+  return scheduler_->flatten(allocator_, WorkerThread::Any, std::move(load_fut))
+    .unwrap();
 }
 
 FontInfo FontSysImpl::get(FontId id)
 {
-  CHECK(fonts_.is_valid_id((usize) id), "");
-  return fonts_[(usize) id].v0->info();
+  ReadGuard guard{rw_lock_};
+  CHECK(fonts_.is_valid_id(id), "");
+  return fonts_[id].v0->info();
+}
+
+FontImpl & FontSysImpl::get_impl(FontId id)
+{
+  ReadGuard guard{rw_lock_};
+  CHECK(fonts_.is_valid_id(id), "");
+  return *(FontImpl *) fonts_[id].v0.get();
 }
 
 Option<FontInfo> FontSysImpl::get(Str label)
 {
+  ReadGuard guard{rw_lock_};
   for (auto & font : fonts_.dense.v0)
   {
     if (mem::eq(label, font->info().label))
@@ -621,14 +686,37 @@ Option<FontInfo> FontSysImpl::get(Str label)
   return none;
 }
 
+ImageId FontSysImpl::unload_(FontId id)
+{
+  Dyn<Font> & f        = fonts_[id].v0;
+  FontImpl &  font     = (FontImpl &) *f;
+  auto        image_id = font.gpu_atlas.v().image;
+  font.gpu_atlas       = none;
+  fonts_.erase(id);
+  return image_id;
+}
+
 void FontSysImpl::unload(FontId id)
 {
-  Dyn<Font> & f    = fonts_[(usize) id].v0;
-  FontImpl &  font = (FontImpl &) *f;
-  sys.image->unload(font.gpu_atlas.v().image);
-  font.gpu_atlas = none;
+  ImageId image_id = ImageId::None;
+  {
+    WriteGuard guard{rw_lock_};
+    image_id = unload_(id);
+  }
 
-  fonts_.erase((usize) id);
+  // deadlock-avoiding: unload image outside of the font system lock
+  image_sys_->unload(image_id);
+}
+
+FontId FontSysImpl::add_font_(Dyn<Font> font, GpuFontAtlas gpu_atlas)
+{
+  FontImpl & font_impl = (FontImpl &) *font;
+  font_impl.gpu_atlas  = std::move(gpu_atlas);
+
+  {
+    WriteGuard guard{rw_lock_};
+    return fonts_.push(std::move(font)).unwrap();
+  }
 }
 
 /// layout is output in AU_UNIT units. so it is independent of the actual
@@ -694,8 +782,8 @@ static inline Tuple<Span<hb_glyph_info_t const>,
 
 /// @brief Only needs to be called if it contains multiple scripts
 /// outputs iso15924 or OpenType tags
-static inline void paragraph_script_runs(Str32 text, auto & run_indices,
-                                         auto & scripts)
+static inline void paragraph_script_runs(SBAllocatorRef allocator, Str32 text,
+                                         auto & run_indices, auto & scripts)
 {
   if (text.is_empty())
   {
@@ -706,7 +794,7 @@ static inline void paragraph_script_runs(Str32 text, auto & run_indices,
                                  .stringBuffer   = (void *) text.data(),
                                  .stringLength   = text.size()};
 
-  SBScriptLocatorRef locator = SBScriptLocatorCreate();
+  SBScriptLocatorRef locator = SBScriptLocatorCreate(allocator);
   CHECK(locator != nullptr, "");
   SBScriptLocatorLoadCodepoints(locator, &codepoints);
 
@@ -729,13 +817,14 @@ static inline void paragraph_script_runs(Str32 text, auto & run_indices,
     scripts.push(script).unwrap();
   }
 
-  SBScriptLocatorRelease(locator);
+  SBScriptLocatorRelease(allocator, locator);
 }
 
 /// @brief Only needs to be called if it is a bidirectional text
 /// @returns the base embedding level
-static inline u8 paragraph_levels(Str32 text, SBAlgorithmRef algorithm,
-                                  TextDirection base, auto & levels)
+static inline u8 paragraph_levels(SBAllocatorRef allocator, Str32 text,
+                                  SBAlgorithmRef algorithm, TextDirection base,
+                                  auto & levels)
 {
   // The embedding level is an integer value. LTR text segments have even
   // embedding levels (e.g., 0, 2, 4), and RTL text segments have odd embedding
@@ -747,11 +836,11 @@ static inline u8 paragraph_levels(Str32 text, SBAlgorithmRef algorithm,
 
   auto text_size = text.size();
   auto paragraph = SBAlgorithmCreateParagraph(
-    algorithm, 0, text_size,
+    allocator, algorithm, 0, text_size,
     (base == TextDirection::LeftToRight) ? SBLevelDefaultLTR :
                                            SBLevelDefaultRTL);
   CHECK(paragraph != nullptr, "");
-  defer paragraph_{[&] { SBParagraphRelease(paragraph); }};
+  defer paragraph_{[&] { SBParagraphRelease(allocator, paragraph); }};
 
   CHECK(SBParagraphGetLength(paragraph) == text_size, "");
   SBLevel const   base_level = SBParagraphGetBaseLevel(paragraph);
@@ -1008,14 +1097,33 @@ void layout_paragraph(Paragraph & paragraph, f32 max_width,
 /// https://stackoverflow.com/questions/62374506/how-do-i-align-glyphs-along-the-baseline-with-freetype
 ///
 void FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
-                              TextLayout & layout, TextLayoutBuffer buffer_)
+                              TextLayout & layout, TextLayoutBuffer buffer_,
+                              Allocator scratch)
 {
+  tracing::ScopeTrace trace;
+
   auto       text      = block.text;
   auto const text_size = block.text.size();
   CHECK(block.run_indices.size() == (block.fonts.size() + 1), "");
   CHECK(!block.run_indices.is_empty(), "No run styling provided for text");
   CHECK(block.run_indices.last() >= text_size,
         "Text runs need to span the entire text");
+
+  SBAllocator sb_allocator_impl{
+    .user_data = scratch.self,
+    .allocate  = [](void * user_data, usize size, usize alignment,
+                   void ** out_ptr) -> SBBoolean {
+      auto allocator = (IAllocator *) user_data;
+      auto layout    = Layout{.alignment = alignment, .size = size};
+      return allocator->alloc(layout, *((u8 **) out_ptr)) ? SBTrue : SBFalse;
+    },
+    .deallocate =
+      [](void * user_data, void * mem, usize size, usize alignment) {
+        auto allocator = (IAllocator *) user_data;
+        auto layout    = Layout{.alignment = alignment, .size = size};
+        allocator->dealloc(layout, (u8 *) mem);
+      }};
+  SBAllocatorRef sb_allocator = &sb_allocator_impl;
 
   auto language = block.language.is_empty() ?
                     hb_language_get_default() :
@@ -1054,13 +1162,17 @@ void FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
       SBCodepointSequence{.stringEncoding = SBStringEncodingUTF32,
                           .stringBuffer   = (void *) paragraph_text.data(),
                           .stringLength   = paragraph_text.size()};
-    SBAlgorithmRef sb_algorithm = SBAlgorithmCreate(&sb_codepoints);
+    SBAlgorithmRef sb_algorithm =
+      SBAlgorithmCreate(sb_allocator, &sb_codepoints);
     CHECK(sb_algorithm != nullptr, "");
-    defer sb_algorithm_{[&] { SBAlgorithmRelease(sb_algorithm); }};
+    defer sb_algorithm_{
+      [&] { SBAlgorithmRelease(sb_allocator, sb_algorithm); }};
 
-    auto paragraph_level = paragraph_levels(paragraph_text, sb_algorithm,
-                                            block.direction, buffer.levels_);
-    paragraph_script_runs(paragraph_text, buffer.script_runs_, buffer.scripts_);
+    auto paragraph_level =
+      paragraph_levels(sb_allocator, paragraph_text, sb_algorithm,
+                       block.direction, buffer.levels_);
+    paragraph_script_runs(sb_allocator, paragraph_text, buffer.script_runs_,
+                          buffer.scripts_);
 
     auto run_iter = usize{0};
     auto scripts_iter =
@@ -1118,14 +1230,13 @@ void FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
       auto run_end = run_iter;
 
       auto & font_style = block.fonts[run_props.style];
-      // [ ] not thread-safe: fonts_
-      auto & font = (FontImpl const &) *fonts_[(usize) font_style.font].v0;
+      auto & font       = get_impl(font_style.font);
 
       auto run                = Slice::offsets(run_begin, run_end);
       auto [infos, positions] = shape_run(
         font.hb_font, buffer.hb_buffer_, paragraph_text, run,
         hb_script_from_iso15924_tag(
-          SBScriptGetOpenTypeTag(SBScript{(u8) run_props.script})),
+          SBScriptGetUnicodeTag(SBScript{(u8) run_props.script})),
         ((paragraph_level & 0x1) == 0) ? HB_DIRECTION_LTR : HB_DIRECTION_RTL,
         language, block.use_kerning, block.use_ligatures);
 

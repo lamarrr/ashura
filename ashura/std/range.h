@@ -75,9 +75,7 @@ constexpr IndexRange<I> range(I min, I max)
   return IndexRange<I>{.min_ = min, .max_ = max};
 }
 
-// [ ] make these more concrete
-// [ ] create view types of runs
-// [ ] prefix, suffix
+// [ ] make these more concrete and into view types
 template <typename I>
 constexpr IndexRange<I> range(CoreSlice<I> slice)
 {

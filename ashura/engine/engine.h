@@ -3,7 +3,6 @@
 #include "ashura/engine/systems.h"
 #include "ashura/engine/view_system.h"
 #include "ashura/gpu/gpu.h"
-#include "ashura/std/allocators.h"
 #include "ashura/std/cfg.h"
 #include "ashura/std/dict.h"
 #include "ashura/std/vec.h"
@@ -62,7 +61,7 @@ struct EngineCfg
 typedef struct IWindow * Window;
 typedef struct IEngine * Engine;
 
-using WindowLoop = Dyn<Fn<ui::View &(Engine, ui::Ctx const &)>>;
+using WindowLoop = Dyn<Fn<ui::View &(Engine, ui::Scope const &)>>;
 
 struct IEngine
 {
@@ -84,25 +83,36 @@ struct IEngine
 
   struct WindowEntry
   {
-    Engine engine = nullptr;
+    Engine engine_;
 
-    Window win = nullptr;
+    Window win_ = nullptr;
 
-    WindowState state{noop_allocator};
+    WindowState state_;
 
-    gpu::Surface surface = nullptr;
+    gpu::Surface surface_ = nullptr;
 
-    Option<gpu::ISwapchain &> swapchain = none;
+    Option<gpu::ISwapchain &> swapchain_ = none;
 
-    Dyn<ViewSys> view_sys{};
+    Dyn<ViewSys> view_sys_{};
 
-    Dyn<Canvas> canvas{};
+    ICanvas canvas_;
 
-    WindowLoop loop{};
+    WindowLoop loop_{};
 
-    gpu::PresentMode present_mode_preference = gpu::PresentMode::Fifo;
+    gpu::PresentMode present_mode_preference_ = gpu::PresentMode::Fifo;
 
-    ui::Ctx context_;
+    WindowEntry(IEngine & engine, Allocator allocator) :
+      engine_{&engine},
+      state_{allocator},
+      canvas_{allocator}
+    {
+    }
+
+    WindowEntry(WindowEntry const &)             = delete;
+    WindowEntry & operator=(WindowEntry const &) = delete;
+    WindowEntry(WindowEntry &&)                  = delete;
+    WindowEntry & operator=(WindowEntry &&)      = delete;
+    ~WindowEntry()                               = default;
   };
 
   struct Paths
@@ -156,7 +166,7 @@ struct IEngine
     gpu_instance_{},
     gpu_device_{},
     buffering_{},
-    state_{noop_allocator},
+    state_{},
     paths_{.working_dir{allocator_}, .pipeline_cache{allocator_}},
     callbacks_{
       .post_init{},
@@ -179,7 +189,6 @@ struct IEngine
   Dyn<WindowEntry *> add_window_(EngineCfg::Window const & cfg,
                                  WindowLoop                loop);
 
-  void remove_window_(WindowEntry & win);
 
   Option<gpu::SwapchainInfo>
     create_swapchain_info_(WindowEntry const & win_entry);

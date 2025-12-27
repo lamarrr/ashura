@@ -14,6 +14,7 @@
 #include "ashura/engine/window_system.h"
 #include "ashura/std/async.h"
 #include "ashura/std/fs.h"
+#include "ashura/std/log_sinks.h"
 #include "ashura/std/sformat.h"
 #include "ashura/std/trace.h"
 #include "simdjson.h"
@@ -148,9 +149,9 @@ static void system_event_listener(Engine engine, SystemEvent const & event)
 {
   event.match(
     [&](SystemTheme theme) {
-      SystemState & s = engine->state_;
-      s.theme.theme   = theme;
-      s.theme.changed = true;
+      SystemState & s   = engine->state_;
+      s.theme_.theme_   = theme;
+      s.theme_.changed_ = true;
     },
     [](SystemEventType) {});
 }
@@ -158,7 +159,7 @@ static void system_event_listener(Engine engine, SystemEvent const & event)
 static void window_event_listener(IEngine::WindowEntry * win,
                                   WindowEvent const &    event)
 {
-  auto & s = win->state;
+  auto & s = win->state_;
 
   event.match(
     [&](KeyEvent e) {
@@ -166,18 +167,18 @@ static void window_event_listener(IEngine::WindowEntry * win,
       {
         case KeyAction::Press:
         {
-          s.key.any_down = true;
-          s.key.key_downs.set_bit((usize) e.key_code);
-          s.key.scan_downs.set_bit((usize) e.scan_code);
-          s.key.mod_downs |= e.modifiers;
+          s.key_.any_down_ = true;
+          s.key_.key_downs_.set_bit((usize) e.key_code);
+          s.key_.scan_downs_.set_bit((usize) e.scan_code);
+          s.key_.mod_downs_ |= e.modifiers;
         }
         break;
         case KeyAction::Release:
         {
-          s.key.any_up = true;
-          s.key.key_ups.set_bit((usize) e.key_code);
-          s.key.scan_ups.set_bit((usize) e.scan_code);
-          s.key.mod_ups |= e.modifiers;
+          s.key_.any_up_ = true;
+          s.key_.key_ups_.set_bit((usize) e.key_code);
+          s.key_.scan_ups_.set_bit((usize) e.scan_code);
+          s.key_.mod_ups_ |= e.modifiers;
         }
         break;
         default:
@@ -185,72 +186,90 @@ static void window_event_listener(IEngine::WindowEntry * win,
       }
     },
     [&](MouseMotionEvent e) {
-      s.mouse.moved       = true;
-      s.mouse.position    = e.position;
-      s.mouse.translation = e.translation;
+      s.mouse_.moved_       = true;
+      s.mouse_.position_    = e.position;
+      s.mouse_.translation_ = e.translation;
     },
     [&](MouseClickEvent e) {
-      s.mouse.num_clicks[(u32) e.button] = e.clicks;
-      s.mouse.position                   = e.position;
+      s.mouse_.num_clicks_[(u32) e.button] = e.clicks;
+      s.mouse_.position_                   = e.position;
       switch (e.action)
       {
         case KeyAction::Press:
-          s.mouse.downs |= static_cast<MouseButtons>(1U << (u32) e.button);
-          s.mouse.any_down = true;
+          s.mouse_.downs_ |= static_cast<MouseButtons>(1U << (u32) e.button);
+          s.mouse_.any_down_ = true;
           break;
         case KeyAction::Release:
-          s.mouse.ups |= static_cast<MouseButtons>(1U << (u32) e.button);
-          s.mouse.any_up = true;
+          s.mouse_.ups_ |= static_cast<MouseButtons>(1U << (u32) e.button);
+          s.mouse_.any_up_ = true;
           break;
         default:
           break;
       }
     },
     [&](MouseWheelEvent e) {
-      s.mouse.scrolled          = true;
-      s.mouse.position          = e.position;
-      s.mouse.wheel_translation = e.translation;
+      s.mouse_.scrolled_          = true;
+      s.mouse_.position_          = e.position;
+      s.mouse_.wheel_translation_ = e.translation;
     },
     [&](TextInputEvent e) {
-      s.key.input = true;
-      s.key.text.append(e.text).unwrap();
+      s.key_.input_ = true;
+      s.key_.text_  = vec::copy(s.key_.allocator_, e.text).unwrap();
     },
     [&](WindowEventType e) {
       switch (e)
       {
         case WindowEventType::Shown:
+          s.shown_ = true;
+          break;
         case WindowEventType::Hidden:
+          s.hidden_ = true;
+          break;
         case WindowEventType::Exposed:
+          s.exposed_ = true;
+          break;
         case WindowEventType::Moved:
+          s.moved_ = true;
           break;
         case WindowEventType::Resized:
-          s.resized = true;
+          s.resized_ = true;
           break;
         case WindowEventType::SurfaceResized:
-          s.surface_resized = true;
+          s.surface_resized_ = true;
           break;
         case WindowEventType::Minimized:
+          s.minimized_ = true;
+          break;
         case WindowEventType::Maximized:
+          s.maximized_ = true;
+          break;
         case WindowEventType::Restored:
+          s.restored_ = true;
           break;
         case WindowEventType::MouseEnter:
-          s.mouse.in = true;
+          s.mouse_.in_ = true;
           break;
         case WindowEventType::MouseLeave:
-          s.mouse.out = true;
+          s.mouse_.out_ = true;
           break;
         case WindowEventType::KeyboardFocusIn:
-          s.key.in = true;
+          s.key_.in_ = true;
           break;
         case WindowEventType::KeyboardFocusOut:
-          s.key.out = true;
+          s.key_.out_ = true;
           break;
         case WindowEventType::CloseRequested:
-          s.close_requested = true;
+          s.close_requested_ = true;
           break;
         case WindowEventType::Occluded:
+          s.occluded_ = true;
+          break;
         case WindowEventType::EnterFullScreen:
+          s.enter_fullscreen_ = true;
+          break;
         case WindowEventType::LeaveFullScreen:
+          s.leave_fullscreen_ = true;
+          break;
         case WindowEventType::Destroyed:
           break;
         default:
@@ -263,25 +282,25 @@ static void window_event_listener(IEngine::WindowEntry * win,
           switch (e)
           {
             case DropEventType::DropBegin:
-              s.drop.event = DropState::Event::Begin;
+              s.drop_.event_ = DropState::Event::Begin;
               break;
             case DropEventType::DropComplete:
-              s.drop.event = DropState::Event::End;
+              s.drop_.event_ = DropState::Event::Complete;
               break;
             default:
               break;
           }
         },
-        [&](DropPositionEvent e) { s.mouse.position = e.pos; },
+        [&](DropPositionEvent e) { s.mouse_.position_ = e.pos; },
         [&](DropFileEvent e) {
-          s.drop.data.clear();
-          s.drop.data.append(e.path.as_u8()).unwrap();
-          s.drop.event = DropState::Event::FilePath;
+          s.drop_.data_ = DropState::DropFilePath{
+            .path = vec::copy(s.drop_.allocator_, e.path).unwrap()};
+          s.drop_.event_ = DropState::Event::Data;
         },
         [&](DropTextEvent e) {
-          s.drop.data.clear();
-          s.drop.data.append(e.text.as_u8()).unwrap();
-          s.drop.event = DropState::Event::Bytes;
+          s.drop_.data_ = DropState::DropText{
+            .text = vec::copy(s.drop_.allocator_, e.text).unwrap()};
+          s.drop_.event_ = DropState::Event::Data;
         });
     });
 }
@@ -292,7 +311,7 @@ Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
   tracing::ScopeTrace _;
 
   Dyn<Logger> logger =
-    dyn<ILogger>(inplace, default_allocator, span<ILogSink *>({&stdio_sink}))
+    dyn<ILogger>(inplace, default_allocator, span<LogSink>({&stdio_sink}))
       .unwrap();
   hook_logger(logger);
 
@@ -354,7 +373,8 @@ Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
 
   ash::sys.sched = scheduler;
 
-  Dyn<FileSys> file_sys = dyn<IFileSys>(inplace, allocator, allocator).unwrap();
+  Dyn<FileSys> file_sys =
+    dyn<IFileSys>(inplace, allocator, scheduler.get(), allocator).unwrap();
 
   ash::sys.file = file_sys;
 
@@ -382,19 +402,27 @@ Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
                 scheduler.get(), gpu_thread);
 
   Dyn<ImageSys> image_sys =
-    dyn<IImageSys>(inplace, allocator, allocator, gpu_sys.get(), file_sys.get())
+    dyn<IImageSys>(inplace, allocator, allocator, gpu_sys.get(), file_sys.get(),
+                   scheduler.get())
       .unwrap();
 
   ash::sys.image = image_sys;
 
-  Dyn<FontSys> font_sys = IFontSys::create(allocator);
+  Dyn<FontSys> font_sys = IFontSys::create(allocator, file_sys.get(),
+                                           image_sys.get(), scheduler.get());
 
   ash::sys.font = font_sys;
 
-  Dyn<ShaderSys> shader_sys =
-    dyn<IShaderSys>(inplace, allocator, gpu_sys.get(), file_sys.get()).unwrap();
+  Dyn<ShaderSys> shader_sys = dyn<IShaderSys>(inplace, allocator, gpu_sys.get(),
+                                              file_sys.get(), scheduler.get())
+                                .unwrap();
 
-  shader_sys->init(allocator);
+  auto shader_fut = shader_sys->init(allocator);
+
+  while (!shader_fut())
+  {
+    scheduler->run_main_loop(10ms, 10ms);
+  }
 
   ash::sys.shader = shader_sys;
 
@@ -404,8 +432,6 @@ Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
   ash::sys.pipeline = pipeline_sys;
 
   pipeline_sys->init(allocator);
-
-  Dyn<ViewSys> view_sys = dyn<IViewSys>(inplace, allocator, allocator).unwrap();
 
   trace("All Core Systems Initialized"_str);
 
@@ -427,7 +453,7 @@ Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
   engine->gpu_instance_ = std::move(gpu_instance);
   engine->gpu_device_   = std::move(gpu_device);
   engine->buffering_    = cfg.gpu.buffering;
-  engine->state_        = SystemState{allocator};
+  engine->state_        = SystemState{};
   engine->paths_        = Paths{
            .working_dir = vec::copy(allocator, cfg.working_dir_path.view()).unwrap(),
            .pipeline_cache =
@@ -447,83 +473,81 @@ Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
 Dyn<IEngine::WindowEntry *> IEngine::add_window_(EngineCfg::Window const & cfg,
                                                  WindowLoop                loop)
 {
-  auto entry    = dyn<WindowEntry>(inplace, allocator_).unwrap();
-  entry->engine = this;
+  auto entry =
+    dyn<WindowEntry>(inplace, allocator_, *this, allocator_).unwrap();
 
   auto window = &sys_.win->create_window(gpu_instance_, cfg.title).unwrap();
 
-  entry->win      = window;
-  entry->state    = WindowState{allocator_};
-  entry->surface  = sys_.win->get_surface(window);
-  entry->view_sys = dyn<IViewSys>(inplace, allocator_, allocator_).unwrap();
-  entry->canvas   = dyn<ICanvas>(inplace, allocator_, allocator_).unwrap();
-  entry->loop     = std::move(loop);
-  entry->present_mode_preference =
+  entry->win_     = window;
+  entry->surface_ = sys_.win->get_surface(window);
+
+  ui::UserDataMap ui_data{allocator_};
+
+  entry->view_sys_ =
+    dyn<IViewSys>(inplace, allocator_, allocator_, std::move(ui_data)).unwrap();
+
+  entry->loop_ = std::move(loop);
+  entry->present_mode_preference_ =
     cfg.vsync ? gpu::PresentMode::Fifo : gpu::PresentMode::Immediate;
 
-  sys_.win->listen(window, {entry.get(), window_event_listener});
+  auto config_window = [&] {
+    sys_.win->listen(window, {entry.get(), window_event_listener});
 
-  if (cfg.maximized)
-  {
-    sys_.win->maximize(window);
-  }
-  else
-  {
-    sys_.win->set_extent(window, u32x2{cfg.width, cfg.height});
-  }
+    if (cfg.maximized)
+    {
+      sys_.win->maximize(window);
+    }
+    else
+    {
+      sys_.win->set_extent(window, u32x2{cfg.width, cfg.height});
+    }
 
-  if (cfg.full_screen)
-  {
-    sys_.win->make_fullscreen(window);
-  }
-  else
-  {
-    sys_.win->make_windowed(window);
-  }
+    if (cfg.full_screen)
+    {
+      sys_.win->make_fullscreen(window);
+    }
+    else
+    {
+      sys_.win->make_windowed(window);
+    }
 
-  if (cfg.borderless)
-  {
-    sys_.win->make_borderless(window);
-  }
-  else
-  {
-    sys_.win->make_bordered(window);
-  }
+    if (cfg.borderless)
+    {
+      sys_.win->make_borderless(window);
+    }
+    else
+    {
+      sys_.win->make_bordered(window);
+    }
 
-  if (cfg.resizable)
-  {
-    sys_.win->make_resizable(window);
-  }
-  else
-  {
-    sys_.win->make_unresizable(window);
-  }
+    if (cfg.resizable)
+    {
+      sys_.win->make_resizable(window);
+    }
+    else
+    {
+      sys_.win->make_unresizable(window);
+    }
+  };
+
+  config_window();
 
   return entry;
-}
-
-void IEngine::remove_window_(IEngine::WindowEntry & entry)
-{
-  sys_.gpu->await_idle();
-  entry.swapchain.match([&](gpu::ISwapchain & sc) { gpu_device_->uninit(&sc); },
-                        []() {});
-  sys_.win->uninit_window(entry.win);
 }
 
 void IEngine::poll_inputs_(time_point prev_frame_end, time_point frame_start)
 {
   tracing::ScopeTrace _;
 
-  auto const timedelta = frame_start - prev_frame_end;
+  auto timedelta = frame_start - prev_frame_end;
 
-  state_.clear();
+  state_.start_frame(frame_start, timedelta);
 
   {
-    window_->state.clear();
+    window_->state_.start_frame();
   }
 
-  state_.stamp(frame_start, timedelta);
-  state_.theme.theme = sys_.win->get_theme();
+  state_.theme_.theme_ = sys_.win->get_theme();
   sys_.win->poll_events();
 
   auto [mouse_btns, mouse_pos, mouse_window] = sys_.win->get_mouse_state();
@@ -535,23 +559,23 @@ void IEngine::poll_inputs_(time_point prev_frame_end, time_point frame_start)
     sys_.win->get_keyboard_state(scan_states.view(), key_states.view());
 
   {
-    auto & s         = window_->state;
-    s.extent         = sys_.win->get_extent(window_->win);
-    s.surface_extent = sys_.win->get_surface_extent(window_->win);
+    auto & s          = window_->state_;
+    s.extent_         = sys_.win->get_extent(window_->win_);
+    s.surface_extent_ = sys_.win->get_surface_extent(window_->win_);
 
-    if (mouse_window.ptr() == window_->win)
+    if (mouse_window.ptr() == window_->win_)
     {
-      s.mouse.focused  = true;
-      s.mouse.position = mouse_pos - 0.5F * static_cast<f32x2>(s.extent);
-      s.mouse.states   = mouse_btns;
+      s.mouse_.focused_  = true;
+      s.mouse_.position_ = mouse_pos - 0.5F * static_cast<f32x2>(s.extent_);
+      s.mouse_.states_   = mouse_btns;
     }
 
-    if (kb_window.ptr() == window_->win)
+    if (kb_window.ptr() == window_->win_)
     {
-      s.key.focused     = true;
-      s.key.mod_states  = kb_mods;
-      s.key.scan_states = scan_states;
-      s.key.key_states  = key_states;
+      s.key_.focused_     = true;
+      s.key_.mod_states_  = kb_mods;
+      s.key_.scan_states_ = scan_states;
+      s.key_.key_states_  = key_states;
     }
   }
 }
@@ -567,7 +591,9 @@ void IEngine::shutdown()
 
   gpu_device_->await_idle().unwrap();
 
-  remove_window_(*window_);
+  window_->swapchain_.match(
+    [&](gpu::ISwapchain & sc) { gpu_device_->uninit(&sc); }, []() {});
+  sys_.win->uninit_window(window_->win_);
 
   sys_.pipeline->shutdown();
   sys_.win->shutdown();
@@ -606,19 +632,18 @@ Option<gpu::SwapchainInfo>
   IEngine::create_swapchain_info_(WindowEntry const & w)
 {
   gpu::SurfaceCapabilities capabilities =
-    gpu_device_->get_surface_capabilities(w.surface).unwrap();
+    gpu_device_->get_surface_capabilities(w.surface_).unwrap();
   CHECK(has_bits(capabilities.image_usage, gpu::ImageUsage::TransferDst |
                                              gpu::ImageUsage::ColorAttachment),
         "");
 
   Vec<gpu::SurfaceFormat> formats{allocator_};
-  gpu_device_->get_surface_formats(w.surface, formats).unwrap();
+  gpu_device_->get_surface_formats(w.surface_, formats).unwrap();
 
   Vec<gpu::PresentMode> present_modes{allocator_};
-  gpu_device_->get_surface_present_modes(w.surface, present_modes).unwrap();
+  gpu_device_->get_surface_present_modes(w.surface_, present_modes).unwrap();
 
-  u32x2 surface_extent = sys_.win->get_surface_extent(w.win);
-
+  u32x2 surface_extent = sys_.win->get_surface_extent(w.win_);
   if (surface_extent.any_zero())
   {
     return none;
@@ -642,7 +667,7 @@ Option<gpu::SwapchainInfo>
     gpu::ColorSpace::PASS_THROUGH};
 
   gpu::PresentMode preferred_present_modes[] = {
-    w.present_mode_preference, gpu::PresentMode::Immediate,
+    w.present_mode_preference_, gpu::PresentMode::Immediate,
     gpu::PresentMode::Mailbox, gpu::PresentMode::Fifo,
     gpu::PresentMode::FifoRelaxed};
 
@@ -697,7 +722,7 @@ Option<gpu::SwapchainInfo>
   }
 
   return gpu::SwapchainInfo{.label   = "Window Swapchain"_str,
-                            .surface = w.surface,
+                            .surface = w.surface_,
                             .format  = format,
                             .usage   = gpu::ImageUsage::TransferDst |
                                      gpu::ImageUsage::ColorAttachment,
@@ -727,34 +752,34 @@ void IEngine::run()
     poll_inputs_(frame_end, frame_start);
     auto * plan = sys_.gpu->current_plan();
 
-    plan->await(nanoseconds::max());
+    plan->await();
     plan->reset();
     plan->begin();
 
-    u32x2 required_framebuffer_extent = window_->state.surface_extent;
+    u32x2 required_framebuffer_extent = window_->state_.surface_extent_;
 
     plan->set_target(GpuFrameTargetInfo{.extent = required_framebuffer_extent,
                                         .color_format         = {},
                                         .depth_stencil_format = {}});
 
     {
-      if (window_->swapchain.is_none())
+      if (window_->swapchain_.is_none())
       {
         create_swapchain_info_(*window_).match([&](gpu::SwapchainInfo info) {
-          window_->swapchain = *gpu_device_->create_swapchain(info).unwrap();
+          window_->swapchain_ = *gpu_device_->create_swapchain(info).unwrap();
         });
       }
       else
       {
         // if swapchain extent is 0, defer creation until first resize event
-        if ((window_->state.resized || window_->state.surface_resized) &&
-            !(window_->state.extent.any_zero() ||
-              window_->state.surface_extent.any_zero()))
+        if ((window_->state_.resized_ || window_->state_.surface_resized_) &&
+            !(window_->state_.extent_.any_zero() ||
+              window_->state_.surface_extent_.any_zero()))
         {
           create_swapchain_info_(*window_).match([&](gpu::SwapchainInfo info) {
             plan->add_preframe_task([dev       = plan->device(),
-                                     swapchain = &window_->swapchain.v(),
-                                     info] {
+                                     swapchain = &window_->swapchain_.v(),
+                                     info](GpuFrame) {
               dev->mark_swapchain_out_of_date(swapchain, info).unwrap();
             });
           });
@@ -764,7 +789,7 @@ void IEngine::run()
 
     {
       plan->add_preframe_task(
-        [swapchain = &window_->swapchain.v(), dev = plan->device()] {
+        [swapchain = &window_->swapchain_.v(), dev = plan->device()](GpuFrame) {
           dev->acquire_next(swapchain).unwrap();
         });
     }
@@ -776,20 +801,25 @@ void IEngine::run()
 
       // [ ] framebuffer extent would be larger than surface extent since we render multiple windows into one
       // image
-      w.canvas->begin(
+      w.canvas_.begin(
         gpu::Viewport{
           .offset{0, 0},
-          .extent    = w.state.surface_extent.to<f32>(),
+          .extent    = w.state_.surface_extent_.to<f32>(),
           .min_depth = 0,
           .max_depth = 1
       },
-        w.state.extent.to<f32>(), w.state.surface_extent);
-      w.view_sys->tick(state_, w.state, w.canvas, w.loop);
+        w.state_.extent_.to<f32>(), w.state_.surface_extent_);
 
-      if (w.state.extent.all_nonzero() && w.state.surface_extent.all_nonzero())
+      auto *             arena = get_thread_arena();
+      IFallbackAllocator scratch{arena, allocator_};
+      auto state = w.view_sys_->tick(this, ui::InputScope{state_, w.state_},
+                                     &w.canvas_, w.loop_, scratch);
+
+      if (w.state_.extent_.all_nonzero() &&
+          w.state_.surface_extent_.all_nonzero())
       {
-        plan->add_pass([swapchain = &w.swapchain.v()](GpuFrame            frame,
-                                                      gpu::CommandEncoder enc) {
+        plan->add_pass([swapchain = &w.swapchain_.v()](
+                         GpuFrame frame, gpu::CommandEncoder enc) {
           auto * dev   = frame->dev();
           auto   state = dev->get_swapchain_state(swapchain).unwrap();
 
@@ -811,25 +841,21 @@ void IEngine::run()
         });
       }
 
-      w.canvas->end();
-      w.canvas->execute(plan);
-      w.canvas->reset();
-    }
+      w.canvas_.end();
+      w.canvas_.execute(plan);
+      w.canvas_.reset();
 
-    // [ ] always-on borderless windows
-
-    {
-      if (window_->state.mouse.focused)
+      if (window_->state_.mouse_.focused_)
       {
-        sys_.win->set_cursor(window_->view_sys->cursor);
+        sys_.win->set_cursor(state.cursor);
       }
 
-      if (window_->state.key.focused)
+      if (window_->state_.key_.focused_)
       {
-        auto text = window_->view_sys->text_input();
+        auto text = state.input_info;
         if (text != current_input_info)
         {
-          sys_.win->set_text_input(window_->win, text);
+          sys_.win->set_text_input(window_->win_, text);
           current_input_info = text;
         }
       }
@@ -853,4 +879,4 @@ void hook_engine(Engine instance)
 
 }    // namespace ash
 
-::ash::Engine ::ash::engine = nullptr;
+ash::Engine ash::engine = nullptr;

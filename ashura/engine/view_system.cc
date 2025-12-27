@@ -7,276 +7,325 @@
 namespace ash
 {
 
-void IViewSys::clear_frame()
+IViewSys::Props IViewSys::Props::create(Allocator allocator, usize capacity)
 {
-  views.clear();
-  nodes.depth.clear();
-  nodes.parent.clear();
-  nodes.children.clear();
-  ids.clear();
-  att.tab_idx.clear();
-  att.viewports.clear();
-  att.hidden.clear();
-  att.pointable.clear();
-  att.clickable.clear();
-  att.scrollable.clear();
-  att.draggable.clear();
-  att.droppable.clear();
-  att.focusable.clear();
-  att.input.clear();
-  att.is_viewport.clear();
-  extents.clear();
-  centers.clear();
-  viewport_extents.clear();
-  viewport_centers.clear();
-  viewport_zooms.clear();
-  fixed.clear();
-  fixed_centers.clear();
-  z_idx.clear();
-  layers.clear();
-  canvas_xfm.clear();
-  canvas_inv_xfm.clear();
-  canvas_centers.clear();
-  canvas_extents.clear();
-  clips.clear();
-  z_ord.clear();
-  focus_ord.clear();
-  focus_idx.clear();
-  closing_deferred = false;
-  focus_grab_tgt   = none;
+  return IViewSys::Props{
+    .tab_indices{Vec<i32>::make(capacity, allocator).unwrap()},
+    .viewports{Vec<u16>::make(capacity, allocator).unwrap()},
+    .hidden{BitVec<u64>::make(capacity, allocator).unwrap()},
+    .pointable{BitVec<u64>::make(capacity, allocator).unwrap()},
+    .clickable{BitVec<u64>::make(capacity, allocator).unwrap()},
+    .scrollable{BitVec<u64>::make(capacity, allocator).unwrap()},
+    .draggable{BitVec<u64>::make(capacity, allocator).unwrap()},
+    .droppable{BitVec<u64>::make(capacity, allocator).unwrap()},
+    .focusable{BitVec<u64>::make(capacity, allocator).unwrap()},
+    .input{Vec<TextInputInfo>::make(capacity, allocator).unwrap()},
+    .is_viewport{BitVec<u64>::make(capacity, allocator).unwrap()},
+    .extents{Vec<f32x2>::make(capacity, allocator).unwrap()},
+    .centers{Vec<f32x2>::make(capacity, allocator).unwrap()},
+    .viewport_extents{Vec<f32x2>::make(capacity, allocator).unwrap()},
+    .viewport_centers{Vec<f32x2>::make(capacity, allocator).unwrap()},
+    .viewport_zooms{Vec<f32x2>::make(capacity, allocator).unwrap()},
+    .fixed{BitVec<u64>::make(capacity, allocator).unwrap()},
+    .fixed_centers{Vec<f32x2>::make(capacity, allocator).unwrap()},
+    .z_idx{Vec<i32>::make(capacity, allocator).unwrap()},
+    .layers{Vec<i32>::make(capacity, allocator).unwrap()},
+    .canvas_xfm{Vec<affinef32x3>::make(capacity, allocator).unwrap()},
+    .canvas_inv_xfm{Vec<affinef32x3>::make(capacity, allocator).unwrap()},
+    .canvas_centers{Vec<f32x2>::make(capacity, allocator).unwrap()},
+    .canvas_extents{Vec<f32x2>::make(capacity, allocator).unwrap()},
+    .clips{Vec<CRect>::make(capacity, allocator).unwrap()},
+    .z_ord{Vec<u16>::make(capacity, allocator).unwrap()},
+    .focus_ord{Vec<u16>::make(capacity, allocator).unwrap()},
+    .focus_idx{Vec<u16>::make(capacity, allocator).unwrap()}};
 }
 
-void IViewSys::prepare_for(u16 n)
+IViewSys::Props IViewSys::Props::none()
 {
-  extents.resize_uninit(n).unwrap();
-  centers.resize_uninit(n).unwrap();
-  viewport_extents.resize_uninit(n).unwrap();
-  viewport_centers.resize_uninit(n).unwrap();
-  viewport_zooms.resize_uninit(n).unwrap();
-  fixed.resize_uninit(n).unwrap();
-  fixed_centers.resize_uninit(n).unwrap();
-  z_idx.resize_uninit(n).unwrap();
-  layers.resize_uninit(n).unwrap();
-  canvas_xfm.resize_uninit(n).unwrap();
-  canvas_inv_xfm.resize_uninit(n).unwrap();
-  canvas_centers.resize_uninit(n).unwrap();
-  canvas_extents.resize_uninit(n).unwrap();
-  clips.resize_uninit(n).unwrap();
-  z_ord.resize_uninit(n).unwrap();
-  focus_ord.resize_uninit(n).unwrap();
-  focus_idx.resize_uninit(n).unwrap();
+  return IViewSys::Props{.tab_indices{noop_allocator},
+                         .viewports{noop_allocator},
+                         .hidden{noop_allocator},
+                         .pointable{noop_allocator},
+                         .clickable{noop_allocator},
+                         .scrollable{noop_allocator},
+                         .draggable{noop_allocator},
+                         .droppable{noop_allocator},
+                         .focusable{noop_allocator},
+                         .input{noop_allocator},
+                         .is_viewport{noop_allocator},
+                         .extents{noop_allocator},
+                         .centers{noop_allocator},
+                         .viewport_extents{noop_allocator},
+                         .viewport_centers{noop_allocator},
+                         .viewport_zooms{noop_allocator},
+                         .fixed{noop_allocator},
+                         .fixed_centers{noop_allocator},
+                         .z_idx{noop_allocator},
+                         .layers{noop_allocator},
+                         .canvas_xfm{noop_allocator},
+                         .canvas_inv_xfm{noop_allocator},
+                         .canvas_centers{noop_allocator},
+                         .canvas_extents{noop_allocator},
+                         .clips{noop_allocator},
+                         .z_ord{noop_allocator},
+                         .focus_ord{noop_allocator},
+                         .focus_idx{noop_allocator}};
 }
 
-void IViewSys::push_view(ui::View & view, u16 depth,
-                         [[maybe_unused]] u16 breadth, u16 parent)
+void IViewSys::push_view_(Tree & tree, ui::View & view, u16 depth,
+                          [[maybe_unused]] u16 breadth, u16 parent)
 {
-  views.push(view).unwrap();
-  nodes.depth.push(depth).unwrap();
-  nodes.parent.push(parent).unwrap();
-  nodes.children.extend_uninit(1).unwrap();
-  att.tab_idx.extend_uninit(1).unwrap();
-  att.viewports.extend_uninit(1).unwrap();
-  att.hidden.extend_uninit(1).unwrap();
-  att.pointable.extend_uninit(1).unwrap();
-  att.clickable.extend_uninit(1).unwrap();
-  att.scrollable.extend_uninit(1).unwrap();
-  att.draggable.extend_uninit(1).unwrap();
-  att.droppable.extend_uninit(1).unwrap();
-  att.focusable.extend_uninit(1).unwrap();
-  att.input.extend_uninit(1).unwrap();
-  att.is_viewport.extend_uninit(1).unwrap();
+  tree.nodes.views.push(view).unwrap();
+  tree.nodes.depth.push(depth).unwrap();
+  tree.nodes.parent.push(parent).unwrap();
+  tree.nodes.children.extend_uninit(1).unwrap();
 }
 
-ui::Events IViewSys::drain_events(ui::View & view, u16 idx)
+ui::Events IViewSys::drain_events_(Tree &, ui::View & view, u16 idx)
 {
   ui::Events event;
 
   if (view.hot_)
   {
-    ids.push(view.id(), idx).unwrap();
+    hot_ids_.push(view.id(), idx).unwrap();
     view.hot_ = false;
-    event_queue.try_get(view.id()).match([&](auto & e) { event = e; });
+    event_queue_.try_get(view.id()).match([&](auto & e) { event = e; });
   }
 
   if (view.id() == ui::ViewId::None) [[unlikely]]
   {
     // should never happen
-    CHECK(next_id != U64_MAX, "");
-    view.id_   = ui::ViewId{next_id++};
-    event.bits = ui::Events::Bits::Type{event.bits | ui::Events::Bits::Mount};
+    CHECK(next_id_ != U64_MAX, "");
+    view.id_    = ui::ViewId{next_id_++};
+    event.bits_ = ui::Events::Bits::Type{event.bits_ | ui::Events::Bits::Mount};
   }
 
   return event;
 }
 
-void IViewSys::build_children(ui::Ctx const & ctx, ui::View & view, u16 idx,
-                              u16 depth, u16 viewport, i32 & tab_index)
+void IViewSys::build_children_(Tree & tree, ui::View & view, u16 idx, u16 depth,
+                               u16 viewport, i32 & tab_index,
+                               RequestQueue & request_queue)
 {
-  Slice16 children{size16(views), 0};
+  Slice16 children{size16(tree.nodes.views), 0};
 
   auto build = [&](ui::View & child) {
-    push_view(child, depth + 1, children.span++, idx);
+    push_view_(tree, child, depth + 1, children.span++, idx);
   };
 
-  ui::State s = view.tick(ctx, drain_events(view, idx), &build);
+  // tick the view with the previous frame's context & events.
+  //
+  // State = F(context, events);
+  //
+  // This requires that the context and events be delayed for a frame.
+  //
+  ui::ViewState s =
+    view.tick(prev_frame_scope_, drain_events_(tree, view, idx), &build);
+  view.state_ = ui::ViewInternalState{
+    .tab_index   = static_cast<i32>(s.tab_index == ui::TabIndex::Auto ?
+                                      tab_index :
+                                      static_cast<i32>(s.tab_index)),
+    .viewport    = viewport,
+    .hidden      = s.hidden,
+    .pointable   = s.pointable,
+    .clickable   = s.clickable,
+    .scrollable  = s.scrollable,
+    .draggable   = s.draggable,
+    .droppable   = s.droppable,
+    .focusable   = s.focusable,
+    .is_viewport = s.viewport,
+    .input       = s.text};
 
-  att.tab_idx.set(idx, s.tab.unwrap_or(tab_index));
-  att.viewports.set(idx, viewport);
-  att.hidden.set(idx, s.hidden);
-  att.pointable.set(idx, s.pointable);
-  att.clickable.set(idx, s.clickable);
-  att.scrollable.set(idx, s.scrollable);
-  att.draggable.set(idx, s.draggable);
-  att.droppable.set(idx, s.droppable);
-  att.focusable.set(idx, s.focusable);
-  att.input.set(idx, s.text);
-  att.is_viewport.set(idx, s.viewport);
-  closing_deferred |= s.defer_close;
+  request_queue.defer_close |= s.defer_close;
 
   if (!s.hidden && s.focusable && s.grab_focus) [[unlikely]]
   {
-    focus_grab_tgt = idx;
+    request_queue.focus =
+      FocusRequest{.tgt = idx, .active = true, .grab_focus = true};
   }
 
-  nodes.children[idx] = children;
+  tree.nodes.children[idx] = children;
 
-  auto const children_viewport = s.viewport ? idx : viewport;
+  auto children_viewport = s.viewport ? idx : viewport;
 
   for (auto c = children.begin(); c < children.end(); c++)
   {
     tab_index++;    // depth-first
-    build_children(ctx, views[c], c, depth + 1, children_viewport, tab_index);
+    build_children_(tree, tree.nodes.views[c], c, depth + 1, children_viewport,
+                    tab_index, request_queue);
   }
 }
 
-void IViewSys::build(ui::Ctx const & ctx, RootView & root)
+void IViewSys::build_(Tree & tree, RootView & root,
+                      RequestQueue & request_queue)
 {
-  push_view(root, 0, 0, RootView::PARENT);
+  push_view_(tree, root, 0, 0, RootView::PARENT);
   i32 tab_index = 0;
-  build_children(ctx, root, 0, 0, RootView::VIEWPORT, tab_index);
+  build_children_(tree, root, 0, 0, RootView::VIEWPORT, tab_index,
+                  request_queue);
 }
 
-void IViewSys::focus_order()
+void IViewSys::build_states_(Tree & tree)
 {
   tracing::ScopeTrace trace;
 
-  iota(focus_ord.view(), 0U);
+  auto n = tree.nodes.views.size();
 
-  indirect_sort(focus_ord.view(), [&](auto a, auto b) {
-    return att.tab_idx[a] < att.tab_idx[b];
+  tree.props.tab_indices.resize_uninit(within_capacity, n).unwrap();
+  tree.props.viewports.resize_uninit(within_capacity, n).unwrap();
+  tree.props.hidden.resize_uninit(within_capacity, n).unwrap();
+  tree.props.pointable.resize_uninit(within_capacity, n).unwrap();
+  tree.props.clickable.resize_uninit(within_capacity, n).unwrap();
+  tree.props.scrollable.resize_uninit(within_capacity, n).unwrap();
+  tree.props.draggable.resize_uninit(within_capacity, n).unwrap();
+  tree.props.droppable.resize_uninit(within_capacity, n).unwrap();
+  tree.props.focusable.resize_uninit(within_capacity, n).unwrap();
+  tree.props.input.resize_uninit(within_capacity, n).unwrap();
+  tree.props.is_viewport.resize_uninit(within_capacity, n).unwrap();
+
+  for (auto [i, view] : enumerate(tree.nodes.views.view()))
+  {
+    auto & s                  = view->state_;
+    tree.props.tab_indices[i] = s.tab_index;
+    tree.props.viewports[i]   = s.viewport;
+    tree.props.hidden.set(i, s.hidden);
+    tree.props.pointable.set(i, s.pointable);
+    tree.props.clickable.set(i, s.clickable);
+    tree.props.scrollable.set(i, s.scrollable);
+    tree.props.draggable.set(i, s.draggable);
+    tree.props.droppable.set(i, s.droppable);
+    tree.props.focusable.set(i, s.focusable);
+    tree.props.input[i] = s.input;
+    tree.props.is_viewport.set(i, s.is_viewport);
+  }
+}
+
+void IViewSys::focus_order_(Tree & tree)
+{
+  tracing::ScopeTrace trace;
+
+  iota(tree.props.focus_ord.view(), 0U);
+
+  indirect_sort(tree.props.focus_ord.view(), [&](auto a, auto b) {
+    return tree.props.tab_indices[a] < tree.props.tab_indices[b];
   });
 
-  for (auto [i, f] : enumerate(focus_ord))
+  for (auto [i, f] : enumerate(tree.props.focus_ord))
   {
-    focus_idx[f] = i;
+    tree.props.focus_idx[f] = i;
   }
 }
 
-void IViewSys::layout(f32x2 viewport_extent)
+void IViewSys::layout_(Tree & tree, f32x2 viewport_extent)
 {
   tracing::ScopeTrace trace;
 
-  if (views.is_empty())
+  if (tree.nodes.views.is_empty())
   {
     return;
   }
 
-  auto const n = views.size();
+  auto n = tree.nodes.views.size();
 
   // allocate sizes to children recursively
-  extents[0] = viewport_extent;
+  tree.props.extents[0] = viewport_extent;
 
-  for (auto [children, view, extent] : zip(nodes.children, views, extents))
+  for (auto [children, view, extent] :
+       zip(tree.nodes.children, tree.nodes.views, tree.props.extents))
   {
-    view->size(extent, extents.view().slice(children));
+    view->size(extent, tree.props.extents.view().slice(children));
   }
 
-  centers[0] = f32x2::splat(0);
+  tree.props.centers[0] = f32x2::splat(0);
 
   // fit parent views along the finalized sizes of the child views and
   // assign centers to the children based on their sizes.
   for (usize i = n; i != 0;)
   {
     i--;
-    auto const children = nodes.children[i];
-    auto layout = views[i]->fit(extents[i], extents.view().slice(children),
-                                centers.view().slice(children));
-    extents[i]  = layout.extent;
-    viewport_extents[i] = layout.viewport_extent;
-    viewport_centers[i] = layout.viewport_center;
-    viewport_zooms[i]   = layout.viewport_zoom;
-    fixed.set(i, layout.fixed_center.is_some());
-    fixed_centers[i] = layout.fixed_center.unwrap_or();
+    auto children = tree.nodes.children[i];
+    auto layout   = tree.nodes.views[i]->fit(
+      tree.props.extents[i], tree.props.extents.view().slice(children),
+      tree.props.centers.view().slice(children));
+    tree.props.extents[i]          = layout.extent;
+    tree.props.viewport_extents[i] = layout.viewport_extent;
+    tree.props.viewport_centers[i] = layout.viewport_center;
+    tree.props.viewport_zooms[i]   = layout.viewport_zoom;
+    tree.props.fixed.set(i, layout.fixed_center.is_some());
+    tree.props.fixed_centers[i] = layout.fixed_center.unwrap_or();
   }
 
   // calculate fixed centers; parent-space to local viewport space
 
-  for (auto [i, children] : enumerate(nodes.children))
+  for (auto [i, children] : enumerate(tree.nodes.children))
   {
     // viewports don't propagate fixed-position centers to children
-    auto const fc = att.is_viewport[i] ? f32x2::zero() : fixed_centers[i];
+    auto fc =
+      tree.props.is_viewport[i] ? f32x2::zero() : tree.props.fixed_centers[i];
 
     for (auto c = children.begin(); c < children.end(); c++)
     {
-      if (!fixed[c]) [[likely]]
+      if (!tree.props.fixed[c]) [[likely]]
       {
-        fixed_centers[c] = centers[c] + fc;
+        tree.props.fixed_centers[c] = tree.props.centers[c] + fc;
       }
     }
   }
 
   // recursively apply viewport transforms to child viewports
-  canvas_xfm[0]     = affinef32x3::identity();
-  canvas_inv_xfm[0] = affinef32x3::identity();
+  tree.props.canvas_xfm[0]     = affinef32x3::identity();
+  tree.props.canvas_inv_xfm[0] = affinef32x3::identity();
 
   for (usize i = 0; i < n; i++)
   {
-    if (att.is_viewport[i]) [[unlikely]]
+    if (tree.props.is_viewport[i]) [[unlikely]]
     {
-      auto parent = att.viewports[i];
+      auto parent = tree.props.viewports[i];
 
       // accumulated parent transform
-      auto const & accum     = canvas_xfm[parent];
-      auto const & inv_accum = canvas_inv_xfm[parent];
+      auto & accum     = tree.props.canvas_xfm[parent];
+      auto & inv_accum = tree.props.canvas_inv_xfm[parent];
 
       // transform we are applying to the viewport's contents
-      auto const transform = translate2d(fixed_centers[i]) *
-                             scale2d(viewport_zooms[i]) *
-                             translate2d(-viewport_centers[i]);
+      auto transform = translate2d(tree.props.fixed_centers[i]) *
+                       scale2d(tree.props.viewport_zooms[i]) *
+                       translate2d(-tree.props.viewport_centers[i]);
 
-      auto const inv_transform = translate_scale_inv2d(transform);
+      auto inv_transform = translate_scale_inv2d(transform);
 
-      canvas_xfm[i]     = accum * transform;
-      canvas_inv_xfm[i] = inv_accum * inv_transform;
+      tree.props.canvas_xfm[i]     = accum * transform;
+      tree.props.canvas_inv_xfm[i] = inv_accum * inv_transform;
     }
   }
 
-  canvas_centers[0] = fixed_centers[0];
-  canvas_extents[0] = extents[0];
+  tree.props.canvas_centers[0] = tree.props.fixed_centers[0];
+  tree.props.canvas_extents[0] = tree.props.extents[0];
 
   for (usize i = 1; i < n; i++)
   {
-    auto const & transform = canvas_xfm[att.viewports[i]];
-    auto const   zoom      = f32x2{transform[0][0], transform[1][1]};
-    canvas_centers[i]      = ash::transform(transform, fixed_centers[i]);
-    canvas_extents[i]      = extents[i] * zoom;
+    auto & transform = tree.props.canvas_xfm[tree.props.viewports[i]];
+    auto   zoom      = f32x2{transform[0][0], transform[1][1]};
+    tree.props.canvas_centers[i] =
+      ash::transform(transform, tree.props.fixed_centers[i]);
+    tree.props.canvas_extents[i] = tree.props.extents[i] * zoom;
   }
 
-  clips[0] = CRect{.center = {}, .extent = viewport_extent};
+  tree.props.clips[0] = CRect{.center = {}, .extent = viewport_extent};
 
   /// clip viewports recursively and assign viewport clips to contained views
   for (usize i = 0; i < n; i++)
   {
-    auto const parent_viewport = att.viewports[i];
-    if (att.is_viewport[i]) [[unlikely]]
+    auto parent_viewport = tree.props.viewports[i];
+    if (tree.props.is_viewport[i]) [[unlikely]]
     {
-      CRect const clip{.center = canvas_centers[i],
-                       .extent = canvas_extents[i]};
-      clips[i] = clip.intersection(clips[parent_viewport]);
+      CRect clip{.center = tree.props.canvas_centers[i],
+                 .extent = tree.props.canvas_extents[i]};
+      tree.props.clips[i] =
+        clip.intersection(tree.props.clips[parent_viewport]);
     }
     else
     {
-      clips[i] = clips[parent_viewport];
+      tree.props.clips[i] = tree.props.clips[parent_viewport];
     }
   }
 }
@@ -305,81 +354,84 @@ static constexpr Order z_cmp(i32 a_layer, i32 a_z_index, u16 a_depth,
   return cmp(a_depth, b_depth);
 }
 
-void IViewSys::stack()
+void IViewSys::stack_(Tree & tree)
 {
   tracing::ScopeTrace trace;
 
-  if (views.is_empty())
+  if (tree.nodes.views.is_empty())
   {
     return;
   }
 
-  z_idx[0] = 0;
+  tree.props.z_idx[0] = 0;
 
-  for (auto [children, z_index, view] : zip(nodes.children, z_idx, views))
+  for (auto [children, z_index, view] :
+       zip(tree.nodes.children, tree.props.z_idx, tree.nodes.views))
   {
-    z_index = view->z_index(z_index, z_idx.view().slice(children));
+    z_index = view->z_index(z_index, tree.props.z_idx.view().slice(children));
   }
 
-  layers[0] = 0;
+  tree.props.layers[0] = 0;
 
-  for (auto [children, layer, view] : zip(nodes.children, layers, views))
+  for (auto [children, layer, view] :
+       zip(tree.nodes.children, tree.props.layers, tree.nodes.views))
   {
-    layer = view->layer(layer, layers.view().slice(children));
+    layer = view->layer(layer, tree.props.layers.view().slice(children));
   }
 
-  iota(z_ord.view(), 0U);
+  iota(tree.props.z_ord.view(), 0U);
 
   // sort layers
-  indirect_sort(z_ord.view(), [&](auto a, auto b) {
-    return z_cmp(layers[a], z_idx[a], nodes.depth[a], layers[b], z_idx[b],
-                 nodes.depth[b]) == Order::Less;
+  indirect_sort(tree.props.z_ord.view(), [&](auto a, auto b) {
+    return z_cmp(tree.props.layers[a], tree.props.z_idx[a], tree.nodes.depth[a],
+                 tree.props.layers[b], tree.props.z_idx[b],
+                 tree.nodes.depth[b]) == Order::Less;
   });
 }
 
-void IViewSys::visibility()
+void IViewSys::visibility_(Tree & tree)
 {
   tracing::ScopeTrace trace;
 
-  for (auto [i, children] : enumerate(nodes.children))
+  for (auto [i, children] : enumerate(tree.nodes.children))
   {
-    if (att.hidden[i])
+    if (tree.props.hidden[i])
     {
       // if parent requested to be hidden, make children hidden
       for (auto c = children.begin(); c < children.end(); c++)
       {
-        att.hidden.set_bit(c);
+        tree.props.hidden.set_bit(c);
       }
     }
     else
     {
-      auto const & clip = clips[att.viewports[i]];
+      auto & clip = tree.props.clips[tree.props.viewports[i]];
 
-      bool const hidden = !clip.overlaps(
-        CRect{.center = canvas_centers[i], .extent = canvas_extents[i]});
+      bool hidden =
+        !clip.overlaps(CRect{.center = tree.props.canvas_centers[i],
+                             .extent = tree.props.canvas_extents[i]});
 
-      att.hidden.set(i, hidden);
+      tree.props.hidden.set(i, hidden);
     }
   }
 }
 
-void IViewSys::render(Canvas & canvas)
+void IViewSys::render_(Tree & tree, Canvas & canvas)
 {
   tracing::ScopeTrace trace;
 
-  for (auto i : z_ord)
+  for (auto i : tree.props.z_ord)
   {
-    if (!att.hidden[i])
+    if (!tree.props.hidden[i])
     {
-      auto         parent_viewport = att.viewports[i];
-      auto const & clip            = clips[parent_viewport];
-      auto const & xfm             = canvas_xfm[parent_viewport];
-      CRect const  viewport_region{.center = fixed_centers[i],
-                                   .extent = extents[i]};
-      CRect const  canvas_region{.center = canvas_centers[i],
-                                 .extent = canvas_extents[i]};
-
-      auto & view = views[i];
+      auto   parent_viewport = tree.props.viewports[i];
+      auto & clip            = tree.props.clips[parent_viewport];
+      auto & xfm             = tree.props.canvas_xfm[parent_viewport];
+      CRect  viewport_region{.center = tree.props.fixed_centers[i],
+                             .extent = tree.props.extents[i]};
+      CRect  canvas_region{.center = tree.props.canvas_centers[i],
+                           .extent = tree.props.canvas_extents[i]};
+      auto & view = tree.nodes.views[i];
 
       view->render(canvas, ui::RenderInfo{.viewport_region  = viewport_region,
                                           .canvas_region    = canvas_region,
@@ -389,48 +441,44 @@ void IViewSys::render(Canvas & canvas)
   }
 }
 
-void IViewSys::focus_on(u16 i, bool active, bool grab_focus)
+void IViewSys::dispatch_focus_(Tree & tree, FocusRequest const & request,
+                               Vec<Event> & events)
 {
-  auto old        = focus_state.tgt;
-  bool was_active = focus_state.active;
+  auto old        = hot_ids_[cross_frame_focus_state_.tgt];
+  bool was_active = cross_frame_focus_state_.active;
 
-  views[old]->hot_ = true;
-  views[i]->hot_   = true;
+  tree.nodes.views[old]->hot_         = true;
+  tree.nodes.views[request.tgt]->hot_ = true;
 
-  focus_state = FocusState{.active = active, .tgt = i};
-  xframe_focus_state =
-    XFrameFocusState{.active = active, .tgt = views[i]->id()};
+  cross_frame_focus_state_ = CrossFrameFocusState{
+    .active = request.active, .tgt = tree.nodes.views[request.tgt]->id()};
 
-  focus_rect = ui::FocusRect{};
-
-  if (was_active && (!active || old != i))
+  if (was_active && (!request.active || old != request.tgt))
   {
     events.push(Event{.dst = old, .type = ui::Events::FocusOut}).unwrap();
   }
 
-  if ((i != old && active) || (i == old && !was_active && active))
+  if ((request.tgt != old && request.active) ||
+      (request.tgt == old && !was_active && request.active))
   {
-    events.push(Event{.dst = i, .type = ui::Events::FocusIn}).unwrap();
-
-    focus_rect = ui::FocusRect{
-      .area = CRect{.center = canvas_centers[i], .extent = canvas_extents[i]},
-      .clip = clips[att.viewports[i]]
-    };
+    events.push(Event{.dst = request.tgt, .type = ui::Events::FocusIn})
+      .unwrap();
   }
 
-  if (active && grab_focus)
+  if (request.active && request.grab_focus)
   {
-    auto it          = i;
-    auto it_viewport = att.viewports[it];
+    auto it          = request.tgt;
+    auto it_viewport = tree.props.viewports[it];
 
     while (true)
     {
       events
         .push(Event{
-          .dst    = it_viewport,
-          .type   = ui::Events::Scroll,
-          .scroll = ui::ScrollInfo{.center = fixed_centers[it],
-                                   .zoom   = viewport_zooms[it_viewport]}
+          .dst  = it_viewport,
+          .type = ui::Events::Scroll,
+          .scroll =
+            ui::ScrollInfo{.center = tree.props.fixed_centers[it],
+                           .zoom   = tree.props.viewport_zooms[it_viewport]}
       })
         .unwrap();
 
@@ -440,65 +488,46 @@ void IViewSys::focus_on(u16 i, bool active, bool grab_focus)
       }
 
       it          = it_viewport;
-      it_viewport = att.viewports[it];
+      it_viewport = tree.props.viewports[it];
     };
   }
 }
 
-Option<u16> IViewSys::hit_test(f32x2 position) const
+ui::HitInfo IViewSys::get_hit_info_(Tree & tree, u16 view, f32x2 position) const
 {
-  // find in reverse z-order
-  for (auto z = views.size(); z != 0;)
-  {
-    z--;
+  auto viewport = tree.props.viewports[view];
+  auto viewport_position =
+    transform(tree.props.canvas_inv_xfm[viewport], position);
 
-    auto const i = z_ord[z];
-
-    // find first non-hidden view that overlaps the hit position
-    if (!att.hidden[i] &&
-        CRect{.center = canvas_centers[i], .extent = canvas_extents[i]}
-          .contains(position)) [[unlikely]]
-    {
-      return i;
-    }
-  }
-
-  return none;
-}
-
-ui::HitInfo IViewSys::get_hit_info(u16 view, f32x2 position) const
-{
-  auto viewport          = att.viewports[view];
-  auto viewport_position = transform(canvas_inv_xfm[viewport], position);
-
-  CRect canvas_region{.center = canvas_centers[view],
-                      .extent = canvas_extents[view]};
+  CRect canvas_region{.center = tree.props.canvas_centers[view],
+                      .extent = tree.props.canvas_extents[view]};
 
   // local position of the pointer within the view
-  auto const & fixed_center = fixed_centers[view];
+  auto & fixed_center = tree.props.fixed_centers[view];
 
   return ui::HitInfo{
     .viewport_hit = viewport_position,
     .canvas_hit   = position,
-    .viewport_region{.center = fixed_center, .extent = extents[view]},
+    .viewport_region{.center = fixed_center,
+                     .extent = tree.props.extents[view]},
     .canvas_region    = canvas_region,
-    .canvas_transform = canvas_xfm[viewport]
+    .canvas_transform = tree.props.canvas_xfm[viewport]
   };
 }
 
-u16 IViewSys::navigate_focus(u16 from_idx, bool forward) const
+u16 IViewSys::navigate_focus_(Tree & tree, u16 from_idx, bool forward) const
 {
-  CHECK(from_idx < views.size(), "");
-  CHECK(!views.is_empty(), "");
+  CHECK(from_idx < tree.nodes.views.size(), "");
+  CHECK(!tree.nodes.views.is_empty(), "");
 
-  if (views.size() == 1)
+  if (tree.nodes.views.size() == 1)
   {
     return from_idx;
   }
 
-  i64 const n    = size16(views);
-  auto      from = focus_idx[from_idx];
-  i64       f    = from;
+  i64  n    = size16(tree.nodes.views);
+  auto from = tree.props.focus_idx[from_idx];
+  i64  f    = from;
 
   auto advance = [&]() {
     f += (forward ? 1 : -1);
@@ -518,9 +547,9 @@ u16 IViewSys::navigate_focus(u16 from_idx, bool forward) const
 
   while (f != from)
   {
-    auto const i = focus_ord[f];
+    auto i = tree.props.focus_ord[f];
 
-    if (!att.hidden[i] && att.focusable[i])
+    if (!tree.props.hidden[i] && tree.props.focusable[i])
     {
       return i;
     }
@@ -531,18 +560,83 @@ u16 IViewSys::navigate_focus(u16 from_idx, bool forward) const
   return from_idx;
 }
 
-IViewSys::HitState IViewSys::none_seq(ui::Ctx const & ctx)
+IViewSys::HitState IViewSys::none_seq_(Tree &                 tree,
+                                       ui::InputScope const & input,
+                                       Vec<Event> &           events,
+                                       RequestQueue &         request_queue)
 {
-  if (!ctx.mouse.focused)
+  if (!input.mouse().focused())
   {
     return none;
   }
 
-  return point_seq(ctx, none);
+  return point_seq_(tree, input, none, events, request_queue);
 }
 
-IViewSys::HitState IViewSys::drag_start_seq(ui::Ctx const & ctx,
-                                            Option<u16>     src)
+template <typename Match>
+Option<u16> bubble(IViewSys::Tree & tree, u16 from, Match && match)
+{
+  auto current = from;
+
+  while (true)
+  {
+    if (tree.props.layers[current] != tree.props.layers[from])
+    {
+      return none;
+    }
+
+    if (match(current))
+    {
+      return current;
+    }
+
+    if (tree.props.is_viewport[current])
+    {
+      return none;
+    }
+
+    if (current == RootView::NODE)
+    {
+      return none;
+    }
+
+    current = tree.nodes.parent[current];
+  }
+}
+
+Option<u16> hit_test(IViewSys::Tree & tree, f32x2 position)
+{
+  // find in reverse z-order
+  for (auto z = tree.nodes.views.size(); z != 0;)
+  {
+    z--;
+
+    auto i = tree.props.z_ord[z];
+
+    // find first non-hidden view that overlaps the hit position
+    if (!tree.props.hidden[i] && CRect{.center = tree.props.canvas_centers[i],
+                                       .extent = tree.props.canvas_extents[i]}
+                                   .contains(position)) [[unlikely]]
+    {
+      return i;
+    }
+  }
+
+  return none;
+}
+
+template <typename Match>
+Option<u16> bubble_hit(IViewSys::Tree & tree, f32x2 position, Match && match)
+{
+  return hit_test(tree, position).and_then([&](auto i) {
+    return bubble(tree, i, match);
+  });
+}
+
+IViewSys::HitState IViewSys::drag_start_seq_(Tree &                 tree,
+                                             ui::InputScope const & input,
+                                             Option<u16>            src,
+                                             Vec<Event> &           events)
 {
   auto diff = [&](Option<u16> tgt, Option<ui::HitInfo> hit) {
     tgt.match([&](auto i) {
@@ -553,7 +647,7 @@ IViewSys::HitState IViewSys::drag_start_seq(ui::Ctx const & ctx,
     });
   };
 
-  if (!ctx.mouse.focused || ctx.key.held(KeyCode::Escape))
+  if (!input.mouse().focused() || input.key().held(KeyCode::Escape))
   {
     src.match([&](auto i) {
       events.push(Event{.dst = i, .type = ui::Events::DragEnd}).unwrap();
@@ -562,17 +656,18 @@ IViewSys::HitState IViewSys::drag_start_seq(ui::Ctx const & ctx,
     return none;
   }
 
-  auto tgt = ctx.mouse.position.and_then([&](auto p) {
-    return bubble_hit(p, [&](auto i) { return att.droppable[i]; });
+  auto tgt = input.mouse().position().and_then([&](auto p) {
+    return bubble_hit(tree, p, [&](auto i) { return tree.props.droppable[i]; });
   });
 
-  if (!ctx.mouse.held(MouseButton::Primary))
+  if (!input.mouse().held(MouseButton::Primary))
   {
     src.match([&](auto i) {
       events
-        .push(Event{.dst  = i,
-                    .type = ui::Events::DragEnd,
-                    .hit  = get_hit_info(i, ctx.mouse.position.v())})
+        .push(
+          Event{.dst  = i,
+                .type = ui::Events::DragEnd,
+                .hit  = get_hit_info_(tree, i, input.mouse().position().v())})
         .unwrap();
     });
 
@@ -582,7 +677,7 @@ IViewSys::HitState IViewSys::drag_start_seq(ui::Ctx const & ctx,
       return none;
     }
 
-    auto hit = get_hit_info(tgt.v(), ctx.mouse.position.v());
+    auto hit = get_hit_info_(tree, tgt.v(), input.mouse().position().v());
 
     diff(tgt, hit);
 
@@ -596,20 +691,23 @@ IViewSys::HitState IViewSys::drag_start_seq(ui::Ctx const & ctx,
     events
       .push(Event{.dst  = i,
                   .type = ui::Events::DragUpdate,
-                  .hit  = get_hit_info(i, ctx.mouse.position.v())})
+                  .hit  = get_hit_info_(tree, i, input.mouse().position().v())})
       .unwrap();
   });
 
-  diff(tgt, tgt.map(
-              [&](auto i) { return get_hit_info(i, ctx.mouse.position.v()); }));
+  diff(tgt, tgt.map([&](auto i) {
+    return get_hit_info_(tree, i, input.mouse().position().v());
+  }));
 
   // change to update state
   return DragState{.seq = DragState::Update, .src = src, .tgt = tgt};
 }
 
-IViewSys::HitState IViewSys::drag_update_seq(ui::Ctx const & ctx,
-                                             Option<u16>     src,
-                                             Option<u16>     prev_tgt)
+IViewSys::HitState IViewSys::drag_update_seq_(Tree &                 tree,
+                                              ui::InputScope const & input,
+                                              Option<u16>            src,
+                                              Option<u16>            prev_tgt,
+                                              Vec<Event> &           events)
 {
   auto diff = [&](Option<u16> tgt, Option<ui::HitInfo> hit) {
     tgt.match([&](auto i) {
@@ -635,27 +733,29 @@ IViewSys::HitState IViewSys::drag_update_seq(ui::Ctx const & ctx,
     });
   };
 
-  if (!ctx.mouse.focused || ctx.key.held(KeyCode::Escape))
+  if (!input.mouse().focused() || input.key().held(KeyCode::Escape))
   {
     diff(none, none);
     return none;
   }
 
-  auto tgt = bubble_hit(ctx.mouse.position.v(),
-                        [&](auto i) { return att.droppable[i]; });
+  auto tgt = bubble_hit(tree, input.mouse().position().v(),
+                        [&](auto i) { return tree.props.droppable[i]; });
 
-  auto hit =
-    tgt.map([&](auto i) { return get_hit_info(i, ctx.mouse.position.v()); });
+  auto hit = tgt.map([&](auto i) {
+    return get_hit_info_(tree, i, input.mouse().position().v());
+  });
 
-  if (!ctx.mouse.held(MouseButton::Primary))
+  if (!input.mouse().held(MouseButton::Primary))
   {
     diff(tgt, hit);
 
     src.match([&](auto i) {
       events
-        .push(Event{.dst  = i,
-                    .type = ui::Events::DragEnd,
-                    .hit  = get_hit_info(i, ctx.mouse.position.v())})
+        .push(
+          Event{.dst  = i,
+                .type = ui::Events::DragEnd,
+                .hit  = get_hit_info_(tree, i, input.mouse().position().v())})
         .unwrap();
     });
 
@@ -671,7 +771,7 @@ IViewSys::HitState IViewSys::drag_update_seq(ui::Ctx const & ctx,
     events
       .push(Event{.dst  = i,
                   .type = ui::Events::DragUpdate,
-                  .hit  = get_hit_info(i, ctx.mouse.position.v())})
+                  .hit  = get_hit_info_(tree, i, input.mouse().position().v())})
       .unwrap();
   });
 
@@ -680,8 +780,11 @@ IViewSys::HitState IViewSys::drag_update_seq(ui::Ctx const & ctx,
   return DragState{.seq = DragState::Update, .src = src, .tgt = tgt};
 }
 
-IViewSys::HitState IViewSys::point_seq(ui::Ctx const & ctx,
-                                       Option<u16>     prev_tgt)
+IViewSys::HitState IViewSys::point_seq_(Tree &                 tree,
+                                        ui::InputScope const & input,
+                                        Option<u16>            prev_tgt,
+                                        Vec<Event> &           events,
+                                        RequestQueue &         request_queue)
 {
   // [ ] handle external drop
   auto diff = [&](Option<u16> tgt, Option<ui::HitInfo> hit) {
@@ -695,7 +798,7 @@ IViewSys::HitState IViewSys::point_seq(ui::Ctx const & ctx,
       events.push(Event{.dst = i, .type = ui::Events::PointerOver, .hit = hit})
         .unwrap();
 
-      if (ctx.mouse.any_up)
+      if (input.mouse().any_up())
       {
         events.push(Event{.dst = i, .type = ui::Events::PointerUp, .hit = hit})
           .unwrap();
@@ -710,19 +813,20 @@ IViewSys::HitState IViewSys::point_seq(ui::Ctx const & ctx,
     });
   };
 
-  if (!ctx.mouse.focused)
+  if (!input.mouse().focused())
   {
     diff(none, none);
     return none;
   }
 
-  if (ctx.mouse.scrolled)
+  if (input.mouse().scrolled())
   {
-    auto tgt = bubble_hit(ctx.mouse.position.v(),
-                          [&](auto i) { return att.scrollable[i]; });
+    auto tgt = bubble_hit(tree, input.mouse().position().v(),
+                          [&](auto i) { return tree.props.scrollable[i]; });
 
-    auto hit =
-      tgt.map([&](auto i) { return get_hit_info(i, ctx.mouse.position.v()); });
+    auto hit = tgt.map([&](auto i) {
+      return get_hit_info_(tree, i, input.mouse().position().v());
+    });
 
     if (tgt.is_some())
     {
@@ -736,10 +840,10 @@ IViewSys::HitState IViewSys::point_seq(ui::Ctx const & ctx,
           .hit  = hit,
           .scroll =
             ui::ScrollInfo{.center =
-                             viewport_centers[i] +
-                             -1 * scroll_delta *
-                               ctx.mouse.wheel_translation.v().to<f32>(),
-                           .zoom = viewport_zooms[i]}
+                             tree.props.viewport_centers[i] +
+                             -1 * input.window().scroll_delta() *
+                               input.mouse().wheel_translation().v().to<f32>(),
+                           .zoom = tree.props.viewport_zooms[i]}
       })
         .unwrap();
       return PointState{.tgt = tgt};
@@ -748,21 +852,24 @@ IViewSys::HitState IViewSys::point_seq(ui::Ctx const & ctx,
 
   // [ ] pointerup
 
-  if (ctx.mouse.held(MouseButton::Primary))
+  if (input.mouse().held(MouseButton::Primary))
   {
-    auto tgt = bubble_hit(ctx.mouse.position.v(), [&](auto i) {
-      return att.draggable[i] || att.clickable[i];
+    auto tgt = bubble_hit(tree, input.mouse().position().v(), [&](auto i) {
+      return tree.props.draggable[i] || tree.props.clickable[i];
     });
 
-    auto hit =
-      tgt.map([&](auto i) { return get_hit_info(i, ctx.mouse.position.v()); });
+    auto hit = tgt.map([&](auto i) {
+      return get_hit_info_(tree, i, input.mouse().position().v());
+    });
 
     if (tgt.is_some())
     {
       auto i         = tgt.v();
-      auto draggable = att.draggable[i];
+      auto draggable = tree.props.draggable[i];
 
-      focus_on(i, false, false);
+      // focus_on(tree, i, false, false, events);
+      request_queue.focus =
+        FocusRequest{.tgt = i, .active = false, .grab_focus = false};
 
       diff(tgt, hit);
 
@@ -775,7 +882,7 @@ IViewSys::HitState IViewSys::point_seq(ui::Ctx const & ctx,
         return DragState{.seq = DragState::Start, .src = i, .tgt = none};
       }
 
-      if (ctx.mouse.any_down)
+      if (input.mouse().any_down())
       {
         events
           .push(Event{.dst = i, .type = ui::Events::PointerDown, .hit = hit})
@@ -786,96 +893,99 @@ IViewSys::HitState IViewSys::point_seq(ui::Ctx const & ctx,
     }
   }
 
-  auto tgt = bubble_hit(ctx.mouse.position.v(),
-                        [&](auto i) { return att.pointable[i]; });
+  auto tgt = bubble_hit(tree, input.mouse().position().v(),
+                        [&](auto i) { return tree.props.pointable[i]; });
 
-  auto hit =
-    tgt.map([&](auto i) { return get_hit_info(i, ctx.mouse.position.v()); });
-
+  auto hit = tgt.map([&](auto i) {
+    return get_hit_info_(tree, i, input.mouse().position().v());
+  });
   diff(tgt, hit);
 
   return PointState{.tgt = tgt};
 }
 
-void IViewSys::hit_seq(ui::Ctx const & ctx)
+void IViewSys::hit_seq_(Tree & tree, ui::InputScope const & input,
+
+                        Vec<Event> & events, RequestQueue & request_queue)
 {
   tracing::ScopeTrace trace;
-  // build hitstate from the ids
-  // process event state
-  // mark eventful views as hot
-  // store the events in an event queue using ids
+  // - build hitstate from the ids
+  // - process event state
+  // - mark eventful views as hot
+  // - store the events in an event queue using idsm so they can be referenced in the next frame
 
-  hit_state = xframe_hit_state.match(
+  auto hit_state = cross_frame_hit_state_.match(
     [](None) -> HitState { return none; },
     [&](auto & h) -> HitState {
-      return DragState{
-        .seq = h.seq,
-        .src = h.src.and_then([&](auto id) { return ids.try_get(id).unref(); }),
-        .tgt =
-          h.tgt.and_then([&](auto id) { return ids.try_get(id).unref(); })};
+      return DragState{.seq = h.seq,
+                       .src = h.src.and_then(
+                         [&](auto id) { return hot_ids_.try_get(id).unref(); }),
+                       .tgt = h.tgt.and_then([&](auto id) {
+                         return hot_ids_.try_get(id).unref();
+                       })};
     },
     [&](auto & h) -> HitState {
-      return PointState{.tgt = h.tgt.and_then(
-                          [&](auto id) { return ids.try_get(id).unref(); })};
+      return PointState{.tgt = h.tgt.and_then([&](auto id) {
+        return hot_ids_.try_get(id).unref();
+      })};
     });
 
-  hit_state =
-    hit_state.match([&](None) { return none_seq(ctx); },
-                    [&](auto & h) {
-                      // mark previous frame's src and dst views as hot, so we can
-                      // dispatch pointer in/out events to them
-                      h.src.match([&](auto i) { views[i]->hot_ = true; });
-                      h.tgt.match([&](auto i) { views[i]->hot_ = true; });
+  hit_state = hit_state.match(
+    [&](None) { return none_seq_(tree, input, events, request_queue); },
+    [&](auto & h) {
+      // mark previous frame's src and dst views as hot, so we can
+      // dispatch pointer in/out events to them
+      h.src.match([&](auto i) { tree.nodes.views[i]->hot_ = true; });
+      h.tgt.match([&](auto i) { tree.nodes.views[i]->hot_ = true; });
 
-                      switch (h.seq)
-                      {
-                        case DragState::Start:
-                          return drag_start_seq(ctx, h.src);
-                        case DragState::Update:
-                          return drag_update_seq(ctx, h.src, h.tgt);
-                      }
-                    },
-                    [&](auto & h) {
-                      h.tgt.match([&](auto i) { views[i]->hot_ = true; });
-                      return point_seq(ctx, h.tgt);
-                    });
+      switch (h.seq)
+      {
+        case DragState::Start:
+          return drag_start_seq_(tree, input, h.src, events);
+        case DragState::Update:
+          return drag_update_seq_(tree, input, h.src, h.tgt, events);
+      }
+    },
+    [&](auto & h) {
+      h.tgt.match([&](auto i) { tree.nodes.views[i]->hot_ = true; });
+      return point_seq_(tree, input, h.tgt, events, request_queue);
+    });
 
   // mark current source and dst as hot, will still receive events on this frame
-  xframe_hit_state = hit_state.match(
-    [](None) -> XFrameHitState { return none; },
-    [&](DragState const & h) -> XFrameHitState {
-      h.src.match([&](auto i) { views[i]->hot_ = true; });
-      h.tgt.match([&](auto i) { views[i]->hot_ = true; });
+  cross_frame_hit_state_ = hit_state.match(
+    [](None) -> CrossFrameHitState { return none; },
+    [&](DragState const & h) -> CrossFrameHitState {
+      h.src.match([&](auto i) { tree.nodes.views[i]->hot_ = true; });
+      h.tgt.match([&](auto i) { tree.nodes.views[i]->hot_ = true; });
 
-      return XFrameDragState{
+      return CrossFrameDragState{
         .seq = h.seq,
-        .src = h.src.map([&](auto i) { return views[i]->id(); }),
-        .tgt = h.tgt.map([&](auto i) { return views[i]->id(); })};
+        .src = h.src.map([&](auto i) { return tree.nodes.views[i]->id(); }),
+        .tgt = h.tgt.map([&](auto i) { return tree.nodes.views[i]->id(); })};
     },
-    [&](PointState const & h) -> XFrameHitState {
-      h.tgt.match([&](auto i) { views[i]->hot_ = true; });
-      return XFramePointState{
-        .tgt = h.tgt.map([&](auto i) { return views[i]->id(); })};
+    [&](PointState const & h) -> CrossFrameHitState {
+      h.tgt.match([&](auto i) { tree.nodes.views[i]->hot_ = true; });
+      return CrossFramePointState{
+        .tgt = h.tgt.map([&](auto i) { return tree.nodes.views[i]->id(); })};
     });
 }
 
-void IViewSys::focus_seq(ui::Ctx const & ctx)
+void IViewSys::focus_seq_(Tree & tree, ui::InputScope const & input,
+                          Vec<Event> & events, RequestQueue & request_queue)
 {
   tracing::ScopeTrace trace;
   // view might be gone when we begin this frame so we can focus on the root view if it has disappeared
-  focus_state =
-    FocusState{.active = xframe_focus_state.active,
-               .tgt = ids.try_get(xframe_focus_state.tgt).unref().unwrap_or()};
+  auto                focus_active = cross_frame_focus_state_.active;
+  auto                focus_tgt =
+    hot_ids_.try_get(cross_frame_focus_state_.tgt).unref().unwrap_or();
 
-  views[focus_state.tgt]->hot_ = true;
+  tree.nodes.views[focus_tgt]->hot_ = true;
 
-  focus_grab_tgt.match([&](auto i) { focus_on(i, true, true); });
-
-  bool tabbed = ctx.key.down(KeyCode::Tab);
-  bool alternate =
-    ctx.key.held(KeyCode::LeftShift) || ctx.key.held(KeyCode::RightShift);
-  bool accepts_tab = att.input[focus_state.tgt].is_some() &&
-                     att.input[focus_state.tgt].v().tab_input;
+  bool tabbed    = input.key().down(KeyCode::Tab);
+  bool alternate = input.key().held(KeyCode::LeftShift) ||
+                   input.key().held(KeyCode::RightShift);
+  bool accepts_tab = tree.props.input[focus_tgt].enabled &&
+                     tree.props.input[focus_tgt].tab_input;
 
   auto focus_action =
     (tabbed && !accepts_tab) ?
@@ -885,133 +995,163 @@ void IViewSys::focus_seq(ui::Ctx const & ctx)
   if (focus_action != FocusAction::None)
   {
     auto next =
-      navigate_focus(focus_state.tgt, focus_action == FocusAction::Forward);
+      navigate_focus_(tree, focus_tgt, focus_action == FocusAction::Forward);
 
-    focus_on(next, true, true);
+    request_queue.focus =
+      FocusRequest{.tgt = next, .active = true, .grab_focus = true};
   }
 
-  if (focus_state.active)
+  if (focus_active)
   {
-    events.push(Event{.dst = focus_state.tgt, .type = ui::Events::FocusOver})
+    events.push(Event{.dst = focus_tgt, .type = ui::Events::FocusOver})
       .unwrap();
 
-    if (ctx.key.any_down)
+    if (input.key().any_down())
     {
-      events.push(Event{.dst = focus_state.tgt, .type = ui::Events::KeyDown})
+      events.push(Event{.dst = focus_tgt, .type = ui::Events::KeyDown})
         .unwrap();
     }
 
-    if (ctx.key.any_up)
+    if (input.key().any_up())
     {
-      events.push(Event{.dst = focus_state.tgt, .type = ui::Events::KeyUp})
-        .unwrap();
+      events.push(Event{.dst = focus_tgt, .type = ui::Events::KeyUp}).unwrap();
     }
 
-    if (ctx.key.input)
+    if (input.key().input())
     {
-      events.push(Event{.dst = focus_state.tgt, .type = ui::Events::TextInput})
+      events.push(Event{.dst = focus_tgt, .type = ui::Events::TextInput})
         .unwrap();
     }
   }
+
+  request_queue.focus.match([&](auto r) { dispatch_focus_(tree, r, events); });
 }
 
-void IViewSys::compose_event(ui::ViewId id, ui::Events::Type event,
-                             Option<ui::HitInfo>    hit,
-                             Option<ui::ScrollInfo> scroll)
+void IViewSys::compose_event_(Tree &, ui::ViewId id, ui::Events::Type event,
+                              Option<ui::HitInfo>    hit,
+                              Option<ui::ScrollInfo> scroll)
 {
-  auto [_, v] = event_queue.push(id, ui::Events{}, nullptr, false).v();
+  auto [_, v] = event_queue_.push(id, ui::Events{}, nullptr, false).v();
 
-  v.bits = ui::Events::Bits::Type{v.bits | ui::Events::Bits::at(event)};
+  v.bits_ = ui::Events::Bits::Type{v.bits_ | ui::Events::Bits::at(event)};
 
   if (hit)
   {
-    v.hit_info = hit;
+    v.hit_info_ = hit;
   }
 
   if (scroll)
   {
-    v.scroll_info = scroll;
+    v.scroll_info_ = scroll;
   }
 }
 
-void IViewSys::process_input(ui::Ctx const & ctx)
+Tuple<Option<ui::FocusRect>, Option<TextInputInfo>, Cursor>
+  IViewSys::prepare_events_(Tree & tree, ui::InputScope const & input,
+                            RequestQueue & request_queue,
+                            Allocator      scratch_allocator)
 {
   tracing::ScopeTrace trace;
 
-  hit_seq(ctx);
-  focus_seq(ctx);
+  Vec<Event> events{scratch_allocator};
 
-  focus_rect = none;
-  input_info = none;
-  cursor     = Cursor::Default;
+  hit_seq_(tree, input, events, request_queue);
+  focus_seq_(tree, input, events, request_queue);
 
-  for (auto const & event : events)
+  Option<ui::FocusRect> focus_rect;
+  Option<TextInputInfo> input_info;
+  Cursor                cursor = Cursor::Default;
+
+  for (auto & event : events)
   {
     auto i     = event.dst;
-    ref  view  = views[i];
+    ref  view  = tree.nodes.views[i];
     view->hot_ = true;
-    compose_event(view->id(), event.type, event.hit, event.scroll);
+    compose_event_(tree, view->id(), event.type, event.hit, event.scroll);
 
     if (event.type == ui::Events::PointerOver)
     {
-      Cursor c = view->cursor(extents[i],
-                              ash::transform(canvas_inv_xfm[att.viewports[i]],
-                                             ctx.mouse.position.v()) -
-                                fixed_centers[i]);
+      Cursor c = view->cursor(
+        tree.props.extents[i],
+        ash::transform(tree.props.canvas_inv_xfm[tree.props.viewports[i]],
+                       input.mouse().position().v()) -
+          tree.props.fixed_centers[i]);
 
       cursor = c;
     }
     else if (event.type == ui::Events::FocusOver)
     {
       focus_rect = ui::FocusRect{
-        .area = CRect{.center = canvas_centers[i], .extent = canvas_extents[i]},
-        .clip = clips[att.viewports[i]]
+        .area = CRect{.center = tree.props.canvas_centers[i],
+                      .extent = tree.props.canvas_extents[i]},
+        .clip = tree.props.clips[tree.props.viewports[i]]
       };
 
-      input_info = att.input[i];
+      input_info = tree.props.input[i];
     }
   }
 
   events.clear();
+
+  return {focus_rect, input_info, cursor};
 }
 
-Option<TextInputInfo> IViewSys::text_input() const
-{
-  return input_info;
-}
-
-bool IViewSys::tick(InputState const & input, ui::View & root, Canvas & canvas,
-                    Fn<void(ui::Ctx const &)> loop)
+ViewSysState IViewSys::tick(Engine engine, ui::InputScope const & input,
+                            Canvas                                    canvas,
+                            Fn<ui::View &(Engine, ui::Scope const &)> loop,
+                            Allocator scratch_allocator)
 {
   tracing::ScopeTrace trace;
-  // [ ] message propagation, i.e theme change
 
-  clear_frame();
+  auto & base      = loop(engine, prev_frame_scope_);
+  root_view_.next_ = base;
 
-  root_view.next_ = root;
+  auto nodes = Nodes::create(allocator_, initial_nodes_capacity_);
 
-  ctx.focused = focus_rect;
-  ctx.cursor  = cursor;
+  Tree tree{.nodes{std::move(nodes)}, .props{Props::none()}};
 
-  loop(ctx);
-  build(ctx, root_view);
-  event_queue.clear();
-  prepare_for(size16(views));
-  focus_order();
-  layout(input.window.extent.to<f32>());
-  stack();
-  visibility();
-  render(canvas);
+  RequestQueue request_queue;
 
-  ctx.tick(input);
+  build_(tree, root_view_, request_queue);
 
-  process_input(ctx);
+  auto n = size16(tree.nodes.views);
 
-  bool const should_close = ctx.closing && !closing_deferred;
+  auto props = Props::create(scratch_allocator, n);
 
-  frame++;
+  tree.props = std::move(props);
 
-  return !should_close;
+  build_states_(tree);
+  event_queue_.clear();
+  focus_order_(tree);
+  layout_(tree, input.window().extent_.to<f32>());
+  stack_(tree);
+  visibility_(tree);
+  render_(tree, canvas);
+
+  /// Based on the current state and the new input events, prepare the view events
+  auto [focus_rect, input_info, cursor] =
+    prepare_events_(tree, input, request_queue, scratch_allocator);
+
+  /// Prepare the new system and window states for dispath on the next frame
+  prev_frame_sys_state_ = input.system().copy();
+  prev_frame_win_state_ = input.window().copy(allocator_).unwrap();
+
+  bool was_closing             = prev_frame_sys_scope_.closing_;
+  bool has_close_defer_request = request_queue.defer_close;
+
+  prev_frame_sys_scope_.focus_rect_ = focus_rect;
+  prev_frame_sys_scope_.cursor_     = cursor;
+  prev_frame_sys_scope_.closing_ =
+    prev_frame_sys_scope_.closing_ || input.window().close_requested();
+  prev_frame_sys_scope_.closing_deferred_ = request_queue.defer_close;
+
+  prev_frame_sys_scope_.frame_++;
+
+  bool should_close = was_closing && !has_close_defer_request;
+
+  return ViewSysState{.should_continue = !should_close,
+                      .cursor          = cursor,
+                      .input_info      = input_info};
 }
 
 }    // namespace ash

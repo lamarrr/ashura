@@ -513,8 +513,7 @@ gpu::Device IGpuFramePlan::device() const
 void IGpuFramePlan::begin()
 {
   CHECK(state_ == GpuFramePlanState::Reset, "");
-  state_            = GpuFramePlanState::Recording;
-  submission_stage_ = semaphore_->stage();
+  state_ = GpuFramePlanState::Recording;
 }
 
 void IGpuFramePlan::end()
@@ -543,9 +542,16 @@ void IGpuFramePlan::reset()
   state_ = GpuFramePlanState::Reset;
 }
 
-bool IGpuFramePlan::await(nanoseconds timeout)
+constexpr u32 IN_USE     = 1U;
+constexpr u32 NOT_IN_USE = 0U;
+
+void IGpuFramePlan::await()
 {
-  return semaphore_->await(submission_stage_, timeout);
+  if (wait_token_->load(std::memory_order_acquire) != IN_USE)
+  {
+    return;
+  }
+  wait_token_->os_wait(IN_USE, std::memory_order_acquire);
 }
 
 TexelBufferUnion::View TexelBufferUnion::interpret(gpu::Format format) const
@@ -1111,7 +1117,7 @@ GpuBufferSpan IGpuFrame::get(GpuBufferId id)
   return {resources_.buffer, slice};
 }
 
-Span<u8 const> IGpuFrame::get(CpuBufferId id)
+Span<u8> IGpuFrame::get(CpuBufferId id)
 {
   CHECK(state_ == GpuFrameState::Recording, "");
   CHECK(current_plan_ != nullptr, "");
@@ -1149,17 +1155,18 @@ gpu::DescriptorSet IGpuFrame::get(TextureSet tex)
 void IGpuFrame::begin()
 {
   CHECK(state_ == GpuFrameState::Reset, "");
-  state_            = GpuFrameState::Recording;
-  submission_stage_ = semaphore_->stage();
+  state_ = GpuFrameState::Recording;
 }
 
-void IGpuFrame::cmd(GpuFramePlan plan)
+void IGpuFrame::set_plan(GpuFramePlan plan)
 {
   CHECK(state_ == GpuFrameState::Recording, "");
   CHECK(plan != nullptr, "");
   CHECK(plan->state_ == GpuFramePlanState::Recorded, "");
   current_plan_         = plan;
   current_plan_->state_ = GpuFramePlanState::Submitted;
+  current_plan_->frame_completed_tasks_ =
+    std::move(plan->frame_completed_tasks_);
 }
 
 void IGpuFrame::end()
@@ -1173,8 +1180,9 @@ void IGpuFrame::submit()
 {
   tracing::ScopeTrace trace;
   CHECK(state_ == GpuFrameState::Recorded, "");
-  u8                scratch_buffer_[1_KB];
-  FallbackAllocator scratch{scratch_buffer_, allocator_};
+  u8                 scratch_buffer_[1_KB];
+  IArena             scratch_arena_{scratch_buffer_};
+  IFallbackAllocator scratch{&scratch_arena_, allocator_};
 
   {
     auto label = sformat(scratch, "GpuFrame {} / Buffer"_str, id_).unwrap();
@@ -1249,7 +1257,7 @@ void IGpuFrame::submit()
 
   for (auto & task : current_plan_->pre_frame_tasks_)
   {
-    task();
+    task(this);
   }
 
   command_encoder_->begin();
@@ -1266,7 +1274,6 @@ void IGpuFrame::submit()
   }
 
   command_encoder_->end().unwrap();
-  (void) current_plan_->semaphore_->increment(1);
 
   command_buffer_->begin();
   command_buffer_->record(command_encoder_);
@@ -1276,22 +1283,23 @@ void IGpuFrame::submit()
 
   for (auto & task : current_plan_->post_frame_tasks_)
   {
-    task();
+    task(this);
   }
 
-  state_ = GpuFrameState::Submitted;
+  current_plan_->state_ = GpuFramePlanState::Executed;
+  current_plan_         = nullptr;
+  state_                = GpuFrameState::Submitted;
 }
 
-bool IGpuFrame::try_complete(nanoseconds timeout)
+void IGpuFrame::complete()
 {
   tracing::ScopeTrace trace;
   CHECK(state_ == GpuFrameState::Submitted, "");
 
-  if (!dev_->await_queue_scope_frame(sys_->queue_scope_, scope_frame_id_,
-                                     timeout))
-  {
-    return false;
-  }
+  dev_
+    ->await_queue_scope_frame(sys_->queue_scope_, scope_frame_id_,
+                              nanoseconds::max())
+    .unwrap();
 
   dev_
     ->get_timestamp_query_result(resources_.queries.timestamps, 0,
@@ -1302,16 +1310,15 @@ bool IGpuFrame::try_complete(nanoseconds timeout)
                                   resources_.queries.cpu_statistics)
     .unwrap();
 
-  for (auto & task : current_plan_->frame_completed_tasks_)
+  for (auto & task : frame_completed_tasks_)
   {
-    task();
+    task(this);
   }
 
-  current_plan_->state_ = GpuFramePlanState::Executed;
-  state_                = GpuFrameState::Completed;
-  (void) semaphore_->increment(1);
-
-  return true;
+  state_ = GpuFrameState::Completed;
+  wait_token_->store(NOT_IN_USE, std::memory_order_release);
+  wait_token_->os_notify();
+  frame_completed_tasks_ = Vec<GpuFrameTask>{noop_allocator};
 }
 
 void IGpuFrame::reset()
@@ -1320,12 +1327,17 @@ void IGpuFrame::reset()
   next_statistics_ = 0;
   command_encoder_->reset();
   command_buffer_->reset();
-  current_plan_ = nullptr;
+  current_plan_          = nullptr;
+  frame_completed_tasks_ = Vec<GpuFrameTask>{noop_allocator};
 }
 
-bool IGpuFrame::await(nanoseconds timeout)
+void IGpuFrame::await()
 {
-  return semaphore_->await(submission_stage_, timeout);
+  if (wait_token_->load(std::memory_order_acquire) != IN_USE)
+  {
+    return;
+  }
+  wait_token_->os_wait(IN_USE, std::memory_order_acquire);
 }
 
 static Option<gpu::Format> select_color_format(gpu::Device             dev,
@@ -1360,9 +1372,7 @@ static Option<gpu::Format>
 
 void IGpuSys::shutdown(Vec<u8> & cache)
 {
-  auto drain_semaphore = scheduler_->get_drain_semaphore(thread_.v());
-  CHECK(drain_semaphore->complete(0), "");
-  CHECK(drain_semaphore->await(1ULL, nanoseconds::max()), "");
+  scheduler_->await_thread_shutdown(thread_.v());
   dev_->await_idle().unwrap();
   dev_->get_pipeline_cache_data(pipeline_cache_, cache).unwrap();
 
@@ -1596,8 +1606,9 @@ void IGpuSys::init(Allocator allocator, gpu::Device device,
                    GpuSysPreferences const & preferences, Scheduler scheduler,
                    Thread thread)
 {
-  u8                scratch_buffer_[1_KB];
-  FallbackAllocator scratch{scratch_buffer_, allocator_};
+  u8                 scratch_buffer_[1_KB];
+  IArena             scratch_arena_{scratch_buffer_};
+  IFallbackAllocator scratch{&scratch_arena_, allocator_};
 
   CHECK(preferences.buffering > 0, "");
   CHECK(preferences.buffering <= MAX_BUFFERING, "");
@@ -1640,8 +1651,8 @@ void IGpuSys::init(Allocator allocator, gpu::Device device,
 
   for (auto i : range(buffering_))
   {
-    // start as signaled semaphore
-    auto semaphore = dyn<ISemaphore>(inplace, allocator_, 1ULL).unwrap();
+    // start as signaled wait token
+    auto wait_token = dyn<IWaitToken>(inplace, allocator_, NOT_IN_USE).unwrap();
 
     auto encoder_label =
       sformat(scratch, "/ GpuFrame / CommandEncoder {}"_str, i).unwrap();
@@ -1659,7 +1670,7 @@ void IGpuSys::init(Allocator allocator, gpu::Device device,
         .unwrap();
 
     auto frame = dyn<IGpuFrame>(inplace, allocator_, allocator_, dev_, this, i,
-                                std::move(semaphore), encoder, buffer)
+                                std::move(wait_token), encoder, buffer)
                    .unwrap();
 
     frames.push(std::move(frame)).unwrap();
@@ -1671,18 +1682,18 @@ void IGpuSys::init(Allocator allocator, gpu::Device device,
 
   for (auto _ : range(buffering_))
   {
-    // start as signaled semaphore
-    auto semaphore = dyn<ISemaphore>(inplace, allocator_, 1ULL).unwrap();
-    auto plan      = dyn<IGpuFramePlan>(inplace, allocator_, allocator_, this,
-                                        std::move(semaphore))
+    auto wait_token = dyn<IWaitToken>(inplace, allocator_, NOT_IN_USE).unwrap();
+    auto plan       = dyn<IGpuFramePlan>(inplace, allocator_, allocator_, this,
+                                         std::move(wait_token))
                   .unwrap();
     plans.push(std::move(plan)).unwrap();
   }
 
-  plans_       = std::move(plans);
-  scheduler_   = scheduler;
-  thread_      = thread;
-  initialized_ = true;
+  plans_                = std::move(plans);
+  scheduler_            = scheduler;
+  thread_               = thread;
+  initialized_          = true;
+  num_frames_in_flight_ = buffering_;
 
   create_default_textures(this);
   create_default_samplers(this, scratch);
@@ -1714,17 +1725,17 @@ SamplerIndex IGpuSys::create_cached_sampler(gpu::SamplerInfo const & info_)
 
   sampler_cache_.push(info, Tuple{sampler_index, sampler}).unwrap();
 
-  current_plan()->add_preframe_task([device   = this->dev_,
-                                     samplers = descriptors_.samplers,
-                                     index = static_cast<u32>(index), sampler] {
-    device->update_descriptor_set(gpu::DescriptorSetUpdate{
-      .set           = samplers,
-      .binding       = 0,
-      .first_element = index,
-      .images        = span({gpu::ImageBinding{.sampler = sampler}}),
-      .texel_buffers = {},
-      .buffers       = {}});
-  });
+  current_plan()->add_preframe_task(
+    [device = this->dev_, samplers = descriptors_.samplers,
+     index = static_cast<u32>(index), sampler](GpuFrame) {
+      device->update_descriptor_set(gpu::DescriptorSetUpdate{
+        .set           = samplers,
+        .binding       = 0,
+        .first_element = index,
+        .images        = span({gpu::ImageBinding{.sampler = sampler}}),
+        .texel_buffers = {},
+        .buffers       = {}});
+    });
 
   return sampler_index;
 }
@@ -1740,17 +1751,17 @@ TextureIndex IGpuSys::alloc_texture_index(gpu::ImageView view)
   CHECK(index < descriptors_.sampled_textures_slots.size(),
         "Ran out of sampled texture descriptor slots");
 
-  current_plan()->add_preframe_task([device   = this->dev_,
-                                     textures = descriptors_.sampled_textures,
-                                     index    = static_cast<u32>(index), view] {
-    device->update_descriptor_set(gpu::DescriptorSetUpdate{
-      .set           = textures,
-      .binding       = 0,
-      .first_element = index,
-      .images        = span({gpu::ImageBinding{.image_view = view}}),
-      .texel_buffers = {},
-      .buffers       = {}});
-  });
+  current_plan()->add_preframe_task(
+    [device = this->dev_, textures = descriptors_.sampled_textures,
+     index = static_cast<u32>(index), view](GpuFrame) {
+      device->update_descriptor_set(gpu::DescriptorSetUpdate{
+        .set           = textures,
+        .binding       = 0,
+        .first_element = index,
+        .images        = span({gpu::ImageBinding{.image_view = view}}),
+        .texel_buffers = {},
+        .buffers       = {}});
+    });
 
   return static_cast<TextureIndex>(index);
 }
@@ -1763,17 +1774,17 @@ void IGpuSys::release_texture_index(TextureIndex index)
 
   descriptors_.sampled_textures_slots.clear_bit((usize) index);
 
-  current_plan()->add_preframe_task([device   = this->dev_,
-                                     textures = descriptors_.sampled_textures,
-                                     index    = static_cast<u32>(index)] {
-    device->update_descriptor_set(
-      gpu::DescriptorSetUpdate{.set           = textures,
-                               .binding       = 0,
-                               .first_element = index,
-                               .images        = span({gpu::ImageBinding{}}),
-                               .texel_buffers = {},
-                               .buffers       = {}});
-  });
+  current_plan()->add_preframe_task(
+    [device = this->dev_, textures = descriptors_.sampled_textures,
+     index = static_cast<u32>(index)](GpuFrame) {
+      device->update_descriptor_set(
+        gpu::DescriptorSetUpdate{.set           = textures,
+                                 .binding       = 0,
+                                 .first_element = index,
+                                 .images        = span({gpu::ImageBinding{}}),
+                                 .texel_buffers = {},
+                                 .buffers       = {}});
+    });
 }
 
 gpu::Device IGpuSys::device()
@@ -1790,7 +1801,7 @@ Allocator IGpuSys::allocator() const
 GpuFramePlan IGpuSys::current_plan()
 {
   CHECK(initialized_, "");
-  return plans_[frame_ring_index_].get();
+  return plans_[frame_ring_index()].get();
 }
 
 gpu::Format IGpuSys::color_format() const
@@ -1832,49 +1843,44 @@ void IGpuSys::submit_frame()
 {
   CHECK(initialized_, "");
 
-  auto * frame = frames_[frame_ring_index_].get();
-  auto * plan  = plans_[frame_ring_index_].get();
+  auto * frame = frames_[frame_ring_index()].get();
+  auto * plan  = plans_[frame_ring_index()].get();
 
-  scheduler_->loop(
-    [frame, plan, is_submitted = false] mutable {
-      // the scheduler executes the tasks in order of submission so we don't need to synchronize
-      // the plan schedules.
+  plan->wait_token_->store(IN_USE, std::memory_order_release);
+  plan->wait_token_->os_notify();
 
-      if (!is_submitted)
-      {
-        // wait on the frame to be available
-        if (!frame->await(nanoseconds::zero()))
-        {
-          return true;
-        }
-        // submit the frame
-        frame->reset();
-        frame->begin();
-        frame->cmd(plan);
-        frame->end();
-        frame->submit();
-        is_submitted = true;
-        return true;
-      }
-      else
-      {
-        // the frame was already submitted, try to complete it
-        return !frame->try_complete(nanoseconds::zero());
-      }
+  // tasks are executed in submission order
+  scheduler_->once(
+    thread_.v(),
+    [frame, plan] mutable {
+      // wait on the frame to be available
+      frame->await();
+      // submit the frame
+      frame->reset();
+      frame->begin();
+      frame->set_plan(plan);
+      frame->end();
+      frame->submit();
+      plan->wait_token_->store(NOT_IN_USE, std::memory_order_release);
+      plan->wait_token_->os_notify();
+      frame->complete();
     },
-    Ready{}, thread_.v());
+    ready);
 
-  frame_ring_index_ = (frame_ring_index_ + 1) % buffering_;
+  frame_index_++;
 
   // wait on the next frame plan
-  plans_[frame_ring_index_]->await(nanoseconds::max());
+  plans_[frame_ring_index()]->await();
 }
 
-void IGpuSys::await_idle()
+u64 IGpuSys::frame_index() const
 {
-  CHECK(initialized_, "");
+  return frame_index_;
+}
 
-  // [ ] implement
+u32 IGpuSys::frame_ring_index() const
+{
+  return static_cast<u32>(frame_index_ % (u64) num_frames_in_flight_);
 }
 
 }    // namespace ash

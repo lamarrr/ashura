@@ -16,11 +16,12 @@ typedef struct IFontSys * FontSys;
 
 struct IFontSys
 {
-  static Dyn<FontSys> create(Allocator allocator);
+  static Dyn<FontSys> create(Allocator allocator, FileSys file_sys,
+                             ImageSys image_sys, Scheduler scheduler);
 
   virtual ~IFontSys() = default;
 
-  virtual void init() = 0;
+  virtual AwaitFuturesVec init() = 0;
 
   virtual void shutdown() = 0;
 
@@ -31,11 +32,10 @@ struct IFontSys
                            Allocator scratch) = 0;
 
   virtual Future<Result<FontId, SysErr>>
-    load_from_memory(Str label, RcBlob8 encoded, u32 font_height,
-                     u32 face = 0) = 0;
+    load_from_memory(Str label, RcBlob8 encoded, u32 font_height, u32 face) = 0;
 
   virtual Future<Result<FontId, SysErr>>
-    load_from_path(Str label, Str path, u32 font_height, u32 face = 0) = 0;
+    load_from_path(Str label, Str path, u32 font_height, u32 face) = 0;
 
   virtual FontInfo get(FontId id) = 0;
 

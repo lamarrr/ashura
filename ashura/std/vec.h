@@ -2287,7 +2287,7 @@ struct [[nodiscard]] CoreBitVec
 template <typename R, usize MinAlignment = SIMD_ALIGNMENT>
 using BitVec = CoreBitVec<Vec<R, MinAlignment>>;
 
-template <typename R, usize MinBitCapacity = 64,
+template <typename R, usize MinBitCapacity = 256,
           usize MinAlignment = SIMD_ALIGNMENT>
 using SmallBitVec =
   CoreBitVec<SmallVec<R, atom_size_for<R>(MinBitCapacity), MinAlignment>>;

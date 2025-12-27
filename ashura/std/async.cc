@@ -582,12 +582,18 @@ struct ASH_DLL_EXPORT SchedulerImpl final : IScheduler
 
     for (auto & t : worker_threads_)
     {
-      t->thread.join();
+      if (t->thread.joinable())
+      {
+        t->thread.join();
+      }
     }
 
     for (auto & t : dedicated_threads_)
     {
-      t->thread.join();
+      if (t->thread.joinable())
+      {
+        t->thread.join();
+      }
     }
 
     while (true)

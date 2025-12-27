@@ -16,7 +16,7 @@ typedef struct IGpuFramePlan *                  GpuFramePlan;
 typedef struct IGpuFrame *                      GpuFrame;
 typedef Fn<void(GpuFrame, gpu::CommandEncoder)> GpuPassFn;
 typedef Dyn<GpuPassFn>                          GpuPass;
-typedef Fn<void()>                              GpuFrameTaskFn;
+typedef Fn<void(GpuFrame)>                      GpuFrameTaskFn;
 typedef Dyn<GpuFrameTaskFn>                     GpuFrameTask;
 typedef struct IGpuSys *                        GpuSys;
 
@@ -379,13 +379,11 @@ struct IGpuFramePlan
 
   GpuFramePlanState state_;
 
-  Dyn<Semaphore> semaphore_;
+  Dyn<WaitToken> wait_token_;
 
-  u64 submission_stage_;
+  IArenaPool arena_;
 
-  ArenaPool arena_;
-
-  IGpuFramePlan(Allocator allocator, GpuSys sys, Dyn<Semaphore> semaphore) :
+  IGpuFramePlan(Allocator allocator, GpuSys sys, Dyn<WaitToken> wait_token) :
     allocator_{allocator},
     sys_{sys},
     pre_frame_tasks_{allocator},
@@ -400,8 +398,7 @@ struct IGpuFramePlan
     passes_{allocator},
     target_{},
     state_{GpuFramePlanState::Reset},
-    semaphore_{std::move(semaphore)},
-    submission_stage_{0},
+    wait_token_{std::move(wait_token)},
     arena_{allocator, ArenaPoolCfg{}}
   {
   }
@@ -416,7 +413,7 @@ struct IGpuFramePlan
 
   void add_preframe_task(GpuFrameTask && task);
 
-  template <Callable Lambda>
+  template <Callable<GpuFrame> Lambda>
   void add_preframe_task(Lambda && task)
   {
     return add_preframe_task(
@@ -471,7 +468,7 @@ struct IGpuFramePlan
 
   /// @brief Await completion of the frame
   /// @returns true if the frame completed before the timeout period
-  bool await(nanoseconds timeout);
+  void await();
 };
 
 struct TexelBufferUnion
@@ -652,9 +649,7 @@ struct IGpuFrame
 
   u32 next_statistics_;
 
-  Dyn<Semaphore> semaphore_;
-
-  u64 submission_stage_;
+  Dyn<WaitToken> wait_token_;
 
   gpu::CommandEncoder command_encoder_;
 
@@ -663,8 +658,10 @@ struct IGpuFrame
   /// @brief Currently bounded frame plan
   GpuFramePlan current_plan_;
 
+  Vec<GpuFrameTask> frame_completed_tasks_;
+
   IGpuFrame(Allocator allocator, gpu::Device device, GpuSys sys, u32 id,
-            Dyn<Semaphore> semaphore, gpu::CommandEncoder command_encoder,
+            Dyn<WaitToken> wait_token, gpu::CommandEncoder command_encoder,
             gpu::CommandBuffer command_buffer) :
     allocator_{allocator},
     dev_{device},
@@ -677,11 +674,11 @@ struct IGpuFrame
     resources_{},
     next_timestamp_{0},
     next_statistics_{0},
-    semaphore_{std::move(semaphore)},
-    submission_stage_{0},
+    wait_token_{std::move(wait_token)},
     command_encoder_{command_encoder},
     command_buffer_{command_buffer},
-    current_plan_{nullptr}
+    current_plan_{nullptr},
+    frame_completed_tasks_{noop_allocator}
   {
   }
 
@@ -709,10 +706,10 @@ struct IGpuFrame
 
   GpuBufferSpan get(GpuBufferId id);
 
-  Span<u8 const> get(CpuBufferId id);
+  Span<u8> get(CpuBufferId id);
 
   template <typename T>
-  Span<T const> get(CpuBufferId id)
+  Span<T> get(CpuBufferId id)
   {
     return get(id).reinterpret<T>();
   }
@@ -721,7 +718,7 @@ struct IGpuFrame
 
   void begin();
 
-  void cmd(GpuFramePlan plan);
+  void set_plan(GpuFramePlan plan);
 
   void end();
 
@@ -730,14 +727,13 @@ struct IGpuFrame
 
   /// @brief The frame has finished executing on the GPU, run completion tasks or fetch data from GPU
   /// @return true if the frame has been executed, otherwise, false.
-  bool try_complete(nanoseconds timeout);
+  void complete();
 
   /// @brief Reset the frame for recording
   void reset();
 
   /// @brief Await completion of the frame
-  /// @returns true if the frame completed before the timeout period
-  bool await(nanoseconds timeout);
+  void await();
 };
 
 /// @brief A GpuSys has two primary components: The GpuFramePlan and the GpuFrame.
@@ -783,7 +779,7 @@ struct IGpuSys
 
   gpu::QueueScope queue_scope_;
 
-  ISpinLock resources_lock_;
+  alignas(CACHELINE_ALIGNMENT) ISpinLock resources_lock_;
 
   SamplerCache sampler_cache_;
 
@@ -793,7 +789,9 @@ struct IGpuSys
 
   Array<gpu::ImageView, NUM_DEFAULT_TEXTURES> default_image_views_;
 
-  u32 frame_ring_index_;
+  u64 frame_index_;
+
+  u32 num_frames_in_flight_;
 
   Vec<Dyn<GpuFrame>> frames_;
 
@@ -820,7 +818,7 @@ struct IGpuSys
     descriptors_{},
     default_image_{nullptr},
     default_image_views_{},
-    frame_ring_index_{0},
+    frame_index_{0},
     frames_{noop_allocator},
     plans_{noop_allocator},
     scheduler_{nullptr},
@@ -876,7 +874,9 @@ struct IGpuSys
 
   void submit_frame();
 
-  void await_idle();
+  u64 frame_index() const;
+
+  u32 frame_ring_index() const;
 };
 
 }    // namespace ash
