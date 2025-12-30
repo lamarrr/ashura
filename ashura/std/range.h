@@ -884,7 +884,7 @@ constexpr Span<T> binary_find(Span<T> span, Cmp && cmp)
     return Span<T>{iter, span.pend()};
   }
 
-  return Span<T>{span.pend(), (usize) 0};
+  return Span<T>{span.pend(), 0uz};
 }
 
 template <typename T, typename Cmp, typename U>
