@@ -75,7 +75,6 @@ constexpr IndexRange<I> range(I min, I max)
   return IndexRange<I>{.min_ = min, .max_ = max};
 }
 
-// [ ] make these more concrete and into view types
 template <typename I>
 constexpr IndexRange<I> range(CoreSlice<I> slice)
 {
@@ -188,7 +187,7 @@ struct ZipIter
 };
 
 template <typename BaseIter, typename... Iters>
-struct ZipRange
+struct ZipView
 {
   Tuple<BaseIter, Iters...> iters_{};
 
@@ -214,70 +213,98 @@ struct ZipRange
 };
 
 /// @brief The size of the head range will be used as the total size of the whole range
-template <Range Base, Range... Ranges>
-constexpr auto zip(Base && base, Ranges &&... ranges)
+template <Range BaseRange, Range... Ranges>
+constexpr auto zip(BaseRange && base, Ranges &&... ranges)
 {
-  return ZipRange<decltype(begin(base)), decltype(begin(ranges))...>{
+  return ZipView<decltype(begin(base)), decltype(begin(ranges))...>{
     .iters_{begin(base), begin(ranges)...}
   };
 }
 
-template <typename Iter, typename Index>
+template <typename Index, typename BaseIter, typename... Iters>
 struct EnumerateIter
 {
-  Index index_{};
-  Iter  iter_{};
+  Index                     index_{};
+  Tuple<BaseIter, Iters...> iters_{};
 
   constexpr EnumerateIter & operator++()
   {
     ++index_;
-    ++iter_;
+    apply([](auto &... iter) { (++iter, ...); }, iters_);
     return *this;
   }
 
   constexpr auto operator*() const
   {
-    return Tuple<Index, decltype(*iter_)>{index_, *iter_};
+    return apply(
+      [&](auto &... iters) {
+        return Tuple<Index, decltype(*iters)...>{index_, (*iters)...};
+      },
+      iters_);
   }
 
   constexpr bool operator!=(IterEnd) const
   {
-    return iter_ != iter_end;
+    return iters_.v0 != iter_end;
   }
 
   constexpr bool operator==(IterEnd) const
   {
     return !this->operator!=(iter_end);
   }
+
+  constexpr auto size() const requires (SizedIter<BaseIter>)
+  {
+    return iters_.v0.size();
+  }
+
+  constexpr auto max_size() const requires (BoundedSizeIter<BaseIter>)
+  {
+    return iters_.v0.max_size();
+  }
 };
 
-template <typename Iter, typename Index>
-struct EnumerateRange
+template <typename Index, typename BaseIter, typename... Iters>
+struct EnumerateView
 {
-  Iter iter_;
+  Tuple<BaseIter, Iters...> iters_{};
 
   constexpr auto begin() const
   {
-    return EnumerateIter<Iter, Index>{.index_ = 0, .iter_ = iter_};
+    return EnumerateIter<Index, BaseIter, Iters...>{.index_ = 0,
+                                                    .iters_ = iters_};
   }
 
   constexpr auto end() const
   {
     return iter_end;
   }
+
+  constexpr auto size() const requires (SizedIter<BaseIter>)
+  {
+    return iters_.v0.size();
+  }
+
+  constexpr auto max_size() const requires (BoundedSizeIter<BaseIter>)
+  {
+    return iters_.v0.max_size();
+  }
 };
 
-template <typename Index = usize, Range R>
-constexpr auto enumerate(R && range)
+template <typename Index = usize, Range BaseRange, Range... Ranges>
+constexpr auto enumerate(BaseRange && base, Ranges &&... ranges)
 {
-  return EnumerateRange<decltype(begin(range)), Index>{.iter_{begin(range)}};
+  return EnumerateView<Index, decltype(begin(base)),
+                       decltype(begin(ranges))...>{
+    .iters_{begin(base), begin(ranges)...}
+  };
 }
 
 template <typename Iter, typename Map>
 struct MapIter
 {
-  Iter iter_;
-  Map  map_;
+  Iter iter_{};
+  Map  map_{};
 
   constexpr decltype(auto) operator*() const
   {
@@ -318,20 +345,45 @@ struct MapIter
   }
 };
 
-// [ ] mapview
+template <typename Iter, typename Map>
+struct MapView
+{
+  Iter iter_{};
+  Map  map_{};
+
+  constexpr auto begin() const
+  {
+    return MapIter<Iter, Map>{.iter_ = iter_, .map_ = map_};
+  }
+
+  constexpr auto end() const
+  {
+    return iter_end;
+  }
+
+  constexpr auto size() const requires (SizedIter<Iter>)
+  {
+    return iter_.size();
+  }
+
+  constexpr auto max_size() const requires (BoundedSizeIter<Iter>)
+  {
+    return iter_.max_size();
+  }
+};
 
 template <typename Iter, typename Map>
-constexpr MapIter<Iter, Map> map(Iter && iter, Map && map)
+constexpr auto map(Iter && iter, Map && map)
 {
-  return MapIter<Iter, Map>{.iter_{static_cast<Iter &&>(iter)},
+  return MapView<Iter, Map>{.iter_{static_cast<Iter &&>(iter)},
                             .map_{static_cast<Map &&>(map)}};
 }
 
 template <typename Iter, typename Predicate>
 struct FilterIter
 {
-  Iter      valid_iter_;
-  Predicate predicate_;
+  Iter      valid_iter_{};
+  Predicate predicate_{};
 
   constexpr Option<decltype(*valid_iter_)> operator*() const
   {
@@ -387,12 +439,39 @@ struct FilterIter
   }
 };
 
-// [ ] filterview
 template <typename Iter, typename Predicate>
-constexpr FilterIter<Iter, Predicate> filter(Iter &&      iter,
+struct FilterView
+{
+  Iter      valid_iter_{};
+  Predicate predicate_{};
+
+  constexpr auto begin() const
+  {
+    return FilterIter<Iter, Predicate>{.valid_iter_ = valid_iter_,
+                                       .predicate_  = predicate_};
+  }
+
+  constexpr auto end() const
+  {
+    return iter_end;
+  }
+
+  constexpr auto size() const requires (SizedIter<Iter>)
+  {
+    return valid_iter_.size();
+  }
+
+  constexpr auto max_size() const requires (BoundedSizeIter<Iter>)
+  {
+    return valid_iter_.max_size();
+  }
+};
+
+template <typename Iter, typename Predicate>
+constexpr FilterView<Iter, Predicate> filter(Iter &&      iter,
                                              Predicate && predicate)
 {
-  return FilterIter<Iter, Predicate>{
+  return FilterView<Iter, Predicate>{
     .valid_iter_{static_cast<Iter &&>(iter)},
     .predicate_{static_cast<Predicate &&>(predicate)}};
 }
@@ -575,7 +654,7 @@ template <Range R, typename Target, typename Cmp = Eq>
 constexpr usize count(R && range, Target && target, Cmp && cmp = {})
 {
   auto count = 0uz;
-  auto  iter  = begin(range);
+  auto iter  = begin(range);
 
   while (iter != iter_end)
   {

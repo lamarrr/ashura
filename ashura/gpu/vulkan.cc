@@ -4068,7 +4068,7 @@ Result<Void, Status> IDevice::recreate_swapchain(Swapchain swapchain)
   acquire_semaphores.resize(num_images).unwrap();
 
   for (auto [i, vk, image, acquire_semaphore] :
-       zip(range(vk_images.size()), vk_images, images, acquire_semaphores))
+       enumerate(vk_images, images, acquire_semaphores))
   {
     CHECK(allocator_->nalloc(1, image), "");
 
@@ -4098,7 +4098,7 @@ Result<Void, Status> IDevice::recreate_swapchain(Swapchain swapchain)
   set_resource_name(swapchain_label, vk, VK_OBJECT_TYPE_SWAPCHAIN_KHR,
                     VK_DEBUG_REPORT_OBJECT_TYPE_SWAPCHAIN_KHR_EXT, scratch_);
   for (auto [i, image, acquire_semaphore] :
-       zip(range(images.size()), images, acquire_semaphores))
+       enumerate(images, acquire_semaphores))
   {
     auto label =
       sformat(scratch_, "{} / SwapchainImage {}"_str, info.label, i).unwrap();

@@ -333,8 +333,7 @@ Result<CpuFontAtlas, SysErr> FontSysImpl::rasterize_(Font font_,
       return Err{SysErr::OutOfMemory};
     }
 
-    for (auto [i, gl, ag, rect] :
-         zip(range(size32(font.glyphs)), font.glyphs, atlas.glyphs, rects))
+    for (auto [i, gl, ag, rect] : enumerate<u32>(font.glyphs, atlas.glyphs, rects))
     {
       // added padding to avoid texture spilling due to accumulated
       // floating-point uv interpolation errors
@@ -943,7 +942,7 @@ static inline void reorder_line(Span<TextRun> runs)
   {
     // re-order consecutive runs with embedding levels greater or equal than
     // the current embedding level
-    for (usize i = 0; i < runs.size();)
+    for (auto i = 0uz; i < runs.size();)
     {
       while (i < runs.size() && runs[i].level < level)
       {

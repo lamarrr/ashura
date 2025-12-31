@@ -620,7 +620,7 @@ TexelBufferUnion TexelBufferUnion::create(GpuSys sys, u32x2 target_extent,
   decltype(TexelBufferUnion::views) views{};
   views.resize_uninit(size32(formats)).unwrap();
 
-  for (auto [i, format, view] : zip(range(size32(formats)), formats, views))
+  for (auto [i, format, view] : enumerate(formats, views))
   {
     auto buffer_view_tag = itag("View"_str, i);
     auto buffer_view =
