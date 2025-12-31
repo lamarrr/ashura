@@ -204,7 +204,7 @@ struct [[nodiscard]] Dict
   {
     if constexpr (!TriviallyDestructible<Entry>)
     {
-      for (usize i = 0; i < num_probes_; i++)
+      for (auto i = 0uz; i < num_probes_; i++)
       {
         if (probe_dists_[i] != PROBE_SENTINEL)
         {
@@ -235,7 +235,7 @@ struct [[nodiscard]] Dict
   {
     destruct_probes__();
 
-    for (usize i = 0; i < num_probes_; i++)
+    for (auto i = 0uz; i < num_probes_; i++)
     {
       probe_dists_[i] = PROBE_SENTINEL;
     }
@@ -381,7 +381,7 @@ struct [[nodiscard]] Dict
       return false;
     }
 
-    for (usize i = 0; i < new_num_probes; i++)
+    for (auto i = 0uz; i < new_num_probes; i++)
     {
       new_probe_dists[i] = PROBE_SENTINEL;
     }

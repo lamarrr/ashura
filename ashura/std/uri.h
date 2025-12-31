@@ -86,7 +86,7 @@ struct UriView
 
   static Result<UriView> parse(Str uri)
   {
-    auto iter  = usize{0};
+    auto iter  = 0uz;
     auto size  = uri.size();
     auto p_uri = uri.pbegin();
 

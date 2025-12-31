@@ -329,7 +329,7 @@ struct PieceTable
 
     pieces_.reserve_extend(pieces_.size() + 8).unwrap();
 
-    usize offset = 0;
+    auto offset = 0uz;
 
     for (auto & piece : pieces_)
     {

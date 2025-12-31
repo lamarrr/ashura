@@ -574,7 +574,7 @@ constexpr Span<T> find_if(Span<T> span, Predicate && predicate)
 template <Range R, typename Target, typename Cmp = Eq>
 constexpr usize count(R && range, Target && target, Cmp && cmp = {})
 {
-  usize count = 0;
+  auto count = 0uz;
   auto  iter  = begin(range);
 
   while (iter != iter_end)
@@ -592,7 +592,7 @@ constexpr usize count(R && range, Target && target, Cmp && cmp = {})
 template <Range R, typename Predicate>
 constexpr usize count_if(R && range, Predicate && predicate)
 {
-  usize count = 0;
+  auto count = 0uz;
 
   auto iter = begin(range);
 

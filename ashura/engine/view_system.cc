@@ -276,7 +276,7 @@ void IViewSys::layout_(Tree & tree, f32x2 viewport_extent)
   tree.props.canvas_xfm[0]     = affinef32x3::identity();
   tree.props.canvas_inv_xfm[0] = affinef32x3::identity();
 
-  for (usize i = 0; i < n; i++)
+  for (auto i = 0uz; i < n; i++)
   {
     if (tree.props.is_viewport[i]) [[unlikely]]
     {
@@ -313,7 +313,7 @@ void IViewSys::layout_(Tree & tree, f32x2 viewport_extent)
   tree.props.clips[0] = CRect{.center = {}, .extent = viewport_extent};
 
   /// clip viewports recursively and assign viewport clips to contained views
-  for (usize i = 0; i < n; i++)
+  for (auto i = 0uz; i < n; i++)
   {
     auto parent_viewport = tree.props.viewports[i];
     if (tree.props.is_viewport[i]) [[unlikely]]

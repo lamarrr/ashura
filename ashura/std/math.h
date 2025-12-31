@@ -537,7 +537,7 @@ struct vec
   static constexpr vec splat(Type v) requires (N > 4)
   {
     vec r;
-    for (usize i = 0; i < N; i++)
+    for (auto i = 0uz; i < N; i++)
     {
       r.v[i] = v;
     }
@@ -767,7 +767,7 @@ struct vec
     bool all_eq = true;
 
 #pragma unroll
-    for (usize i = 0; i < N; i++)
+    for (auto i = 0uz; i < N; i++)
     {
       all_eq &= (v[i] == b.v[i]);
     }
@@ -785,7 +785,7 @@ struct vec
     bool any_neq = false;
 
 #pragma unroll
-    for (usize i = 0; i < N; i++)
+    for (auto i = 0uz; i < N; i++)
     {
       any_neq |= (v[i] != b.v[i]);
     }
@@ -812,7 +812,7 @@ struct vec
   {
     bool any_zero = false;
 #pragma unroll
-    for (usize i = 0; i < N; i++)
+    for (auto i = 0uz; i < N; i++)
     {
       any_zero |= (v[i] == 0);
     }
@@ -823,7 +823,7 @@ struct vec
   {
     bool all_nonzero = true;
 #pragma unroll
-    for (usize i = 0; i < N; i++)
+    for (auto i = 0uz; i < N; i++)
     {
       all_nonzero &= (v[i] != 0);
     }
@@ -834,7 +834,7 @@ struct vec
   {
     vec c;
 #pragma unroll
-    for (usize i = 0; i < N; i++)
+    for (auto i = 0uz; i < N; i++)
     {
       c.v[i] = v[i] + b.v[i];
     }
@@ -862,7 +862,7 @@ struct vec
   {
     vec c;
 #pragma unroll
-    for (usize i = 0; i < N; i++)
+    for (auto i = 0uz; i < N; i++)
     {
       c.v[i] = -v[i];
     }
@@ -873,7 +873,7 @@ struct vec
   {
     vec c;
 #pragma unroll
-    for (usize i = 0; i < N; i++)
+    for (auto i = 0uz; i < N; i++)
     {
       c.v[i] = v[i] - b.v[i];
     }
@@ -901,7 +901,7 @@ struct vec
   {
     vec c;
 #pragma unroll
-    for (usize i = 0; i < N; i++)
+    for (auto i = 0uz; i < N; i++)
     {
       c.v[i] = v[i] * b.v[i];
     }
@@ -929,7 +929,7 @@ struct vec
   {
     vec c;
 #pragma unroll
-    for (usize i = 0; i < N; i++)
+    for (auto i = 0uz; i < N; i++)
     {
       c.v[i] = v[i] / b.v[i];
     }
@@ -957,7 +957,7 @@ struct vec
   {
     vec c;
 #pragma unroll
-    for (usize i = 0; i < N; i++)
+    for (auto i = 0uz; i < N; i++)
     {
       c.v[i] = v[i] >> b.v[i];
     }
@@ -985,7 +985,7 @@ struct vec
   {
     vec c;
 #pragma unroll
-    for (usize i = 0; i < N; i++)
+    for (auto i = 0uz; i < N; i++)
     {
       c.v[i] = v[i] << b.v[i];
     }
@@ -1013,7 +1013,7 @@ struct vec
   {
     vec c;
 #pragma unroll
-    for (usize i = 0; i < N; i++)
+    for (auto i = 0uz; i < N; i++)
     {
       c.v[i] = v[i] & b.v[i];
     }
@@ -1041,7 +1041,7 @@ struct vec
   {
     vec c;
 #pragma unroll
-    for (usize i = 0; i < N; i++)
+    for (auto i = 0uz; i < N; i++)
     {
       c.v[i] = v[i] | b.v[i];
     }
@@ -1069,7 +1069,7 @@ struct vec
   {
     vec c;
 #pragma unroll
-    for (usize i = 0; i < N; i++)
+    for (auto i = 0uz; i < N; i++)
     {
       c.v[i] = ash::sat_add(v[i], b.v[i]);
     }
@@ -1085,7 +1085,7 @@ struct vec
   {
     vec c;
 #pragma unroll
-    for (usize i = 0; i < N; i++)
+    for (auto i = 0uz; i < N; i++)
     {
       c.v[i] = ash::sat_sub(v[i], b.v[i]);
     }
@@ -1101,7 +1101,7 @@ struct vec
   {
     vec c;
 #pragma unroll
-    for (usize i = 0; i < N; i++)
+    for (auto i = 0uz; i < N; i++)
     {
       c.v[i] = ash::sat_mul(v[i], b.v[i]);
     }
@@ -1117,7 +1117,7 @@ struct vec
   {
     Type sum = 0;
 #pragma unroll
-    for (usize i = 0; i < N; i++)
+    for (auto i = 0uz; i < N; i++)
     {
       sum += v[i];
     }
@@ -1129,7 +1129,7 @@ struct vec
   {
     U sum = 0;
 #pragma unroll
-    for (usize i = 0; i < N; i++)
+    for (auto i = 0uz; i < N; i++)
     {
       sum += static_cast<U>(v[i]);
     }
@@ -1140,7 +1140,7 @@ struct vec
   {
     Type product = 1;
 #pragma unroll
-    for (usize i = 0; i < N; i++)
+    for (auto i = 0uz; i < N; i++)
     {
       product *= v[i];
     }
@@ -1152,7 +1152,7 @@ struct vec
   {
     U product = 1;
 #pragma unroll
-    for (usize i = 0; i < N; i++)
+    for (auto i = 0uz; i < N; i++)
     {
       product *= static_cast<U>(v[i]);
     }
@@ -1163,7 +1163,7 @@ struct vec
   {
     Type sum = 0;
 #pragma unroll
-    for (usize i = 0; i < N; i++)
+    for (auto i = 0uz; i < N; i++)
     {
       sum = ash::sat_add(sum, v[i]);
     }
@@ -1174,7 +1174,7 @@ struct vec
   {
     Type product = 1;
 #pragma unroll
-    for (usize i = 0; i < N; i++)
+    for (auto i = 0uz; i < N; i++)
     {
       product = ash::sat_mul(product, v[i]);
     }
@@ -1241,7 +1241,7 @@ struct vec
   {
     vec r;
 #pragma unroll
-    for (usize i = 0; i < N; i++)
+    for (auto i = 0uz; i < N; i++)
     {
       r.v[i] = ash::clamp(v[i], min.v[i], max.v[i]);
     }
@@ -1257,7 +1257,7 @@ struct vec
   {
     vec r;
 #pragma unroll
-    for (usize i = 0; i < N; i++)
+    for (auto i = 0uz; i < N; i++)
     {
       r.v[i] = ash::min(v[i], b.v[i]);
     }
@@ -1273,7 +1273,7 @@ struct vec
   {
     vec r;
 #pragma unroll
-    for (usize i = 0; i < N; i++)
+    for (auto i = 0uz; i < N; i++)
     {
       r.v[i] = ash::max(v[i], b.v[i]);
     }
@@ -1289,7 +1289,7 @@ struct vec
   {
     vec r;
 #pragma unroll
-    for (usize i = 0; i < N; i++)
+    for (auto i = 0uz; i < N; i++)
     {
       r.v[i] = ash::abs(v[i]);
     }
@@ -1301,7 +1301,7 @@ struct vec
   {
     vec<To, SIZE> r;
 #pragma unroll
-    for (usize i = 0; i < SIZE; i++)
+    for (auto i = 0uz; i < SIZE; i++)
     {
       r.v[i] = static_cast<To>(v[i]);
     }
@@ -1323,7 +1323,7 @@ struct vec
   {
     vec r;
 #pragma unroll
-    for (usize i = 0; i < N; i++)
+    for (auto i = 0uz; i < N; i++)
     {
       r.v[i] = ash::mip(v[i], level);
     }
@@ -1334,7 +1334,7 @@ struct vec
   {
     vec<T, N + 1> r;
 #pragma unroll
-    for (usize i = 0; i < N; i++)
+    for (auto i = 0uz; i < N; i++)
     {
       r.v[i] = v[i];
     }
@@ -1347,12 +1347,12 @@ struct vec
   {
     vec<T, N + N2> r;
 #pragma unroll
-    for (usize i = 0; i < N; i++)
+    for (auto i = 0uz; i < N; i++)
     {
       r.v[i] = v[i];
     }
 #pragma unroll
-    for (usize i = 0; i < N2; i++)
+    for (auto i = 0uz; i < N2; i++)
     {
       r.v[i + N] = n.v[i];
     }
@@ -1364,7 +1364,7 @@ struct vec
     vec<T, N + 1> r;
     r.v[0] = n;
 #pragma unroll
-    for (usize i = 0; i < N; i++)
+    for (auto i = 0uz; i < N; i++)
     {
       r.v[i + 1] = v[i];
     }
@@ -1377,12 +1377,12 @@ struct vec
     vec<T, N + N2> r;
     r.v[0] = n.v[0];
 #pragma unroll
-    for (usize i = 0; i < N; i++)
+    for (auto i = 0uz; i < N; i++)
     {
       r.v[i + 1] = v[i];
     }
 #pragma unroll
-    for (usize i = 0; i < N2 - 1; i++)
+    for (auto i = 0uz; i < N2 - 1; i++)
     {
       r.v[i + N + 1] = n.v[i + 1];
     }
@@ -1401,7 +1401,7 @@ constexpr vec<T, N> operator-(typename vec<T, N>::Type a, vec<T, N> b)
 {
   vec<T, N> r;
 #pragma unroll
-  for (usize i = 0; i < N; i++)
+  for (auto i = 0uz; i < N; i++)
   {
     r.v[i] = a - b.v[i];
   }
@@ -1419,7 +1419,7 @@ constexpr vec<T, N> operator/(typename vec<T, N>::Type a, vec<T, N> b)
 {
   vec<T, N> r;
 #pragma unroll
-  for (usize i = 0; i < N; i++)
+  for (auto i = 0uz; i < N; i++)
   {
     r.v[i] = a / b.v[i];
   }
@@ -1445,7 +1445,7 @@ struct mat
   {
     mat r;
 #pragma unroll
-    for (usize i = 0; i < NUM_ROWS; i++)
+    for (auto i = 0uz; i < NUM_ROWS; i++)
     {
       r.v[i] = Row::splat(v);
     }
@@ -1456,10 +1456,10 @@ struct mat
   {
     mat r;
 #pragma unroll
-    for (usize i = 0; i < NUM_ROWS; i++)
+    for (auto i = 0uz; i < NUM_ROWS; i++)
     {
 #pragma unroll
-      for (usize j = 0; j < NUM_COLS; j++)
+      for (auto j = 0uz; j < NUM_COLS; j++)
       {
         r.v[i][j] = (i == j) ? v : 0;
       }
@@ -1502,7 +1502,7 @@ struct mat
     Col c;
 
 #pragma unroll
-    for (usize i = 0; i < NUM_ROWS; i++)
+    for (auto i = 0uz; i < NUM_ROWS; i++)
     {
       c[i] = v[i][column];
     }
@@ -1513,7 +1513,7 @@ struct mat
   {
     Col c;
 #pragma unroll
-    for (usize i = 0; i < NUM_ROWS; i++)
+    for (auto i = 0uz; i < NUM_ROWS; i++)
     {
       c[i] = v[i][column];
     }
@@ -1589,7 +1589,7 @@ struct mat
   {
     bool all_eq = true;
 #pragma unroll
-    for (usize i = 0; i < NUM_ROWS; i++)
+    for (auto i = 0uz; i < NUM_ROWS; i++)
     {
       all_eq &= (v[i] == b.v[i]);
     }
@@ -1600,7 +1600,7 @@ struct mat
   {
     bool any_neq = false;
 #pragma unroll
-    for (usize i = 0; i < NUM_ROWS; i++)
+    for (auto i = 0uz; i < NUM_ROWS; i++)
     {
       any_neq |= (v[i] != b.v[i]);
     }
@@ -1611,7 +1611,7 @@ struct mat
   {
     mat c;
 #pragma unroll
-    for (usize i = 0; i < NUM_ROWS; i++)
+    for (auto i = 0uz; i < NUM_ROWS; i++)
     {
       c.v[i] = v[i] + b.v[i];
     }
@@ -1622,7 +1622,7 @@ struct mat
   {
     mat c;
 #pragma unroll
-    for (usize i = 0; i < NUM_ROWS; i++)
+    for (auto i = 0uz; i < NUM_ROWS; i++)
     {
       c.v[i] = v[i] + b;
     }
@@ -1639,7 +1639,7 @@ struct mat
   {
     mat c;
 #pragma unroll
-    for (usize i = 0; i < NUM_ROWS; i++)
+    for (auto i = 0uz; i < NUM_ROWS; i++)
     {
       c.v[i] = v[i] - b.v[i];
     }
@@ -1650,7 +1650,7 @@ struct mat
   {
     mat c;
 #pragma unroll
-    for (usize i = 0; i < NUM_ROWS; i++)
+    for (auto i = 0uz; i < NUM_ROWS; i++)
     {
       c.v[i] = v[i] - b;
     }
@@ -1667,7 +1667,7 @@ struct mat
   {
     mat c;
 #pragma unroll
-    for (usize i = 0; i < NUM_ROWS; i++)
+    for (auto i = 0uz; i < NUM_ROWS; i++)
     {
       c.v[i] = v[i] * b;
     }
@@ -1684,7 +1684,7 @@ struct mat
   {
     mat c;
 #pragma unroll
-    for (usize i = 0; i < NUM_ROWS; i++)
+    for (auto i = 0uz; i < NUM_ROWS; i++)
     {
       c.v[i] = v[i] / b;
     }
@@ -1701,9 +1701,9 @@ struct mat
   {
     mat c;
 #pragma unroll
-    for (usize i = 0; i < NUM_ROWS; i++)
+    for (auto i = 0uz; i < NUM_ROWS; i++)
     {
-      for (usize j = 0; j < NUM_COLS; j++)
+      for (auto j = 0uz; j < NUM_COLS; j++)
       {
         c.v[i][j] = row(i).dot(b.col(j));
       }
@@ -1715,7 +1715,7 @@ struct mat
   {
     Row c;
 #pragma unroll
-    for (usize i = 0; i < NUM_ROWS; i++)
+    for (auto i = 0uz; i < NUM_ROWS; i++)
     {
       c.v[i] = row(i).dot(b);
     }
@@ -1726,9 +1726,9 @@ struct mat
   {
     mat r;
 #pragma unroll
-    for (usize i = 0; i < NUM_ROWS; i++)
+    for (auto i = 0uz; i < NUM_ROWS; i++)
     {
-      for (usize j = 0; j < NUM_COLS; j++)
+      for (auto j = 0uz; j < NUM_COLS; j++)
       {
         r.v[j][i] = v[i][j];
       }
@@ -1750,9 +1750,9 @@ constexpr mat<T, R, C> operator-(typename mat<T, R, C>::Type a,
 {
   mat<T, R, C> r;
 #pragma unroll
-  for (usize i = 0; i < R; i++)
+  for (auto i = 0uz; i < R; i++)
   {
-    for (usize j = 0; j < C; j++)
+    for (auto j = 0uz; j < C; j++)
     {
       r.v[i][j] = a - b.v[i][j];
     }
@@ -1773,9 +1773,9 @@ constexpr mat<T, R, C> operator/(typename mat<T, R, C>::Type a,
 {
   mat<T, R, C> r;
 #pragma unroll
-  for (usize i = 0; i < R; i++)
+  for (auto i = 0uz; i < R; i++)
   {
-    for (usize j = 0; j < C; j++)
+    for (auto j = 0uz; j < C; j++)
     {
       r.v[i][j] = a / b.v[i][j];
     }
@@ -1809,7 +1809,7 @@ struct affine
   {
     affine r;
 #pragma unroll
-    for (usize i = 0; i < NUM_ROWS; i++)
+    for (auto i = 0uz; i < NUM_ROWS; i++)
     {
       r.v[i] = Row::splat(v);
     }
@@ -1820,10 +1820,10 @@ struct affine
   {
     affine r;
 #pragma unroll
-    for (usize i = 0; i < NUM_ROWS; i++)
+    for (auto i = 0uz; i < NUM_ROWS; i++)
     {
 #pragma unroll
-      for (usize j = 0; j < NUM_COLS; j++)
+      for (auto j = 0uz; j < NUM_COLS; j++)
       {
         r.v[i][j] = (i == j) ? v : 0;
       }
@@ -1865,7 +1865,7 @@ struct affine
   {
     Col c;
 #pragma unroll
-    for (usize i = 0; i < NUM_ROWS; i++)
+    for (auto i = 0uz; i < NUM_ROWS; i++)
     {
       c[i] = v[i][column];
     }
@@ -1946,7 +1946,7 @@ struct affine
   {
     bool all_eq = true;
 #pragma unroll
-    for (usize i = 0; i < NUM_ROWS; i++)
+    for (auto i = 0uz; i < NUM_ROWS; i++)
     {
       all_eq &= (v[i] == b.v[i]);
     }
@@ -1957,7 +1957,7 @@ struct affine
   {
     bool any_neq = false;
 #pragma unroll
-    for (usize i = 0; i < NUM_ROWS; i++)
+    for (auto i = 0uz; i < NUM_ROWS; i++)
     {
       any_neq |= (v[i] != b.v[i]);
     }
@@ -1969,7 +1969,7 @@ struct affine
     auto   m = to_mat() * b.to_mat();
     affine r;
 #pragma unroll
-    for (usize i = 0; i < NUM_ROWS - 1; i++)
+    for (auto i = 0uz; i < NUM_ROWS - 1; i++)
     {
       r[i] = m[i];
     }
@@ -1990,7 +1990,7 @@ struct affine
   {
     mat<T, R, R> r;
 #pragma unroll
-    for (usize i = 0; i < NUM_ROWS; i++)
+    for (auto i = 0uz; i < NUM_ROWS; i++)
     {
       r.v[i] = v[i];
     }
@@ -2102,7 +2102,7 @@ constexpr math::vec<T, N> log2(math::vec<T, N> x)
   math::vec<T, N> result;
 
 #pragma unroll
-  for (usize i = 0; i < N; i++)
+  for (auto i = 0uz; i < N; i++)
   {
     result[i] = ash::log2(x.v[i]);
   }

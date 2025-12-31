@@ -306,7 +306,7 @@ struct IArenaPool final : IAllocator
   /// @brief get the total capacity of the pool
   [[nodiscard]] usize capacity()
   {
-    usize s = 0;
+    auto s = 0uz;
     for (auto & arena : arenas_)
     {
       s += arena.v.capacity();
@@ -318,7 +318,7 @@ struct IArenaPool final : IAllocator
   /// @brief get the total memory usage of the pool out of its capacity
   [[nodiscard]] usize used()
   {
-    usize s = 0;
+    auto s = 0uz;
     for (auto & arena : arenas_)
     {
       s += arena.v.used();
@@ -330,7 +330,7 @@ struct IArenaPool final : IAllocator
   /// @brief get the available capacity of the pool
   [[nodiscard]] usize available()
   {
-    usize s = 0;
+    auto s = 0uz;
     for (auto & arena : arenas_)
     {
       s += arena.v.available();

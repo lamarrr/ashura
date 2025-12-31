@@ -1279,7 +1279,7 @@ struct WindowSysImpl final : IWindowSys
     scan_state.clear_all_bits();
     key_state.clear_all_bits();
 
-    for (usize i = 0; i < NUM_SCAN_CODES; i++)
+    for (auto i = 0uz; i < NUM_SCAN_CODES; i++)
     {
       if (sdl_scan_state[i])
       {

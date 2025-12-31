@@ -1799,7 +1799,7 @@ struct BitSpan
 
   constexpr void clear_all_bits() const requires (NonConst<R>)
   {
-    for (usize i = 0; i < atom_size(); ++i)
+    for (auto i = 0uz; i < atom_size(); ++i)
     {
       storage_[i] = 0;
     }
@@ -1807,7 +1807,7 @@ struct BitSpan
 
   constexpr void set_all_bits() const requires (NonConst<R>)
   {
-    for (usize i = 0; i < atom_size(); ++i)
+    for (auto i = 0uz; i < atom_size(); ++i)
     {
       storage_[i] = NumTraits<R>::MAX;
     }

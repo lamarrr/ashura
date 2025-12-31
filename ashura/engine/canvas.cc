@@ -1211,8 +1211,8 @@ void ICanvas::render_blur_(Shape const & info_)
 
     u32 images[2] = {scratch_0, scratch_1};
 
-    usize src = 0;
-    usize dst = 1;
+    auto src = 0uz;
+    auto dst = 1uz;
 
     // downsample pass
     for (usize i = 1; i <= num_passes; i++)

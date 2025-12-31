@@ -1293,7 +1293,7 @@ void EncoderResourceStates::rebuild(DeviceResourceStates const & upstream)
 
 void EncoderResourceStates::commit(DeviceResourceStates & upstream)
 {
-  for (auto [i, m] : zip(range(alias_.size()), alias_))
+  for (auto [i, m] : enumerate(alias_))
   {
     // if resource was modified
     if (m.v1) [[unlikely]]
@@ -4905,7 +4905,7 @@ Result<usize, Status> IDevice::get_pipeline_cache_size(gpu::PipelineCache cache)
 Result<Void, Status> IDevice::get_pipeline_cache_data(gpu::PipelineCache cache,
                                                       Vec<u8> &          out)
 {
-  usize size = 0;
+  auto size = 0uz;
 
   auto result =
     table_.GetPipelineCacheData(vk_dev_, (PipelineCache) cache, &size, nullptr);

@@ -19,9 +19,9 @@ Result<> join(Vec & out, Span<C const> delimiter,
     return Ok{};
   }
 
-  usize const initial_size = out.size();
+  auto const initial_size = out.size();
 
-  for (usize i = 0; i < (strings.size() - 1); i++)
+  for (auto i = 0uz; i < (strings.size() - 1); i++)
   {
     if (!out.append(strings[i]) || !out.append(delimiter))
     {

@@ -659,7 +659,7 @@ template <typename Sem, typename Stage, typename SemaphoreKey,
   CHECK(semaphores.size() == stages.size(), "");
   usize const n = semaphores.size();
 
-  for (usize i = 0; i < n; i++)
+  for (auto i = 0uz; i < n; i++)
   {
     ITimelineSemaphore & semaphore = semaphore_key(semaphores[i]);
     u64 const            stage     = stage_key(stages[i]);
@@ -680,7 +680,7 @@ template <typename Future, typename FutureStageKey>
 {
   usize const n = futures.size();
 
-  for (usize i = 0; i < n; i++)
+  for (auto i = 0uz; i < n; i++)
   {
     FutureStage &   stage = stage_key(futures[i]);
     std::atomic_ref stage_ref{stage};

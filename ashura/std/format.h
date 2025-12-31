@@ -751,7 +751,7 @@ struct Context
       return Result{.error = Error::ItemsMismatch};
     }
 
-    usize arg = 0;
+    auto arg = 0uz;
 
     for (Op const & op : ops_)
     {

@@ -54,10 +54,10 @@ Slice advance_paragraph(Str8 text)
 
 Str32 cull_paragraphs(Str32 text, Slice paragraphs)
 {
-  auto iparagraph          = usize{0};
+  auto iparagraph          = 0uz;
   auto text_size           = text.size();
-  auto text_iter           = usize{0};
-  auto text_paragraph_iter = usize{0};
+  auto text_iter           = 0uz;
+  auto text_paragraph_iter = 0uz;
 
   while (text_iter < text_size && iparagraph < paragraphs.offset)
   {
@@ -84,10 +84,10 @@ Str32 cull_paragraphs(Str32 text, Slice paragraphs)
 
 Str8 cull_paragraphs(Str8 text, Slice paragraphs)
 {
-  auto iparagraph          = usize{0};
+  auto iparagraph          = 0uz;
   auto text_size           = text.size();
-  auto text_iter           = usize{0};
-  auto text_paragraph_iter = usize{0};
+  auto text_iter           = 0uz;
+  auto text_paragraph_iter = 0uz;
 
   while (text_iter < text_size && iparagraph < paragraphs.offset)
   {
