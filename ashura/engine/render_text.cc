@@ -9,22 +9,98 @@
 namespace ash
 {
 
-RenderText & RenderText::run(TextStyle const & style, FontStyle const & font,
-                             usize first, usize count)
+TextRunsStyle TextRunsStyle::all(TextStyle const & style,
+                                 FontStyle const & font)
+{
+  SmallVec<usize, 4>     run_indices{noop_allocator};
+  SmallVec<TextStyle, 1> styles{noop_allocator};
+  SmallVec<FontStyle, 1> fonts{noop_allocator};
+
+  run_indices.append(span({0uz, USIZE_MAX})).unwrap();
+  styles.push(style).unwrap();
+  fonts.push(font).unwrap();
+
+  return TextRunsStyle{std::move(run_indices), std::move(styles),
+                       std::move(fonts)};
+}
+
+TextRunsStyle TextRunsStyle::make_sized(Allocator             allocator,
+                                        Span<usize const>     run_sizes,
+                                        Span<TextStyle const> styles,
+                                        Span<FontStyle const> fonts)
+{
+  CHECK(!run_sizes.is_empty(), "run_sizes cannot be empty");
+  CHECK(run_sizes.size() == styles.size(),
+        "run_sizes and styles must have the same size");
+  CHECK(run_sizes.size() == fonts.size(),
+        "run_sizes and fonts must have the same size");
+
+  auto run_indices =
+    SmallVec<usize, 4>::make(run_sizes.size() + 1, allocator).unwrap();
+  auto styles_vec = small_vec::copy<1>(allocator, styles).unwrap();
+  auto fonts_vec  = small_vec::copy<1>(allocator, fonts).unwrap();
+
+  run_indices.push(0uz).unwrap();
+  usize run_start = 0;
+
+  for (auto run_size : run_sizes)
+  {
+    auto run_end = sat_add(run_start, run_size);
+    run_indices.push(run_end).unwrap();
+    run_start = run_end;
+  }
+
+  if (run_indices.last() != USIZE_MAX)
+  {
+    run_indices.last() = USIZE_MAX;
+  }
+
+  return TextRunsStyle{std::move(run_indices), std::move(styles_vec),
+                       std::move(fonts_vec)};
+}
+
+TextRunsStyle TextRunsStyle::make_indexed(Allocator             allocator,
+                                          Span<usize const>     run_indices,
+                                          Span<TextStyle const> styles,
+                                          Span<FontStyle const> fonts)
+{
+  CHECK(!run_indices.is_empty(), "run_indices cannot be empty");
+  CHECK(run_indices.size() >= 2, "run_indices must have at least two entries");
+  CHECK(run_indices.first() == 0, "first entry of run_indices must be 0");
+  CHECK(run_indices.size() - 1 == styles.size(),
+        "run_indices and styles must have compatible sizes");
+  CHECK(run_indices.size() - 1 == fonts.size(),
+        "run_indices and fonts must have compatible sizes");
+
+  auto run_indices_vec = small_vec::copy<4>(allocator, run_indices).unwrap();
+
+  if (run_indices_vec.last() != USIZE_MAX)
+  {
+    run_indices_vec.last() = USIZE_MAX;
+  }
+
+  auto styles_vec = small_vec::copy<1>(allocator, styles).unwrap();
+  auto fonts_vec  = small_vec::copy<1>(allocator, fonts).unwrap();
+
+  return TextRunsStyle{std::move(run_indices_vec), std::move(styles_vec),
+                       std::move(fonts_vec)};
+}
+
+void TextRunsStyle::update(TextStyle const & style, FontStyle const & font,
+                           usize first, usize count)
 {
   if (count == 0)
   {
-    return *this;
+    return;
   }
 
   if (run_indices_.is_empty())
   {
-    run_indices_.push((usize) 0).unwrap();
+    run_indices_.push(0uz).unwrap();
     run_indices_.push(USIZE_MAX).unwrap();
     styles_.push(style).unwrap();
     fonts_.push(font).unwrap();
-    hash_ = 0;
-    return *this;
+    return;
   }
 
   auto end = sat_add(first, count);
@@ -121,9 +197,19 @@ RenderText & RenderText::run(TextStyle const & style, FontStyle const & font,
     }
   }
 
-  hash_ = HASH_DIRTY;
+  return;
+}
 
+RenderText & RenderText::style_runs(TextRunsStyle style)
+{
+  runs_style_ = std::move(style);
+  hash_       = HASH_DIRTY;
   return *this;
+}
+
+TextRunsStyle const & RenderText::get_style_runs() const
+{
+  return runs_style_;
 }
 
 RenderText & RenderText::flush_text()
@@ -186,7 +272,7 @@ RenderText & RenderText::text(Rc<Str32> utf32, TextStyle const & style,
                               FontStyle const & font)
 {
   text(std::move(utf32));
-  run(style, font);
+  style_runs(TextRunsStyle::all(style, font));
   flush_text();
   return *this;
 }
@@ -198,16 +284,33 @@ RenderText & RenderText::text(Rc<Str32> utf32)
   return *this;
 }
 
-RenderText & RenderText::text(Str8 utf8, TextStyle const & style,
-                              FontStyle const & font)
+RenderText & RenderText::text_copy(Str32 utf32)
 {
-  run(style, font);
-  text(utf8);
+  auto vec    = vec::copy(allocator_, utf32).unwrap();
+  auto rc_vec = rc<Vec<c32>>(allocator_, std::move(vec)).unwrap();
+  auto view   = rc_vec->view().as_const();
+  return text(transmute(std::move(rc_vec), view));
+}
+
+RenderText & RenderText::text_copy(Str32 utf32, TextStyle const & style,
+                                   FontStyle const & font)
+{
+  text_copy(utf32);
+  style_runs(TextRunsStyle::all(style, font));
   flush_text();
   return *this;
 }
 
-RenderText & RenderText::text(Str8 utf8)
+RenderText & RenderText::text_copy(Str8 utf8, TextStyle const & style,
+                                   FontStyle const & font)
+{
+  text_copy(utf8);
+  style_runs(TextRunsStyle::all(style, font));
+  flush_text();
+  return *this;
+}
+
+RenderText & RenderText::text_copy(Str8 utf8)
 {
   Vec<c32> text32{allocator_};
   utf8_decode(utf8, text32).unwrap();
@@ -215,6 +318,12 @@ RenderText & RenderText::text(Str8 utf8)
   auto view   = rc_vec->view().as_const();
   text_       = transmute(std::move(rc_vec), view);
   flush_text();
+  return *this;
+}
+
+RenderText & RenderText::user_data(void * data)
+{
+  user_data_ = data;
   return *this;
 }
 
@@ -226,8 +335,8 @@ usize RenderText::size() const
 TextBlock RenderText::block() const
 {
   return TextBlock{.text          = text_,
-                   .run_indices   = run_indices_,
-                   .fonts         = fonts_,
+                   .run_indices   = runs_style_.run_indices_,
+                   .fonts         = runs_style_.fonts_,
                    .font_scale    = font_scale_,
                    .direction     = direction_,
                    .language      = language_,
@@ -236,16 +345,11 @@ TextBlock RenderText::block() const
                    .use_ligatures = use_ligatures_};
 }
 
-TextBlockStyle
-  RenderText::block_style(f32                        aligned_width,
-                          TextHighlightStyle const & highlight_style,
-                          CaretStyle const &         caret_style) const
+TextBlockStyle RenderText::block_style(f32 aligned_width) const
 {
-  return TextBlockStyle{.runs        = styles_,
-                        .alignment   = alignment_,
+  return TextBlockStyle{.alignment   = alignment_,
                         .align_width = aligned_width,
-                        .highlight   = highlight_style,
-                        .caret       = caret_style};
+                        .user_data   = user_data_};
 }
 
 TextLayout const & RenderText::get_layout() const
@@ -253,35 +357,37 @@ TextLayout const & RenderText::get_layout() const
   return layout_;
 }
 
-void RenderText::layout(f32 max_width, TextLayoutBuffer buffer,
-                        Allocator scratch)
+void RenderText::layout(f32 max_width, Allocator scratch)
 {
   if (hash_ == HASH_CLEAN && max_width == layout_.max_width)
   {
     return;
   }
 
-  sys.font->layout_text(block(), max_width, layout_, buffer, scratch);
+  sys.font->layout_text(block(), max_width, layout_, scratch);
   hash_ = HASH_CLEAN;
 }
 
 void RenderText::render(TextRenderer renderer, f32x2 center, f32 align_width,
                         f32x4x4 const & transform, CRect const & clip,
-                        TextHighlightStyle const & highlight_style,
-                        CaretStyle const &         caret_style,
-                        Span<usize const> carets, Span<Slice const> highlights_,
-                        Allocator scratch) const
+                        Span<Slice const>              highlights,
+                        Span<TextHighlightStyle const> highlight_styles,
+                        Span<usize const>              carets,
+                        Span<CaretStyle const>         caret_styles,
+                        Allocator                      scratch_allocator) const
 {
-  TextRenderInfo info{.center    = center,
-                      .transform = transform,
-                      .clip      = clip,
-                      .block     = block(),
-                      .style =
-                        block_style(align_width, highlight_style, caret_style),
-                      .highlights = highlights_,
-                      .carets     = carets};
+  TextRenderInfo info{.center           = center,
+                      .transform        = transform,
+                      .clip             = clip,
+                      .block            = block(),
+                      .style            = block_style(align_width),
+                      .runs             = runs_style_.styles_,
+                      .highlights       = highlights,
+                      .highlight_styles = highlight_styles,
+                      .carets           = carets,
+                      .caret_styles     = caret_styles};
 
-  layout_.render(renderer, info, scratch);
+  layout_.render(renderer, info, scratch_allocator);
 }
 
 Tuple<isize, CaretAlignment> RenderText::hit(f32x2 center, f32 align_width,
@@ -291,10 +397,7 @@ Tuple<isize, CaretAlignment> RenderText::hit(f32x2 center, f32 align_width,
   auto inv_xfm   = inverse(transform);
   auto pos       = ash::transform(inv_xfm, transformed_pos.append(0)).xy();
   auto local_pos = pos - center;
-  TextHighlightStyle highlight_style{};
-  CaretStyle         caret_style{};
-  return layout_.hit(
-    block(), block_style(align_width, highlight_style, caret_style), local_pos);
+  return layout_.hit(block(), block_style(align_width), local_pos);
 }
 
 EditHistoryBuffer EditHistoryBuffer::create(Allocator allocator,
@@ -381,7 +484,7 @@ void EditHistoryBuffer::add_record(Record::Type type, usize pos, Rc<Str32> str)
 
   // truncate half of the history
 
-  records_.erase(Slice::offsets(0, max(records_.size() >> 1, (usize) 1)));
+  records_.erase(Slice::offsets(0, max(records_.size() >> 1, 1uz)));
   records_.push(within_capacity, std::move(record)).unwrap();
   current_record_ = records_.size() - 1;
 }
@@ -1031,7 +1134,6 @@ void EditText::tick(nanoseconds)
             auto                cursors = SmallVec<Cursor, 8>{allocator};
 
             Option<RenderText> rendered = none;
-            auto layout_buffer = sys.font->create_layout_buffer(allocator);
 
             auto rebuild = [&](PieceTable32 const & pieces, f32 max_width,
                                Renderer const & renderer) {
@@ -1043,7 +1145,7 @@ void EditText::tick(nanoseconds)
               auto new_text = renderer.get()(allocator, std::move(rc_str32));
               auto * arena  = get_thread_arena();
               auto   scratch_allocator = IFallbackAllocator{arena, allocator};
-              new_text.layout(max_width, layout_buffer, scratch_allocator);
+              new_text.layout(max_width, scratch_allocator);
               rendered = std::move(new_text);
             };
 

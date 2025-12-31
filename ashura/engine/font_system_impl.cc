@@ -333,7 +333,8 @@ Result<CpuFontAtlas, SysErr> FontSysImpl::rasterize_(Font font_,
       return Err{SysErr::OutOfMemory};
     }
 
-    for (auto [i, gl, ag, rect] : enumerate<u32>(font.glyphs, atlas.glyphs, rects))
+    for (auto [i, gl, ag, rect] :
+         enumerate<u32>(font.glyphs, atlas.glyphs, rects))
     {
       // added padding to avoid texture spilling due to accumulated
       // floating-point uv interpolation errors
@@ -965,18 +966,11 @@ static inline void reorder_line(Span<TextRun> runs)
 
 struct TextLayoutBufferImpl
 {
-  hb_buffer_t *           hb_buffer_;    // harfbuzz shaping buffer
-  SmallVec<usize, 8 + 1>  level_runs_;
-  SmallVec<u8, 8>         levels_;
-  SmallVec<usize, 8 + 1>  script_runs_;
-  SmallVec<TextScript, 8> scripts_;
+  hb_buffer_t * hb_buffer_;    // harfbuzz shaping buffer
 
-  constexpr TextLayoutBufferImpl(Allocator allocator, hb_buffer_t * hb_buffer) :
-    hb_buffer_{hb_buffer},
-    level_runs_{allocator},
-    levels_{allocator},
-    script_runs_{allocator},
-    scripts_{allocator}
+  explicit constexpr TextLayoutBufferImpl(hb_buffer_t * hb_buffer) :
+    hb_buffer_{hb_buffer}
+
   {
   }
 
@@ -989,10 +983,6 @@ struct TextLayoutBufferImpl
   void clear()
   {
     hb_buffer_clear_contents(hb_buffer_);
-    level_runs_.clear();
-    levels_.clear();
-    script_runs_.clear();
-    scripts_.clear();
   }
 
   ~TextLayoutBufferImpl()
@@ -1001,18 +991,62 @@ struct TextLayoutBufferImpl
   }
 };
 
-Dyn<TextLayoutBuffer> FontSysImpl::create_layout_buffer(Allocator allocator)
+struct LayoutBufferHook
 {
-  hb_buffer_t * hb_buffer = hb_buffer_create();
-  CHECK(hb_buffer != nullptr && hb_buffer_allocation_successful(hb_buffer), "");
+  LayoutBufferHook *   next = nullptr;
+  LayoutBufferHook *   prev = nullptr;
+  TextLayoutBufferImpl buffer;
 
-  auto buff =
-    dyn<TextLayoutBufferImpl>(inplace, allocator, allocator, hb_buffer)
-      .unwrap();
+  template <typename... Args>
+  LayoutBufferHook(Args &&... args) : buffer{std::forward<Args>(args)...}
+  {
+    push(this);
+  }
 
-  auto ptr = (TextLayoutBuffer) buff.get();
+  LayoutBufferHook(LayoutBufferHook const &)             = delete;
+  LayoutBufferHook & operator=(LayoutBufferHook const &) = delete;
+  LayoutBufferHook(LayoutBufferHook &&)                  = delete;
+  LayoutBufferHook & operator=(LayoutBufferHook &&)      = delete;
 
-  return transmute(std::move(buff), ptr);
+  ~LayoutBufferHook()
+  {
+    pop(this);
+  }
+
+  static void push(LayoutBufferHook *);
+  static void pop(LayoutBufferHook *);
+};
+
+struct LayoutBuffersSink
+{
+  ISpinLock              lock;
+  List<LayoutBufferHook> buffers{};
+};
+
+static LayoutBuffersSink layout_buffers_sink;
+
+void LayoutBufferHook::push(LayoutBufferHook * hook)
+{
+  LockGuard guard{layout_buffers_sink.lock};
+  layout_buffers_sink.buffers.push_back(hook);
+}
+
+void LayoutBufferHook::pop(LayoutBufferHook * hook)
+{
+  LockGuard guard{layout_buffers_sink.lock};
+  layout_buffers_sink.buffers.pop_at(hook);
+}
+
+TextLayoutBufferImpl & FontSysImpl::get_thread_layout_buffer()
+{
+  static thread_local LayoutBufferHook thread_layout_buffer{[] {
+    hb_buffer_t * hb_buffer = hb_buffer_create();
+    CHECK(hb_buffer != nullptr && hb_buffer_allocation_successful(hb_buffer),
+          "");
+    return hb_buffer;
+  }()};
+
+  return thread_layout_buffer.buffer;
 }
 
 void layout_paragraph(Paragraph & paragraph, f32 max_width,
@@ -1096,8 +1130,7 @@ void layout_paragraph(Paragraph & paragraph, f32 max_width,
 /// https://stackoverflow.com/questions/62374506/how-do-i-align-glyphs-along-the-baseline-with-freetype
 ///
 void FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
-                              TextLayout & layout, TextLayoutBuffer buffer_,
-                              Allocator scratch)
+                              TextLayout & layout, Allocator scratch)
 {
   tracing::ScopeTrace trace;
 
@@ -1129,7 +1162,12 @@ void FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
                     hb_language_from_string(block.language.data(),
                                             (i32) block.language.size());
 
-  TextLayoutBufferImpl & buffer = (TextLayoutBufferImpl &) *buffer_;
+  TextLayoutBufferImpl & buffer     = get_thread_layout_buffer();
+  auto                   level_runs = Vec<usize>::make(1'024, scratch).unwrap();
+  auto                   levels     = Vec<u8>::make(1'024, scratch).unwrap();
+  auto script_runs                  = Vec<usize>::make(1'024, scratch).unwrap();
+  auto scripts = Vec<TextScript>::make(1'024, scratch).unwrap();
+
   layout.clear();
 
   // - the block never has empty paragraphs
@@ -1137,7 +1175,7 @@ void FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
   // - lines never have empty runs; they may have empty codepoints
   // - runs may have empty codepoints
 
-  usize p = 0;
+  auto p = 0uz;
 
   auto style_iter = RunItemView{block.run_indices.view()}.begin();
 
@@ -1148,6 +1186,11 @@ void FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
   do
   {
     buffer.clear();
+    level_runs.clear();
+    levels.clear();
+    script_runs.clear();
+    scripts.clear();
+
     auto paragraph_begin = p;
     auto delims          = advance_paragraph(text.slice(paragraph_begin));
     auto paragraph_delims =
@@ -1167,18 +1210,14 @@ void FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
     defer sb_algorithm_{
       [&] { SBAlgorithmRelease(sb_allocator, sb_algorithm); }};
 
-    auto paragraph_level =
-      paragraph_levels(sb_allocator, paragraph_text, sb_algorithm,
-                       block.direction, buffer.levels_);
-    paragraph_script_runs(sb_allocator, paragraph_text, buffer.script_runs_,
-                          buffer.scripts_);
+    auto paragraph_level = paragraph_levels(
+      sb_allocator, paragraph_text, sb_algorithm, block.direction, levels);
+    paragraph_script_runs(sb_allocator, paragraph_text, script_runs, scripts);
 
-    auto run_iter = usize{0};
-    auto scripts_iter =
-      RunItemView{buffer.script_runs_.view(), buffer.scripts_.view()}.begin();
-    auto levels_iter =
-      RunItemView{buffer.level_runs_.view(), buffer.levels_.view()}.begin();
-    auto wrap_level = u32{0};
+    auto run_iter     = 0uz;
+    auto scripts_iter = RunItemView{script_runs.view(), scripts.view()}.begin();
+    auto levels_iter  = RunItemView{level_runs.view(), levels.view()}.begin();
+    auto wrap_level   = u32{0};
 
     // do-while is used to ensure at least one run is processed even if the paragraph is empty (empty paragraphs)
     do
@@ -1212,7 +1251,7 @@ void FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
                run_props.style == style_iter.run() &&
                run_props.script == (*scripts_iter).v0 &&
                run_props.level == (*levels_iter).v0 &&
-               run_props.level == buffer.levels_[run_iter] &&
+               run_props.level == levels[run_iter] &&
                !is_wrap_char(paragraph_text[run_iter]))
         {
           ++run_iter;

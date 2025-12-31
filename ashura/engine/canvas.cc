@@ -1,6 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/engine/canvas.h"
-#include "ashura/engine/font_system_impl.h"
+#include "ashura/engine/font_system.h"
 #include "ashura/engine/pipeline_system.h"
 #include "ashura/engine/pipelines/blur.h"
 #include "ashura/engine/pipelines/sdf.h"
@@ -2060,7 +2060,7 @@ ICanvas & ICanvas::text(TextRenderInfo const & info,
 
   for (auto & b : placement.backgrounds)
   {
-    auto & style = info.style.runs[b.run_style];
+    auto & style = info.runs[b.run_style];
     rect(Shape{.world_transform = info.transform,
                .uv_transform    = f32x4x4::identity(),
                .area            = b.bbox,
@@ -2078,7 +2078,7 @@ ICanvas & ICanvas::text(TextRenderInfo const & info,
 
   for (auto & b : placement.glyph_shadows)
   {
-    auto & style = info.style.runs[b.run_style];
+    auto & style = info.runs[b.run_style];
     rect(Shape{.world_transform = info.transform,
                .uv_transform    = f32x4x4::identity(),
                .area            = b.bbox,
@@ -2099,7 +2099,7 @@ ICanvas & ICanvas::text(TextRenderInfo const & info,
     // [ ] if retrieving the font for each glyph ends up being slow, we can consider using run-end encoding.
     // of the runs and their glyphs.
 
-    auto & style         = info.style.runs[b.run_style];
+    auto & style         = info.runs[b.run_style];
     auto & font          = info.block.fonts[b.run_style];
     auto   font_info     = sys.font->get(font.font);
     auto & atlas         = font_info.gpu_atlas.v();
@@ -2125,7 +2125,7 @@ ICanvas & ICanvas::text(TextRenderInfo const & info,
 
   for (auto & b : placement.underlines)
   {
-    auto & style = info.style.runs[b.run_style];
+    auto & style = info.runs[b.run_style];
     rect(Shape{.world_transform = info.transform,
                .uv_transform    = f32x4x4::identity(),
                .area            = b.bbox,
@@ -2143,7 +2143,7 @@ ICanvas & ICanvas::text(TextRenderInfo const & info,
 
   for (auto & b : placement.strikethroughs)
   {
-    auto & style = info.style.runs[b.run_style];
+    auto & style = info.runs[b.run_style];
     rect(Shape{.world_transform = info.transform,
                .uv_transform    = f32x4x4::identity(),
                .area            = b.bbox,
@@ -2165,10 +2165,10 @@ ICanvas & ICanvas::text(TextRenderInfo const & info,
                .uv_transform    = f32x4x4::identity(),
                .area            = b.bbox,
                .bbox_extent     = b.bbox.extent,
-               .radii           = info.style.highlight.corner_radii,
+               .radii           = info.highlight_styles[b.id].corner_radii,
                .shade           = ShadeType::Flood,
                .feather         = 0,
-               .tint            = info.style.highlight.color,
+               .tint            = info.highlight_styles[b.id].color,
                .sampler         = SamplerIndex::LinearEdgeClampBlackFloat,
                .texture_set     = sampled_textures,
                .map             = TextureIndex::White,
@@ -2178,14 +2178,15 @@ ICanvas & ICanvas::text(TextRenderInfo const & info,
 
   for (auto & b : placement.carets)
   {
+    auto & style = info.caret_styles[b.id];
     rect(Shape{.world_transform = info.transform,
                .uv_transform    = f32x4x4::identity(),
                .area            = b.bbox,
                .bbox_extent     = b.bbox.extent,
-               .radii           = info.style.caret.corner_radii,
+               .radii           = style.corner_radii,
                .shade           = ShadeType::Flood,
                .feather         = 0,
-               .tint            = info.style.caret.color,
+               .tint            = style.color,
                .sampler         = SamplerIndex::LinearEdgeClampBlackFloat,
                .texture_set     = sampled_textures,
                .map             = TextureIndex::White,

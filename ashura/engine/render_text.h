@@ -9,22 +9,101 @@
 namespace ash
 {
 
+struct [[nodiscard]] TextRunsStyle
+{
+  static auto default_run_indices(Allocator allocator = noop_allocator)
+  {
+    static constexpr usize data[] = {0uz, USIZE_MAX};
+    return small_vec::copy<4>(allocator, span(data)).unwrap();
+  }
+
+  static auto default_styles(Allocator allocator = noop_allocator)
+  {
+    static constexpr TextStyle data[] = {{}};
+    return small_vec::copy<1>(allocator, span(data)).unwrap();
+  }
+
+  static auto default_fonts(Allocator allocator = noop_allocator)
+  {
+    static constexpr FontStyle data[] = {{}};
+    return small_vec::copy<1>(allocator, span(data)).unwrap();
+  }
+
+  SmallVec<usize, 4>     run_indices_;
+  SmallVec<TextStyle, 1> styles_;
+  SmallVec<FontStyle, 1> fonts_;
+
+  TextRunsStyle(SmallVec<usize, 4> run_indices, SmallVec<TextStyle, 1> styles,
+                SmallVec<FontStyle, 1> fonts) :
+    run_indices_{std::move(run_indices)},
+    styles_{std::move(styles)},
+    fonts_{std::move(fonts)}
+  {
+  }
+
+  TextRunsStyle(Allocator allocator = noop_allocator) :
+    run_indices_{default_run_indices(allocator)},
+    styles_{default_styles(allocator)},
+    fonts_{default_fonts(allocator)}
+  {
+  }
+
+  static TextRunsStyle all(TextStyle const & style, FontStyle const & font);
+
+  /// @brief Creates a TextRunsStyle from run sizes, styles, and fonts.
+  /// @param allocator allocator to use for memory allocations
+  /// @param run_sizes sizes of each run of text the styles and fonts correspond to
+  /// @param styles styles for each run
+  /// @param fonts fonts for each run
+  static TextRunsStyle make_sized(Allocator             allocator,
+                                  Span<usize const>     run_sizes,
+                                  Span<TextStyle const> styles,
+                                  Span<FontStyle const> fonts);
+
+  /// @brief Creates a TextRunsStyle from run end indices, styles, and fonts.
+  /// @param allocator allocator to use for memory allocations
+  /// @param run_indices run end indices of each run of text the styles and fonts correspond to
+  /// @param styles styles for each run
+  static TextRunsStyle make_indexed(Allocator             allocator,
+                                    Span<usize const>     run_indices,
+                                    Span<TextStyle const> styles,
+                                    Span<FontStyle const> fonts);
+
+  void update(TextStyle const & style, FontStyle const & font, usize first,
+              usize count);
+
+  Span<usize const> run_indices() const
+  {
+    return run_indices_.view();
+  }
+
+  Span<TextStyle const> styles() const
+  {
+    return styles_.view();
+  }
+
+  Span<FontStyle const> fonts() const
+  {
+    return fonts_.view();
+  }
+};
+
 /// @brief Controls and manages GUI text state for rendering
 /// - manages runs and run styling
 /// - manages and checks for text layout invalidation
 /// - recalculates text layout when it changes and if necessary
 /// - renders the text using the computed style information
 /// @param runs  Run-End encoded sequences of the runs
-struct RenderText
+struct [[nodiscard]] RenderText
 {
   static constexpr usize HASH_CLEAN = USIZE_MAX;
-  static constexpr usize HASH_DIRTY = 0;
+  static constexpr usize HASH_DIRTY = 0z;
 
   Allocator allocator_;
 
   usize hash_;
 
-  bool wrap_;
+  bool wrap_ : 1;
 
   bool use_kerning_ : 1;
 
@@ -38,15 +117,13 @@ struct RenderText
 
   Rc<Str32> text_;
 
-  Vec<usize> run_indices_;
-
-  Vec<TextStyle> styles_;
-
-  Vec<FontStyle> fonts_;
+  TextRunsStyle runs_style_;
 
   Str language_;
 
   TextLayout layout_;
+
+  void * user_data_;
 
   constexpr RenderText(Allocator allocator) :
     allocator_{allocator},
@@ -58,14 +135,13 @@ struct RenderText
     alignment_{ALIGNMENT_LEFT},
     font_scale_{1},
     text_{},
-    run_indices_{allocator},
-    styles_{allocator},
-    fonts_{allocator},
+    runs_style_{},
     language_{},
     layout_{.glyphs{allocator},
             .runs{allocator},
             .lines{allocator},
-            .paragraphs{allocator}}
+            .paragraphs{allocator}},
+    user_data_{nullptr}
   {
   }
 
@@ -75,15 +151,9 @@ struct RenderText
   constexpr RenderText & operator=(RenderText &&)      = default;
   constexpr ~RenderText()                              = default;
 
-  /// @brief  Styles specified runs of text, performing run merging and
-  /// splitting in the process. If there's previously no runs, the first added
-  /// run will be the default and span the whole of the text.
-  /// @param first first codepoint index to be patched
-  /// @param count range of the number of codepoints to be patched
-  /// @param style font style to be applied
-  /// @param font font configuration to be applied
-  RenderText & run(TextStyle const & style, FontStyle const & font,
-                   usize first = 0, usize count = USIZE_MAX);
+  RenderText & style_runs(TextRunsStyle style);
+
+  TextRunsStyle const & get_style_runs() const;
 
   RenderText & flush_text();
 
@@ -104,45 +174,55 @@ struct RenderText
 
   RenderText & text(Rc<Str32> utf32);
 
-  RenderText & text(Str8 utf8, TextStyle const & style, FontStyle const & font);
+  RenderText & text_copy(Str32 utf32);
 
-  RenderText & text(Str8 utf8);
+  RenderText & text_copy(Str32 utf32, TextStyle const & style,
+                         FontStyle const & font);
+
+  RenderText & text_copy(Str8 utf8, TextStyle const & style,
+                         FontStyle const & font);
+
+  RenderText & text_copy(Str8 utf8);
+
+  RenderText & user_data(void * data);
 
   usize size() const;
 
   TextBlock block() const;
 
-  TextBlockStyle block_style(f32                        aligned_width,
-                             TextHighlightStyle const & highlight_style,
-                             CaretStyle const &         caret_style) const;
+  TextBlockStyle block_style(f32 aligned_width) const;
 
   TextLayout const & get_layout() const;
 
-  void layout(f32 max_width, TextLayoutBuffer buffer, Allocator scratch);
+  void layout(f32 max_width, Allocator scratch);
 
   /// @brief Render the laid out text
   /// @param center canvas-space region of the text to place the text on
   /// @param align_width the width to align the text to
+  /// @param transform the canvas-space transform to apply to the text block
   /// @param clip the canvas-space clip rectangle
-  /// @param zoom the zoom to apply to the text
+  /// @param highlights text highlights to render
+  /// @param highlight_styles styles for each of the highlights
+  /// @param carets carets to render
+  /// @param caret_styles styles for each of the carets
+  /// @param scratch_allocator allocator to use for temporary allocations
   void render(TextRenderer renderer, f32x2 center, f32 align_width,
               f32x4x4 const & transform, CRect const & clip,
-              TextHighlightStyle const & highlight_style,
-              CaretStyle const & caret_style, Span<usize const> carets,
-              Span<Slice const> highlights, Allocator scratch_allocator) const;
+              Span<Slice const>              highlights,
+              Span<TextHighlightStyle const> highlight_styles,
+              Span<usize const> carets, Span<CaretStyle const> caret_styles,
+              Allocator scratch_allocator) const;
 
   /// @brief Perform hit test on the laid-out text
   /// @param center canvas-space region the text was placed on
   /// @param align_width the width the text was aligned to
-  /// @param zoom the zoom that was applied to the text
-  /// @param pos the canvas-space text position to hit
   /// @returns .v0: caret index, .v1: caret location
   Tuple<isize, CaretAlignment> hit(f32x2 center, f32 align_width,
                                    f32x4x4 const & transform,
                                    f32x2           transformed_pos) const;
 };
 
-struct EditHistoryBuffer
+struct [[nodiscard]] EditHistoryBuffer
 {
   struct Record
   {
@@ -201,7 +281,7 @@ struct EditHistoryBuffer
   void erase(Slice selection, PieceTable32 & str);
 };
 
-struct EditText
+struct [[nodiscard]] EditText
 {
   struct Cursor
   {

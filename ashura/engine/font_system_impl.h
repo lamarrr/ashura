@@ -100,6 +100,8 @@ struct FontImpl final : IFont
   virtual FontInfo info() override;
 };
 
+struct TextLayoutBufferImpl;
+
 struct FontSysImpl final : IFontSys
 {
   Allocator                    allocator_;
@@ -146,12 +148,10 @@ struct FontSysImpl final : IFontSys
 
   FontId add_font_(Dyn<Font> font, GpuFontAtlas gpu_atlas);
 
-  virtual Dyn<TextLayoutBuffer>
-    create_layout_buffer(Allocator allocator) override;
+  TextLayoutBufferImpl & get_thread_layout_buffer();
 
   virtual void layout_text(TextBlock const & block, f32 max_width,
-                           TextLayout & layout, TextLayoutBuffer buffer,
-                           Allocator scratch) override;
+                           TextLayout & layout, Allocator scratch) override;
 
   virtual Future<Result<FontId, SysErr>> load_from_memory(Str     label,
                                                           RcBlob8 encoded,

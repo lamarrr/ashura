@@ -29,8 +29,10 @@ function cmake_format {
 }
 
 cpp_format -folder $CURRENT_SRC_DIR/ashura/std
+# cpp_format -folder $CURRENT_SRC_DIR/ashura/std/tests
 cpp_format -folder $CURRENT_SRC_DIR/ashura/gpu
 cpp_format -folder $CURRENT_SRC_DIR/ashura/engine
+# cpp_format -folder $CURRENT_SRC_DIR/ashura/engine/tests
 cpp_format -folder $CURRENT_SRC_DIR/ashura/engine/shaders
 cpp_format -folder $CURRENT_SRC_DIR/ashura/engine/pipelines
 cpp_format -folder $CURRENT_SRC_DIR/ashura/engine/views

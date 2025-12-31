@@ -233,7 +233,8 @@ void IViewSys::layout_(Tree & tree, f32x2 viewport_extent)
   for (auto [children, view, extent] :
        zip(tree.nodes.children, tree.nodes.views, tree.props.extents))
   {
-    view->size(extent, tree.props.extents.view().slice(children));
+    view->size(prev_frame_scope_, extent,
+               tree.props.extents.view().slice(children));
   }
 
   tree.props.centers[0] = f32x2::splat(0);
@@ -244,9 +245,10 @@ void IViewSys::layout_(Tree & tree, f32x2 viewport_extent)
   {
     i--;
     auto children = tree.nodes.children[i];
-    auto layout   = tree.nodes.views[i]->fit(
-      tree.props.extents[i], tree.props.extents.view().slice(children),
-      tree.props.centers.view().slice(children));
+    auto layout =
+      tree.nodes.views[i]->fit(prev_frame_scope_, tree.props.extents[i],
+                               tree.props.extents.view().slice(children),
+                               tree.props.centers.view().slice(children));
     tree.props.extents[i]          = layout.extent;
     tree.props.viewport_extents[i] = layout.viewport_extent;
     tree.props.viewport_centers[i] = layout.viewport_center;
@@ -368,7 +370,8 @@ void IViewSys::stack_(Tree & tree)
   for (auto [children, z_index, view] :
        zip(tree.nodes.children, tree.props.z_idx, tree.nodes.views))
   {
-    z_index = view->z_index(z_index, tree.props.z_idx.view().slice(children));
+    z_index = view->z_index(prev_frame_scope_, z_index,
+                            tree.props.z_idx.view().slice(children));
   }
 
   tree.props.layers[0] = 0;
@@ -376,7 +379,8 @@ void IViewSys::stack_(Tree & tree)
   for (auto [children, layer, view] :
        zip(tree.nodes.children, tree.props.layers, tree.nodes.views))
   {
-    layer = view->layer(layer, tree.props.layers.view().slice(children));
+    layer = view->layer(prev_frame_scope_, layer,
+                        tree.props.layers.view().slice(children));
   }
 
   iota(tree.props.z_ord.view(), 0U);
@@ -433,10 +437,11 @@ void IViewSys::render_(Tree & tree, Canvas & canvas)
                            .extent = tree.props.canvas_extents[i]};
       auto & view = tree.nodes.views[i];
 
-      view->render(canvas, ui::RenderInfo{.viewport_region  = viewport_region,
-                                          .canvas_region    = canvas_region,
-                                          .clip             = clip,
-                                          .canvas_transform = xfm});
+      view->render(prev_frame_scope_, canvas,
+                   ui::RenderInfo{.viewport_region  = viewport_region,
+                                  .canvas_region    = canvas_region,
+                                  .clip             = clip,
+                                  .canvas_transform = xfm});
     }
   }
 }
@@ -1072,7 +1077,7 @@ Tuple<Option<ui::FocusRect>, Option<TextInputInfo>, Cursor>
     if (event.type == ui::Events::PointerOver)
     {
       Cursor c = view->cursor(
-        tree.props.extents[i],
+        prev_frame_scope_, tree.props.extents[i],
         ash::transform(tree.props.canvas_inv_xfm[tree.props.viewports[i]],
                        input.mouse().position().v()) -
           tree.props.fixed_centers[i]);

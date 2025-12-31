@@ -33,35 +33,40 @@ struct RootView final : ui::View
     return ui::ViewState{.viewport = true};
   }
 
-  constexpr virtual void size(f32x2 allocated, Span<f32x2> sizes) override
+  constexpr virtual void size(ui::Scope const &, f32x2 allocated,
+                              Span<f32x2> sizes) override
   {
     fill(sizes, allocated);
   }
 
-  constexpr virtual ui::Layout fit(f32x2       allocated, Span<f32x2 const>,
+  constexpr virtual ui::Layout fit(ui::Scope const &, f32x2 allocated,
+                                   Span<f32x2 const>,
                                    Span<f32x2> centers) override
   {
     fill(centers, f32x2{0, 0});
     return ui::Layout{.extent = allocated, .viewport_extent = allocated};
   }
 
-  constexpr virtual i32 layer(i32, Span<i32> indices) override
+  constexpr virtual i32 layer(ui::Scope const &, i32,
+                              Span<i32> indices) override
   {
     fill(indices, 0);
     return 0;
   }
 
-  constexpr virtual i32 z_index(i32, Span<i32> indices) override
+  constexpr virtual i32 z_index(ui::Scope const &, i32,
+                                Span<i32> indices) override
   {
     fill(indices, 0);
     return 0;
   }
 
-  constexpr virtual void render(Canvas, ui::RenderInfo const &) override
+  constexpr virtual void render(ui::Scope const &, Canvas,
+                                ui::RenderInfo const &) override
   {
   }
 
-  constexpr virtual Cursor cursor(f32x2, f32x2) override
+  constexpr virtual Cursor cursor(ui::Scope const &, f32x2, f32x2) override
   {
     return Cursor::Default;
   }

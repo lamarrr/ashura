@@ -236,7 +236,7 @@ constexpr TextDirection level_to_direction(u8 level)
 
 struct TextHighlightStyle
 {
-  ColorGradient color = {};
+  ColorGradient color = ColorGradient{colors::BLUE};
 
   f32x4 corner_radii = f32x4::splat(0);
 
@@ -249,7 +249,7 @@ struct TextHighlightStyle
 
 struct CaretStyle
 {
-  ColorGradient color = {};
+  ColorGradient color = ColorGradient{mdc::GRAY_300};
 
   f32 thickness = 1;
 
@@ -493,10 +493,6 @@ struct TextBlock
 
 struct TextBlockStyle
 {
-  /// @param styles styles for each run in the source text, for each
-  /// `TextBlock::runs`
-  Span<TextStyle const> runs = {};
-
   /// @brief alignment of the text to its base direction. -1 = line
   /// start, +1 = line end, 0 = center of line, the direction depends on the
   /// directionality of the line.
@@ -505,11 +501,7 @@ struct TextBlockStyle
   /// @brief width to align the text block to when rendering.
   f32 align_width = 0;
 
-  TextHighlightStyle highlight = {};
-
   f32 min_highlight_width = 15.0F;
-
-  CaretStyle caret = {};
 
   void * user_data = nullptr;
 };
@@ -671,6 +663,7 @@ struct CaretPlacement
 {
   usize line = 0;
 
+  /// @brief the glyph the caret is placed relative to. None if there's no glyph on the line
   Option<usize> glyph = none;
 
   bool after = false;
@@ -772,6 +765,8 @@ struct TextPlacement
 
   struct Highlight
   {
+    usize id = 0;
+
     CRect bbox = {};
 
     usize line = 0;
@@ -779,13 +774,15 @@ struct TextPlacement
 
   struct Caret
   {
+    usize id = 0;
+
     CRect bbox = {};
 
     usize line = 0;
 
     usize column = 0;
 
-    /// @brief Set to the current caret being rendered for
+    /// @brief Set to the current caret index on the text being rendered for
     usize caret = 0;
   };
 
@@ -825,12 +822,22 @@ struct TextRenderInfo
   /// @brief styling of the text block, contains styling for the runs and alignment of the block
   TextBlockStyle style = {};
 
+  /// @param styles styles for each run in the source text, for each
+  /// `TextBlock::runs`
+  Span<TextStyle const> runs = {};
+
   /// @brief caret highlights to draw. Overlapping highlights should be
   /// merged as the performance cost increases with increasing number of highlights
   Span<Slice const> highlights = {};
 
+  /// @brief styles for each highlight in `highlights`
+  Span<TextHighlightStyle const> highlight_styles = {};
+
   /// @brief carets to draw
   Span<usize const> carets = {};
+
+  /// @brief styles for each caret in `carets`
+  Span<CaretStyle const> caret_styles = {};
 };
 
 typedef Fn<void(TextRenderInfo const &, TextPlacement const &)> TextRenderer;
@@ -908,7 +915,5 @@ struct TextLayout
   void render(TextRenderer renderer, TextRenderInfo const & info,
               Allocator scratch) const;
 };
-
-typedef struct ITextLayoutBuffer * TextLayoutBuffer;
 
 }    // namespace ash

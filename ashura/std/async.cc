@@ -813,7 +813,6 @@ struct ASH_DLL_EXPORT SchedulerImpl final : IScheduler
       },
       [&](MainThread) { CHECK(false, "Main thread cannot be shutdown"); });
   }
-  }
 };
 
 Dyn<Scheduler> IScheduler::create(SchedulerInfo const & info)
