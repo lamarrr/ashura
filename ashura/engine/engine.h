@@ -189,7 +189,6 @@ struct IEngine
   Dyn<WindowEntry *> add_window_(EngineCfg::Window const & cfg,
                                  WindowLoop                loop);
 
-
   Option<gpu::SwapchainInfo>
     create_swapchain_info_(WindowEntry const & win_entry);
 
