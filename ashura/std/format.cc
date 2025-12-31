@@ -53,8 +53,8 @@ void format_int(fmt::Sink sink, fmt::Spec spec, IntT const & value)
 
 void format_float(fmt::Sink sink, fmt::Spec spec, f64 value)
 {
-  char  scratch_[512];
-  Span  scratch{scratch_};
+  char scratch_[512];
+  Span scratch{scratch_};
   auto written = 0uz;
 
   if (spec.precision != fmt::NONE_PRECISION)

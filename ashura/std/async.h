@@ -29,7 +29,6 @@ namespace ash
 
 // [ ] check runtime status in worker threads; to allow proper shutdown
 
-
 typedef struct IWaitToken * WaitToken;
 
 /// @brief A wait token for sleeping and waking up threads.
