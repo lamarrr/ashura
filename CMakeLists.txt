@@ -245,7 +245,11 @@ FetchContent_MakeAvailable(libpng)
 FetchContent_MakeAvailable(gtest)
 FetchContent_MakeAvailable(lz4)
 
+file(GLOB xxHash_SOURCES ${xxhash_SOURCE_DIR}/*.c)
 set(xxHash_INCLUDE_DIR ${xxhash_SOURCE_DIR})
+add_library(xxHash STATIC ${xxHash_SOURCES})
+target_include_directories(xxHash PUBLIC ${xxHash_INCLUDE_DIR})
+
 set(fast_float_INCLUDE_DIR ${fast_float_SOURCE_DIR}/include)
 
 file(GLOB SHEENBIDI_SOURCES ${sheenbidi_SOURCE_DIR}/Source/*.c)
@@ -256,6 +260,11 @@ target_include_directories(
   PUBLIC ${sheenbidi_SOURCE_DIR}/Headers
   PRIVATE ${sheenbidi_SOURCE_DIR}/Source)
 add_library(sheenbidi::sheenbidi ALIAS sheenbidi)
+
+file(GLOB LZ4_SOURCES ${lz4_SOURCE_DIR}/lib/*.c)
+set(LZ4_INCLUDE_DIR ${lz4_SOURCE_DIR}/lib)
+add_library(lz4 STATIC ${LZ4_SOURCES})
+target_include_directories(lz4 PUBLIC ${LZ4_INCLUDE_DIR})
 
 list(APPEND ASH_COMPILE_OPTIONS)
 list(APPEND ASH_COMPILE_DEFINITIONS)
@@ -322,11 +331,11 @@ add_library(
   ashura/std/panic.cc
   ashura/std/thread.cc
   ashura/std/trace.cc)
-target_include_directories(
+target_include_directories(ashura_std PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(
   ashura_std
-  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
-  PRIVATE ${xxHash_INCLUDE_DIR})
-target_link_libraries(ashura_std PUBLIC Threads::Threads)
+  PUBLIC Threads::Threads
+  PRIVATE xxHash lz4)
 target_compile_options(ashura_std PUBLIC ${ASH_COMPILE_OPTIONS})
 target_compile_definitions(ashura_std PUBLIC ${ASH_COMPILE_DEFINITIONS})
 target_link_options(ashura_std PUBLIC ${ASH_LINK_OPTIONS})
@@ -554,7 +563,7 @@ add_custom_target(
   COMMENT "Building Ashura Engine core shaders"
   VERBATIM)
 
-function(add_shader_target target_name shader_file)
+function(add_shader target_name shader_file)
   set(input "${SLANG_SRC_DIR}/${shader_file}")
   set(output_spv "${SLANG_OUT_DIR}/${target_name}.spv")
   set(output_asm "${SLANG_OUT_DIR}/${target_name}.spv-asm")
@@ -580,19 +589,19 @@ function(add_shader_target target_name shader_file)
   add_dependencies(ashura_shaders ${target_name}_shaders)
 endfunction()
 
-add_shader_target(bezier_stencil bezier_stencil.slang)
-add_shader_target(blur_downsample blur.slang "-DDOWNSAMPLE=1")
-add_shader_target(blur_upsample blur.slang "-DDOWNSAMPLE=0")
-add_shader_target(composite_sdf composite_sdf.slang)
-add_shader_target(fill_stencil fill_stencil.slang)
-add_shader_target(pbr_base pbr.slang)
-add_shader_target(quad_base quad.slang)
-add_shader_target(sdf_gradient sdf.slang "-DITEM_TYPE=SdfGradientItem")
-add_shader_target(sdf_noise sdf.slang "-DITEM_TYPE=SdfNoiseItem")
-add_shader_target(sdf_mesh_gradient sdf.slang "-DITEM_TYPE=SdfMeshGradientItem")
-add_shader_target(triangle_fill triangle_fill.slang)
-add_shader_target(vector_path_coverage vector_path_coverage.slang)
-add_shader_target(vector_path_fill vector_path_fill.slang)
+add_shader(bezier_stencil bezier_stencil.slang)
+add_shader(blur_downsample blur.slang "-DDOWNSAMPLE=1")
+add_shader(blur_upsample blur.slang "-DDOWNSAMPLE=0")
+add_shader(composite_sdf composite_sdf.slang)
+add_shader(fill_stencil fill_stencil.slang)
+add_shader(pbr_base pbr.slang)
+add_shader(quad_base quad.slang)
+add_shader(sdf_gradient sdf.slang "-DITEM_TYPE=SdfGradientItem")
+add_shader(sdf_noise sdf.slang "-DITEM_TYPE=SdfNoiseItem")
+add_shader(sdf_mesh_gradient sdf.slang "-DITEM_TYPE=SdfMeshGradientItem")
+add_shader(triangle_fill triangle_fill.slang)
+add_shader(vector_path_coverage vector_path_coverage.slang)
+add_shader(vector_path_fill vector_path_fill.slang)
 
 if(ASH_BUILD_DOC)
   set(DOXYGEN_IN ${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in)

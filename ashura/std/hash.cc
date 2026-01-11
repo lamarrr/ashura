@@ -1,5 +1,4 @@
 /// SPDX-License-Identifier: MIT
-#define XXH_INLINE_ALL
 #include "ashura/std/hash.h"
 #include "ashura/std/types.h"
 #include "xxhash.h"
