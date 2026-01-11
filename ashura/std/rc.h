@@ -48,10 +48,6 @@ struct [[nodiscard]] Rc
   {
   }
 
-  explicit constexpr Rc() : handle_{}, alias_{rc_noop}
-  {
-  }
-
   constexpr Rc(Rc const &) = delete;
 
   constexpr Rc & operator=(Rc const &) = delete;

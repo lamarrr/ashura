@@ -9,6 +9,10 @@ namespace ash
 
 typedef Fn<void()> DynUninit;
 
+static constexpr void dyn_noop()
+{
+}
+
 /// @brief A dynamically allocated object. It is always valid. Dyn represents a resource using the handle type `H`.
 template <typename H>
 requires (TriviallyCopyable<H>)
@@ -20,10 +24,6 @@ struct [[nodiscard]] Dyn
   DynUninit uninit_;
 
   constexpr Dyn(H handle, DynUninit uninit) : handle_{handle}, uninit_{uninit}
-  {
-  }
-
-  explicit constexpr Dyn() : handle_{}, uninit_{noop}
   {
   }
 
