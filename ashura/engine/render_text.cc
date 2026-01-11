@@ -1142,7 +1142,7 @@ void EditText::tick(nanoseconds)
               auto rc_text  = rc<StrVec32>(allocator, std::move(text)).unwrap();
               auto view     = rc_text->view().as_const();
               auto rc_str32 = transmute(std::move(rc_text), view);
-              auto new_text = renderer.get()(allocator, std::move(rc_str32));
+              auto new_text = renderer(allocator, std::move(rc_str32));
               auto * arena  = get_thread_arena();
               auto   scratch_allocator = IFallbackAllocator{arena, allocator};
               new_text.layout(max_width, scratch_allocator);

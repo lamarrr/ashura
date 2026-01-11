@@ -93,11 +93,11 @@ struct IEngine
 
     Option<gpu::ISwapchain &> swapchain_ = none;
 
-    Dyn<ViewSys> view_sys_{};
+    Dyn<ViewSys> view_sys_{nullptr, dyn_noop};
 
     ICanvas canvas_;
 
-    WindowLoop loop_{};
+    WindowLoop loop_{nullptr, dyn_noop};
 
     gpu::PresentMode present_mode_preference_ = gpu::PresentMode::Fifo;
 
@@ -150,30 +150,32 @@ struct IEngine
   Dyn<WindowEntry *> window_;
 
   IEngine() :
-    allocator_{noop_allocator},
-    sys_{.logger{},
-         .sched{},
-         .file{},
-         .gpu{},
-         .image{},
-         .font{},
-         .shader{},
-         .win{},
-         .pipeline{},
-         .audio{},
-         .video{},
-         .animation{}},
+    allocator_{
+      noop_allocator
+  },
+    sys_{.logger{nullptr, dyn_noop},
+         .sched{nullptr, dyn_noop},
+         .file{nullptr, dyn_noop},
+         .gpu{nullptr, dyn_noop},
+         .image{nullptr, dyn_noop},
+         .font{nullptr, dyn_noop},
+         .shader{nullptr, dyn_noop},
+         .win{nullptr, dyn_noop},
+         .pipeline{nullptr, dyn_noop},
+         .audio{nullptr, dyn_noop},
+         .video{nullptr, dyn_noop},
+         .animation{nullptr, dyn_noop}},
     gpu_instance_{},
     gpu_device_{},
     buffering_{},
     state_{},
     paths_{.working_dir{allocator_}, .pipeline_cache{allocator_}},
     callbacks_{
-      .post_init{},
-      .pre_shutdown{},
-      .post_shutdown{},
+      .post_init{nullptr, dyn_noop},
+      .pre_shutdown{nullptr, dyn_noop},
+      .post_shutdown{nullptr, dyn_noop},
     },
-    window_{}
+    window_{nullptr, dyn_noop}
   {
   }
 

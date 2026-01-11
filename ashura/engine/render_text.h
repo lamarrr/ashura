@@ -134,7 +134,7 @@ struct [[nodiscard]] RenderText
     direction_{TextDirection::LeftToRight},
     alignment_{ALIGNMENT_LEFT},
     font_scale_{1},
-    text_{},
+    text_{static_rc(U""_str)},
     runs_style_{},
     language_{},
     layout_{.glyphs{allocator},

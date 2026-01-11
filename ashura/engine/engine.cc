@@ -437,19 +437,21 @@ Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
 
   Dyn<Engine> engine = dyn<IEngine>(inplace, allocator).unwrap();
 
-  engine->allocator_    = allocator;
-  engine->sys_          = Systems{.logger   = std::move(logger),
-                                  .sched    = std::move(scheduler),
-                                  .file     = std::move(file_sys),
-                                  .gpu      = std::move(gpu_sys),
-                                  .image    = std::move(image_sys),
-                                  .font     = std::move(font_sys),
-                                  .shader   = std::move(shader_sys),
-                                  .win      = std::move(window_sys),
-                                  .pipeline = std::move(pipeline_sys),
-                                  .audio{},
-                                  .video{},
-                                  .animation{}};
+  engine->allocator_ = allocator;
+  engine->sys_       = Systems{
+          .logger   = std::move(logger),
+          .sched    = std::move(scheduler),
+          .file     = std::move(file_sys),
+          .gpu      = std::move(gpu_sys),
+          .image    = std::move(image_sys),
+          .font     = std::move(font_sys),
+          .shader   = std::move(shader_sys),
+          .win      = std::move(window_sys),
+          .pipeline = std::move(pipeline_sys),
+          .audio{nullptr, dyn_noop},
+          .video{nullptr, dyn_noop},
+          .animation{nullptr, dyn_noop}
+  };
   engine->gpu_instance_ = std::move(gpu_instance);
   engine->gpu_device_   = std::move(gpu_device);
   engine->buffering_    = cfg.gpu.buffering;

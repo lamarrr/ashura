@@ -2668,8 +2668,8 @@ struct Consume<T *>
 {
   static constexpr auto consume(T *& v)
   {
-    T * out = v;
-    v       = nullptr;
+    auto * out = v;
+    v          = nullptr;
     return out;
   }
 };

@@ -72,7 +72,7 @@ struct [[nodiscard]] Dyn
   template <typename... Args>
   constexpr decltype(auto) operator()(Args &&... args) const
   {
-    return handle_(static_cast<Args&&>(args)...);
+    return handle_(static_cast<Args &&>(args)...);
   }
 
   constexpr H operator->() const
