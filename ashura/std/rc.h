@@ -8,21 +8,21 @@
 namespace ash
 {
 
-enum class RcOp : u8
+enum class RcAction : u8
 {
   GetCount = 0,
   Alias    = 1,
   Unalias  = 2
 };
 
-typedef Fn<usize(RcOp)> AliasOp;
+typedef Fn<usize(RcAction)> RcOp;
 
 /// @param allocator the allocator used to allocate the object
-/// @param direction the reference operation, 0 (get ref count), 1 (increase ref count), -1 (decrease ref count)
+/// @param action       the reference counting action to perform
 /// @returns the previous alias count
-static constexpr usize rc_noop(RcOp op)
+static constexpr usize rc_noop(RcAction action)
 {
-  (void) op;
+  (void) action;
   return 0;
 }
 
@@ -36,15 +36,16 @@ static constexpr usize rc_noop(RcOp op)
 ///
 /// @tparam H : handle type
 template <typename H>
-requires (TriviallyCopyable<H>)
 struct [[nodiscard]] Rc
 {
   typedef H Handle;
 
-  H       handle_;
-  AliasOp alias_;
+  H    handle_;
+  RcOp rc_;
 
-  constexpr Rc(H handle, AliasOp alias) : handle_{handle}, alias_{alias}
+  constexpr Rc(H handle, RcOp rc) :
+    handle_{Consume<H>::consume(handle)},
+    rc_{rc}
   {
   }
 
@@ -52,10 +53,11 @@ struct [[nodiscard]] Rc
 
   constexpr Rc & operator=(Rc const &) = delete;
 
-  constexpr Rc(Rc && other) : handle_{other.handle_}, alias_{other.alias_}
+  constexpr Rc(Rc && other) :
+    handle_{Consume<H>::consume(other.handle_)},
+    rc_{other.rc_}
   {
-    other.handle_ = H{};
-    other.alias_  = rc_noop;
+    other.rc_ = rc_noop;
   }
 
   constexpr Rc & operator=(Rc && other)
@@ -77,24 +79,18 @@ struct [[nodiscard]] Rc
 
   constexpr void uninit() const
   {
-    alias_(RcOp::Unalias);
-  }
-
-  constexpr void reset()
-  {
-    uninit();
-    *this = Rc{};
+    rc_(RcAction::Unalias);
   }
 
   constexpr Rc alias() const
   {
-    alias_(RcOp::Alias);
-    return Rc{handle_, alias_};
+    rc_(RcAction::Alias);
+    return Rc{handle_, rc_};
   }
 
   constexpr usize num_aliases() const
   {
-    return alias_(RcOp::GetCount);
+    return rc_(RcAction::GetCount);
   }
 
   constexpr H get() const
@@ -110,7 +106,7 @@ struct [[nodiscard]] Rc
   template <typename... Args>
   constexpr decltype(auto) operator()(Args &&... args) const
   {
-    return handle_(forward<Args>(args)...);
+    return handle_(static_cast<Args&&>(args)...);
   }
 
   constexpr H operator->() const
@@ -143,24 +139,26 @@ struct RcObject
   {
   }
 
-  static constexpr usize rc_op(Allocated<RcObject> * p, RcOp op)
+  static constexpr usize rc_op(Allocated<RcObject> * p, RcAction action)
   {
-    switch (op)
+    switch (action)
     {
-      case RcOp::GetCount:
+      case RcAction::GetCount:
       {
         return p->v.alias_count.count();
       }
-      case RcOp::Alias:
+      case RcAction::Alias:
       {
         return p->v.alias_count.alias();
       }
-      case RcOp::Unalias:
+      case RcAction::Unalias:
       {
         auto const old = p->v.alias_count.unalias();
         if (old == 0)
         {
-          p->dealloc();
+          auto allocator = p->allocator;
+          p->~Allocated<RcObject>();
+          allocator->ndealloc(1, p);
         }
         return old;
       }
@@ -197,9 +195,9 @@ constexpr Result<Rc<T *>, Void> rc(Allocator allocator, T object)
 template <typename Base, typename H>
 constexpr Rc<H> transmute(Rc<Base> base, H handle)
 {
-  Rc<H> t{static_cast<H &&>(handle), base.alias_};
-  base.handle_ = {};
-  base.alias_  = rc_noop;
+  Rc<H> t{static_cast<H &&>(handle), base.rc_};
+  (void) Consume<Base>::consume(base.handle_);
+  base.rc_ = rc_noop;
   return t;
 }
 

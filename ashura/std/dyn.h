@@ -15,7 +15,6 @@ static constexpr void dyn_noop()
 
 /// @brief A dynamically allocated object. It is always valid. Dyn represents a resource using the handle type `H`.
 template <typename H>
-requires (TriviallyCopyable<H>)
 struct [[nodiscard]] Dyn
 {
   typedef H Handle;
@@ -31,10 +30,11 @@ struct [[nodiscard]] Dyn
 
   constexpr Dyn & operator=(Dyn const &) = delete;
 
-  constexpr Dyn(Dyn && other) : handle_{other.handle_}, uninit_{other.uninit_}
+  constexpr Dyn(Dyn && other) :
+    handle_{Consume<H>::consume(other.handle_)},
+    uninit_{other.uninit_}
   {
-    other.handle_ = H{};
-    other.uninit_ = noop;
+    other.uninit_ = dyn_noop;
   }
 
   constexpr Dyn & operator=(Dyn && other)
@@ -59,12 +59,6 @@ struct [[nodiscard]] Dyn
     uninit_();
   }
 
-  constexpr void reset()
-  {
-    uninit();
-    *this = Dyn{};
-  }
-
   constexpr H get() const
   {
     return handle_;
@@ -78,7 +72,7 @@ struct [[nodiscard]] Dyn
   template <typename... Args>
   constexpr decltype(auto) operator()(Args &&... args) const
   {
-    return handle_(static_cast<Args>(args)...);
+    return handle_(static_cast<Args&&>(args)...);
   }
 
   constexpr H operator->() const
@@ -102,7 +96,11 @@ constexpr Result<Dyn<T *>, Void> dyn(Inplace, Allocator allocator,
     return Err{Void{}};
   }
 
-  constexpr auto uninit = +[](Allocated<T> * p) { p->dealloc(); };
+  constexpr auto uninit = +[](Allocated<T> * p) {
+    auto allocator = p->allocator;
+    p->~Allocated<T>();
+    allocator->ndealloc(1, p);
+  };
 
   new (p) Allocated<T>{allocator, static_cast<Args &&>(args)...};
 
@@ -127,8 +125,8 @@ template <typename Base, typename H>
 constexpr Dyn<H> transmute(Dyn<Base> base, H handle)
 {
   Dyn<H> t{static_cast<H &&>(handle), base.uninit_};
-  base.handle_ = {};
-  base.uninit_ = noop;
+  (void) Consume<Base>::consume(base.handle_);
+  base.uninit_ = dyn_noop;
   return t;
 }
 
@@ -159,7 +157,7 @@ constexpr Result<Dyn<Fn>, Void> dyn_lambda(Allocator allocator,
 template <typename Handle>
 constexpr Dyn<Handle> static_dyn(Handle handle)
 {
-  return Dyn<Handle>{handle, noop};
+  return Dyn<Handle>{handle, dyn_noop};
 }
 
 }    // namespace ash

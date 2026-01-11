@@ -219,13 +219,7 @@ struct Allocated
   constexpr Allocated & operator=(Allocated const &) = delete;
   constexpr Allocated(Allocated &&)                  = delete;
   constexpr Allocated & operator=(Allocated &&)      = delete;
-  constexpr ~Allocated()                             = delete;
-
-  constexpr void dealloc()
-  {
-    v.~T();
-    allocator->ndealloc(1, this);
-  }
+  constexpr ~Allocated()                             = default;
 };
 
 }    // namespace ash

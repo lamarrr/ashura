@@ -2376,11 +2376,9 @@ struct Fn<R(Args...)>
 {
   using Thunk = R (*)(void *, Args...);
 
-  void * data = nullptr;
+  void * data;
 
-  Thunk thunk = nullptr;
-
-  explicit constexpr Fn() = default;
+  Thunk thunk;
 
   constexpr Fn(Fn const &)             = default;
   constexpr Fn(Fn &&)                  = default;
@@ -2390,6 +2388,11 @@ struct Fn<R(Args...)>
 
   constexpr Fn(void * data, Thunk thunk) : data{data}, thunk{thunk}
   {
+  }
+
+  static constexpr Fn null()
+  {
+    return Fn{nullptr, nullptr};
   }
 
   Fn(R (*pfn)(Args...)) :
@@ -2447,11 +2450,9 @@ struct TagFn<Tag, R(Args...)>
 {
   using Thunk = R (*)(Tag, Args...);
 
-  Tag tag = {};
+  Tag tag;
 
-  Thunk thunk = nullptr;
-
-  explicit constexpr TagFn() = default;
+  Thunk thunk;
 
   constexpr TagFn(TagFn const &)             = default;
   constexpr TagFn(TagFn &&)                  = default;
@@ -2648,5 +2649,51 @@ T declval() noexcept
 {
   static_assert(false, "declval not allowed in an evaluated context");
 }
+
+/// @brief Consume transfers ownership of an handle type.
+/// Thus "poisoning" the source value by resetting it to a null/empty/poison state.
+/// This distinction is necessary because not all types have meaningful `default`, `null`, or `poison`
+/// semantics.
+template <typename T>
+struct Consume
+{
+  static constexpr T consume(T & v)
+  {
+    return static_cast<T &&>(v);
+  }
+};
+
+template <typename T>
+struct Consume<T *>
+{
+  static constexpr auto consume(T *& v)
+  {
+    T * out = v;
+    v       = nullptr;
+    return out;
+  }
+};
+
+template <typename T>
+struct Consume<Span<T>>
+{
+  static constexpr auto consume(Span<T> & v)
+  {
+    auto out = v;
+    v        = Span<T>{};
+    return out;
+  }
+};
+
+template <typename R, typename... Args>
+struct Consume<Fn<R(Args...)>>
+{
+  static constexpr auto consume(Fn<R(Args...)> & v)
+  {
+    auto out = v;
+    v        = Fn<R(Args...)>::null();
+    return out;
+  }
+};
 
 }    // namespace ash
