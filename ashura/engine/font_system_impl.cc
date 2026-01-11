@@ -318,8 +318,8 @@ Result<CpuFontAtlas, SysErr> FontSysImpl::rasterize_(Font font_,
     max_glyph_extent = max_glyph_extent.max(g.area.extent);
   }
 
-  CHECK(max_glyph_extent.x() <= MIN_ATLAS_EXTENT, "");
-  CHECK(max_glyph_extent.y() <= MIN_ATLAS_EXTENT, "");
+  ASH_CHECK(max_glyph_extent.x() <= MIN_ATLAS_EXTENT, "");
+  ASH_CHECK(max_glyph_extent.y() <= MIN_ATLAS_EXTENT, "");
 
   auto atlas_extent     = u32x2::splat(MIN_ATLAS_EXTENT);
   auto inv_atlas_extent = 1 / atlas_extent.to<f32>();
@@ -368,7 +368,7 @@ Result<CpuFontAtlas, SysErr> FontSysImpl::rasterize_(Font font_,
       auto [just_packed, still_unpacked] = partition(
         unpacked, [](rect_pack::Rect const & r) { return r.was_packed; });
 
-      CHECK(!just_packed.is_empty(), "");
+      ASH_CHECK(!just_packed.is_empty(), "");
 
       for (rect_pack::Rect const & r : just_packed)
       {
@@ -425,7 +425,7 @@ Result<CpuFontAtlas, SysErr> FontSysImpl::rasterize_(Font font_,
     FT_GlyphSlot slot = font.ft_face->glyph;
 
     /// we don't want to handle negative pitches
-    CHECK(slot->bitmap.pitch >= 0, "");
+    ASH_CHECK(slot->bitmap.pitch >= 0, "");
 
     switch (slot->bitmap.pixel_mode)
     {
@@ -461,7 +461,7 @@ Result<CpuFontAtlas, SysErr> FontSysImpl::rasterize_(Font font_,
       }
       break;
       default:
-        CHECK(false, "Unrecognized pixel mode {}", slot->bitmap.pixel_mode);
+        ASH_CHECK(false, "Unrecognized pixel mode {}", slot->bitmap.pixel_mode);
     }
   }
 
@@ -476,9 +476,9 @@ Future<Result<GpuFontAtlas, SysErr>>
   FontSysImpl::upload_atlas_to_gpu_(Str                      label_span,
                                     Rc<CpuFontAtlas const *> atlas)
 {
-  CHECK(atlas->num_layers > 0, "");
-  CHECK(atlas->extent.x() > 0, "");
-  CHECK(atlas->extent.y() > 0, "");
+  ASH_CHECK(atlas->num_layers > 0, "");
+  ASH_CHECK(atlas->extent.x() > 0, "");
+  ASH_CHECK(atlas->extent.y() > 0, "");
 
   constexpr gpu::Format   format = gpu::Format::B8G8R8A8_UNORM;
   Vec<gpu::ImageViewInfo> view_infos{allocator_};
@@ -661,14 +661,14 @@ Future<Result<FontId, SysErr>> FontSysImpl::load_from_path(Str label_span,
 FontInfo FontSysImpl::get(FontId id)
 {
   ReadGuard guard{rw_lock_};
-  CHECK(fonts_.is_valid_id(id), "");
+  ASH_CHECK(fonts_.is_valid_id(id), "");
   return fonts_[id].v0->info();
 }
 
 FontImpl & FontSysImpl::get_impl(FontId id)
 {
   ReadGuard guard{rw_lock_};
-  CHECK(fonts_.is_valid_id(id), "");
+  ASH_CHECK(fonts_.is_valid_id(id), "");
   return *(FontImpl *) fonts_[id].v0.get();
 }
 
@@ -765,14 +765,14 @@ static inline Tuple<Span<hb_glyph_info_t const>,
   u32                         num_pos;
   hb_glyph_position_t const * glyph_pos =
     hb_buffer_get_glyph_positions(buffer, &num_pos);
-  CHECK(!(glyph_pos == nullptr && num_pos > 0), "");
+  ASH_CHECK(!(glyph_pos == nullptr && num_pos > 0), "");
 
   u32                     num_info;
   hb_glyph_info_t const * glyph_info =
     hb_buffer_get_glyph_infos(buffer, &num_info);
-  CHECK(!(glyph_info == nullptr && num_info > 0), "");
+  ASH_CHECK(!(glyph_info == nullptr && num_info > 0), "");
 
-  CHECK(num_pos == num_info, "");
+  ASH_CHECK(num_pos == num_info, "");
 
   return Tuple{
     Span{glyph_info, num_info},
@@ -795,11 +795,11 @@ static inline void paragraph_script_runs(SBAllocatorRef allocator, Str32 text,
                                  .stringLength   = text.size()};
 
   SBScriptLocatorRef locator = SBScriptLocatorCreate(allocator);
-  CHECK(locator != nullptr, "");
+  ASH_CHECK(locator != nullptr, "");
   SBScriptLocatorLoadCodepoints(locator, &codepoints);
 
   SBScriptAgent const * agent = SBScriptLocatorGetAgent(locator);
-  CHECK(agent != nullptr, "");
+  ASH_CHECK(agent != nullptr, "");
 
   while (SBScriptLocatorMoveNext(locator) == SBTrue)
   {
@@ -839,13 +839,13 @@ static inline u8 paragraph_levels(SBAllocatorRef allocator, Str32 text,
     allocator, algorithm, 0, text_size,
     (base == TextDirection::LeftToRight) ? SBLevelDefaultLTR :
                                            SBLevelDefaultRTL);
-  CHECK(paragraph != nullptr, "");
+  ASH_CHECK(paragraph != nullptr, "");
   defer paragraph_{[&] { SBParagraphRelease(allocator, paragraph); }};
 
-  CHECK(SBParagraphGetLength(paragraph) == text_size, "");
+  ASH_CHECK(SBParagraphGetLength(paragraph) == text_size, "");
   SBLevel const   base_level = SBParagraphGetBaseLevel(paragraph);
   SBLevel const * p_levels   = SBParagraphGetLevelsPtr(paragraph);
-  CHECK(p_levels != nullptr, "");
+  ASH_CHECK(p_levels != nullptr, "");
   levels.append(Span{p_levels, text_size}).unwrap();
   return base_level;
 }
@@ -1041,8 +1041,8 @@ TextLayoutBufferImpl & FontSysImpl::get_thread_layout_buffer()
 {
   static thread_local LayoutBufferHook thread_layout_buffer{[] {
     hb_buffer_t * hb_buffer = hb_buffer_create();
-    CHECK(hb_buffer != nullptr && hb_buffer_allocation_successful(hb_buffer),
-          "");
+    ASH_CHECK(
+      hb_buffer != nullptr && hb_buffer_allocation_successful(hb_buffer), "");
     return hb_buffer;
   }()};
 
@@ -1136,10 +1136,10 @@ void FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
 
   auto       text      = block.text;
   auto const text_size = block.text.size();
-  CHECK(block.run_indices.size() == (block.fonts.size() + 1), "");
-  CHECK(!block.run_indices.is_empty(), "No run styling provided for text");
-  CHECK(block.run_indices.last() >= text_size,
-        "Text runs need to span the entire text");
+  ASH_CHECK(block.run_indices.size() == (block.fonts.size() + 1), "");
+  ASH_CHECK(!block.run_indices.is_empty(), "No run styling provided for text");
+  ASH_CHECK(block.run_indices.last() >= text_size,
+            "Text runs need to span the entire text");
 
   SBAllocator sb_allocator_impl{
     .user_data = scratch.self,
@@ -1206,7 +1206,7 @@ void FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
                           .stringLength   = paragraph_text.size()};
     SBAlgorithmRef sb_algorithm =
       SBAlgorithmCreate(sb_allocator, &sb_codepoints);
-    CHECK(sb_algorithm != nullptr, "");
+    ASH_CHECK(sb_algorithm != nullptr, "");
     defer sb_algorithm_{
       [&] { SBAlgorithmRelease(sb_allocator, sb_algorithm); }};
 

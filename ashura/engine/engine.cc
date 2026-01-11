@@ -55,12 +55,12 @@ Result<EngineCfg> EngineCfg::parse_json(Span<u8 const> json,
   auto cfg = doc.get_object().value();
 
   std::string_view version = cfg["version"].get_string().value();
-  CHECK(version == "0.0.1", "");
+  ASH_CHECK(version == "0.0.1", "");
 
   out.gpu.validation = cfg["gpu.validation"].get_bool().value();
 
   auto gpu_prefs = cfg["gpu.preferences"].get_array().value();
-  CHECK(gpu_prefs.count_elements().value() <= 5, "");
+  ASH_CHECK(gpu_prefs.count_elements().value() <= 5, "");
 
   for (auto pref : gpu_prefs)
   {
@@ -87,7 +87,7 @@ Result<EngineCfg> EngineCfg::parse_json(Span<u8 const> json,
     }
     else
     {
-      CHECK(false, "");
+      ASH_CHECK(false, "");
     }
   }
 
@@ -323,7 +323,7 @@ Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
   read_file(cfg.pipeline_cache_path, pipeline_cache, allocator)
     .match([](Void) {},
            [](IoErr err) {
-             CHECK(err == IoErr::InvalidFileOrDir, "Io Error Occured");
+             ASH_CHECK(err == IoErr::InvalidFileOrDir, "Io Error Occured");
            });
 
   constexpr Str const dedicated_thread_names[] = {
@@ -635,9 +635,10 @@ Option<gpu::SwapchainInfo>
 {
   gpu::SurfaceCapabilities capabilities =
     gpu_device_->get_surface_capabilities(w.surface_).unwrap();
-  CHECK(has_bits(capabilities.image_usage, gpu::ImageUsage::TransferDst |
-                                             gpu::ImageUsage::ColorAttachment),
-        "");
+  ASH_CHECK(
+    has_bits(capabilities.image_usage,
+             gpu::ImageUsage::TransferDst | gpu::ImageUsage::ColorAttachment),
+    "");
 
   Vec<gpu::SurfaceFormat> formats{allocator_};
   gpu_device_->get_surface_formats(w.surface_, formats).unwrap();
@@ -689,7 +690,7 @@ Option<gpu::SwapchainInfo>
     }
   }
 
-  CHECK(found_format, "");
+  ASH_CHECK(found_format, "");
 
   gpu::PresentMode present_mode       = gpu::PresentMode::Immediate;
   bool             found_present_mode = false;
@@ -704,7 +705,7 @@ Option<gpu::SwapchainInfo>
     }
   }
 
-  CHECK(found_present_mode, "");
+  ASH_CHECK(found_present_mode, "");
 
   gpu::CompositeAlpha alpha             = gpu::CompositeAlpha::None;
   gpu::CompositeAlpha alpha_spec        = gpu::CompositeAlpha::Opaque;

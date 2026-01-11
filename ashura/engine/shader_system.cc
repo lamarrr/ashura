@@ -157,7 +157,7 @@ Future<Result<ShaderId, SysErr>> IShaderSys::load_from_path(Str label_span,
 ShaderInfo IShaderSys::get(ShaderId id)
 {
   ReadGuard guard{rw_lock_};
-  CHECK(shaders_.is_valid_id(id), "");
+  ASH_CHECK(shaders_.is_valid_id(id), "");
   return shaders_[id].v0.view();
 }
 

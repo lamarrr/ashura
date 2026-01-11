@@ -368,7 +368,7 @@ template <typename I>
 void triangulate_stroke(Span<f32x2 const> points, Vec<f32x2> & vertices,
                         Vec<I> & indices, f32 thickness, LineCap cap)
 {
-  CHECK(cap == LineCap::Square, "");
+  ASH_CHECK(cap == LineCap::Square, "");
   if (points.size() < 2)
   {
     return;
@@ -445,7 +445,7 @@ void path::triangulate_stroke(Span<f32x2 const> points, Vec<f32x2> & vertices,
 template <typename I>
 void triangles(I first_vertex, I num_vertices, Vec<I> & indices)
 {
-  CHECK(num_vertices > 3, "");
+  ASH_CHECK(num_vertices > 3, "");
   I const num_triangles = num_vertices / 3;
   I const first_idx     = static_cast<I>(indices.size());
   indices.extend_uninit(num_triangles * 3).unwrap();
@@ -515,7 +515,7 @@ void path::tesselate_curves(Vec<f32x2> &          vertices,
 
   u32 first_cp = 0;
 
-  CHECK(subdivisions.size() == segment_types.size(), "");
+  ASH_CHECK(subdivisions.size() == segment_types.size(), "");
 
   for (auto [type, num_subdivisions] : zip(segment_types, subdivisions))
   {
@@ -681,7 +681,7 @@ void ICanvas::begin(gpu::Viewport const & viewport, f32x2 extent,
                     u32x2 framebuffer_extent)
 {
   static_assert(DEFAULT_NUM_IMAGE_SLOTS >= 3, "");
-  CHECK(state_ == CanvasState::Reset, "");
+  ASH_CHECK(state_ == CanvasState::Reset, "");
 
   viewport_            = viewport;
   extent_              = extent;
@@ -729,14 +729,15 @@ void ICanvas::begin(gpu::Viewport const & viewport, f32x2 extent,
 
 void ICanvas::end()
 {
-  CHECK(state_ == CanvasState::Recording, "");
+  ASH_CHECK(state_ == CanvasState::Recording, "");
 
   state_ = CanvasState::Recorded;
 }
 
 void ICanvas::reset()
 {
-  CHECK(state_ == CanvasState::Executed || state_ == CanvasState::Reset, "");
+  ASH_CHECK(state_ == CanvasState::Executed || state_ == CanvasState::Reset,
+            "");
   color_         = 0;
   depth_stencil_ = none;
   image_slots_.clear();
@@ -761,7 +762,7 @@ void ICanvas::reset()
 
 void ICanvas::execute(GpuFramePlan plan)
 {
-  CHECK(state_ == CanvasState::Recorded, "");
+  ASH_CHECK(state_ == CanvasState::Recorded, "");
 
   plan->reserve_scratch_images(num_image_slots());
 
@@ -775,7 +776,7 @@ void ICanvas::execute(GpuFramePlan plan)
 
 void ICanvas::reserve_images(u32 num_images)
 {
-  CHECK(state_ == CanvasState::Reset, "");
+  ASH_CHECK(state_ == CanvasState::Reset, "");
 
   image_slots_.resize(max(num_images, size32(image_slots_))).unwrap();
 }
@@ -786,14 +787,14 @@ u32 ICanvas::allocate_image()
   // select an heuristic to grow
   // [ ] cycle use of images; add timestamp to image? and cycle; concurrency heuristic
   auto index = image_slots_.view().find_clear_bit();
-  CHECK(index < num_image_slots(), "no more image slots available");
+  ASH_CHECK(index < num_image_slots(), "no more image slots available");
   image_slots_.view().set_bit(index);
   return index;
 }
 
 void ICanvas::deallocate_image(u32 index)
 {
-  CHECK(index < num_image_slots(), "");
+  ASH_CHECK(index < num_image_slots(), "");
   image_slots_.view().clear_bit(index);
 }
 
@@ -817,7 +818,7 @@ void ICanvas::clear_color(u32 image, gpu::Color value)
 
 void ICanvas::set_color(u32 color)
 {
-  CHECK(color < num_image_slots(), "");
+  ASH_CHECK(color < num_image_slots(), "");
   color_ = color;
   encode_pass_([](GpuFramePlan) {});
 }
@@ -843,7 +844,7 @@ void ICanvas::clear_depth_stencil(u32 image, gpu::DepthStencil value)
 
 void ICanvas::set_depth_stencil(Option<u32> depth_stencil)
 {
-  depth_stencil.match([&](auto d) { CHECK(d < num_image_slots(), ""); });
+  depth_stencil.match([&](auto d) { ASH_CHECK(d < num_image_slots(), ""); });
   depth_stencil_ = depth_stencil;
   encode_pass_([](GpuFramePlan) {});
 }
@@ -1016,7 +1017,7 @@ void ICanvas::render_(TextureSet const &      texture_set,
     return;
   }
 
-  CHECK(!(indexed && shape.indices.is_empty()), "");
+  ASH_CHECK(!(indexed && shape.indices.is_empty()), "");
 
   Span<u32 const> indices;
 
@@ -1299,7 +1300,7 @@ void ICanvas::render_blur_(Shape const & info_)
     }
 
     // the last output was to scratch 1
-    CHECK(dst == 1, "");
+    ASH_CHECK(dst == 1, "");
 
     // final pass: draw from scratch 1 to main, use stencil if any
     {
@@ -1481,9 +1482,9 @@ void ICanvas::render_paths_bezier_stencil_(Span<PathInfo const> paths,
     //
     for (auto type : path.segment_types)
     {
-      CHECK(type == CurveType::Line || type == CurveType::QuadraticBezier,
-            "Only line and quadratic bezier curves are supported using "
-            "BezierStencil contour rendering");
+      ASH_CHECK(type == CurveType::Line || type == CurveType::QuadraticBezier,
+                "Only line and quadratic bezier curves are supported using "
+                "BezierStencil contour rendering");
     }
 
     // edge fills
@@ -1625,7 +1626,7 @@ void ICanvas::render_paths_vector_feathering_(Span<PathInfo const> paths,
 
   for (auto [i, path] : enumerate<u32>(paths))
   {
-    CHECK(path.fill_rule == FillRule::NonZero, "");
+    ASH_CHECK(path.fill_rule == FillRule::NonZero, "");
     if (path.segment_types.is_empty() || path.control_points.is_empty() ||
         path.subdivisions.is_empty())
     {

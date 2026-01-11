@@ -1544,7 +1544,7 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
     return Err{(Status) result};
   }
 
-  CHECK(extensions.size() == num_exts, "");
+  ASH_CHECK(extensions.size() == num_exts, "");
 
   u32 num_layers;
   result = vkEnumerateInstanceLayerProperties(&num_layers, nullptr);
@@ -1568,7 +1568,7 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
     return Err{(Status) result};
   }
 
-  CHECK(layers.size() == num_layers, "");
+  ASH_CHECK(layers.size() == num_layers, "");
 
   trace("Available Extensions:"_str);
 
@@ -1626,7 +1626,7 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
 
   for (auto ext : required_extensions)
   {
-    CHECK(
+    ASH_CHECK(
       !find(extensions.view(), ext,
             [](auto a, auto b) { return mem::eq(cstr(a.extensionName), b); })
          .is_empty(),
@@ -1756,9 +1756,9 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
 
   InstanceTable vk_table;
 
-  CHECK(load_instance_table(vk_instance, vkGetInstanceProcAddr, vk_table,
-                            validation_enabled),
-        "");
+  ASH_CHECK(load_instance_table(vk_instance, vkGetInstanceProcAddr, vk_table,
+                                validation_enabled),
+            "");
 
   VkDebugUtilsMessengerEXT vk_debug_messenger = nullptr;
 
@@ -1817,21 +1817,21 @@ IInstance::~IInstance()
 
 void check_device_features(VkPhysicalDeviceFeatures const & feat)
 {
-  CHECK(feat.imageCubeArray == VK_TRUE, "");
-  CHECK(feat.independentBlend == VK_TRUE, "");
-  CHECK(feat.dualSrcBlend == VK_TRUE, "");
-  CHECK(feat.depthClamp == VK_TRUE, "");
-  CHECK(feat.depthBiasClamp == VK_TRUE, "");
-  CHECK(feat.fillModeNonSolid == VK_TRUE, "");
-  CHECK(feat.samplerAnisotropy == VK_TRUE, "");
-  CHECK(feat.pipelineStatisticsQuery == VK_TRUE, "");
-  CHECK(feat.fragmentStoresAndAtomics == VK_TRUE, "");
-  CHECK(feat.shaderUniformBufferArrayDynamicIndexing == VK_TRUE, "");
-  CHECK(feat.shaderSampledImageArrayDynamicIndexing == VK_TRUE, "");
-  CHECK(feat.shaderStorageBufferArrayDynamicIndexing == VK_TRUE, "");
-  CHECK(feat.shaderStorageImageArrayDynamicIndexing == VK_TRUE, "");
-  CHECK(feat.multiDrawIndirect == VK_TRUE, "");
-  CHECK(feat.drawIndirectFirstInstance == VK_TRUE, "");
+  ASH_CHECK(feat.imageCubeArray == VK_TRUE, "");
+  ASH_CHECK(feat.independentBlend == VK_TRUE, "");
+  ASH_CHECK(feat.dualSrcBlend == VK_TRUE, "");
+  ASH_CHECK(feat.depthClamp == VK_TRUE, "");
+  ASH_CHECK(feat.depthBiasClamp == VK_TRUE, "");
+  ASH_CHECK(feat.fillModeNonSolid == VK_TRUE, "");
+  ASH_CHECK(feat.samplerAnisotropy == VK_TRUE, "");
+  ASH_CHECK(feat.pipelineStatisticsQuery == VK_TRUE, "");
+  ASH_CHECK(feat.fragmentStoresAndAtomics == VK_TRUE, "");
+  ASH_CHECK(feat.shaderUniformBufferArrayDynamicIndexing == VK_TRUE, "");
+  ASH_CHECK(feat.shaderSampledImageArrayDynamicIndexing == VK_TRUE, "");
+  ASH_CHECK(feat.shaderStorageBufferArrayDynamicIndexing == VK_TRUE, "");
+  ASH_CHECK(feat.shaderStorageImageArrayDynamicIndexing == VK_TRUE, "");
+  ASH_CHECK(feat.multiDrawIndirect == VK_TRUE, "");
+  ASH_CHECK(feat.drawIndirectFirstInstance == VK_TRUE, "");
 }
 
 Result<gpu::Device, Status>
@@ -1867,7 +1867,7 @@ Result<gpu::Device, Status>
     return Err{(Status) result};
   }
 
-  CHECK(num_devs == vk_phy_devs.size(), "");
+  ASH_CHECK(num_devs == vk_phy_devs.size(), "");
 
   Vec<IPhysicalDevice> physical_devs{scratch_};
   if (!physical_devs.resize_uninit(num_devs))
@@ -1956,7 +1956,7 @@ Result<gpu::Device, Status>
 
     table_.GetPhysicalDeviceQueueFamilyProperties2KHR(
       dev.vk, &num_queue_families, queue_family_properties.data());
-    CHECK(queue_family_properties.size() == num_queue_families, "");
+    ASH_CHECK(queue_family_properties.size() == num_queue_families, "");
 
     for (auto [i, prop] : enumerate<u32>(queue_family_properties))
     {
@@ -1991,7 +1991,7 @@ Result<gpu::Device, Status>
 
       table_.GetPhysicalDeviceQueueFamilyProperties2KHR(
         dev.vk, &num_queue_families, queue_family_properties.data());
-      CHECK(queue_family_properties.size() == num_queue_families, "");
+      ASH_CHECK(queue_family_properties.size() == num_queue_families, "");
 
       if (((VkPhysicalDeviceType) preferred_type) ==
           dev.vk_properties.deviceType)
@@ -2058,7 +2058,7 @@ Result<gpu::Device, Status>
     return Err{(Status) result};
   }
 
-  CHECK(num_extensions == extensions.size(), "");
+  ASH_CHECK(num_extensions == extensions.size(), "");
 
   u32 num_layers;
   result = table_.EnumerateDeviceLayerProperties(selected_dev.vk, &num_layers,
@@ -2083,7 +2083,7 @@ Result<gpu::Device, Status>
     return Err{(Status) result};
   }
 
-  CHECK(layers.size() == num_layers, "");
+  ASH_CHECK(layers.size() == num_layers, "");
 
   trace("Available Extensions:"_str);
 
@@ -2134,7 +2134,7 @@ Result<gpu::Device, Status>
 
   for (auto ext : required_extensions)
   {
-    CHECK(
+    ASH_CHECK(
       !find(extensions.view(), ext,
             [](auto a, auto b) { return mem::eq(cstr(a.extensionName), b); })
          .is_empty(),
@@ -2326,8 +2326,8 @@ Result<gpu::Device, Status>
 
   DeviceTable        vk_dev_table;
   VmaVulkanFunctions vma_table;
-  CHECK(load_device_table(vk_dev, table_, vk_dev_table, has_debug_marker_ext),
-        "");
+  ASH_CHECK(
+    load_device_table(vk_dev, table_, vk_dev_table, has_debug_marker_ext), "");
 
   load_vma_table(table_, vk_dev_table, vma_table);
 
@@ -2572,8 +2572,8 @@ Result<gpu::FormatProperties, Status>
 
 Result<gpu::Buffer, Status> IDevice::create_buffer(gpu::BufferInfo const & info)
 {
-  CHECK(info.size != 0, "");
-  CHECK(info.usage != gpu::BufferUsage::None, "");
+  ASH_CHECK(info.size != 0, "");
+  ASH_CHECK(info.usage != gpu::BufferUsage::None, "");
   SCRATCH_ALLOCATOR(allocator_);
 
   VkBufferCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -2639,12 +2639,12 @@ Result<gpu::BufferView, Status>
 
   auto * buffer = (Buffer) info.buffer;
 
-  CHECK(buffer != nullptr, "");
-  CHECK(has_any_bit(buffer->usage, gpu::BufferUsage::UniformTexelBuffer |
-                                     gpu::BufferUsage::StorageTexelBuffer),
-        "");
-  CHECK(info.format != gpu::Format::Undefined, "");
-  CHECK(is_valid_buffer_access(buffer->size, info.slice, 1, 1), "");
+  ASH_CHECK(buffer != nullptr, "");
+  ASH_CHECK(has_any_bit(buffer->usage, gpu::BufferUsage::UniformTexelBuffer |
+                                         gpu::BufferUsage::StorageTexelBuffer),
+            "");
+  ASH_CHECK(info.format != gpu::Format::Undefined, "");
+  ASH_CHECK(is_valid_buffer_access(buffer->size, info.slice, 1, 1), "");
 
   auto slice = info.slice(buffer->size);
 
@@ -2688,40 +2688,41 @@ Result<gpu::Image, Status> IDevice::create_image(gpu::ImageInfo const & info)
 {
   SCRATCH_ALLOCATOR(allocator_);
 
-  CHECK(info.format != gpu::Format::Undefined, "");
-  CHECK(info.usage != gpu::ImageUsage::None, "");
-  CHECK(info.aspects != gpu::ImageAspects::None, "");
-  CHECK(info.sample_count != gpu::SampleCount::None, "");
-  CHECK(!info.extent.any_zero(), "");
-  CHECK(info.mip_levels > 0, "");
-  CHECK(info.mip_levels <= info.extent.mips(), "");
-  CHECK(info.array_layers > 0, "");
-  CHECK(info.array_layers <= phy_.vk_properties.limits.maxImageArrayLayers, "");
+  ASH_CHECK(info.format != gpu::Format::Undefined, "");
+  ASH_CHECK(info.usage != gpu::ImageUsage::None, "");
+  ASH_CHECK(info.aspects != gpu::ImageAspects::None, "");
+  ASH_CHECK(info.sample_count != gpu::SampleCount::None, "");
+  ASH_CHECK(!info.extent.any_zero(), "");
+  ASH_CHECK(info.mip_levels > 0, "");
+  ASH_CHECK(info.mip_levels <= info.extent.mips(), "");
+  ASH_CHECK(info.array_layers > 0, "");
+  ASH_CHECK(info.array_layers <= phy_.vk_properties.limits.maxImageArrayLayers,
+            "");
 
   switch (info.type)
   {
     case gpu::ImageType::Type1D:
-      CHECK(info.extent.x() <= phy_.vk_properties.limits.maxImageDimension1D,
-            "");
-      CHECK(info.extent.y() == 1, "");
-      CHECK(info.extent.z() == 1, "");
+      ASH_CHECK(
+        info.extent.x() <= phy_.vk_properties.limits.maxImageDimension1D, "");
+      ASH_CHECK(info.extent.y() == 1, "");
+      ASH_CHECK(info.extent.z() == 1, "");
       break;
 
     case gpu::ImageType::Type2D:
-      CHECK(info.extent.x() <= phy_.vk_properties.limits.maxImageDimension2D,
-            "");
-      CHECK(info.extent.y() <= phy_.vk_properties.limits.maxImageDimension2D,
-            "");
-      CHECK(info.extent.z() == 1, "");
+      ASH_CHECK(
+        info.extent.x() <= phy_.vk_properties.limits.maxImageDimension2D, "");
+      ASH_CHECK(
+        info.extent.y() <= phy_.vk_properties.limits.maxImageDimension2D, "");
+      ASH_CHECK(info.extent.z() == 1, "");
       break;
 
     case gpu::ImageType::Type3D:
-      CHECK(info.extent.x() <= phy_.vk_properties.limits.maxImageDimension3D,
-            "");
-      CHECK(info.extent.y() <= phy_.vk_properties.limits.maxImageDimension3D,
-            "");
-      CHECK(info.extent.z() <= phy_.vk_properties.limits.maxImageDimension3D,
-            "");
+      ASH_CHECK(
+        info.extent.x() <= phy_.vk_properties.limits.maxImageDimension3D, "");
+      ASH_CHECK(
+        info.extent.y() <= phy_.vk_properties.limits.maxImageDimension3D, "");
+      ASH_CHECK(
+        info.extent.z() <= phy_.vk_properties.limits.maxImageDimension3D, "");
       break;
 
     default:
@@ -2805,13 +2806,13 @@ Result<gpu::ImageView, Status>
 
   auto * src_image = (Image) info.image;
 
-  CHECK(info.image != nullptr, "");
-  CHECK(info.view_format != gpu::Format::Undefined, "");
-  CHECK(is_image_view_type_compatible(src_image->type, info.view_type), "");
-  CHECK(is_valid_image_access(src_image->aspects, src_image->mip_levels,
-                              src_image->array_layers, info.aspects,
-                              info.mip_levels, info.array_layers),
-        "");
+  ASH_CHECK(info.image != nullptr, "");
+  ASH_CHECK(info.view_format != gpu::Format::Undefined, "");
+  ASH_CHECK(is_image_view_type_compatible(src_image->type, info.view_type), "");
+  ASH_CHECK(is_valid_image_access(src_image->aspects, src_image->mip_levels,
+                                  src_image->array_layers, info.aspects,
+                                  info.mip_levels, info.array_layers),
+            "");
 
   auto mip_levels   = info.mip_levels(src_image->mip_levels);
   auto array_layers = info.array_layers(src_image->array_layers);
@@ -2865,18 +2866,18 @@ Result<gpu::ImageView, Status>
 
 Result<gpu::Alias, Status> IDevice::create_alias(gpu::AliasInfo const & info)
 {
-  CHECK(!info.resources.is_empty(), "");
+  ASH_CHECK(!info.resources.is_empty(), "");
 
   for (auto & resource : info.resources)
   {
     resource.match(
       [&](gpu::Buffer p) {
         auto buffer = (Buffer) p;
-        CHECK(buffer->memory.alias == nullptr, "");
+        ASH_CHECK(buffer->memory.alias == nullptr, "");
       },
       [&](gpu::Image p) {
         auto image = (Image) p;
-        CHECK(image->memory.alias == nullptr, "");
+        ASH_CHECK(image->memory.alias == nullptr, "");
       });
   }
 
@@ -2936,13 +2937,13 @@ Result<gpu::Alias, Status> IDevice::create_alias(gpu::AliasInfo const & info)
     return Err{(Status) result};
   }
 
-  CHECK(!(host_mapped && (vma_allocation_info.pMappedData == nullptr)), "");
+  ASH_CHECK(!(host_mapped && (vma_allocation_info.pMappedData == nullptr)), "");
 
   auto id = allocate_alias_id();
 
   IAlias * alias;
 
-  CHECK(allocator_->nalloc(1, alias), "");
+  ASH_CHECK(allocator_->nalloc(1, alias), "");
 
   new (alias) IAlias{.id             = id,
                      .vma_allocation = vma_allocation,
@@ -2968,7 +2969,7 @@ Result<gpu::Alias, Status> IDevice::create_alias(gpu::AliasInfo const & info)
         image->memory.element = i;
       });
 
-    CHECK(result == VK_SUCCESS, "");
+    ASH_CHECK(result == VK_SUCCESS, "");
   }
 
   return Ok{(gpu::Alias) alias};
@@ -2977,14 +2978,14 @@ Result<gpu::Alias, Status> IDevice::create_alias(gpu::AliasInfo const & info)
 Result<gpu::Alias, Status>
   IDevice::create_shim_alias(gpu::AliasInfo const & info)
 {
-  CHECK(!info.resources.is_empty(), "");
+  ASH_CHECK(!info.resources.is_empty(), "");
 
   for (auto & resource : info.resources)
   {
-    resource.match([&](gpu::Buffer) { CHECK(false, ""); },
+    resource.match([&](gpu::Buffer) { ASH_CHECK(false, ""); },
                    [&](gpu::Image p) {
                      auto image = (Image) p;
-                     CHECK(image->memory.alias == nullptr, "");
+                     ASH_CHECK(image->memory.alias == nullptr, "");
                    });
   }
 
@@ -2992,7 +2993,7 @@ Result<gpu::Alias, Status>
 
   IAlias * alias;
 
-  CHECK(allocator_->nalloc(1, alias), "");
+  ASH_CHECK(allocator_->nalloc(1, alias), "");
 
   new (alias)
     IAlias{.id = id, .vma_allocation = nullptr, .layout = {}, .map = nullptr};
@@ -3000,14 +3001,14 @@ Result<gpu::Alias, Status>
   for (auto [i, resource] : enumerate(info.resources))
   {
     VkResult result = VK_SUCCESS;
-    resource.match([&](gpu::Buffer) { CHECK(false, ""); },
+    resource.match([&](gpu::Buffer) { ASH_CHECK(false, ""); },
                    [&](gpu::Image p) {
                      auto image            = ptr(p);
                      image->memory.alias   = alias;
                      image->memory.element = i;
                    });
 
-    CHECK(result == VK_SUCCESS, "");
+    ASH_CHECK(result == VK_SUCCESS, "");
   }
 
   return Ok{(gpu::Alias) alias};
@@ -3018,11 +3019,11 @@ Result<gpu::Sampler, Status>
 {
   SCRATCH_ALLOCATOR(allocator_);
 
-  CHECK(
+  ASH_CHECK(
     !(info.anisotropy_enable &&
       (info.max_anisotropy > phy_.vk_properties.limits.maxSamplerAnisotropy)),
     "");
-  CHECK(!(info.anisotropy_enable && (info.max_anisotropy < 1.0)), "");
+  ASH_CHECK(!(info.anisotropy_enable && (info.max_anisotropy < 1.0)), "");
 
   VkSamplerCreateInfo create_info{
     .sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
@@ -3062,7 +3063,7 @@ Result<gpu::Shader, Status> IDevice::create_shader(gpu::ShaderInfo const & info)
 {
   SCRATCH_ALLOCATOR(allocator_);
 
-  CHECK(info.spirv_code.size_bytes() > 0, "");
+  ASH_CHECK(info.spirv_code.size_bytes() > 0, "");
 
   VkShaderModuleCreateInfo create_info{
     .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
@@ -3154,21 +3155,21 @@ Result<gpu::DescriptorSetLayout, Status> IDevice::create_descriptor_set_layout(
   auto num_dynamic_uniform_buffers =
     sizing[(u32) gpu::DescriptorType::DynUniformBuffer];
 
-  CHECK(info.bindings.size() > 0, "");
-  CHECK((num_dynamic_read_storage_buffers +
-         num_dynamic_read_write_storage_buffers) <=
-          phy_.vk_descriptor_properties
-            .maxDescriptorSetUpdateAfterBindStorageBuffersDynamic,
-        "");
-  CHECK(num_dynamic_uniform_buffers <=
-          phy_.vk_descriptor_properties
-            .maxDescriptorSetUpdateAfterBindUniformBuffersDynamic,
-        "");
-  CHECK(num_descriptors <=
-          phy_.vk_descriptor_properties.maxPerStageUpdateAfterBindResources,
-        "");
-  CHECK(num_variable_length <= 1, "");
-  CHECK(
+  ASH_CHECK(info.bindings.size() > 0, "");
+  ASH_CHECK((num_dynamic_read_storage_buffers +
+             num_dynamic_read_write_storage_buffers) <=
+              phy_.vk_descriptor_properties
+                .maxDescriptorSetUpdateAfterBindStorageBuffersDynamic,
+            "");
+  ASH_CHECK(num_dynamic_uniform_buffers <=
+              phy_.vk_descriptor_properties
+                .maxDescriptorSetUpdateAfterBindUniformBuffersDynamic,
+            "");
+  ASH_CHECK(num_descriptors <=
+              phy_.vk_descriptor_properties.maxPerStageUpdateAfterBindResources,
+            "");
+  ASH_CHECK(num_variable_length <= 1, "");
+  ASH_CHECK(
     !(num_variable_length > 0 && (num_dynamic_read_storage_buffers > 0 ||
                                   num_dynamic_read_write_storage_buffers > 0 ||
                                   num_dynamic_uniform_buffers > 0)),
@@ -3176,12 +3177,13 @@ Result<gpu::DescriptorSetLayout, Status> IDevice::create_descriptor_set_layout(
 
   for (auto [i, binding] : enumerate<u32>(info.bindings))
   {
-    CHECK(binding.count > 0, "");
-    CHECK(binding.count <=
-            phy_.vk_descriptor_properties.maxPerStageUpdateAfterBindResources,
-          "");
-    CHECK(!(binding.is_variable_length && (i != (info.bindings.size() - 1))),
-          "");
+    ASH_CHECK(binding.count > 0, "");
+    ASH_CHECK(
+      binding.count <=
+        phy_.vk_descriptor_properties.maxPerStageUpdateAfterBindResources,
+      "");
+    ASH_CHECK(
+      !(binding.is_variable_length && (i != (info.bindings.size() - 1))), "");
   }
 
   Vec<VkDescriptorSetLayoutBinding, 0> vk_bindings{scratch_};
@@ -3273,7 +3275,7 @@ Result<gpu::DescriptorSet, Status>
   SCRATCH_ALLOCATOR(allocator_);
 
   auto * layout = (DescriptorSetLayout) info.layout;
-  CHECK(info.variable_lengths.size() == layout->num_variable_length, "");
+  ASH_CHECK(info.variable_lengths.size() == layout->num_variable_length, "");
 
   {
     // variablie length binding index
@@ -3282,8 +3284,8 @@ Result<gpu::DescriptorSet, Status>
     {
       if (binding.is_variable_length)
       {
-        CHECK(info.variable_lengths[vlb_idx] <= binding.count, "");
-        CHECK(info.variable_lengths[vlb_idx] > 0, "");
+        ASH_CHECK(info.variable_lengths[vlb_idx] <= binding.count, "");
+        ASH_CHECK(info.variable_lengths[vlb_idx] > 0, "");
         vlb_idx++;
       }
     }
@@ -3369,9 +3371,9 @@ Result<gpu::DescriptorSet, Status>
   result = table_.AllocateDescriptorSets(vk_dev_, &alloc_info, &vk);
 
   // must not have these errors
-  CHECK(result != VK_ERROR_OUT_OF_POOL_MEMORY &&
-          result != VK_ERROR_FRAGMENTED_POOL,
-        "");
+  ASH_CHECK(result != VK_ERROR_OUT_OF_POOL_MEMORY &&
+              result != VK_ERROR_FRAGMENTED_POOL,
+            "");
 
   if (result != VK_SUCCESS)
   {
@@ -3476,17 +3478,17 @@ Result<gpu::ComputePipeline, Status>
 {
   SCRATCH_ALLOCATOR(allocator_);
 
-  CHECK(info.descriptor_set_layouts.size() <=
-          phy_.vk_properties.limits.maxBoundDescriptorSets,
-        "");
-  CHECK(info.push_constants_size <=
-          phy_.vk_properties.limits.maxPushConstantsSize,
-        "");
-  CHECK(is_aligned(4U, info.push_constants_size), "");
-  CHECK(info.compute_shader.entry_point.size() > 0 &&
-          info.compute_shader.entry_point.size() < 256,
-        "");
-  CHECK(info.compute_shader.shader != nullptr, "");
+  ASH_CHECK(info.descriptor_set_layouts.size() <=
+              phy_.vk_properties.limits.maxBoundDescriptorSets,
+            "");
+  ASH_CHECK(info.push_constants_size <=
+              phy_.vk_properties.limits.maxPushConstantsSize,
+            "");
+  ASH_CHECK(is_aligned(4U, info.push_constants_size), "");
+  ASH_CHECK(info.compute_shader.entry_point.size() > 0 &&
+              info.compute_shader.entry_point.size() < 256,
+            "");
+  ASH_CHECK(info.compute_shader.shader != nullptr, "");
 
   Vec<VkDescriptorSetLayout, 0> vk_descriptor_set_layouts{scratch_};
 
@@ -3586,24 +3588,24 @@ Result<gpu::GraphicsPipeline, Status>
 {
   SCRATCH_ALLOCATOR(allocator_);
 
-  CHECK(!(info.rasterization_state.polygon_mode != gpu::PolygonMode::Fill &&
-          !phy_.vk_features.fillModeNonSolid),
-        "");
-  CHECK(info.descriptor_set_layouts.size() <=
-          phy_.vk_properties.limits.maxBoundDescriptorSets,
-        "");
-  CHECK(info.push_constants_size <=
-          phy_.vk_properties.limits.maxPushConstantsSize,
-        "");
-  CHECK(is_aligned(4U, info.push_constants_size), "");
-  CHECK(!info.vertex_shader.entry_point.is_empty(), "");
-  CHECK(!info.fragment_shader.entry_point.is_empty(), "");
-  CHECK(info.vertex_attributes.size() <=
-          phy_.vk_properties.limits.maxVertexInputAttributes,
-        "");
-  CHECK(info.color_blend_state.attachments.size() <=
-          phy_.vk_properties.limits.maxColorAttachments,
-        "");
+  ASH_CHECK(!(info.rasterization_state.polygon_mode != gpu::PolygonMode::Fill &&
+              !phy_.vk_features.fillModeNonSolid),
+            "");
+  ASH_CHECK(info.descriptor_set_layouts.size() <=
+              phy_.vk_properties.limits.maxBoundDescriptorSets,
+            "");
+  ASH_CHECK(info.push_constants_size <=
+              phy_.vk_properties.limits.maxPushConstantsSize,
+            "");
+  ASH_CHECK(is_aligned(4U, info.push_constants_size), "");
+  ASH_CHECK(!info.vertex_shader.entry_point.is_empty(), "");
+  ASH_CHECK(!info.fragment_shader.entry_point.is_empty(), "");
+  ASH_CHECK(info.vertex_attributes.size() <=
+              phy_.vk_properties.limits.maxVertexInputAttributes,
+            "");
+  ASH_CHECK(info.color_blend_state.attachments.size() <=
+              phy_.vk_properties.limits.maxColorAttachments,
+            "");
 
   Vec<VkDescriptorSetLayout, 0> vk_descriptor_set_layouts{scratch_};
 
@@ -3938,8 +3940,8 @@ Result<Void, Status> IDevice::recreate_swapchain(Swapchain swapchain)
   SCRATCH_ALLOCATOR(allocator_);
 
   auto info = std::move(swapchain->preference);
-  CHECK(info.preferred_extent.x() > 0, "");
-  CHECK(info.preferred_extent.y() > 0, "");
+  ASH_CHECK(info.preferred_extent.x() > 0, "");
+  ASH_CHECK(info.preferred_extent.y() > 0, "");
 
   auto vk_surface       = (VkSurfaceKHR) info.surface;
   auto old_vk_swapchain = swapchain->vk;
@@ -3961,13 +3963,13 @@ Result<Void, Status> IDevice::recreate_swapchain(Swapchain swapchain)
     return Err{(Status) result};
   }
 
-  CHECK(info.preferred_buffering <= surface_capabilities.maxImageCount, "");
-  CHECK(has_bits(surface_capabilities.supportedUsageFlags,
-                 (VkImageUsageFlags) info.usage),
-        "");
-  CHECK(has_bits(surface_capabilities.supportedCompositeAlpha,
-                 (VkImageUsageFlags) info.composite_alpha),
-        "");
+  ASH_CHECK(info.preferred_buffering <= surface_capabilities.maxImageCount, "");
+  ASH_CHECK(has_bits(surface_capabilities.supportedUsageFlags,
+                     (VkImageUsageFlags) info.usage),
+            "");
+  ASH_CHECK(has_bits(surface_capabilities.supportedCompositeAlpha,
+                     (VkImageUsageFlags) info.composite_alpha),
+            "");
 
   if (surface_capabilities.currentExtent.width == 0 ||
       surface_capabilities.currentExtent.height == 0)
@@ -4046,7 +4048,7 @@ Result<Void, Status> IDevice::recreate_swapchain(Swapchain swapchain)
   u32 num_images;
   result = table_.GetSwapchainImagesKHR(vk_dev_, vk, &num_images, nullptr);
 
-  CHECK(result == VK_SUCCESS, "");
+  ASH_CHECK(result == VK_SUCCESS, "");
 
   Vec<VkImage, 0> vk_images{scratch_};
   vk_images.resize_uninit(num_images).unwrap();
@@ -4054,8 +4056,8 @@ Result<Void, Status> IDevice::recreate_swapchain(Swapchain swapchain)
   result =
     table_.GetSwapchainImagesKHR(vk_dev_, vk, &num_images, vk_images.data());
 
-  CHECK(num_images == vk_images.size(), "");
-  CHECK(result == VK_SUCCESS, "");
+  ASH_CHECK(num_images == vk_images.size(), "");
+  ASH_CHECK(result == VK_SUCCESS, "");
 
   VkSemaphoreCreateInfo sem_info{.sType =
                                    VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
@@ -4070,7 +4072,7 @@ Result<Void, Status> IDevice::recreate_swapchain(Swapchain swapchain)
   for (auto [i, vk, image, acquire_semaphore] :
        enumerate(vk_images, images, acquire_semaphores))
   {
-    CHECK(allocator_->nalloc(1, image), "");
+    ASH_CHECK(allocator_->nalloc(1, image), "");
 
     new (image) IImage{
       .vk                 = vk,
@@ -4089,7 +4091,7 @@ Result<Void, Status> IDevice::recreate_swapchain(Swapchain swapchain)
     auto result =
       table_.CreateSemaphore(vk_dev_, &sem_info, nullptr, &acquire_semaphore);
 
-    CHECK(result == VK_SUCCESS, "");
+    ASH_CHECK(result == VK_SUCCESS, "");
   }
 
   auto swapchain_label =
@@ -4230,7 +4232,7 @@ Result<gpu::TimestampQuery, Status>
 {
   SCRATCH_ALLOCATOR(allocator_);
 
-  CHECK(info.count > 0, "");
+  ASH_CHECK(info.count > 0, "");
 
   VkQueryPoolCreateInfo create_info{.sType =
                                       VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO,
@@ -4259,7 +4261,7 @@ Result<gpu::StatisticsQuery, Status>
 {
   SCRATCH_ALLOCATOR(allocator_);
 
-  CHECK(info.count > 0, "");
+  ASH_CHECK(info.count > 0, "");
 
   if (phy_.vk_features.pipelineStatisticsQuery != VK_TRUE)
   {
@@ -4836,8 +4838,8 @@ Result<Span<u8>, Status> IDevice::get_memory_map(gpu::Buffer buffer_)
 {
   auto * buffer = (Buffer) buffer_;
 
-  CHECK(buffer->host_mapped, "");
-  CHECK(buffer->memory.alias != nullptr, "");
+  ASH_CHECK(buffer->host_mapped, "");
+  ASH_CHECK(buffer->memory.alias != nullptr, "");
 
   auto & mem       = buffer->memory;
   auto * alias_map = (u8 *) mem.alias->map;
@@ -4852,8 +4854,8 @@ Result<Void, Status> IDevice::invalidate_mapped_memory(gpu::Buffer buffer_,
 {
   auto * buffer = (Buffer) buffer_;
 
-  CHECK(buffer->host_mapped, "");
-  CHECK(buffer->memory.alias != nullptr, "");
+  ASH_CHECK(buffer->host_mapped, "");
+  ASH_CHECK(buffer->memory.alias != nullptr, "");
 
   range = range(buffer->size);
 
@@ -4873,8 +4875,8 @@ Result<Void, Status> IDevice::flush_mapped_memory(gpu::Buffer buffer_,
 {
   auto * buffer = (Buffer) buffer_;
 
-  CHECK(buffer->host_mapped, "");
-  CHECK(buffer->memory.alias != nullptr, "");
+  ASH_CHECK(buffer->host_mapped, "");
+  ASH_CHECK(buffer->memory.alias != nullptr, "");
 
   range = range(buffer->size);
 
@@ -4945,7 +4947,7 @@ Result<Void, Status>
 {
   auto num_srcs = size32(srcs);
 
-  CHECK(num_srcs > 0, "");
+  ASH_CHECK(num_srcs > 0, "");
 
   auto result = table_.MergePipelineCaches(
     vk_dev_, (PipelineCache) dst, num_srcs, (PipelineCache *) srcs.data());
@@ -4969,9 +4971,9 @@ void IDevice::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
 
   auto * set = (DescriptorSet) update.set;
 
-  CHECK(update.binding < set->bindings.size(), "");
+  ASH_CHECK(update.binding < set->bindings.size(), "");
   auto & binding = set->bindings[update.binding];
-  CHECK(update.first_element < binding.count, "");
+  ASH_CHECK(update.first_element < binding.count, "");
 
   auto sync_type = descriptor_sync_resource_type(binding.type);
 
@@ -4988,14 +4990,15 @@ void IDevice::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
         {
           continue;
         }
-        CHECK(has_bits(buffer->usage, descriptor_buffer_usage(binding.type)),
-              "");
-        CHECK(is_valid_buffer_access(
-                buffer->size, b.range,
-                max(phy_.vk_properties.limits.minStorageBufferOffsetAlignment,
-                    phy_.vk_properties.limits.minUniformBufferOffsetAlignment),
-                1),
-              "");
+        ASH_CHECK(
+          has_bits(buffer->usage, descriptor_buffer_usage(binding.type)), "");
+        ASH_CHECK(
+          is_valid_buffer_access(
+            buffer->size, b.range,
+            max(phy_.vk_properties.limits.minStorageBufferOffsetAlignment,
+                phy_.vk_properties.limits.minUniformBufferOffsetAlignment),
+            1),
+          "");
       }
     }
     break;
@@ -5008,7 +5011,7 @@ void IDevice::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
         {
           continue;
         }
-        CHECK(
+        ASH_CHECK(
           has_bits(view->buffer->usage, descriptor_buffer_usage(binding.type)),
           "");
       }
@@ -5024,8 +5027,9 @@ void IDevice::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
           continue;
         }
         auto * image = (Image) view->image;
-        CHECK(has_bits(image->usage, descriptor_image_usage(binding.type)), "");
-        CHECK(image->sample_count == gpu::SampleCount::C1, "");
+        ASH_CHECK(has_bits(image->usage, descriptor_image_usage(binding.type)),
+                  "");
+        ASH_CHECK(image->sample_count == gpu::SampleCount::C1, "");
       }
     }
     break;
@@ -5138,7 +5142,7 @@ void IDevice::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
 
 gpu::QueueScopeState IDevice::get_queue_scope_state(gpu::QueueScope scope_)
 {
-  CHECK(scope_ != nullptr, "");
+  ASH_CHECK(scope_ != nullptr, "");
   auto scope = (QueueScope) scope_;
 
   return gpu::QueueScopeState{.ring_index = scope->ring_index_,
@@ -5199,7 +5203,7 @@ Result<Void, Status>
     return Err{(Status) result};
   }
 
-  CHECK(vk_formats.size() == num_supported && result != VK_INCOMPLETE, "");
+  ASH_CHECK(vk_formats.size() == num_supported && result != VK_INCOMPLETE, "");
 
   usize const offset = formats.size();
 
@@ -5249,8 +5253,8 @@ Result<Void, Status>
     return Err{(Status) result};
   }
 
-  CHECK(vk_present_modes.size() == num_supported && result != VK_INCOMPLETE,
-        "");
+  ASH_CHECK(vk_present_modes.size() == num_supported && result != VK_INCOMPLETE,
+            "");
 
   auto offset = modes.size();
 
@@ -5358,7 +5362,7 @@ Result<Void, Status>
   IDevice::mark_swapchain_out_of_date(gpu::Swapchain             swapchain_,
                                       gpu::SwapchainInfo const & info)
 {
-  CHECK(swapchain_ != nullptr, "");
+  ASH_CHECK(swapchain_ != nullptr, "");
   auto swapchain = (Swapchain) swapchain_;
 
   auto pref = SwapchainPreference::make(info, allocator_);
@@ -5376,7 +5380,7 @@ Result<Void, Status>
 
 Result<Void, Status> IDevice::acquire_next(gpu::Swapchain swapchain_)
 {
-  CHECK(swapchain_ != nullptr, "");
+  ASH_CHECK(swapchain_ != nullptr, "");
   auto swapchain = (Swapchain) swapchain_;
 
   VkResult result = VK_SUCCESS;
@@ -5425,10 +5429,10 @@ Result<u64, Status> IDevice::submit(gpu::CommandBuffer buffer_,
                                     gpu::QueueScope    scope_)
 {
   auto * buffer = (CommandBuffer) buffer_;
-  CHECK(buffer != nullptr, "");
-  CHECK(buffer->state_ == CommandBufferState::Recorded, "");
-  CHECK(buffer->status_ == Status::Success, "");
-  CHECK(scope_ != nullptr, "");
+  ASH_CHECK(buffer != nullptr, "");
+  ASH_CHECK(buffer->state_ == CommandBufferState::Recorded, "");
+  ASH_CHECK(buffer->status_ == Status::Success, "");
+  ASH_CHECK(scope_ != nullptr, "");
 
   auto scope = (QueueScope) scope_;
 
@@ -5439,11 +5443,11 @@ Result<u64, Status> IDevice::submit(gpu::CommandBuffer buffer_,
   auto result =
     table_.WaitForFences(vk_dev_, 1, &submit_fence, VK_TRUE, U64_MAX);
 
-  CHECK(result == VK_SUCCESS, "");
+  ASH_CHECK(result == VK_SUCCESS, "");
 
   result = table_.ResetFences(vk_dev_, 1, &submit_fence);
 
-  CHECK(result == VK_SUCCESS, "");
+  ASH_CHECK(result == VK_SUCCESS, "");
 
   auto swapchain     = buffer->swapchain_;
   auto is_presenting = swapchain.is_some() && !swapchain->is_out_of_date &&
@@ -5468,7 +5472,7 @@ Result<u64, Status> IDevice::submit(gpu::CommandBuffer buffer_,
 
   result = table_.QueueSubmit(vk_queue_, 1, &submit_info, submit_fence);
 
-  CHECK(result == VK_SUCCESS, "");
+  ASH_CHECK(result == VK_SUCCESS, "");
 
   buffer->state_ = CommandBufferState::Submitted;
 
@@ -5502,7 +5506,7 @@ Result<u64, Status> IDevice::submit(gpu::CommandBuffer buffer_,
     }
     else
     {
-      CHECK(result == VK_SUCCESS, "");
+      ASH_CHECK(result == VK_SUCCESS, "");
     }
   }
 
@@ -5512,7 +5516,7 @@ Result<u64, Status> IDevice::submit(gpu::CommandBuffer buffer_,
 Result<Void, Status> IDevice::await_queue_scope_idle(gpu::QueueScope scope_,
                                                      nanoseconds     timeout)
 {
-  CHECK(scope_ != nullptr, "");
+  ASH_CHECK(scope_ != nullptr, "");
 
   auto scope = (QueueScope) scope_;
 
@@ -5533,10 +5537,10 @@ Result<Void, Status> IDevice::await_queue_scope_frame(gpu::QueueScope scope_,
                                                       u64             frame,
                                                       nanoseconds     timeout)
 {
-  CHECK(scope_ != nullptr, "");
+  ASH_CHECK(scope_ != nullptr, "");
   auto scope = (QueueScope) scope_;
 
-  CHECK(frame <= scope->frame_, "");
+  ASH_CHECK(frame <= scope->frame_, "");
 
   if (sat_sub(scope->frame_, scope->buffering_) >= frame)
   {
@@ -5575,15 +5579,15 @@ void PassContext::clear()
 
 void ICommandEncoder::begin()
 {
-  CHECK(state_ == CommandBufferState::Reset, "");
+  ASH_CHECK(state_ == CommandBufferState::Reset, "");
   state_ = CommandBufferState::Recording;
   tracker_.begin_pass();
 }
 
 Result<Void, Status> ICommandEncoder::end()
 {
-  CHECK(state_ == CommandBufferState::Recording, "");
-  CHECK(pass_ == Pass::None, "");
+  ASH_CHECK(state_ == CommandBufferState::Recording, "");
+  ASH_CHECK(pass_ == Pass::None, "");
   state_ = CommandBufferState::Recorded;
 
   if (status_ != Status::Success)
@@ -5596,10 +5600,10 @@ Result<Void, Status> ICommandEncoder::end()
 
 void ICommandEncoder::reset()
 {
-  CHECK(state_ == CommandBufferState::Reset ||
-          state_ == CommandBufferState::Recorded ||
-          state_ == CommandBufferState::Submitted,
-        "");
+  ASH_CHECK(state_ == CommandBufferState::Reset ||
+              state_ == CommandBufferState::Recorded ||
+              state_ == CommandBufferState::Submitted,
+            "");
   arena_.shrink();
   arena_.reclaim();
   status_ = Status::Success;
@@ -5610,11 +5614,11 @@ void ICommandEncoder::reset()
   swapchain_ = none;
 }
 
-#define PRELUDE()                                           \
-  CHECK(this->state_ == CommandBufferState::Recording, ""); \
-  if (this->status_ != Status::Success)                     \
-  {                                                         \
-    return;                                                 \
+#define PRELUDE()                                               \
+  ASH_CHECK(this->state_ == CommandBufferState::Recording, ""); \
+  if (this->status_ != Status::Success)                         \
+  {                                                             \
+    return;                                                     \
   }
 
 #define CMD(...)                             \
@@ -5636,7 +5640,7 @@ void ICommandEncoder::reset_timestamp_query(gpu::TimestampQuery query,
                                             Slice32             range)
 {
   PRELUDE();
-  CHECK(pass_ == Pass::None, "");
+  ASH_CHECK(pass_ == Pass::None, "");
 
   tracker_.begin_pass();
   CMD(ResetTimestampQuery{.query = (VkQueryPool) query, .range = range});
@@ -5647,7 +5651,7 @@ void ICommandEncoder::reset_statistics_query(gpu::StatisticsQuery query,
                                              Slice32              range)
 {
   PRELUDE();
-  CHECK(pass_ == Pass::None, "");
+  ASH_CHECK(pass_ == Pass::None, "");
 
   tracker_.begin_pass();
   CMD(ResetStatisticsQuery{.query = (VkQueryPool) query, .range = range});
@@ -5658,7 +5662,7 @@ void ICommandEncoder::write_timestamp(gpu::TimestampQuery query,
                                       gpu::PipelineStages stage, u32 index)
 {
   PRELUDE();
-  CHECK(pass_ == Pass::None, "");
+  ASH_CHECK(pass_ == Pass::None, "");
 
   tracker_.begin_pass();
   CMD(WriteTimestamp{.query  = (VkQueryPool) query,
@@ -5670,7 +5674,7 @@ void ICommandEncoder::write_timestamp(gpu::TimestampQuery query,
 void ICommandEncoder::begin_statistics(gpu::StatisticsQuery query, u32 index)
 {
   PRELUDE();
-  CHECK(pass_ == Pass::None, "");
+  ASH_CHECK(pass_ == Pass::None, "");
 
   tracker_.begin_pass();
   CMD(BeginStatistics{.query = (VkQueryPool) query, .index = index});
@@ -5680,7 +5684,7 @@ void ICommandEncoder::begin_statistics(gpu::StatisticsQuery query, u32 index)
 void ICommandEncoder::end_statistics(gpu::StatisticsQuery query, u32 index)
 {
   PRELUDE();
-  CHECK(pass_ == Pass::None, "");
+  ASH_CHECK(pass_ == Pass::None, "");
 
   tracker_.begin_pass();
   CMD(EndStatistics{.query = (VkQueryPool) query, .index = index});
@@ -5690,7 +5694,7 @@ void ICommandEncoder::end_statistics(gpu::StatisticsQuery query, u32 index)
 void ICommandEncoder::begin_debug_marker(Str region_name_, f32x4 color)
 {
   PRELUDE();
-  CHECK(pass_ == Pass::None, "");
+  ASH_CHECK(pass_ == Pass::None, "");
 
   VkDebugMarkerMarkerInfoEXT info{
     .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_MARKER_INFO_EXT,
@@ -5715,7 +5719,7 @@ void ICommandEncoder::begin_debug_marker(Str region_name_, f32x4 color)
 void ICommandEncoder::end_debug_marker()
 {
   PRELUDE();
-  CHECK(pass_ == Pass::None, "");
+  ASH_CHECK(pass_ == Pass::None, "");
 
   tracker_.begin_pass();
   CMD(EndDebugMarker{});
@@ -5725,12 +5729,12 @@ void ICommandEncoder::end_debug_marker()
 void ICommandEncoder::fill_buffer(gpu::Buffer dst_, Slice64 range, u32 data)
 {
   PRELUDE();
-  CHECK(pass_ == Pass::None, "");
+  ASH_CHECK(pass_ == Pass::None, "");
 
   auto * dst = ptr(dst_);
 
-  CHECK(has_bits(dst->usage, gpu::BufferUsage::TransferDst), "");
-  CHECK(is_valid_buffer_access(dst->size, range, 4, 4), "");
+  ASH_CHECK(has_bits(dst->usage, gpu::BufferUsage::TransferDst), "");
+  ASH_CHECK(is_valid_buffer_access(dst->size, range, 4, 4), "");
 
   tracker_.begin_pass();
   CMD(FillBuffer{.dst = dst->vk, .range = range, .data = data});
@@ -5743,21 +5747,21 @@ void ICommandEncoder::copy_buffer(gpu::Buffer src_, gpu::Buffer dst_,
                                   Span<gpu::BufferCopy const> copies_)
 {
   PRELUDE();
-  CHECK(pass_ == Pass::None, "");
-  CHECK(!copies_.is_empty(), "");
+  ASH_CHECK(pass_ == Pass::None, "");
+  ASH_CHECK(!copies_.is_empty(), "");
 
   auto * src = (Buffer) src_;
   auto * dst = (Buffer) dst_;
 
-  CHECK(has_bits(src->usage, gpu::BufferUsage::TransferSrc), "");
-  CHECK(has_bits(dst->usage, gpu::BufferUsage::TransferDst), "");
+  ASH_CHECK(has_bits(src->usage, gpu::BufferUsage::TransferSrc), "");
+  ASH_CHECK(has_bits(dst->usage, gpu::BufferUsage::TransferDst), "");
 
   for (auto & copy : copies_)
   {
-    CHECK(is_valid_buffer_access(src->size, copy.src_range, 1, 1), "");
-    CHECK(is_valid_buffer_access(
-            dst->size, Slice64{copy.dst_offset, copy.src_range.span}, 1, 1),
-          "");
+    ASH_CHECK(is_valid_buffer_access(src->size, copy.src_range, 1, 1), "");
+    ASH_CHECK(is_valid_buffer_access(
+                dst->size, Slice64{copy.dst_offset, copy.src_range.span}, 1, 1),
+              "");
   }
 
   tracker_.begin_pass();
@@ -5787,15 +5791,16 @@ void ICommandEncoder::update_buffer(Span<u8 const> src_, u64 dst_offset,
                                     gpu::Buffer dst_)
 {
   PRELUDE();
-  CHECK(pass_ == Pass::None, "");
-  CHECK(src_.size_bytes() <= 64_KB, "");
+  ASH_CHECK(pass_ == Pass::None, "");
+  ASH_CHECK(src_.size_bytes() <= 64_KB, "");
 
   auto * dst       = (Buffer) dst_;
   auto   copy_size = size64(src_);
 
-  CHECK(has_bits(dst->usage, gpu::BufferUsage::TransferDst), "");
-  CHECK(is_valid_buffer_access(dst->size, Slice64{dst_offset, copy_size}, 4, 4),
-        "");
+  ASH_CHECK(has_bits(dst->usage, gpu::BufferUsage::TransferDst), "");
+  ASH_CHECK(
+    is_valid_buffer_access(dst->size, Slice64{dst_offset, copy_size}, 4, 4),
+    "");
 
   tracker_.begin_pass();
   CMD(UpdateBuffer{.src = {}, .dst_offset = dst_offset, .dst = dst->vk});
@@ -5816,19 +5821,19 @@ void ICommandEncoder::clear_color_image(
   Span<gpu::ImageSubresourceRange const> ranges_)
 {
   PRELUDE();
-  CHECK(pass_ == Pass::None, "");
-  CHECK(!ranges_.is_empty(), "");
+  ASH_CHECK(pass_ == Pass::None, "");
+  ASH_CHECK(!ranges_.is_empty(), "");
 
   auto * dst = (Image) dst_;
 
-  CHECK(has_bits(dst->usage, gpu::ImageUsage::TransferDst), "");
+  ASH_CHECK(has_bits(dst->usage, gpu::ImageUsage::TransferDst), "");
 
   for (auto & range : ranges_)
   {
-    CHECK(is_valid_image_access(dst->aspects, dst->mip_levels,
-                                dst->array_layers, range.aspects,
-                                range.mip_levels, range.array_layers),
-          "");
+    ASH_CHECK(is_valid_image_access(dst->aspects, dst->mip_levels,
+                                    dst->array_layers, range.aspects,
+                                    range.mip_levels, range.array_layers),
+              "");
   }
 
   tracker_.begin_pass();
@@ -5865,19 +5870,19 @@ void ICommandEncoder::clear_depth_stencil_image(
   Span<gpu::ImageSubresourceRange const> ranges_)
 {
   PRELUDE();
-  CHECK(pass_ == Pass::None, "");
-  CHECK(!ranges_.is_empty(), "");
+  ASH_CHECK(pass_ == Pass::None, "");
+  ASH_CHECK(!ranges_.is_empty(), "");
 
   auto * dst = (Image) dst_;
 
-  CHECK(has_bits(dst->usage, gpu::ImageUsage::TransferDst), "");
+  ASH_CHECK(has_bits(dst->usage, gpu::ImageUsage::TransferDst), "");
 
   for (auto & range : ranges_)
   {
-    CHECK(is_valid_image_access(dst->aspects, dst->mip_levels,
-                                dst->array_layers, range.aspects,
-                                range.mip_levels, range.array_layers),
-          "");
+    ASH_CHECK(is_valid_image_access(dst->aspects, dst->mip_levels,
+                                    dst->array_layers, range.aspects,
+                                    range.mip_levels, range.array_layers),
+              "");
   }
 
   VkClearDepthStencilValue vk_depth_stencil{.depth   = value.depth,
@@ -5916,48 +5921,48 @@ void ICommandEncoder::copy_image(gpu::Image src_, gpu::Image dst_,
                                  Span<gpu::ImageCopy const> copies_)
 {
   PRELUDE();
-  CHECK(pass_ == Pass::None, "");
-  CHECK(!copies_.is_empty(), "");
+  ASH_CHECK(pass_ == Pass::None, "");
+  ASH_CHECK(!copies_.is_empty(), "");
 
   auto * src = (Image) src_;
   auto * dst = (Image) dst_;
 
-  CHECK(has_bits(src->usage, gpu::ImageUsage::TransferSrc), "");
-  CHECK(has_bits(dst->usage, gpu::ImageUsage::TransferDst), "");
+  ASH_CHECK(has_bits(src->usage, gpu::ImageUsage::TransferSrc), "");
+  ASH_CHECK(has_bits(dst->usage, gpu::ImageUsage::TransferDst), "");
 
   for (auto & copy : copies_)
   {
-    CHECK(is_valid_image_access(src->aspects, src->mip_levels,
-                                src->array_layers, copy.src_layers.aspects,
-                                Slice32{copy.src_layers.mip_level, 1},
-                                copy.src_layers.array_layers),
-          "");
-    CHECK(is_valid_image_access(dst->aspects, dst->mip_levels,
-                                dst->array_layers, copy.dst_layers.aspects,
-                                Slice32{copy.dst_layers.mip_level, 1},
-                                copy.dst_layers.array_layers),
-          "");
+    ASH_CHECK(is_valid_image_access(src->aspects, src->mip_levels,
+                                    src->array_layers, copy.src_layers.aspects,
+                                    Slice32{copy.src_layers.mip_level, 1},
+                                    copy.src_layers.array_layers),
+              "");
+    ASH_CHECK(is_valid_image_access(dst->aspects, dst->mip_levels,
+                                    dst->array_layers, copy.dst_layers.aspects,
+                                    Slice32{copy.dst_layers.mip_level, 1},
+                                    copy.dst_layers.array_layers),
+              "");
 
     auto src_extent = src->extent.mip(copy.src_layers.mip_level);
     auto dst_extent = dst->extent.mip(copy.dst_layers.mip_level);
-    CHECK(copy.src_area.extent.x() > 0, "");
-    CHECK(copy.src_area.extent.y() > 0, "");
-    CHECK(copy.src_area.extent.z() > 0, "");
-    CHECK(copy.src_area.offset.x() <= src_extent.x(), "");
-    CHECK(copy.src_area.offset.y() <= src_extent.y(), "");
-    CHECK(copy.src_area.offset.z() <= src_extent.z(), "");
-    CHECK(copy.src_area.end().x() <= src_extent.x(), "");
-    CHECK(copy.src_area.end().y() <= src_extent.y(), "");
-    CHECK(copy.src_area.end().z() <= src_extent.z(), "");
-    CHECK(copy.dst_offset.x() <= dst_extent.x(), "");
-    CHECK(copy.dst_offset.y() <= dst_extent.y(), "");
-    CHECK(copy.dst_offset.z() <= dst_extent.z(), "");
-    CHECK((copy.dst_offset.x() + copy.src_area.extent.x()) <= dst_extent.x(),
-          "");
-    CHECK((copy.dst_offset.y() + copy.src_area.extent.y()) <= dst_extent.y(),
-          "");
-    CHECK((copy.dst_offset.z() + copy.src_area.extent.z()) <= dst_extent.z(),
-          "");
+    ASH_CHECK(copy.src_area.extent.x() > 0, "");
+    ASH_CHECK(copy.src_area.extent.y() > 0, "");
+    ASH_CHECK(copy.src_area.extent.z() > 0, "");
+    ASH_CHECK(copy.src_area.offset.x() <= src_extent.x(), "");
+    ASH_CHECK(copy.src_area.offset.y() <= src_extent.y(), "");
+    ASH_CHECK(copy.src_area.offset.z() <= src_extent.z(), "");
+    ASH_CHECK(copy.src_area.end().x() <= src_extent.x(), "");
+    ASH_CHECK(copy.src_area.end().y() <= src_extent.y(), "");
+    ASH_CHECK(copy.src_area.end().z() <= src_extent.z(), "");
+    ASH_CHECK(copy.dst_offset.x() <= dst_extent.x(), "");
+    ASH_CHECK(copy.dst_offset.y() <= dst_extent.y(), "");
+    ASH_CHECK(copy.dst_offset.z() <= dst_extent.z(), "");
+    ASH_CHECK(
+      (copy.dst_offset.x() + copy.src_area.extent.x()) <= dst_extent.x(), "");
+    ASH_CHECK(
+      (copy.dst_offset.y() + copy.src_area.extent.y()) <= dst_extent.y(), "");
+    ASH_CHECK(
+      (copy.dst_offset.z() + copy.src_area.extent.z()) <= dst_extent.z(), "");
   }
 
   tracker_.begin_pass();
@@ -6014,37 +6019,38 @@ void ICommandEncoder::copy_buffer_to_image(
   gpu::Buffer src_, gpu::Image dst_, Span<gpu::BufferImageCopy const> copies_)
 {
   PRELUDE();
-  CHECK(pass_ == Pass::None, "");
-  CHECK(!copies_.is_empty() > 0, "");
+  ASH_CHECK(pass_ == Pass::None, "");
+  ASH_CHECK(!copies_.is_empty() > 0, "");
 
   auto * src = (Buffer) src_;
   auto * dst = (Image) dst_;
 
-  CHECK(has_bits(src->usage, gpu::BufferUsage::TransferSrc), "");
-  CHECK(has_bits(dst->usage, gpu::ImageUsage::TransferDst), "");
+  ASH_CHECK(has_bits(src->usage, gpu::BufferUsage::TransferSrc), "");
+  ASH_CHECK(has_bits(dst->usage, gpu::ImageUsage::TransferDst), "");
 
   for (auto & copy : copies_)
   {
-    CHECK(is_valid_buffer_access(
-            src->size, Slice64{copy.buffer_offset, gpu::WHOLE_SIZE}, 1, 1),
-          "");
+    ASH_CHECK(is_valid_buffer_access(
+                src->size, Slice64{copy.buffer_offset, gpu::WHOLE_SIZE}, 1, 1),
+              "");
 
-    CHECK(is_valid_image_access(dst->aspects, dst->mip_levels,
-                                dst->array_layers, copy.image_layers.aspects,
-                                Slice32{copy.image_layers.mip_level, 1},
-                                copy.image_layers.array_layers),
-          "");
+    ASH_CHECK(is_valid_image_access(dst->aspects, dst->mip_levels,
+                                    dst->array_layers,
+                                    copy.image_layers.aspects,
+                                    Slice32{copy.image_layers.mip_level, 1},
+                                    copy.image_layers.array_layers),
+              "");
 
-    CHECK(copy.image_area.extent.x() > 0, "");
-    CHECK(copy.image_area.extent.y() > 0, "");
-    CHECK(copy.image_area.extent.z() > 0, "");
+    ASH_CHECK(copy.image_area.extent.x() > 0, "");
+    ASH_CHECK(copy.image_area.extent.y() > 0, "");
+    ASH_CHECK(copy.image_area.extent.z() > 0, "");
     auto dst_extent = dst->extent.mip(copy.image_layers.mip_level);
-    CHECK(copy.image_area.extent.x() <= dst_extent.x(), "");
-    CHECK(copy.image_area.extent.y() <= dst_extent.y(), "");
-    CHECK(copy.image_area.extent.z() <= dst_extent.z(), "");
-    CHECK(copy.image_area.end().x() <= dst_extent.x(), "");
-    CHECK(copy.image_area.end().y() <= dst_extent.y(), "");
-    CHECK(copy.image_area.end().z() <= dst_extent.z(), "");
+    ASH_CHECK(copy.image_area.extent.x() <= dst_extent.x(), "");
+    ASH_CHECK(copy.image_area.extent.y() <= dst_extent.y(), "");
+    ASH_CHECK(copy.image_area.extent.z() <= dst_extent.z(), "");
+    ASH_CHECK(copy.image_area.end().x() <= dst_extent.x(), "");
+    ASH_CHECK(copy.image_area.end().y() <= dst_extent.y(), "");
+    ASH_CHECK(copy.image_area.end().z() <= dst_extent.z(), "");
   }
 
   tracker_.begin_pass();
@@ -6094,43 +6100,43 @@ void ICommandEncoder::blit_image(gpu::Image src_, gpu::Image dst_,
                                  gpu::Filter                filter)
 {
   PRELUDE();
-  CHECK(pass_ == Pass::None, "");
-  CHECK(!blits_.is_empty(), "");
+  ASH_CHECK(pass_ == Pass::None, "");
+  ASH_CHECK(!blits_.is_empty(), "");
 
   auto * src = (Image) src_;
   auto * dst = (Image) dst_;
 
-  CHECK(has_bits(src->usage, gpu::ImageUsage::TransferSrc), "");
-  CHECK(has_bits(dst->usage, gpu::ImageUsage::TransferDst), "");
+  ASH_CHECK(has_bits(src->usage, gpu::ImageUsage::TransferSrc), "");
+  ASH_CHECK(has_bits(dst->usage, gpu::ImageUsage::TransferDst), "");
 
   for (auto & blit : blits_)
   {
-    CHECK(is_valid_image_access(src->aspects, src->mip_levels,
-                                src->array_layers, blit.src_layers.aspects,
-                                Slice32{blit.src_layers.mip_level, 1},
-                                blit.src_layers.array_layers),
-          "");
+    ASH_CHECK(is_valid_image_access(src->aspects, src->mip_levels,
+                                    src->array_layers, blit.src_layers.aspects,
+                                    Slice32{blit.src_layers.mip_level, 1},
+                                    blit.src_layers.array_layers),
+              "");
 
-    CHECK(is_valid_image_access(dst->aspects, dst->mip_levels,
-                                dst->array_layers, blit.dst_layers.aspects,
-                                Slice32{blit.dst_layers.mip_level, 1},
-                                blit.dst_layers.array_layers),
-          "");
+    ASH_CHECK(is_valid_image_access(dst->aspects, dst->mip_levels,
+                                    dst->array_layers, blit.dst_layers.aspects,
+                                    Slice32{blit.dst_layers.mip_level, 1},
+                                    blit.dst_layers.array_layers),
+              "");
 
     auto src_extent = src->extent.mip(blit.src_layers.mip_level);
     auto dst_extent = dst->extent.mip(blit.dst_layers.mip_level);
-    CHECK(blit.src_area.offset.x() <= src_extent.x(), "");
-    CHECK(blit.src_area.offset.y() <= src_extent.y(), "");
-    CHECK(blit.src_area.offset.z() <= src_extent.z(), "");
-    CHECK(blit.src_area.end().x() <= src_extent.x(), "");
-    CHECK(blit.src_area.end().y() <= src_extent.y(), "");
-    CHECK(blit.src_area.end().z() <= src_extent.z(), "");
-    CHECK(blit.dst_area.offset.x() <= dst_extent.x(), "");
-    CHECK(blit.dst_area.offset.y() <= dst_extent.y(), "");
-    CHECK(blit.dst_area.offset.z() <= dst_extent.z(), "");
-    CHECK(blit.dst_area.end().x() <= dst_extent.x(), "");
-    CHECK(blit.dst_area.end().y() <= dst_extent.y(), "");
-    CHECK(blit.dst_area.end().z() <= dst_extent.z(), "");
+    ASH_CHECK(blit.src_area.offset.x() <= src_extent.x(), "");
+    ASH_CHECK(blit.src_area.offset.y() <= src_extent.y(), "");
+    ASH_CHECK(blit.src_area.offset.z() <= src_extent.z(), "");
+    ASH_CHECK(blit.src_area.end().x() <= src_extent.x(), "");
+    ASH_CHECK(blit.src_area.end().y() <= src_extent.y(), "");
+    ASH_CHECK(blit.src_area.end().z() <= src_extent.z(), "");
+    ASH_CHECK(blit.dst_area.offset.x() <= dst_extent.x(), "");
+    ASH_CHECK(blit.dst_area.offset.y() <= dst_extent.y(), "");
+    ASH_CHECK(blit.dst_area.offset.z() <= dst_extent.z(), "");
+    ASH_CHECK(blit.dst_area.end().x() <= dst_extent.x(), "");
+    ASH_CHECK(blit.dst_area.end().y() <= dst_extent.y(), "");
+    ASH_CHECK(blit.dst_area.end().z() <= dst_extent.z(), "");
   }
 
   tracker_.begin_pass();
@@ -6192,52 +6198,54 @@ void ICommandEncoder::resolve_image(gpu::Image src_, gpu::Image dst_,
                                     Span<gpu::ImageResolve const> resolves_)
 {
   PRELUDE();
-  CHECK(pass_ == Pass::None, "");
-  CHECK(!resolves_.is_empty(), "");
+  ASH_CHECK(pass_ == Pass::None, "");
+  ASH_CHECK(!resolves_.is_empty(), "");
 
   auto * src = (Image) src_;
   auto * dst = (Image) dst_;
 
-  CHECK(has_bits(src->usage, gpu::ImageUsage::TransferSrc), "");
-  CHECK(has_bits(dst->usage, gpu::ImageUsage::TransferDst), "");
-  CHECK(has_bits(dst->sample_count, gpu::SampleCount::C1), "");
+  ASH_CHECK(has_bits(src->usage, gpu::ImageUsage::TransferSrc), "");
+  ASH_CHECK(has_bits(dst->usage, gpu::ImageUsage::TransferDst), "");
+  ASH_CHECK(has_bits(dst->sample_count, gpu::SampleCount::C1), "");
 
   for (auto & resolve : resolves_)
   {
-    CHECK(is_valid_image_access(src->aspects, src->mip_levels,
-                                src->array_layers, resolve.src_layers.aspects,
-                                Slice32{resolve.src_layers.mip_level, 1},
-                                resolve.src_layers.array_layers),
-          "");
-    CHECK(is_valid_image_access(dst->aspects, dst->mip_levels,
-                                dst->array_layers, resolve.dst_layers.aspects,
-                                Slice32{resolve.dst_layers.mip_level, 1},
-                                resolve.dst_layers.array_layers),
-          "");
+    ASH_CHECK(is_valid_image_access(src->aspects, src->mip_levels,
+                                    src->array_layers,
+                                    resolve.src_layers.aspects,
+                                    Slice32{resolve.src_layers.mip_level, 1},
+                                    resolve.src_layers.array_layers),
+              "");
+    ASH_CHECK(is_valid_image_access(dst->aspects, dst->mip_levels,
+                                    dst->array_layers,
+                                    resolve.dst_layers.aspects,
+                                    Slice32{resolve.dst_layers.mip_level, 1},
+                                    resolve.dst_layers.array_layers),
+              "");
 
     auto src_extent = src->extent.mip(resolve.src_layers.mip_level);
     auto dst_extent = dst->extent.mip(resolve.dst_layers.mip_level);
-    CHECK(resolve.src_area.extent.x() > 0, "");
-    CHECK(resolve.src_area.extent.y() > 0, "");
-    CHECK(resolve.src_area.extent.z() > 0, "");
-    CHECK(resolve.src_area.offset.x() <= src_extent.x(), "");
-    CHECK(resolve.src_area.offset.y() <= src_extent.y(), "");
-    CHECK(resolve.src_area.offset.z() <= src_extent.z(), "");
-    CHECK(resolve.src_area.end().x() <= src_extent.x(), "");
-    CHECK(resolve.src_area.end().y() <= src_extent.y(), "");
-    CHECK(resolve.src_area.end().z() <= src_extent.z(), "");
-    CHECK(resolve.dst_offset.x() <= dst_extent.x(), "");
-    CHECK(resolve.dst_offset.y() <= dst_extent.y(), "");
-    CHECK(resolve.dst_offset.z() <= dst_extent.z(), "");
-    CHECK((resolve.dst_offset.x() + resolve.src_area.extent.x()) <=
-            dst_extent.x(),
-          "");
-    CHECK((resolve.dst_offset.y() + resolve.src_area.extent.y()) <=
-            dst_extent.y(),
-          "");
-    CHECK((resolve.dst_offset.z() + resolve.src_area.extent.z()) <=
-            dst_extent.z(),
-          "");
+    ASH_CHECK(resolve.src_area.extent.x() > 0, "");
+    ASH_CHECK(resolve.src_area.extent.y() > 0, "");
+    ASH_CHECK(resolve.src_area.extent.z() > 0, "");
+    ASH_CHECK(resolve.src_area.offset.x() <= src_extent.x(), "");
+    ASH_CHECK(resolve.src_area.offset.y() <= src_extent.y(), "");
+    ASH_CHECK(resolve.src_area.offset.z() <= src_extent.z(), "");
+    ASH_CHECK(resolve.src_area.end().x() <= src_extent.x(), "");
+    ASH_CHECK(resolve.src_area.end().y() <= src_extent.y(), "");
+    ASH_CHECK(resolve.src_area.end().z() <= src_extent.z(), "");
+    ASH_CHECK(resolve.dst_offset.x() <= dst_extent.x(), "");
+    ASH_CHECK(resolve.dst_offset.y() <= dst_extent.y(), "");
+    ASH_CHECK(resolve.dst_offset.z() <= dst_extent.z(), "");
+    ASH_CHECK((resolve.dst_offset.x() + resolve.src_area.extent.x()) <=
+                dst_extent.x(),
+              "");
+    ASH_CHECK((resolve.dst_offset.y() + resolve.src_area.extent.y()) <=
+                dst_extent.y(),
+              "");
+    ASH_CHECK((resolve.dst_offset.z() + resolve.src_area.extent.z()) <=
+                dst_extent.z(),
+              "");
   }
 
   tracker_.begin_pass();
@@ -6294,7 +6302,7 @@ void ICommandEncoder::resolve_image(gpu::Image src_, gpu::Image dst_,
 void ICommandEncoder::begin_compute_pass()
 {
   PRELUDE();
-  CHECK(pass_ == Pass::None, "");
+  ASH_CHECK(pass_ == Pass::None, "");
 
   pass_ = Pass::Compute;
 
@@ -6304,7 +6312,7 @@ void ICommandEncoder::begin_compute_pass()
 void ICommandEncoder::end_compute_pass()
 {
   PRELUDE();
-  CHECK(pass_ == Pass::Compute, "");
+  ASH_CHECK(pass_ == Pass::Compute, "");
 
   pass_ = Pass::None;
   tracker_.end_pass();
@@ -6313,26 +6321,27 @@ void ICommandEncoder::end_compute_pass()
 void validate_attachment(gpu::RenderingAttachment const & info,
                          gpu::ImageAspects aspects, gpu::ImageUsage usage)
 {
-  CHECK(!(info.resolve_mode != gpu::ResolveModes::None && info.view == nullptr),
-        "");
-  CHECK(
+  ASH_CHECK(
+    !(info.resolve_mode != gpu::ResolveModes::None && info.view == nullptr),
+    "");
+  ASH_CHECK(
     !(info.resolve_mode != gpu::ResolveModes::None && info.resolve == nullptr),
     "");
   if (info.view != nullptr)
   {
     auto image = ((ImageView) info.view)->image;
-    CHECK(has_bits(image->aspects, aspects), "");
-    CHECK(has_bits(image->usage, usage), "");
-    CHECK(!(info.resolve_mode != gpu::ResolveModes::None &&
-            image->sample_count == gpu::SampleCount::C1),
-          "");
+    ASH_CHECK(has_bits(image->aspects, aspects), "");
+    ASH_CHECK(has_bits(image->usage, usage), "");
+    ASH_CHECK(!(info.resolve_mode != gpu::ResolveModes::None &&
+                image->sample_count == gpu::SampleCount::C1),
+              "");
   }
   if (info.resolve != nullptr)
   {
     auto image = ((ImageView) info.resolve)->image;
-    CHECK(has_bits(image->aspects, aspects), "");
-    CHECK(has_bits(image->usage, usage), "");
-    CHECK(image->sample_count == gpu::SampleCount::C1, "");
+    ASH_CHECK(has_bits(image->aspects, aspects), "");
+    ASH_CHECK(has_bits(image->usage, usage), "");
+    ASH_CHECK(image->sample_count == gpu::SampleCount::C1, "");
   }
 }
 
@@ -6380,13 +6389,13 @@ constexpr VkAccessFlags
 void ICommandEncoder::begin_rendering(gpu::RenderingInfo const & info)
 {
   PRELUDE();
-  CHECK(pass_ == Pass::None, "");
-  CHECK(info.color_attachments.size() <=
-          dev_->phy_.vk_properties.limits.maxColorAttachments,
-        "");
-  CHECK(info.render_area.extent.x() > 0, "");
-  CHECK(info.render_area.extent.y() > 0, "");
-  CHECK(info.num_layers > 0, "");
+  ASH_CHECK(pass_ == Pass::None, "");
+  ASH_CHECK(info.color_attachments.size() <=
+              dev_->phy_.vk_properties.limits.maxColorAttachments,
+            "");
+  ASH_CHECK(info.render_area.extent.x() > 0, "");
+  ASH_CHECK(info.render_area.extent.y() > 0, "");
+  ASH_CHECK(info.num_layers > 0, "");
 
   for (gpu::RenderingAttachment const & attachment : info.color_attachments)
   {
@@ -6652,7 +6661,7 @@ void ICommandEncoder::begin_rendering(gpu::RenderingInfo const & info)
 void ICommandEncoder::end_rendering()
 {
   PRELUDE();
-  CHECK(pass_ == Pass::Render, "");
+  ASH_CHECK(pass_ == Pass::Render, "");
 
   CMD(EndRendering{});
 
@@ -6665,7 +6674,7 @@ void ICommandEncoder::end_rendering()
 void ICommandEncoder::bind_compute_pipeline(gpu::ComputePipeline pipeline_)
 {
   PRELUDE();
-  CHECK(pass_ == Pass::Compute, "");
+  ASH_CHECK(pass_ == Pass::Compute, "");
   auto pipeline = ptr(pipeline_);
 
   CMD(BindPipeline{.bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -6680,37 +6689,39 @@ void validate_pipeline_compatible(
   Option<gpu::RenderingAttachment>     depth_attachment,
   Option<gpu::RenderingAttachment>     stencil_attachment)
 {
-  CHECK(pipeline->color_fmts.size() == color_attachments.size(), "");
-  CHECK(!(pipeline->depth_fmt.is_none() && depth_attachment.is_some()), "");
-  CHECK(!(pipeline->stencil_fmt.is_none() && depth_attachment.is_some()), "");
+  ASH_CHECK(pipeline->color_fmts.size() == color_attachments.size(), "");
+  ASH_CHECK(!(pipeline->depth_fmt.is_none() && depth_attachment.is_some()), "");
+  ASH_CHECK(!(pipeline->stencil_fmt.is_none() && depth_attachment.is_some()),
+            "");
 
   for (auto [pipeline_fmt, attachment] :
        zip(pipeline->color_fmts, color_attachments))
   {
     if (pipeline_fmt != gpu::Format::Undefined)
     {
-      CHECK(attachment.view != nullptr, "");
-      CHECK(pipeline_fmt == ptr(attachment.view)->format, "");
-      CHECK(pipeline->sample_count == ptr(attachment.view)->image->sample_count,
-            "");
+      ASH_CHECK(attachment.view != nullptr, "");
+      ASH_CHECK(pipeline_fmt == ptr(attachment.view)->format, "");
+      ASH_CHECK(pipeline->sample_count ==
+                  ptr(attachment.view)->image->sample_count,
+                "");
     }
   }
 
   depth_attachment.match([&](auto & attachment) {
-    CHECK(attachment.view != nullptr, "");
-    CHECK(pipeline->depth_fmt == ptr(attachment.view)->format, "");
+    ASH_CHECK(attachment.view != nullptr, "");
+    ASH_CHECK(pipeline->depth_fmt == ptr(attachment.view)->format, "");
   });
 
   stencil_attachment.match([&](auto & attachment) {
-    CHECK(attachment.view != nullptr, "");
-    CHECK(pipeline->stencil_fmt == ptr(attachment.view)->format, "");
+    ASH_CHECK(attachment.view != nullptr, "");
+    ASH_CHECK(pipeline->stencil_fmt == ptr(attachment.view)->format, "");
   });
 }
 
 void ICommandEncoder::bind_graphics_pipeline(gpu::GraphicsPipeline pipeline_)
 {
   PRELUDE();
-  CHECK(pass_ == Pass::Render, "");
+  ASH_CHECK(pass_ == Pass::Render, "");
   auto pipeline = ptr(pipeline_);
   validate_pipeline_compatible(pipeline, ctx_.color_attachments,
                                ctx_.depth_attachment, ctx_.stencil_attachment);
@@ -6726,20 +6737,20 @@ void ICommandEncoder::bind_descriptor_sets(
   Span<u32 const>                dynamic_offsets_)
 {
   PRELUDE();
-  CHECK(pass_ == Pass::Render || pass_ == Pass::Compute, "");
-  CHECK(descriptor_sets_.size() <=
-          dev_->phy_.vk_properties.limits.maxBoundDescriptorSets,
-        "");
-  CHECK(dynamic_offsets_.size() <=
-          sat_add(dev_->phy_.vk_descriptor_properties
-                    .maxDescriptorSetUpdateAfterBindUniformBuffersDynamic,
-                  dev_->phy_.vk_descriptor_properties
-                    .maxDescriptorSetUpdateAfterBindStorageBuffersDynamic),
-        "");
+  ASH_CHECK(pass_ == Pass::Render || pass_ == Pass::Compute, "");
+  ASH_CHECK(descriptor_sets_.size() <=
+              dev_->phy_.vk_properties.limits.maxBoundDescriptorSets,
+            "");
+  ASH_CHECK(dynamic_offsets_.size() <=
+              sat_add(dev_->phy_.vk_descriptor_properties
+                        .maxDescriptorSetUpdateAfterBindUniformBuffersDynamic,
+                      dev_->phy_.vk_descriptor_properties
+                        .maxDescriptorSetUpdateAfterBindStorageBuffersDynamic),
+            "");
 
   for (auto offset : dynamic_offsets_)
   {
-    CHECK(
+    ASH_CHECK(
       is_aligned<u64>(
         max(dev_->phy_.vk_properties.limits.minUniformBufferOffsetAlignment,
             dev_->phy_.vk_properties.limits.minStorageBufferOffsetAlignment),
@@ -6751,14 +6762,15 @@ void ICommandEncoder::bind_descriptor_sets(
   {
     case Pass::Render:
     {
-      CHECK(ctx_.graphics_pipeline.is_some(), "");
-      CHECK(ctx_.graphics_pipeline->num_sets == descriptor_sets_.size(), "");
+      ASH_CHECK(ctx_.graphics_pipeline.is_some(), "");
+      ASH_CHECK(ctx_.graphics_pipeline->num_sets == descriptor_sets_.size(),
+                "");
     }
     break;
     case Pass::Compute:
     {
-      CHECK(ctx_.compute_pipeline.is_some(), "");
-      CHECK(ctx_.compute_pipeline->num_sets == descriptor_sets_.size(), "");
+      ASH_CHECK(ctx_.compute_pipeline.is_some(), "");
+      ASH_CHECK(ctx_.compute_pipeline->num_sets == descriptor_sets_.size(), "");
     }
     break;
     default:
@@ -6828,26 +6840,26 @@ void ICommandEncoder::bind_descriptor_sets(
 void ICommandEncoder::push_constants(Span<u8 const> constants_)
 {
   PRELUDE();
-  CHECK(pass_ == Pass::Render || pass_ == Pass::Compute, "");
-  CHECK(constants_.size_bytes() <=
-          dev_->phy_.vk_properties.limits.maxPushConstantsSize,
-        "");
-  CHECK(is_aligned<u32>(4U, constants_.size()), "");
+  ASH_CHECK(pass_ == Pass::Render || pass_ == Pass::Compute, "");
+  ASH_CHECK(constants_.size_bytes() <=
+              dev_->phy_.vk_properties.limits.maxPushConstantsSize,
+            "");
+  ASH_CHECK(is_aligned<u32>(4U, constants_.size()), "");
 
   switch (pass_)
   {
     case Pass::Render:
     {
-      CHECK(ctx_.graphics_pipeline.is_some(), "");
-      CHECK(constants_.size() == ctx_.graphics_pipeline->push_constants_size,
-            "");
+      ASH_CHECK(ctx_.graphics_pipeline.is_some(), "");
+      ASH_CHECK(
+        constants_.size() == ctx_.graphics_pipeline->push_constants_size, "");
     }
     break;
     case Pass::Compute:
     {
-      CHECK(ctx_.compute_pipeline.is_some(), "");
-      CHECK(constants_.size() == ctx_.compute_pipeline->push_constants_size,
-            "");
+      ASH_CHECK(ctx_.compute_pipeline.is_some(), "");
+      ASH_CHECK(constants_.size() == ctx_.compute_pipeline->push_constants_size,
+                "");
     }
     break;
     default:
@@ -6884,18 +6896,18 @@ void ICommandEncoder::push_constants(Span<u8 const> constants_)
 void ICommandEncoder::dispatch(u32x3 group_count)
 {
   PRELUDE();
-  CHECK(pass_ == Pass::Compute, "");
+  ASH_CHECK(pass_ == Pass::Compute, "");
 
-  CHECK(ctx_.compute_pipeline.is_some(), "");
-  CHECK(group_count.x() <=
-          dev_->phy_.vk_properties.limits.maxComputeWorkGroupCount[0],
-        "");
-  CHECK(group_count.y() <=
-          dev_->phy_.vk_properties.limits.maxComputeWorkGroupCount[1],
-        "");
-  CHECK(group_count.z() <=
-          dev_->phy_.vk_properties.limits.maxComputeWorkGroupCount[2],
-        "");
+  ASH_CHECK(ctx_.compute_pipeline.is_some(), "");
+  ASH_CHECK(group_count.x() <=
+              dev_->phy_.vk_properties.limits.maxComputeWorkGroupCount[0],
+            "");
+  ASH_CHECK(group_count.y() <=
+              dev_->phy_.vk_properties.limits.maxComputeWorkGroupCount[1],
+            "");
+  ASH_CHECK(group_count.z() <=
+              dev_->phy_.vk_properties.limits.maxComputeWorkGroupCount[2],
+            "");
 
   CMD(Dispatch{.group_count = group_count});
 }
@@ -6903,17 +6915,17 @@ void ICommandEncoder::dispatch(u32x3 group_count)
 void ICommandEncoder::dispatch_indirect(gpu::Buffer buffer_, u64 offset)
 {
   PRELUDE();
-  CHECK(pass_ == Pass::Compute, "");
-  CHECK(buffer_ != nullptr, "");
-  CHECK(ctx_.compute_pipeline.is_some(), "");
+  ASH_CHECK(pass_ == Pass::Compute, "");
+  ASH_CHECK(buffer_ != nullptr, "");
+  ASH_CHECK(ctx_.compute_pipeline.is_some(), "");
 
   auto * buffer = (Buffer) buffer_;
 
-  CHECK(has_bits(buffer->usage, gpu::BufferUsage::IndirectBuffer), "");
-  CHECK(is_valid_buffer_access(buffer->size,
-                               Slice64{offset, sizeof(gpu::DispatchCommand)}, 4,
-                               alignof(gpu::DispatchCommand)),
-        "");
+  ASH_CHECK(has_bits(buffer->usage, gpu::BufferUsage::IndirectBuffer), "");
+  ASH_CHECK(is_valid_buffer_access(
+              buffer->size, Slice64{offset, sizeof(gpu::DispatchCommand)}, 4,
+              alignof(gpu::DispatchCommand)),
+            "");
 
   CMD(DispatchIndirect{.buffer = buffer->vk, .offset = offset});
 
@@ -6924,12 +6936,12 @@ void ICommandEncoder::dispatch_indirect(gpu::Buffer buffer_, u64 offset)
 void ICommandEncoder::set_graphics_state(gpu::GraphicsState const & state)
 {
   PRELUDE();
-  CHECK(pass_ == Pass::Render, "");
-  CHECK(ctx_.graphics_pipeline.is_some(), "");
-  CHECK(state.viewport.min_depth >= 0.0F, "");
-  CHECK(state.viewport.min_depth <= 1.0F, "");
-  CHECK(state.viewport.max_depth >= 0.0F, "");
-  CHECK(state.viewport.max_depth <= 1.0F, "");
+  ASH_CHECK(pass_ == Pass::Render, "");
+  ASH_CHECK(ctx_.graphics_pipeline.is_some(), "");
+  ASH_CHECK(state.viewport.min_depth >= 0.0F, "");
+  ASH_CHECK(state.viewport.min_depth <= 1.0F, "");
+  ASH_CHECK(state.viewport.max_depth >= 0.0F, "");
+  ASH_CHECK(state.viewport.max_depth <= 1.0F, "");
 
   CMD(SetGraphicsState{.state = state});
 
@@ -6940,22 +6952,23 @@ void ICommandEncoder::bind_vertex_buffers(
   Span<gpu::Buffer const> vertex_buffers_, Span<u64 const> offsets_)
 {
   PRELUDE();
-  CHECK(pass_ == Pass::Render, "");
-  CHECK(!vertex_buffers_.is_empty(), "");
-  CHECK(vertex_buffers_.size() <=
-          dev_->phy_.vk_properties.limits.maxVertexInputBindings,
-        "");
-  CHECK(ctx_.graphics_pipeline.is_some(), "");
-  CHECK(vertex_buffers_.size() == ctx_.graphics_pipeline->num_vertex_attributes,
-        "");
-  CHECK(offsets_.size() == vertex_buffers_.size(), "");
+  ASH_CHECK(pass_ == Pass::Render, "");
+  ASH_CHECK(!vertex_buffers_.is_empty(), "");
+  ASH_CHECK(vertex_buffers_.size() <=
+              dev_->phy_.vk_properties.limits.maxVertexInputBindings,
+            "");
+  ASH_CHECK(ctx_.graphics_pipeline.is_some(), "");
+  ASH_CHECK(vertex_buffers_.size() ==
+              ctx_.graphics_pipeline->num_vertex_attributes,
+            "");
+  ASH_CHECK(offsets_.size() == vertex_buffers_.size(), "");
 
   for (auto [buff_, off] : zip(vertex_buffers_, offsets_))
   {
     auto * buff = (Buffer) buff_;
-    CHECK(buff_ != nullptr, "");
-    CHECK(is_valid_buffer_access(buff->size, Slice64{off, 1}, 1, 1), "");
-    CHECK(has_bits(buff->usage, gpu::BufferUsage::VertexBuffer), "");
+    ASH_CHECK(buff_ != nullptr, "");
+    ASH_CHECK(is_valid_buffer_access(buff->size, Slice64{off, 1}, 1, 1), "");
+    ASH_CHECK(has_bits(buff->usage, gpu::BufferUsage::VertexBuffer), "");
   }
 
   CMD(BindVertexBuffers{.buffers = {}, .offsets = {}});
@@ -6995,17 +7008,18 @@ void ICommandEncoder::bind_index_buffer(gpu::Buffer index_buffer_, u64 offset,
                                         gpu::IndexType index_type)
 {
   PRELUDE();
-  CHECK(pass_ == Pass::Render, "");
-  CHECK(index_buffer_ != nullptr, "");
-  CHECK(ctx_.graphics_pipeline.is_some(), "");
+  ASH_CHECK(pass_ == Pass::Render, "");
+  ASH_CHECK(index_buffer_ != nullptr, "");
+  ASH_CHECK(ctx_.graphics_pipeline.is_some(), "");
 
   auto * index_buffer = (Buffer) index_buffer_;
   auto   index_size   = index_type_size(index_type);
 
-  CHECK(has_bits(index_buffer->usage, gpu::BufferUsage::IndexBuffer), "");
-  CHECK(is_valid_buffer_access(index_buffer->size, Slice64{offset, index_size},
-                               index_size, index_size),
-        "");
+  ASH_CHECK(has_bits(index_buffer->usage, gpu::BufferUsage::IndexBuffer), "");
+  ASH_CHECK(is_valid_buffer_access(index_buffer->size,
+                                   Slice64{offset, index_size}, index_size,
+                                   index_size),
+            "");
 
   CMD(BindIndexBuffer{.buffer     = index_buffer->vk,
                       .offset     = offset,
@@ -7022,13 +7036,14 @@ void ICommandEncoder::bind_index_buffer(gpu::Buffer index_buffer_, u64 offset,
 void ICommandEncoder::draw(Slice32 vertices, Slice32 instances)
 {
   PRELUDE();
-  CHECK(pass_ == Pass::Render, "");
-  CHECK(ctx_.graphics_pipeline.is_some(), "");
-  CHECK(ctx_.has_graphics_state, "");
-  CHECK(ctx_.graphics_pipeline->num_vertex_attributes ==
-          ctx_.vertex_buffers.size(),
-        "");
-  CHECK(ctx_.graphics_pipeline->num_sets == ctx_.descriptor_sets.size(), "");
+  ASH_CHECK(pass_ == Pass::Render, "");
+  ASH_CHECK(ctx_.graphics_pipeline.is_some(), "");
+  ASH_CHECK(ctx_.has_graphics_state, "");
+  ASH_CHECK(ctx_.graphics_pipeline->num_vertex_attributes ==
+              ctx_.vertex_buffers.size(),
+            "");
+  ASH_CHECK(ctx_.graphics_pipeline->num_sets == ctx_.descriptor_sets.size(),
+            "");
 
   CMD(Draw{.vertices = vertices, .instances = instances});
 }
@@ -7037,22 +7052,23 @@ void ICommandEncoder::draw_indexed(Slice32 indices, Slice32 instances,
                                    i32 vertex_offset)
 {
   PRELUDE();
-  CHECK(pass_ == Pass::Render, "");
-  CHECK(ctx_.graphics_pipeline.is_some(), "");
-  CHECK(ctx_.has_graphics_state, "");
-  CHECK(ctx_.graphics_pipeline->num_vertex_attributes ==
-          ctx_.vertex_buffers.size(),
-        "");
-  CHECK(ctx_.graphics_pipeline->num_sets == ctx_.descriptor_sets.size(), "");
-  CHECK(ctx_.index_buffer.is_some(), "");
+  ASH_CHECK(pass_ == Pass::Render, "");
+  ASH_CHECK(ctx_.graphics_pipeline.is_some(), "");
+  ASH_CHECK(ctx_.has_graphics_state, "");
+  ASH_CHECK(ctx_.graphics_pipeline->num_vertex_attributes ==
+              ctx_.vertex_buffers.size(),
+            "");
+  ASH_CHECK(ctx_.graphics_pipeline->num_sets == ctx_.descriptor_sets.size(),
+            "");
+  ASH_CHECK(ctx_.index_buffer.is_some(), "");
 
   auto index_size = index_type_size(ctx_.index_type);
-  CHECK(is_valid_buffer_access(
-          ctx_.index_buffer->size,
-          Slice64{ctx_.index_buffer_offset + indices.offset * index_size,
-                  indices.span * index_size},
-          index_size, index_size),
-        "");
+  ASH_CHECK(is_valid_buffer_access(
+              ctx_.index_buffer->size,
+              Slice64{ctx_.index_buffer_offset + indices.offset * index_size,
+                      indices.span * index_size},
+              index_size, index_size),
+            "");
 
   CMD(DrawIndexed{.indices       = indices,
                   .instances     = instances,
@@ -7063,21 +7079,23 @@ void ICommandEncoder::draw_indirect(gpu::Buffer buffer_, u64 offset,
                                     u32 draw_count, u32 stride)
 {
   PRELUDE();
-  CHECK(pass_ == Pass::Render, "");
-  CHECK(ctx_.graphics_pipeline.is_some(), "");
-  CHECK(ctx_.has_graphics_state, "");
-  CHECK(ctx_.graphics_pipeline->num_vertex_attributes ==
-          ctx_.vertex_buffers.size(),
-        "");
-  CHECK(ctx_.graphics_pipeline->num_sets == ctx_.descriptor_sets.size(), "");
+  ASH_CHECK(pass_ == Pass::Render, "");
+  ASH_CHECK(ctx_.graphics_pipeline.is_some(), "");
+  ASH_CHECK(ctx_.has_graphics_state, "");
+  ASH_CHECK(ctx_.graphics_pipeline->num_vertex_attributes ==
+              ctx_.vertex_buffers.size(),
+            "");
+  ASH_CHECK(ctx_.graphics_pipeline->num_sets == ctx_.descriptor_sets.size(),
+            "");
 
   auto * buffer = (Buffer) buffer_;
 
-  CHECK(has_bits(buffer->usage, gpu::BufferUsage::IndirectBuffer), "");
-  CHECK(stride >= sizeof(gpu::DrawCommand), "");
-  CHECK(is_valid_buffer_access(
-          buffer->size, Slice64{offset, (u64) draw_count * (u64) stride}, 4, 4),
-        "");
+  ASH_CHECK(has_bits(buffer->usage, gpu::BufferUsage::IndirectBuffer), "");
+  ASH_CHECK(stride >= sizeof(gpu::DrawCommand), "");
+  ASH_CHECK(
+    is_valid_buffer_access(
+      buffer->size, Slice64{offset, (u64) draw_count * (u64) stride}, 4, 4),
+    "");
 
   CMD(DrawIndirect{.buffer     = buffer->vk,
                    .offset     = offset,
@@ -7092,22 +7110,24 @@ void ICommandEncoder::draw_indexed_indirect(gpu::Buffer buffer_, u64 offset,
                                             u32 draw_count, u32 stride)
 {
   PRELUDE();
-  CHECK(pass_ == Pass::Render, "");
-  CHECK(ctx_.graphics_pipeline.is_some(), "");
-  CHECK(ctx_.has_graphics_state, "");
-  CHECK(ctx_.graphics_pipeline->num_vertex_attributes ==
-          ctx_.vertex_buffers.size(),
-        "");
-  CHECK(ctx_.graphics_pipeline->num_sets == ctx_.descriptor_sets.size(), "");
-  CHECK(ctx_.index_buffer.is_some(), "");
+  ASH_CHECK(pass_ == Pass::Render, "");
+  ASH_CHECK(ctx_.graphics_pipeline.is_some(), "");
+  ASH_CHECK(ctx_.has_graphics_state, "");
+  ASH_CHECK(ctx_.graphics_pipeline->num_vertex_attributes ==
+              ctx_.vertex_buffers.size(),
+            "");
+  ASH_CHECK(ctx_.graphics_pipeline->num_sets == ctx_.descriptor_sets.size(),
+            "");
+  ASH_CHECK(ctx_.index_buffer.is_some(), "");
 
   auto * buffer = (Buffer) buffer_;
 
-  CHECK(has_bits(buffer->usage, gpu::BufferUsage::IndirectBuffer), "");
-  CHECK(is_valid_buffer_access(
-          buffer->size, Slice64{offset, (u64) draw_count * (u64) stride}, 4, 4),
-        "");
-  CHECK(stride >= sizeof(gpu::DrawIndexedCommand), "");
+  ASH_CHECK(has_bits(buffer->usage, gpu::BufferUsage::IndirectBuffer), "");
+  ASH_CHECK(
+    is_valid_buffer_access(
+      buffer->size, Slice64{offset, (u64) draw_count * (u64) stride}, 4, 4),
+    "");
+  ASH_CHECK(stride >= sizeof(gpu::DrawIndexedCommand), "");
 
   CMD(DrawIndexedIndirect{.buffer     = buffer->vk,
                           .offset     = offset,
@@ -7120,15 +7140,16 @@ void ICommandEncoder::draw_indexed_indirect(gpu::Buffer buffer_, u64 offset,
 
 void ICommandEncoder::present(gpu::Swapchain swapchain_)
 {
-  CHECK(state_ == CommandBufferState::Recording, "");
+  ASH_CHECK(state_ == CommandBufferState::Recording, "");
 
-  CHECK(swapchain_ != nullptr, "");
-  CHECK(this->swapchain_.is_none(),
-        "Can only present one swapchain on a Command Encoder/Command Buffer");
+  ASH_CHECK(swapchain_ != nullptr, "");
+  ASH_CHECK(
+    this->swapchain_.is_none(),
+    "Can only present one swapchain on a Command Encoder/Command Buffer");
 
   auto swapchain = (Swapchain) swapchain_;
-  CHECK(!swapchain->is_out_of_date,
-        "Attempted to present to out-of-date swapchain");
+  ASH_CHECK(!swapchain->is_out_of_date,
+            "Attempted to present to out-of-date swapchain");
   this->swapchain_ = *swapchain;
 
   if (!swapchain->is_deferred)
@@ -7141,7 +7162,7 @@ void ICommandEncoder::present(gpu::Swapchain swapchain_)
 
 void ICommandBuffer::begin()
 {
-  CHECK(state_ == CommandBufferState::Reset, "");
+  ASH_CHECK(state_ == CommandBufferState::Reset, "");
 
   {
     ReadGuard guard{dev_->resource_states_.lock_};
@@ -7156,14 +7177,14 @@ void ICommandBuffer::begin()
 
   auto result = dev_->table_.BeginCommandBuffer(vk_, &info);
 
-  CHECK(result == VK_SUCCESS, "");
+  ASH_CHECK(result == VK_SUCCESS, "");
 
   state_ = CommandBufferState::Recording;
 }
 
 Result<Void, Status> ICommandBuffer::end()
 {
-  CHECK(state_ == CommandBufferState::Recording, "");
+  ASH_CHECK(state_ == CommandBufferState::Recording, "");
 
   dev_->table_.EndCommandBuffer(vk_);
 
@@ -7178,9 +7199,9 @@ Result<Void, Status> ICommandBuffer::end()
 
 void ICommandBuffer::reset()
 {
-  CHECK(state_ == CommandBufferState::Reset ||
-          state_ == CommandBufferState::Submitted,
-        "");
+  ASH_CHECK(state_ == CommandBufferState::Reset ||
+              state_ == CommandBufferState::Submitted,
+            "");
 
   dev_->table_.ResetCommandBuffer(vk_, 0);
 
@@ -7519,9 +7540,9 @@ void issue_barriers(DeviceTable const & t, VkCommandBuffer cmd,
 
 void ICommandBuffer::record(gpu::CommandEncoder encoder_)
 {
-  CHECK(state_ == CommandBufferState::Recording, "");
+  ASH_CHECK(state_ == CommandBufferState::Recording, "");
   auto * encoder = (CommandEncoder) encoder_;
-  CHECK(encoder != nullptr, "");
+  ASH_CHECK(encoder != nullptr, "");
 
   if (encoder->tracker_.passes_.is_empty())
   {

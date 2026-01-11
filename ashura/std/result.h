@@ -216,25 +216,25 @@ struct [[nodiscard]] Result
 
   constexpr T & v(SourceLocation loc = SourceLocation::current())
   {
-    CHECK_SLOC(loc, is_ok(), ".v() called on Result with Err = {}", v1_);
+    ASH_CHECK_SLOC(loc, is_ok(), ".v() called on Result with Err = {}", v1_);
     return v0_;
   }
 
   constexpr T const & v(SourceLocation loc = SourceLocation::current()) const
   {
-    CHECK_SLOC(loc, is_ok(), ".v() called on Result with Err = {}", v1_);
+    ASH_CHECK_SLOC(loc, is_ok(), ".v() called on Result with Err = {}", v1_);
     return v0_;
   }
 
   constexpr E & err(SourceLocation loc = SourceLocation::current())
   {
-    CHECK_SLOC(loc, is_err(), ".err() called on Result with Ok = {}", v0_);
+    ASH_CHECK_SLOC(loc, is_err(), ".err() called on Result with Ok = {}", v0_);
     return v1_;
   }
 
   constexpr E const & err(SourceLocation loc = SourceLocation::current()) const
   {
-    CHECK_SLOC(loc, is_err(), ".err() called on Result with Ok = {}", v0_);
+    ASH_CHECK_SLOC(loc, is_err(), ".err() called on Result with Ok = {}", v0_);
     return v1_;
   }
 
@@ -305,16 +305,16 @@ struct [[nodiscard]] Result
   constexpr T unwrap(Str            msg = ""_str,
                      SourceLocation loc = SourceLocation::current())
   {
-    CHECK_SLOC(loc, is_ok(), "Expected Value in Result but got Err = {}. {}",
-               v1_, msg);
+    ASH_CHECK_SLOC(loc, is_ok(),
+                   "Expected Value in Result but got Err = {}. {}", v1_, msg);
     return static_cast<T &&>(v0_);
   }
 
   constexpr E unwrap_err(Str            msg = ""_str,
                          SourceLocation loc = SourceLocation::current())
   {
-    CHECK_SLOC(loc, is_err(), "Expected Err in Result but got Value = {}. {}",
-               v0_, msg);
+    ASH_CHECK_SLOC(loc, is_err(),
+                   "Expected Err in Result but got Value = {}. {}", v0_, msg);
     return static_cast<E &&>(v1_);
   }
 

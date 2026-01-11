@@ -65,21 +65,21 @@ Result<ImageInfo, SysErr>
 {
   tracing::ScopeTrace trace;
 
-  CHECK(info.type == gpu::ImageType::Type2D, "");
-  CHECK(
+  ASH_CHECK(info.type == gpu::ImageType::Type2D, "");
+  ASH_CHECK(
     (info.usage & ~(gpu::ImageUsage::Sampled | gpu::ImageUsage::TransferSrc |
                     gpu::ImageUsage::TransferDst)) == gpu::ImageUsage::None,
     "");
-  CHECK(info.aspects == gpu::ImageAspects::Color, "");
-  CHECK(info.extent.z() == 1, "");
-  CHECK(info.mip_levels == 1, "");
-  CHECK(info.array_layers > 0, "");
-  CHECK(view_infos.size() > 0, "");
-  CHECK(info.sample_count == gpu::SampleCount::C1, "");
-  CHECK(info.format == gpu::Format::R8G8B8A8_UNORM ||
-          info.format == gpu::Format::R8G8B8_UNORM ||
-          info.format == gpu::Format::B8G8R8A8_UNORM,
-        "");
+  ASH_CHECK(info.aspects == gpu::ImageAspects::Color, "");
+  ASH_CHECK(info.extent.z() == 1, "");
+  ASH_CHECK(info.mip_levels == 1, "");
+  ASH_CHECK(info.array_layers > 0, "");
+  ASH_CHECK(view_infos.size() > 0, "");
+  ASH_CHECK(info.sample_count == gpu::SampleCount::C1, "");
+  ASH_CHECK(info.format == gpu::Format::R8G8B8A8_UNORM ||
+              info.format == gpu::Format::R8G8B8_UNORM ||
+              info.format == gpu::Format::B8G8R8A8_UNORM,
+            "");
 
   gpu::Format resolved_format = gpu::Format::B8G8R8A8_UNORM;
 
@@ -308,13 +308,13 @@ Option<ImageInfo> IImageSys::get(Str label)
 ImageInfo IImageSys::get(ImageId id)
 {
   ReadGuard guard{rw_lock_};
-  CHECK(images_.is_valid_id(id), "");
+  ASH_CHECK(images_.is_valid_id(id), "");
   return images_[id].v0.to_view();
 }
 
 void IImageSys::unload_(ImageId id)
 {
-  CHECK(images_.is_valid_id(id), "");
+  ASH_CHECK(images_.is_valid_id(id), "");
   ImageInfo image = images_[id].v0.to_view();
   for (TextureIndex idx : image.textures)
   {

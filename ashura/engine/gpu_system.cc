@@ -142,8 +142,8 @@ GpuQueries GpuQueries::create(Allocator allocator, gpu::Device device,
                               Span<char const> label, u32 timestamps_capacity,
                               u32 statistics_capacity, Allocator scratch)
 {
-  CHECK(timestamps_capacity > 0, "");
-  CHECK(statistics_capacity > 0, "");
+  ASH_CHECK(timestamps_capacity > 0, "");
+  ASH_CHECK(statistics_capacity > 0, "");
 
   auto timestamp_label =
     sformat(scratch, "{} / TimestampQuery"_str, label).unwrap();
@@ -429,13 +429,13 @@ void IGpuFramePlan::uninit()
 
 void IGpuFramePlan::set_target(GpuFrameTargetInfo target)
 {
-  CHECK(state_ == GpuFramePlanState::Recording, "");
+  ASH_CHECK(state_ == GpuFramePlanState::Recording, "");
   target_ = target;
 }
 
 void IGpuFramePlan::reserve_scratch_buffers(Span<u64 const> sizes)
 {
-  CHECK(state_ == GpuFramePlanState::Recording, "");
+  ASH_CHECK(state_ == GpuFramePlanState::Recording, "");
   scratch_buffer_sizes_.resize(max(scratch_buffer_sizes_.size(), sizes.size()))
     .unwrap();
 
@@ -447,36 +447,36 @@ void IGpuFramePlan::reserve_scratch_buffers(Span<u64 const> sizes)
 
 void IGpuFramePlan::reserve_scratch_images(u32 num_scratch_images)
 {
-  CHECK(state_ == GpuFramePlanState::Recording, "");
+  ASH_CHECK(state_ == GpuFramePlanState::Recording, "");
   num_scratch_images_ = max(num_scratch_images_, num_scratch_images);
 }
 
 void IGpuFramePlan::add_preframe_task(GpuFrameTask && task)
 {
-  CHECK(state_ == GpuFramePlanState::Recording, "");
+  ASH_CHECK(state_ == GpuFramePlanState::Recording, "");
   pre_frame_tasks_.push(std::move(task)).unwrap();
 }
 
 void IGpuFramePlan::add_postframe_task(GpuFrameTask && task)
 {
-  CHECK(state_ == GpuFramePlanState::Recording, "");
+  ASH_CHECK(state_ == GpuFramePlanState::Recording, "");
   post_frame_tasks_.push(std::move(task)).unwrap();
 }
 
 void IGpuFramePlan::add_pass(GpuPass && pass)
 {
-  CHECK(state_ == GpuFramePlanState::Recording, "");
+  ASH_CHECK(state_ == GpuFramePlanState::Recording, "");
   passes_.push(std::move(pass)).unwrap();
 }
 
 CpuBufferId IGpuFramePlan::push_cpu(Span<u8 const> data)
 {
-  CHECK(state_ == GpuFramePlanState::Recording, "");
+  ASH_CHECK(state_ == GpuFramePlanState::Recording, "");
   auto offset = cpu_buffer_data_.size();
   cpu_buffer_data_.append(data).unwrap();
   auto size = max(data.size(), (usize) SIMD_ALIGNMENT);
   auto idx  = cpu_buffer_entries_.size();
-  CHECK(cpu_buffer_data_.size() <= U32_MAX, "");
+  ASH_CHECK(cpu_buffer_data_.size() <= U32_MAX, "");
   cpu_buffer_entries_.push(offset, size).unwrap();
   auto aligned_size =
     align_offset_up<usize>(SIMD_ALIGNMENT, cpu_buffer_data_.size());
@@ -486,12 +486,12 @@ CpuBufferId IGpuFramePlan::push_cpu(Span<u8 const> data)
 
 GpuBufferId IGpuFramePlan::push_gpu(Span<u8 const> data)
 {
-  CHECK(state_ == GpuFramePlanState::Recording, "");
+  ASH_CHECK(state_ == GpuFramePlanState::Recording, "");
   auto offset = gpu_buffer_data_.size();
   gpu_buffer_data_.append(data).unwrap();
   auto size = max(data.size(), (usize) gpu::BUFFER_OFFSET_ALIGNMENT);
   auto idx  = gpu_buffer_entries_.size();
-  CHECK(gpu_buffer_data_.size() <= U32_MAX, "");
+  ASH_CHECK(gpu_buffer_data_.size() <= U32_MAX, "");
   gpu_buffer_entries_.push(offset, size).unwrap();
   auto aligned_size = align_offset_up<usize>(gpu::BUFFER_OFFSET_ALIGNMENT,
                                              gpu_buffer_data_.size());
@@ -512,19 +512,19 @@ gpu::Device IGpuFramePlan::device() const
 
 void IGpuFramePlan::begin()
 {
-  CHECK(state_ == GpuFramePlanState::Reset, "");
+  ASH_CHECK(state_ == GpuFramePlanState::Reset, "");
   state_ = GpuFramePlanState::Recording;
 }
 
 void IGpuFramePlan::end()
 {
-  CHECK(state_ == GpuFramePlanState::Recording, "");
+  ASH_CHECK(state_ == GpuFramePlanState::Recording, "");
   state_ = GpuFramePlanState::Recorded;
 }
 
 void IGpuFramePlan::reset()
 {
-  CHECK(state_ != GpuFramePlanState::Submitted, "");
+  ASH_CHECK(state_ != GpuFramePlanState::Submitted, "");
   // these buffers are expected to be very large so we reset them on every frame when they aren't being used
   // Target at least 75% utilization
   pre_frame_tasks_.shrink_clear().unwrap();
@@ -560,7 +560,7 @@ TexelBufferUnion::View TexelBufferUnion::interpret(gpu::Format format) const
     return view.format == format;
   });
 
-  CHECK(!view.is_empty(), "");
+  ASH_CHECK(!view.is_empty(), "");
 
   return view[0];
 }
@@ -582,13 +582,13 @@ TexelBufferUnion TexelBufferUnion::create(GpuSys sys, u32x2 target_extent,
                                           Span<gpu::Format const> formats,
                                           Str label, Allocator scratch)
 {
-  CHECK(!tile_texel_count.any_zero(), "");
-  CHECK(is_pow2(tile_texel_count.x()) && is_pow2(tile_texel_count.y()), "");
-  CHECK(sample_count == 1, "");
+  ASH_CHECK(!tile_texel_count.any_zero(), "");
+  ASH_CHECK(is_pow2(tile_texel_count.x()) && is_pow2(tile_texel_count.y()), "");
+  ASH_CHECK(sample_count == 1, "");
 
   for (auto format : formats)
   {
-    CHECK(!find(span(ALL_FORMATS), format).is_empty(), "");
+    ASH_CHECK(!find(span(ALL_FORMATS), format).is_empty(), "");
   }
 
   auto tag = [&](Str component) {
@@ -1074,7 +1074,7 @@ void IGpuFrame::uninit()
 
 Option<Tuple<gpu::TimestampQuery, u32>> IGpuFrame::allocate_timestamp()
 {
-  CHECK(state_ == GpuFrameState::Recording, "");
+  ASH_CHECK(state_ == GpuFrameState::Recording, "");
   if (next_timestamp_ >= resources_.queries.cpu_timestamps.size())
   {
     return none;
@@ -1087,7 +1087,7 @@ Option<Tuple<gpu::TimestampQuery, u32>> IGpuFrame::allocate_timestamp()
 
 Option<Tuple<gpu::StatisticsQuery, u32>> IGpuFrame::allocate_statistics()
 {
-  CHECK(state_ == GpuFrameState::Recording, "");
+  ASH_CHECK(state_ == GpuFrameState::Recording, "");
   if (next_statistics_ >= resources_.queries.cpu_statistics.size())
   {
     return none;
@@ -1100,27 +1100,27 @@ Option<Tuple<gpu::StatisticsQuery, u32>> IGpuFrame::allocate_statistics()
 
 Span<ImageUnion const> IGpuFrame::get_scratch_images() const
 {
-  CHECK(state_ == GpuFrameState::Recording, "");
+  ASH_CHECK(state_ == GpuFrameState::Recording, "");
   return resources_.scratch_images.images;
 }
 
 Span<GpuBuffer const> IGpuFrame::get_scratch_buffers() const
 {
-  CHECK(state_ == GpuFrameState::Recording, "");
+  ASH_CHECK(state_ == GpuFrameState::Recording, "");
   return resources_.scratch_buffers.buffers;
 }
 
 GpuBufferSpan IGpuFrame::get(GpuBufferId id)
 {
-  CHECK(state_ == GpuFrameState::Recording, "");
+  ASH_CHECK(state_ == GpuFrameState::Recording, "");
   Slice64 slice = current_plan_->gpu_buffer_entries_.get((usize) id);
   return {resources_.buffer, slice};
 }
 
 Span<u8> IGpuFrame::get(CpuBufferId id)
 {
-  CHECK(state_ == GpuFrameState::Recording, "");
-  CHECK(current_plan_ != nullptr, "");
+  ASH_CHECK(state_ == GpuFrameState::Recording, "");
+  ASH_CHECK(current_plan_ != nullptr, "");
   auto slice = current_plan_->cpu_buffer_entries_.get((usize) id);
   return current_plan_->cpu_buffer_data_.view().slice(slice);
 }
@@ -1154,15 +1154,15 @@ gpu::DescriptorSet IGpuFrame::get(TextureSet tex)
 
 void IGpuFrame::begin()
 {
-  CHECK(state_ == GpuFrameState::Reset, "");
+  ASH_CHECK(state_ == GpuFrameState::Reset, "");
   state_ = GpuFrameState::Recording;
 }
 
 void IGpuFrame::set_plan(GpuFramePlan plan)
 {
-  CHECK(state_ == GpuFrameState::Recording, "");
-  CHECK(plan != nullptr, "");
-  CHECK(plan->state_ == GpuFramePlanState::Recorded, "");
+  ASH_CHECK(state_ == GpuFrameState::Recording, "");
+  ASH_CHECK(plan != nullptr, "");
+  ASH_CHECK(plan->state_ == GpuFramePlanState::Recorded, "");
   current_plan_         = plan;
   current_plan_->state_ = GpuFramePlanState::Submitted;
   current_plan_->frame_completed_tasks_ =
@@ -1171,22 +1171,23 @@ void IGpuFrame::set_plan(GpuFramePlan plan)
 
 void IGpuFrame::end()
 {
-  CHECK(state_ == GpuFrameState::Recording, "");
-  CHECK(current_plan_ != nullptr, "");
+  ASH_CHECK(state_ == GpuFrameState::Recording, "");
+  ASH_CHECK(current_plan_ != nullptr, "");
   state_ = GpuFrameState::Recorded;
 }
 
 void IGpuFrame::submit()
 {
   tracing::ScopeTrace trace;
-  CHECK(state_ == GpuFrameState::Recorded, "");
+  ASH_CHECK(state_ == GpuFrameState::Recorded, "");
   u8                 scratch_buffer_[1_KB];
   IArena             scratch_arena_{scratch_buffer_};
   IFallbackAllocator scratch{&scratch_arena_, allocator_};
 
   {
     auto label = sformat(scratch, "GpuFrame {} / Buffer"_str, id_).unwrap();
-    CHECK(current_plan_->gpu_buffer_data_.size() <= cfg_.max_buffer_size, "");
+    ASH_CHECK(current_plan_->gpu_buffer_data_.size() <= cfg_.max_buffer_size,
+              "");
     auto size = clamp(current_plan_->gpu_buffer_data_.size(),
                       cfg_.min_buffer_size, cfg_.max_buffer_size);
     grow_buffer(sys_, label, resources_.buffer, size, scratch);
@@ -1199,12 +1200,12 @@ void IGpuFrame::submit()
       sformat(scratch, "GpuFrame {} / Scratch Buffers"_str, id_).unwrap();
     for (auto s : current_plan_->scratch_buffer_sizes_)
     {
-      CHECK(s <= cfg_.max_scratch_buffer_size, "");
+      ASH_CHECK(s <= cfg_.max_scratch_buffer_size, "");
     }
 
-    CHECK(current_plan_->scratch_buffer_sizes_.size() <=
-            cfg_.max_scratch_buffers,
-          "");
+    ASH_CHECK(current_plan_->scratch_buffer_sizes_.size() <=
+                cfg_.max_scratch_buffers,
+              "");
 
     Vec<u64> sizes{scratch};
 
@@ -1219,16 +1220,16 @@ void IGpuFrame::submit()
     resources_.scratch_buffers.grow(sys_, sizes, label, allocator_, scratch);
   }
 
-  CHECK(current_plan_->num_scratch_images_ <= cfg_.max_scratch_images, "");
+  ASH_CHECK(current_plan_->num_scratch_images_ <= cfg_.max_scratch_images, "");
 
   auto num_scratch_images =
     clamp(current_plan_->num_scratch_images_, cfg_.min_scratch_images,
           cfg_.max_scratch_images);
 
-  CHECK(current_plan_->target_.color_format != gpu::Format::Undefined, "");
-  CHECK(current_plan_->target_.depth_stencil_format != gpu::Format::Undefined,
-        "");
-  CHECK(!current_plan_->target_.extent.any_zero(), "");
+  ASH_CHECK(current_plan_->target_.color_format != gpu::Format::Undefined, "");
+  ASH_CHECK(
+    current_plan_->target_.depth_stencil_format != gpu::Format::Undefined, "");
+  ASH_CHECK(!current_plan_->target_.extent.any_zero(), "");
 
   if (target_info_ != current_plan_->target_ ||
       resources_.scratch_images.images.size() != num_scratch_images)
@@ -1294,7 +1295,7 @@ void IGpuFrame::submit()
 void IGpuFrame::complete()
 {
   tracing::ScopeTrace trace;
-  CHECK(state_ == GpuFrameState::Submitted, "");
+  ASH_CHECK(state_ == GpuFrameState::Submitted, "");
 
   dev_
     ->await_queue_scope_frame(sys_->queue_scope_, scope_frame_id_,
@@ -1323,7 +1324,7 @@ void IGpuFrame::complete()
 
 void IGpuFrame::reset()
 {
-  CHECK(state_ != GpuFrameState::Submitted, "");
+  ASH_CHECK(state_ != GpuFrameState::Submitted, "");
   next_statistics_ = 0;
   command_encoder_->reset();
   command_buffer_->reset();
@@ -1594,7 +1595,7 @@ static void create_default_textures(GpuSys sys)
     })
              .unwrap();
 
-    CHECK(mapping.v1 == sys->alloc_texture_index(view), "");
+    ASH_CHECK(mapping.v1 == sys->alloc_texture_index(view), "");
   }
 
   sys->default_image_       = default_image;
@@ -1610,8 +1611,8 @@ void IGpuSys::init(Allocator allocator, gpu::Device device,
   IArena             scratch_arena_{scratch_buffer_};
   IFallbackAllocator scratch{&scratch_arena_, allocator_};
 
-  CHECK(preferences.buffering > 0, "");
-  CHECK(preferences.buffering <= MAX_BUFFERING, "");
+  ASH_CHECK(preferences.buffering > 0, "");
+  ASH_CHECK(preferences.buffering <= MAX_BUFFERING, "");
 
   allocator_ = allocator;
   dev_       = device;
@@ -1701,7 +1702,7 @@ void IGpuSys::init(Allocator allocator, gpu::Device device,
 
 SamplerIndex IGpuSys::create_cached_sampler(gpu::SamplerInfo const & info_)
 {
-  CHECK(initialized_, "");
+  ASH_CHECK(initialized_, "");
   LockGuard guard{resources_lock_};
 
   auto info  = info_;
@@ -1716,8 +1717,8 @@ SamplerIndex IGpuSys::create_cached_sampler(gpu::SamplerInfo const & info_)
 
   auto index = descriptors_.samplers_slots.view().find_clear_bit();
 
-  CHECK(index < descriptors_.samplers_slots.size(),
-        "Ran out of sampler descriptor slots");
+  ASH_CHECK(index < descriptors_.samplers_slots.size(),
+            "Ran out of sampler descriptor slots");
 
   auto sampler_index = static_cast<SamplerIndex>(index);
 
@@ -1742,14 +1743,14 @@ SamplerIndex IGpuSys::create_cached_sampler(gpu::SamplerInfo const & info_)
 
 TextureIndex IGpuSys::alloc_texture_index(gpu::ImageView view)
 {
-  CHECK(initialized_, "");
+  ASH_CHECK(initialized_, "");
 
   LockGuard guard{resources_lock_};
 
   auto index = descriptors_.sampled_textures_slots.view().find_clear_bit();
 
-  CHECK(index < descriptors_.sampled_textures_slots.size(),
-        "Ran out of sampled texture descriptor slots");
+  ASH_CHECK(index < descriptors_.sampled_textures_slots.size(),
+            "Ran out of sampled texture descriptor slots");
 
   current_plan()->add_preframe_task(
     [device = this->dev_, textures = descriptors_.sampled_textures,
@@ -1768,7 +1769,7 @@ TextureIndex IGpuSys::alloc_texture_index(gpu::ImageView view)
 
 void IGpuSys::release_texture_index(TextureIndex index)
 {
-  CHECK(initialized_, "");
+  ASH_CHECK(initialized_, "");
 
   LockGuard guard{resources_lock_};
 
@@ -1789,7 +1790,7 @@ void IGpuSys::release_texture_index(TextureIndex index)
 
 gpu::Device IGpuSys::device()
 {
-  CHECK(initialized_, "");
+  ASH_CHECK(initialized_, "");
   return dev_;
 }
 
@@ -1800,7 +1801,7 @@ Allocator IGpuSys::allocator() const
 
 GpuFramePlan IGpuSys::current_plan()
 {
-  CHECK(initialized_, "");
+  ASH_CHECK(initialized_, "");
   return plans_[frame_ring_index()].get();
 }
 
@@ -1841,7 +1842,7 @@ gpu::DescriptorSet IGpuSys::sampled_textures() const
 
 void IGpuSys::submit_frame()
 {
-  CHECK(initialized_, "");
+  ASH_CHECK(initialized_, "");
 
   auto * frame = frames_[frame_ring_index()].get();
   auto * plan  = plans_[frame_ring_index()].get();

@@ -154,7 +154,7 @@ Option<IPipeline &> IPipelineSys::get(Str label)
 IPipeline & IPipelineSys::get(PipelineId id)
 {
   ReadGuard guard{rw_lock_};
-  CHECK(all_.is_valid_id(id), "Invalid PipelineId");
+  ASH_CHECK(all_.is_valid_id(id), "Invalid PipelineId");
   return *all_[id].v0;
 }
 

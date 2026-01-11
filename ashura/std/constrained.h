@@ -8,7 +8,7 @@ struct NonZeroConstraint
 {
   static constexpr void check(auto v)
   {
-    CHECK(v != static_cast<decltype(v)>(0), "Value must be non-zero");
+    ASH_CHECK(v != static_cast<decltype(v)>(0), "Value must be non-zero");
   }
 };
 
@@ -16,7 +16,7 @@ struct NonNullConstraint
 {
   static constexpr void check(auto * p)
   {
-    CHECK(p != nullptr, "Pointer must be non-null");
+    ASH_CHECK(p != nullptr, "Pointer must be non-null");
   }
 };
 
@@ -24,9 +24,9 @@ struct NonZeroPow2Constraint
 {
   static constexpr void check(auto v)
   {
-    CHECK(v != static_cast<decltype(v)>(0) &&
-            ((v & (v - 1)) == static_cast<decltype(v)>(0)),
-          "Value must be non-zero power of 2");
+    ASH_CHECK(v != static_cast<decltype(v)>(0) &&
+                ((v & (v - 1)) == static_cast<decltype(v)>(0)),
+              "Value must be non-zero power of 2");
   }
 };
 

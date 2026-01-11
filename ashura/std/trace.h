@@ -89,7 +89,7 @@ struct EventSink
     num_read_{0},
     spin_lock_{}
   {
-    CHECK(is_pow2(buffer.capacity()), "");
+    ASH_CHECK(is_pow2(buffer.capacity()), "");
   }
 
   EventSink(EventSink const &)             = delete;

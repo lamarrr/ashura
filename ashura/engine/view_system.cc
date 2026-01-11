@@ -95,7 +95,7 @@ ui::Events IViewSys::drain_events_(Tree &, ui::View & view, u16 idx)
   if (view.id() == ui::ViewId::None) [[unlikely]]
   {
     // should never happen
-    CHECK(next_id_ != U64_MAX, "");
+    ASH_CHECK(next_id_ != U64_MAX, "");
     view.id_    = ui::ViewId{next_id_++};
     event.bits_ = ui::Events::Bits::Type{event.bits_ | ui::Events::Bits::Mount};
   }
@@ -522,8 +522,8 @@ ui::HitInfo IViewSys::get_hit_info_(Tree & tree, u16 view, f32x2 position) const
 
 u16 IViewSys::navigate_focus_(Tree & tree, u16 from_idx, bool forward) const
 {
-  CHECK(from_idx < tree.nodes.views.size(), "");
-  CHECK(!tree.nodes.views.is_empty(), "");
+  ASH_CHECK(from_idx < tree.nodes.views.size(), "");
+  ASH_CHECK(!tree.nodes.views.is_empty(), "");
 
   if (tree.nodes.views.size() == 1)
   {

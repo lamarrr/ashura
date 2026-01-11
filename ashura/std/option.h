@@ -166,13 +166,13 @@ struct [[nodiscard]] Option
 
   constexpr T & v(SourceLocation loc = SourceLocation::current())
   {
-    CHECK_SLOC(loc, is_some(), "Expected Value in Option but got None");
+    ASH_CHECK_SLOC(loc, is_some(), "Expected Value in Option but got None");
     return v0_;
   }
 
   constexpr T const & v(SourceLocation loc = SourceLocation::current()) const
   {
-    CHECK_SLOC(loc, is_some(), "Expected Value in Option but got None");
+    ASH_CHECK_SLOC(loc, is_some(), "Expected Value in Option but got None");
     return v0_;
   }
 
@@ -197,16 +197,16 @@ struct [[nodiscard]] Option
   constexpr T unwrap(Str            msg = ""_str,
                      SourceLocation loc = SourceLocation::current())
   {
-    CHECK_SLOC(loc, is_some(), "Expected Value in Option but got None. {}",
-               msg);
+    ASH_CHECK_SLOC(loc, is_some(), "Expected Value in Option but got None. {}",
+                   msg);
     return static_cast<T &&>(v0_);
   }
 
   constexpr T unwrap(Str            msg = ""_str,
                      SourceLocation loc = SourceLocation::current()) const
   {
-    CHECK_SLOC(loc, is_some(), "Expected Value in Option but got None. {}",
-               msg);
+    ASH_CHECK_SLOC(loc, is_some(), "Expected Value in Option but got None. {}",
+                   msg);
     return v0_;
   }
 
@@ -297,8 +297,8 @@ struct [[nodiscard]] Option
   constexpr void unwrap_none(Str            msg = ""_str,
                              SourceLocation loc = SourceLocation::current())
   {
-    CHECK_SLOC(loc, is_none(), "Expected None in Option but got Value = {}. {}",
-               v0_, msg);
+    ASH_CHECK_SLOC(loc, is_none(),
+                   "Expected None in Option but got Value = {}. {}", v0_, msg);
   }
 
   template <typename Some, typename NoneFn = Noop>
@@ -578,15 +578,15 @@ struct [[nodiscard]] Option<T &>
 
   constexpr T & v(SourceLocation loc = SourceLocation::current()) const
   {
-    CHECK_SLOC(loc, is_some(), "Expected Value in Option but got None");
+    ASH_CHECK_SLOC(loc, is_some(), "Expected Value in Option but got None");
     return *repr_;
   }
 
   constexpr T & unwrap(Str            msg = ""_str,
                        SourceLocation loc = SourceLocation::current()) const
   {
-    CHECK_SLOC(loc, is_some(), "Expected Value in Option but got None. {}",
-               msg);
+    ASH_CHECK_SLOC(loc, is_some(), "Expected Value in Option but got None. {}",
+                   msg);
     return *repr_;
   }
 
@@ -643,8 +643,9 @@ struct [[nodiscard]] Option<T &>
   constexpr void unwrap_none(Str            msg = ""_str,
                              SourceLocation loc = SourceLocation::current())
   {
-    CHECK_SLOC(loc, is_none(), "Expected None in Option but got Value = {}. {}",
-               *repr_, msg);
+    ASH_CHECK_SLOC(loc, is_none(),
+                   "Expected None in Option but got Value = {}. {}", *repr_,
+                   msg);
   }
 
   constexpr void discard()
@@ -762,15 +763,15 @@ struct [[nodiscard]] Option<T &&>
 
   constexpr T && v(SourceLocation loc = SourceLocation::current()) const
   {
-    CHECK_SLOC(loc, is_some(), "Expected Value in Option but got None");
+    ASH_CHECK_SLOC(loc, is_some(), "Expected Value in Option but got None");
     return static_cast<T &&>(*repr_);
   }
 
   constexpr T && unwrap(Str            msg = ""_str,
                         SourceLocation loc = SourceLocation::current())
   {
-    CHECK_SLOC(loc, is_some(), "Expected Value in Option but got None. {}",
-               msg);
+    ASH_CHECK_SLOC(loc, is_some(), "Expected Value in Option but got None. {}",
+                   msg);
     return static_cast<T &&>(*repr_);
   }
 
@@ -827,8 +828,9 @@ struct [[nodiscard]] Option<T &&>
   constexpr void unwrap_none(Str            msg = ""_str,
                              SourceLocation loc = SourceLocation::current())
   {
-    CHECK_SLOC(loc, is_none(), "Expected None in Option but got Value = {}. {}",
-               *repr_, msg);
+    ASH_CHECK_SLOC(loc, is_none(),
+                   "Expected None in Option but got Value = {}. {}", *repr_,
+                   msg);
   }
 
   constexpr void discard()

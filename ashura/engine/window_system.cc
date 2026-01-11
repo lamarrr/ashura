@@ -10,7 +10,8 @@
 namespace ash
 {
 
-#define CHECK_SDL(cond_expr) CHECK(cond_expr, "SDL Error: {}", SDL_GetError())
+#define CHECK_SDL(cond_expr) \
+  ASH_CHECK(cond_expr, "SDL Error: {}", SDL_GetError())
 
 struct WindowImpl
 {
@@ -170,7 +171,7 @@ struct WindowSysImpl final : IWindowSys
     SDL_WindowID id = SDL_GetWindowID(window);
     CHECK_SDL(id != 0);
 
-    CHECK(instance->get_backend() == gpu::Backend::Vulkan, "");
+    ASH_CHECK(instance->get_backend() == gpu::Backend::Vulkan, "");
 
     vk::IInstance & vk_instance = (vk::IInstance &) *instance;
     VkSurfaceKHR    surface;
@@ -180,13 +181,13 @@ struct WindowSysImpl final : IWindowSys
 
     WindowImpl * impl;
 
-    CHECK(allocator->nalloc(1, impl), "");
+    ASH_CHECK(allocator->nalloc(1, impl), "");
 
     new (impl)
       WindowImpl{allocator, window, (gpu::Surface) surface, id, instance};
 
     SDL_PropertiesID props_id = SDL_GetWindowProperties(window);
-    CHECK(SDL_SetPointerProperty(props_id, "impl", impl), "");
+    ASH_CHECK(SDL_SetPointerProperty(props_id, "impl", impl), "");
 
     return (IWindow &) *impl;
   }
@@ -206,7 +207,7 @@ struct WindowSysImpl final : IWindowSys
   virtual void set_title(Window window, Str title) override
   {
     char * title_c_str;
-    CHECK(allocator->nalloc(title.size() + 1, title_c_str), "");
+    ASH_CHECK(allocator->nalloc(title.size() + 1, title_c_str), "");
 
     defer title_c_str_{
       [&] { allocator->ndealloc(title.size() + 1, title_c_str); }};
@@ -312,7 +313,7 @@ struct WindowSysImpl final : IWindowSys
         fmt = SDL_PIXELFORMAT_BGRA8888;
         break;
       default:
-        CHECK(false, "unsupported image format");
+        ASH_CHECK(false, "unsupported image format");
     }
 
     SDL_Surface * icon = SDL_CreateSurfaceFrom(
@@ -452,11 +453,11 @@ struct WindowSysImpl final : IWindowSys
   void push_window_event(SDL_WindowID window_id, WindowEvent const & event)
   {
     SDL_Window * win = SDL_GetWindowFromID(window_id);
-    CHECK(win != nullptr, "");
+    ASH_CHECK(win != nullptr, "");
     SDL_PropertiesID props_id = SDL_GetWindowProperties(win);
     WindowImpl *     impl =
       (WindowImpl *) SDL_GetPointerProperty(props_id, "impl", nullptr);
-    CHECK(impl != nullptr, "");
+    ASH_CHECK(impl != nullptr, "");
 
     for (auto const & listener : impl->listeners.dense.v0)
     {
@@ -1268,11 +1269,11 @@ struct WindowSysImpl final : IWindowSys
   virtual Tuple<KeyModifiers, Option<IWindow &>>
     get_keyboard_state(BitSpan<u64> scan_state, BitSpan<u64> key_state) override
   {
-    CHECK(scan_state.size() >= NUM_SCAN_CODES, "");
-    CHECK(key_state.size() >= NUM_KEY_CODES, "");
+    ASH_CHECK(scan_state.size() >= NUM_SCAN_CODES, "");
+    ASH_CHECK(key_state.size() >= NUM_KEY_CODES, "");
     i32          num_keys       = 0;
     bool const * sdl_scan_state = SDL_GetKeyboardState(&num_keys);
-    CHECK(num_keys == NUM_SCAN_CODES, "");
+    ASH_CHECK(num_keys == NUM_SCAN_CODES, "");
 
     SDL_Keymod const sdl_mod = SDL_GetModState();
 

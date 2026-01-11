@@ -103,7 +103,7 @@ Arena get_thread_arena()
     [arena_allocator = get_thread_arena_upstream(),
      arena_layout    = get_thread_arena_layout()] {
       u8 * arena_mem;
-      CHECK(arena_allocator->alloc(arena_layout, arena_mem), "");
+      ASH_CHECK(arena_allocator->alloc(arena_layout, arena_mem), "");
       IArena arena{arena_mem, arena_mem + arena_layout.size};
       return Tuple{arena_mem, arena_layout, arena_allocator};
     }()};

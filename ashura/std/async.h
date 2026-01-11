@@ -655,7 +655,7 @@ template <typename Sem, typename Stage, typename SemaphoreKey,
                                    SemaphoreKey && semaphore_key = {},
                                    StageKey &&     stage_key     = {})
 {
-  CHECK(semaphores.size() == stages.size(), "");
+  ASH_CHECK(semaphores.size() == stages.size(), "");
   usize const n = semaphores.size();
 
   for (auto i = 0uz; i < n; i++)
@@ -751,8 +751,8 @@ struct [[nodiscard]] Stream
   void yield_sequenced(F && op, u64 stage) const
   {
     static_cast<F &&>(op)(*data_.get());
-    CHECK(semaphore_->complete(stage),
-          "`Stream` yielded with invalid sequencing");
+    ASH_CHECK(semaphore_->complete(stage),
+              "`Stream` yielded with invalid sequencing");
   }
 };
 

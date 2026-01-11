@@ -127,7 +127,7 @@ void TextLayout::clear()
 
 isize TextLayout::to_caret(usize codepoint, bool before) const
 {
-  CHECK(laid_out, "");
+  ASH_CHECK(laid_out, "");
 
   if (codepoint == 0 && before)
   {
@@ -142,7 +142,7 @@ isize TextLayout::to_caret(usize codepoint, bool before) const
   auto l = binary_find(
     lines.view(), [&](Line & l) { return l.codepoints.end() > codepoint; });
 
-  CHECK(!l.is_empty(), "");
+  ASH_CHECK(!l.is_empty(), "");
 
   auto & line = l[0];
 
@@ -163,7 +163,7 @@ isize TextLayout::to_caret(usize codepoint, bool before) const
     // line-break codepoints are not part of the line's codepoints
     if (before)
     {
-      CHECK(l.data() > lines.data(), "");
+      ASH_CHECK(l.data() > lines.data(), "");
       // adjust to the caret of the previous line
       return (l.data() - 1)[0].carets.last();
     }
@@ -177,7 +177,7 @@ isize TextLayout::to_caret(usize codepoint, bool before) const
 
 isize TextLayout::align_caret(CaretAlignment alignment) const
 {
-  CHECK(laid_out, "");
+  ASH_CHECK(laid_out, "");
 
   if (alignment.y < CaretYAlignment::First)
   {
@@ -208,7 +208,7 @@ isize TextLayout::align_caret(CaretAlignment alignment) const
 
 Slice TextLayout::get_caret_selection(Slice carets) const
 {
-  CHECK(laid_out, "");
+  ASH_CHECK(laid_out, "");
 
   carets = carets(num_carets);
 
@@ -227,7 +227,7 @@ Slice TextLayout::get_caret_selection(Slice carets) const
 
 Slice TextLayout::to_caret_selection(Slice codepoints) const
 {
-  CHECK(laid_out, "");
+  ASH_CHECK(laid_out, "");
 
   codepoints = codepoints(num_codepoints);
 
@@ -245,15 +245,15 @@ Slice TextLayout::to_caret_selection(Slice codepoints) const
 
   auto last = to_caret(codepoints.last(), false);
 
-  CHECK(last >= first, "");
+  ASH_CHECK(last >= first, "");
 
   return Slice::offsets((usize) first, (usize) (last + 1));
 }
 
 CaretCodepoint TextLayout::get_caret_codepoint(usize caret) const
 {
-  CHECK(laid_out, "");
-  CHECK(caret <= num_carets, "");
+  ASH_CHECK(laid_out, "");
+  ASH_CHECK(caret <= num_carets, "");
 
   auto l =
     binary_find(lines.view(), [&](Line & l) { return l.carets.end() > caret; });
@@ -306,7 +306,7 @@ struct GlyphMatch
 
 CaretPlacement TextLayout::get_caret_placement(usize caret) const
 {
-  CHECK(laid_out, "");
+  ASH_CHECK(laid_out, "");
   auto c = get_caret_codepoint(caret);
 
   auto & line = lines[c.line];
@@ -345,7 +345,7 @@ Tuple<isize, CaretAlignment> TextLayout::hit(TextBlock const &      block,
                                              TextBlockStyle const & style,
                                              f32x2                  pos) const
 {
-  CHECK(laid_out, "");
+  ASH_CHECK(laid_out, "");
 
   f32x2 block_extent{max(extent.x(), style.align_width), extent.y()};
   f32x2 half_block_extent = 0.5F * block_extent;
@@ -567,10 +567,10 @@ void TextLayout::render(TextRenderer renderer, TextRenderInfo const & info,
                         Allocator scratch) const
 {
   // [ ] merge highlight rects; highlight rect type with merging, next line, close?
-  CHECK(laid_out, "");
-  CHECK(info.runs.size() == info.block.fonts.size(), "");
-  CHECK(info.highlight_styles.size() == info.highlights.size(), "");
-  CHECK(info.caret_styles.size() == info.carets.size(), "");
+  ASH_CHECK(laid_out, "");
+  ASH_CHECK(info.runs.size() == info.block.fonts.size(), "");
+  ASH_CHECK(info.highlight_styles.size() == info.highlights.size(), "");
+  ASH_CHECK(info.caret_styles.size() == info.carets.size(), "");
 
   auto  block_width = max(extent.x(), info.style.align_width);
   f32x2 block_extent{block_width, extent.y()};

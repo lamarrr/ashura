@@ -29,11 +29,11 @@ TextRunsStyle TextRunsStyle::make_sized(Allocator             allocator,
                                         Span<TextStyle const> styles,
                                         Span<FontStyle const> fonts)
 {
-  CHECK(!run_sizes.is_empty(), "run_sizes cannot be empty");
-  CHECK(run_sizes.size() == styles.size(),
-        "run_sizes and styles must have the same size");
-  CHECK(run_sizes.size() == fonts.size(),
-        "run_sizes and fonts must have the same size");
+  ASH_CHECK(!run_sizes.is_empty(), "run_sizes cannot be empty");
+  ASH_CHECK(run_sizes.size() == styles.size(),
+            "run_sizes and styles must have the same size");
+  ASH_CHECK(run_sizes.size() == fonts.size(),
+            "run_sizes and fonts must have the same size");
 
   auto run_indices =
     SmallVec<usize, 4>::make(run_sizes.size() + 1, allocator).unwrap();
@@ -64,13 +64,14 @@ TextRunsStyle TextRunsStyle::make_indexed(Allocator             allocator,
                                           Span<TextStyle const> styles,
                                           Span<FontStyle const> fonts)
 {
-  CHECK(!run_indices.is_empty(), "run_indices cannot be empty");
-  CHECK(run_indices.size() >= 2, "run_indices must have at least two entries");
-  CHECK(run_indices.first() == 0, "first entry of run_indices must be 0");
-  CHECK(run_indices.size() - 1 == styles.size(),
-        "run_indices and styles must have compatible sizes");
-  CHECK(run_indices.size() - 1 == fonts.size(),
-        "run_indices and fonts must have compatible sizes");
+  ASH_CHECK(!run_indices.is_empty(), "run_indices cannot be empty");
+  ASH_CHECK(run_indices.size() >= 2,
+            "run_indices must have at least two entries");
+  ASH_CHECK(run_indices.first() == 0, "first entry of run_indices must be 0");
+  ASH_CHECK(run_indices.size() - 1 == styles.size(),
+            "run_indices and styles must have compatible sizes");
+  ASH_CHECK(run_indices.size() - 1 == fonts.size(),
+            "run_indices and fonts must have compatible sizes");
 
   auto run_indices_vec = small_vec::copy<4>(allocator, run_indices).unwrap();
 
@@ -108,12 +109,12 @@ void TextRunsStyle::update(TextStyle const & style, FontStyle const & font,
   auto first_run_span = binary_find(run_indices_.view(), gt, first);
 
   /// should never happen since there's always a USIZE_MAX run end
-  CHECK(!first_run_span.is_empty(), "");
+  ASH_CHECK(!first_run_span.is_empty(), "");
 
   auto last_run_span = binary_find(first_run_span, geq, end);
 
   /// should never happen since there's always a USIZE_MAX run end
-  CHECK(!last_run_span.is_empty(), "");
+  ASH_CHECK(!last_run_span.is_empty(), "");
 
   auto first_run =
     ((usize) (first_run_span.pbegin() - run_indices_.view().pbegin())) - 1;
@@ -403,7 +404,7 @@ Tuple<isize, CaretAlignment> RenderText::hit(f32x2 center, f32 align_width,
 EditHistoryBuffer EditHistoryBuffer::create(Allocator allocator,
                                             usize     records_capacity)
 {
-  CHECK(records_capacity > 0, "");
+  ASH_CHECK(records_capacity > 0, "");
   return EditHistoryBuffer{
     Vec<Record>::make(records_capacity, allocator).unwrap()};
 }
@@ -499,7 +500,7 @@ void EditHistoryBuffer::insert(usize pos, PieceTable32 & str,
 
 void EditHistoryBuffer::erase(Slice selection, PieceTable32 & str)
 {
-  CHECK(str.num_pieces() == 1, "");
+  ASH_CHECK(str.num_pieces() == 1, "");
 
   selection   = selection(str.size());
   auto substr = std::move(str.pieces_[0].subslice(selection).buffer_);

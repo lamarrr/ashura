@@ -45,18 +45,19 @@ struct SyncLib
   void load()
   {
     lib = LoadLibraryW(L"API-MS-Win-Core-Synch-l1-2-0.dll");
-    CHECK(lib != nullptr, "Failed to load API-MS-Win-Core-Synch-l1-2-0.dll");
+    ASH_CHECK(lib != nullptr,
+              "Failed to load API-MS-Win-Core-Synch-l1-2-0.dll");
 
     WaitOnAddress = (PFn_WaitOnAddress) GetProcAddress(lib, "WaitOnAddress");
-    CHECK(WaitOnAddress != nullptr,
-          "Failed to get address of WaitOnAddress from "
-          "API-MS-Win-Core-Synch-l1-2-0.dll");
+    ASH_CHECK(WaitOnAddress != nullptr,
+              "Failed to get address of WaitOnAddress from "
+              "API-MS-Win-Core-Synch-l1-2-0.dll");
 
     WakeByAddressAll =
       (PFn_WakeByAddressAll) GetProcAddress(lib, "WakeByAddressAll");
-    CHECK(WakeByAddressAll != nullptr,
-          "Failed to get address of WakeByAddressAll from "
-          "API-MS-Win-Core-Synch-l1-2-0.dll");
+    ASH_CHECK(WakeByAddressAll != nullptr,
+              "Failed to get address of WakeByAddressAll from "
+              "API-MS-Win-Core-Synch-l1-2-0.dll");
   }
 };
 
@@ -76,7 +77,7 @@ static SyncLib * sink_lib_ptr;
 
 SyncLib & get_sync_lib()
 {
-  CHECK(sink_lib_ptr != nullptr, "Sync lib not initialized");
+  ASH_CHECK(sink_lib_ptr != nullptr, "Sync lib not initialized");
   return *sink_lib_ptr;
 }
 
@@ -473,7 +474,7 @@ struct TaskQueue
   void push_task(TaskInfo const & info)
   {
     Task * t;
-    CHECK(allocator.create_task(info, t), "");
+    ASH_CHECK(allocator.create_task(info, t), "");
     push_task(t);
   }
 };
@@ -550,13 +551,13 @@ struct ASH_DLL_EXPORT SchedulerImpl final : IScheduler
 
   virtual ~SchedulerImpl() override
   {
-    CHECK(joined_, "Scheduler not joined yet");
+    ASH_CHECK(joined_, "Scheduler not joined yet");
   }
 
   virtual void shutdown() override
   {
-    CHECK(main_thread_id_ == std::this_thread::get_id(),
-          "Scheduler can only be joined on the main thread");
+    ASH_CHECK(main_thread_id_ == std::this_thread::get_id(),
+              "Scheduler can only be joined on the main thread");
 
     for (auto & t : worker_threads_)
     {
@@ -769,11 +770,11 @@ struct ASH_DLL_EXPORT SchedulerImpl final : IScheduler
   {
     thread.match(
       [&](WorkerThread t) {
-        CHECK(t == WorkerThread::Any, "Invalid worker thread id");
+        ASH_CHECK(t == WorkerThread::Any, "Invalid worker thread id");
         worker_queue_.push_task(info);
       },
       [&](DedicatedThread t) {
-        CHECK((u32) t < num_dedicated(), "Invalid dedicated thread id");
+        ASH_CHECK((u32) t < num_dedicated(), "Invalid dedicated thread id");
         dedicated_threads_[(u32) t]->queue.push_task(info);
       },
       [&](MainThread) { main_queue_.push_task(info); });
@@ -785,33 +786,34 @@ struct ASH_DLL_EXPORT SchedulerImpl final : IScheduler
     main_thread_loop(main_queue_.allocator, main_queue_, duration, poll_max);
   }
 
+  // [ ] incorrect if threads are shutdown individually
   virtual void request_thread_shutdown(Thread thread) override
   {
     thread.match(
       [&](WorkerThread) {
-        CHECK(false, "Worker threads cannot be shutdown individually");
+        ASH_CHECK(false, "Worker threads cannot be shutdown individually");
       },
       [&](DedicatedThread t) {
-        CHECK((u32) t < num_dedicated(), "Invalid dedicated thread id");
+        ASH_CHECK((u32) t < num_dedicated(), "Invalid dedicated thread id");
         auto &          token = dedicated_threads_[(u32) t]->stop_token;
         std::atomic_ref token_ref{token};
         token_ref.store(true, std::memory_order_relaxed);
       },
-      [&](MainThread) { CHECK(false, "Main thread cannot be shutdown"); });
+      [&](MainThread) { ASH_CHECK(false, "Main thread cannot be shutdown"); });
   }
 
   virtual void await_thread_shutdown(Thread thread) override
   {
     thread.match(
       [&](WorkerThread) {
-        CHECK(false, "Worker threads cannot be shutdown individually");
+        ASH_CHECK(false, "Worker threads cannot be shutdown individually");
       },
       [&](DedicatedThread t) {
-        CHECK((u32) t < num_dedicated(), "Invalid dedicated thread id");
+        ASH_CHECK((u32) t < num_dedicated(), "Invalid dedicated thread id");
         auto & tok = dedicated_threads_[(u32) t]->shutdown_token;
         tok.os_wait(0U, std::memory_order_acquire);
       },
-      [&](MainThread) { CHECK(false, "Main thread cannot be shutdown"); });
+      [&](MainThread) { ASH_CHECK(false, "Main thread cannot be shutdown"); });
   }
 };
 
