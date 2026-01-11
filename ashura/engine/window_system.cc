@@ -485,7 +485,7 @@ struct WindowSysImpl final : IWindowSys
       case SDL_SystemTheme::SDL_SYSTEM_THEME_UNKNOWN:
         return SystemTheme::Unknown;
       default:
-        CHECK_UNREACHABLE();
+        ASH_CHECK_UNREACHABLE();
     }
   }
 
@@ -582,7 +582,7 @@ struct WindowSysImpl final : IWindowSys
               mouse_event.button = MouseButton::A2;
               break;
             default:
-              CHECK_UNREACHABLE();
+              ASH_CHECK_UNREACHABLE();
           }
 
           switch (event.type)
@@ -1383,7 +1383,7 @@ struct WindowSysImpl final : IWindowSys
             type = SDL_TEXTINPUT_TYPE_NUMBER_PASSWORD_VISIBLE;
             break;
           default:
-            CHECK_UNREACHABLE();
+            ASH_CHECK_UNREACHABLE();
         }
 
         switch (i.cap)
@@ -1401,7 +1401,7 @@ struct WindowSysImpl final : IWindowSys
             cap = SDL_CAPITALIZE_LETTERS;
             break;
           default:
-            CHECK_UNREACHABLE();
+            ASH_CHECK_UNREACHABLE();
         }
 
         CHECK_SDL(

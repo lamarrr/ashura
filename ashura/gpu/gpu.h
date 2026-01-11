@@ -1667,7 +1667,8 @@ struct IDevice
 inline void IDevice::uninit_object(Object object)
 {
   object.match(
-    [](Instance) { CHECK_UNREACHABLE(); }, [](Device) { CHECK_UNREACHABLE(); },
+    [](Instance) { ASH_CHECK_UNREACHABLE(); },
+    [](Device) { ASH_CHECK_UNREACHABLE(); },
     [&](CommandEncoder r) { uninit(r); }, [&](CommandBuffer r) { uninit(r); },
     [&](Buffer r) { uninit(r); }, [&](BufferView r) { uninit(r); },
     [&](Image r) { uninit(r); }, [&](ImageView r) { uninit(r); },
@@ -1677,7 +1678,7 @@ inline void IDevice::uninit_object(Object object)
     [&](ComputePipeline r) { uninit(r); },
     [&](GraphicsPipeline r) { uninit(r); },
     [&](TimestampQuery r) { uninit(r); }, [&](StatisticsQuery r) { uninit(r); },
-    [&](Surface) { CHECK_UNREACHABLE(); }, [&](Swapchain r) { uninit(r); },
+    [&](Surface) { ASH_CHECK_UNREACHABLE(); }, [&](Swapchain r) { uninit(r); },
     [&](QueueScope r) { uninit(r); });
 }
 

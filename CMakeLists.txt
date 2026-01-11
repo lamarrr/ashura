@@ -128,7 +128,7 @@ set(SIMDJSON_BUILD_STATIC_LIB
 include(FetchContent)
 include(ExternalProject)
 
-set(ASH_VULKAN_VERSION "1.4.328.1")
+set(ASH_VULKAN_VERSION "1.4.335.0")
 set(ASH_VULKAN_SDK_VERSION "vulkan-sdk-${ASH_VULKAN_VERSION}")
 
 FetchContent_Declare(
@@ -159,12 +159,12 @@ FetchContent_Declare(
 FetchContent_Declare(
   SDL3
   GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
-  GIT_TAG release-3.2.26)
+  GIT_TAG release-3.4.0)
 
 FetchContent_Declare(
   harfbuzz
   GIT_REPOSITORY https://github.com/harfbuzz/harfbuzz.git
-  GIT_TAG 12.2.0)
+  GIT_TAG bb7dbc2)
 
 FetchContent_Declare(
   Freetype
@@ -221,7 +221,7 @@ FetchContent_Declare(
   GIT_TAG 92c3963)
 
 find_package(FFMPEG REQUIRED)
-find_package(JPEG REQUIRED)
+find_package(libjpeg-turbo CONFIG REQUIRED)
 find_package(Threads REQUIRED)
 
 if(ASH_BUILD_DOC)
@@ -467,17 +467,18 @@ if(NOT ASH_EXCLUDE_ENGINE)
   target_link_libraries(
     ashura_engine
     PUBLIC ashura_std ashura_gpu
-    PRIVATE SDL3::SDL3-static
-            harfbuzz
-            CURL::libcurl
-            freetype
-            simdjson::simdjson_static
-            webp
-            webpdecoder
-            JPEG::JPEG
-            png_static
-            sheenbidi::sheenbidi
-            ${FFMPEG_LIBRARIES})
+    PRIVATE
+      SDL3::SDL3-static
+      harfbuzz
+      CURL::libcurl
+      freetype
+      simdjson::simdjson_static
+      webp
+      webpdecoder
+      $<IF:$<TARGET_EXISTS:libjpeg-turbo::turbojpeg>,libjpeg-turbo::turbojpeg,libjpeg-turbo::turbojpeg-static>
+      png_static
+      sheenbidi::sheenbidi
+      ${FFMPEG_LIBRARIES})
 
   target_include_directories(
     ashura_engine

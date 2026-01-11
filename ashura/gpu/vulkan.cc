@@ -1401,7 +1401,7 @@ constexpr u64 index_type_size(gpu::IndexType type)
     case gpu::IndexType::U32:
       return 4;
     default:
-      CHECK_UNREACHABLE();
+      ASH_CHECK_UNREACHABLE();
   }
 }
 
@@ -5035,7 +5035,7 @@ void IDevice::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
     break;
 
     default:
-      CHECK_UNREACHABLE();
+      ASH_CHECK_UNREACHABLE();
   }
 
   Vec<VkDescriptorBufferInfo> buffer_infos{scratch_};
@@ -5096,7 +5096,7 @@ void IDevice::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
     break;
 
     default:
-      CHECK_UNREACHABLE();
+      ASH_CHECK_UNREACHABLE();
   }
 
   VkWriteDescriptorSet vk_write{
@@ -5136,7 +5136,7 @@ void IDevice::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
     }
     break;
     default:
-      CHECK_UNREACHABLE();
+      ASH_CHECK_UNREACHABLE();
   }
 }
 
