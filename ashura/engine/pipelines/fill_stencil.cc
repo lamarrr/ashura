@@ -115,9 +115,9 @@ void FillStencilPipeline::encode(gpu::CommandEncoder               e,
       params.indices.slice.as_u32().offset,             // 3: indices
     }));
 
-  CHECK(size32(params.states) > 0, "");
-  CHECK(size32(params.state_runs) == (size32(params.states) + 1), "");
-  CHECK(size32(params.index_runs) > 1, "");
+  ASH_CHECK(size32(params.states) > 0, "");
+  ASH_CHECK(size32(params.state_runs) == (size32(params.states) + 1), "");
+  ASH_CHECK(size32(params.index_runs) > 1, "");
   auto num_states = size32(params.states);
 
   for (auto s : range(num_states))

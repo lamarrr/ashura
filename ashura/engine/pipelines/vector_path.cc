@@ -192,7 +192,7 @@ void VectorPathPipeline::acquire(GpuFramePlan plan, Allocator allocator,
     plan, "base"_str,
     sys.shader->get("defaults/vector_path_base"_str).unwrap().shader, allocator,
     scratch);
-  CHECK(id == PipelineVariantId::Base, "");
+  ASH_CHECK(id == PipelineVariantId::Base, "");
 }
 
 PipelineVariantId VectorPathPipeline::add_fill_variant(GpuFramePlan plan,
@@ -253,9 +253,9 @@ void VectorPathPipeline::encode(gpu::CommandEncoder                      e,
       params.indices.slice.as_u32().offset            //
     }));
 
-  CHECK(size32(params.states) > 0, "");
-  CHECK(size32(params.state_runs) == (size32(params.states) + 1), "");
-  CHECK(size32(params.index_runs) > 1, "");
+  ASH_CHECK(size32(params.states) > 0, "");
+  ASH_CHECK(size32(params.state_runs) == (size32(params.states) + 1), "");
+  ASH_CHECK(size32(params.index_runs) > 1, "");
   auto num_states = size32(params.states);
 
   for (auto s : range(num_states))
@@ -344,8 +344,8 @@ void VectorPathPipeline::encode(gpu::CommandEncoder                  e,
       params.fill_items.slice.as_u32().offset       // 3: fill_items
     }));
 
-  CHECK(size32(params.states) > 0, "");
-  CHECK(size32(params.state_runs) == (size32(params.states) + 1), "");
+  ASH_CHECK(size32(params.states) > 0, "");
+  ASH_CHECK(size32(params.state_runs) == (size32(params.states) + 1), "");
   auto num_states = size32(params.states);
 
   for (auto s : range(num_states))

@@ -124,7 +124,7 @@ void PBRPipeline::acquire(GpuFramePlan plan, Allocator allocator,
   auto id = add_variant(
     plan, "base"_str, sys.shader->get("defaults/pbr_base"_str).unwrap().shader,
     allocator, scratch);
-  CHECK(id == PipelineVariantId::Base, "");
+  ASH_CHECK(id == PipelineVariantId::Base, "");
 }
 
 PipelineVariantId PBRPipeline::add_variant(GpuFramePlan plan, Str label,
@@ -134,7 +134,7 @@ PipelineVariantId PBRPipeline::add_variant(GpuFramePlan plan, Str label,
 {
   auto pipeline = create_pipeline(plan, label, shader, allocator, scratch);
   auto id = (PipelineVariantId) variants_.push(Tuple{label, pipeline}).unwrap();
-  CHECK(id == PipelineVariantId::Base, "");
+  ASH_CHECK(id == PipelineVariantId::Base, "");
   return id;
 }
 

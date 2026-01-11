@@ -108,7 +108,7 @@ void QuadPipeline::acquire(GpuFramePlan plan, Allocator allocator,
   auto id = add_variant(
     plan, "base"_str, sys.shader->get("defaults/quad_base"_str).unwrap().shader,
     allocator, scratch);
-  CHECK(id == PipelineVariantId::Base, "");
+  ASH_CHECK(id == PipelineVariantId::Base, "");
 }
 
 PipelineVariantId QuadPipeline::add_variant(GpuFramePlan plan, Str label,
@@ -189,8 +189,8 @@ void QuadPipeline::encode(gpu::CommandEncoder        e,
       params.quads.slice.as_u32().offset            // 3: quads
     }));
 
-  CHECK(size32(params.states) > 0, "");
-  CHECK(size32(params.state_runs) == (size32(params.states) + 1), "");
+  ASH_CHECK(size32(params.states) > 0, "");
+  ASH_CHECK(size32(params.state_runs) == (size32(params.states) + 1), "");
   auto num_states = size32(params.states);
 
   for (auto s : range(num_states))

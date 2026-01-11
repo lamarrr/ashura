@@ -109,17 +109,17 @@ void SdfPipeline::acquire(GpuFramePlan plan, Allocator allocator,
     add_variant(plan, "gradient"_str,
                 sys.shader->get("defaults/sdf_gradient"_str).unwrap().shader,
                 allocator, scratch);
-  CHECK(gradient_id == GRADIENT, "");
+  ASH_CHECK(gradient_id == GRADIENT, "");
   auto noise_id =
     add_variant(plan, "noise"_str,
                 sys.shader->get("defaults/sdf_noise"_str).unwrap().shader,
                 allocator, scratch);
-  CHECK(noise_id == NOISE, "");
+  ASH_CHECK(noise_id == NOISE, "");
   auto mesh_gradient_id = add_variant(
     plan, "mesh_gradient"_str,
     sys.shader->get("defaults/sdf_mesh_gradient"_str).unwrap().shader,
     allocator, scratch);
-  CHECK(mesh_gradient_id == MESH_GRADIENT, "");
+  ASH_CHECK(mesh_gradient_id == MESH_GRADIENT, "");
 }
 
 PipelineVariantId SdfPipeline::add_variant(GpuFramePlan plan, Str label,
@@ -200,8 +200,8 @@ void SdfPipeline::encode(gpu::CommandEncoder       e,
       params.items.slice.as_u32().offset            // 3: items
     }));
 
-  CHECK(size32(params.states) > 0, "");
-  CHECK(size32(params.state_runs) == (size32(params.states) + 1), "");
+  ASH_CHECK(size32(params.states) > 0, "");
+  ASH_CHECK(size32(params.state_runs) == (size32(params.states) + 1), "");
   auto num_states = size32(params.states);
 
   for (auto s : range(num_states))
