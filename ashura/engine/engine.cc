@@ -813,8 +813,7 @@ void IEngine::run()
       },
         w.state_.extent_.to<f32>(), w.state_.surface_extent_);
 
-      auto *             arena = get_thread_arena();
-      IFallbackAllocator scratch{arena, allocator_};
+      auto scratch= IFallbackAllocator {get_thread_arena(), allocator_};
       auto state = w.view_sys_->tick(this, ui::InputScope{state_, w.state_},
                                      &w.canvas_, w.loop_, scratch);
 

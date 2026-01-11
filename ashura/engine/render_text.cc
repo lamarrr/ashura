@@ -1134,29 +1134,29 @@ void EditText::tick(nanoseconds)
             tracing::ScopeTrace trace{"EditText::tick::apply_actions"_str};
             auto                cursors = SmallVec<Cursor, 8>{allocator};
 
-            Option<RenderText> rendered = none;
+            Option<RenderText> text = none;
 
-            auto rebuild = [&](PieceTable32 const & pieces, f32 max_width,
-                               Renderer const & renderer) {
-              StrVec32 text{allocator};
-              pieces.compact(Slice::all(), text).unwrap();
-              auto rc_text  = rc<StrVec32>(allocator, std::move(text)).unwrap();
-              auto view     = rc_text->view().as_const();
-              auto rc_str32 = transmute(std::move(rc_text), view);
-              auto new_text = renderer(allocator, std::move(rc_str32));
-              auto * arena  = get_thread_arena();
-              auto   scratch_allocator = IFallbackAllocator{arena, allocator};
-              new_text.layout(max_width, scratch_allocator);
-              rendered = std::move(new_text);
+            auto render = [&](PieceTable32 const & pieces, f32 max_width,
+                              Renderer const & renderer) {
+              StrVec32 str{allocator};
+              pieces.compact(Slice::all(), str).unwrap();
+              auto rc_strvec = rc<StrVec32>(allocator, std::move(str)).unwrap();
+              auto view      = rc_strvec->view().as_const();
+              auto rc_str32  = transmute(std::move(rc_strvec), view);
+              auto text      = renderer(allocator, std::move(rc_str32));
+              auto scratch_allocator =
+                IFallbackAllocator{get_thread_arena(), allocator};
+              text.layout(max_width, scratch_allocator);
+              return text;
             };
 
             for (auto & action : actions)
             {
-              auto &       layout = rendered.is_some() ?
-                                      rendered->get_layout() :
-                                      previous_state_->text.get_layout();
-              auto &       str    = rendered.is_some() ? rendered->text_ :
-                                                         previous_state_->text.text_;
+              auto & layout = text.is_some() ?
+                                text->get_layout() :
+                                previous_state_->text.get_layout();
+              auto & str =
+                text.is_some() ? text->text_ : previous_state_->text.text_;
               PieceTable32 pieces{allocator};
               pieces.insert(0, str.alias()).unwrap();
 
@@ -1166,8 +1166,8 @@ void EditText::tick(nanoseconds)
                   auto cp        = layout.get_caret_codepoint(a.cursor.caret());
                   auto codepoint = cp.codepoint + (cp.after ? 1 : 0);
                   history.insert(codepoint, pieces, a.str.alias());
-                  rebuild(pieces, a.max_width, a.renderer);
-                  auto & new_layout = rendered->get_layout();
+                  text              = render(pieces, a.max_width, a.renderer);
+                  auto & new_layout = text->get_layout();
                   auto   caret =
                     new_layout.to_caret(codepoint + a.str.get().size(), true);
                   auto cursor = TextCursor{};
@@ -1179,38 +1179,38 @@ void EditText::tick(nanoseconds)
                   auto selection =
                     layout.get_caret_selection(a.cursor.selection());
                   history.erase(selection, pieces);
-                  rebuild(pieces, a.max_width, a.renderer);
+                  text        = render(pieces, a.max_width, a.renderer);
                   auto cursor = TextCursor{};
                   cursor.move_to(a.cursor.left_caret())
-                    .normalize(rendered->get_layout().num_carets);
+                    .normalize(text->get_layout().num_carets);
                   cursors.push(Cursor{.id = a.id, .v = cursor}).unwrap();
                 },
                 [&](UndoAction & a) {
                   history.undo(pieces).match(
                     [&](Slice insertion) {
-                      rebuild(pieces, a.max_width, a.renderer);
-                      auto & new_layout = rendered->get_layout();
+                      text = render(pieces, a.max_width, a.renderer);
+                      auto & new_layout = text->get_layout();
                       auto selection = new_layout.to_caret_selection(insertion);
                       auto cursor    = TextCursor{};
                       cursor.select(selection);
                       cursors.push(Cursor{.id = a.id, .v = cursor}).unwrap();
                     },
-                    [&] { rebuild(pieces, a.max_width, a.renderer); });
+                    [&] { text = render(pieces, a.max_width, a.renderer); });
                 },
                 [&](RedoAction & a) {
                   history.redo(pieces).match(
                     [&](Slice insertion) {
-                      rebuild(pieces, a.max_width, a.renderer);
-                      auto & new_layout = rendered->get_layout();
+                      text = render(pieces, a.max_width, a.renderer);
+                      auto & new_layout = text->get_layout();
                       auto selection = new_layout.to_caret_selection(insertion);
                       auto cursor    = TextCursor{};
                       cursor.select(selection);
                       cursors.push(Cursor{.id = a.id, .v = cursor}).unwrap();
                     },
-                    [&] { rebuild(pieces, a.max_width, a.renderer); });
+                    [&] { text = render(pieces, a.max_width, a.renderer); });
                 },
                 [&](RelayoutAction & a) {
-                  rebuild(pieces, a.max_width, a.renderer);
+                  text = render(pieces, a.max_width, a.renderer);
                 },
                 [&](CopyAction & a) {
                   a.cursor.normalize(layout.num_carets);
@@ -1223,7 +1223,7 @@ void EditText::tick(nanoseconds)
                 });
             }
 
-            return rc(allocator, ActionResult{.text    = std::move(rendered),
+            return rc(allocator, ActionResult{.text    = std::move(text),
                                               .history = std::move(history),
                                               .cursors = std::move(cursors)})
               .unwrap();

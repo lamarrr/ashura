@@ -18,15 +18,6 @@ namespace ash
 namespace vk
 {
 
-#define SCRATCH_STACK_RESERVE_SIZE 16_KB
-#define SCRATCH_ALLOCATOR(upstream)                                \
-  u8                 scratch_memory__[SCRATCH_STACK_RESERVE_SIZE]; \
-  IArena             scratch_arena__{scratch_memory__};            \
-  IFallbackAllocator scratch_                                      \
-  {                                                                \
-    &scratch_arena__, upstream                                     \
-  }
-
 constexpr auto DEBUG_LAYER_EXTENSION_NAME = "VK_LAYER_KHRONOS_validation"_str;
 
 VkResult DebugMarkerSetObjectTagEXT_Stub(VkDevice,
@@ -1518,7 +1509,7 @@ static VkBool32 VKAPI_ATTR VKAPI_CALL
 Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
                                                    bool      enable_validation)
 {
-  SCRATCH_ALLOCATOR(allocator);
+  auto scratch = IFallbackAllocator{get_thread_arena(), allocator};
 
   u32  num_exts;
   auto result =
@@ -1529,7 +1520,7 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
     return Err{(Status) result};
   }
 
-  Vec<VkExtensionProperties> extensions{scratch_};
+  Vec<VkExtensionProperties> extensions{scratch};
 
   if (!extensions.resize_uninit(num_exts))
   {
@@ -1554,7 +1545,7 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
     return Err{(Status) result};
   }
 
-  Vec<VkLayerProperties> layers{scratch_};
+  Vec<VkLayerProperties> layers{scratch};
 
   if (!layers.resize_uninit(num_layers))
   {
@@ -1597,9 +1588,9 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
           VK_API_VERSION_VARIANT(layer.implementationVersion));
   }
 
-  Vec<Str> load_extensions{scratch_};
+  Vec<Str> load_extensions{scratch};
 
-  Vec<Str> required_extensions{scratch_};
+  Vec<Str> required_extensions{scratch};
 
   required_extensions
     .append(
@@ -1607,7 +1598,7 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
             cstr(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME)}))
     .unwrap();
 
-  Vec<Str> optional_extensions{scratch_};
+  Vec<Str> optional_extensions{scratch};
 
   optional_extensions
     .append(span({cstr(VK_EXT_DEBUG_UTILS_EXTENSION_NAME),
@@ -1650,14 +1641,14 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
     }
   }
 
-  Vec<Str> optional_layers{scratch_};
+  Vec<Str> optional_layers{scratch};
 
   if (enable_validation)
   {
     optional_layers.push(DEBUG_LAYER_EXTENSION_NAME).unwrap();
   }
 
-  Vec<Str> load_layers{scratch_};
+  Vec<Str> load_layers{scratch};
 
   for (auto layer : optional_layers)
   {
@@ -1711,14 +1702,14 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
           cstr(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME), span_bit_eq)
        .is_empty();
 
-  Vec<char const *> load_extensions_c{scratch_};
+  Vec<char const *> load_extensions_c{scratch};
 
   for (auto l : load_extensions)
   {
     load_extensions_c.push(l.data()).unwrap();
   }
 
-  Vec<char const *> load_layers_c{scratch_};
+  Vec<char const *> load_layers_c{scratch};
 
   for (auto l : load_layers)
   {
@@ -1838,7 +1829,7 @@ Result<gpu::Device, Status>
   IInstance::create_device(Allocator                   allocator,
                            Span<gpu::DeviceType const> preferred_types)
 {
-  SCRATCH_ALLOCATOR(allocator_);
+  auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
 
   u32  num_devs;
   auto result = table_.EnumeratePhysicalDevices(vk_, &num_devs, nullptr);
@@ -1853,7 +1844,7 @@ Result<gpu::Device, Status>
     return Err{Status::DeviceLost};
   }
 
-  Vec<VkPhysicalDevice> vk_phy_devs{scratch_};
+  Vec<VkPhysicalDevice> vk_phy_devs{scratch};
 
   if (!vk_phy_devs.resize_uninit(num_devs))
   {
@@ -1869,7 +1860,7 @@ Result<gpu::Device, Status>
 
   ASH_CHECK(num_devs == vk_phy_devs.size(), "");
 
-  Vec<IPhysicalDevice> physical_devs{scratch_};
+  Vec<IPhysicalDevice> physical_devs{scratch};
   if (!physical_devs.resize_uninit(num_devs))
   {
     return Err{Status::OutOfHostMemory};
@@ -1942,7 +1933,7 @@ Result<gpu::Device, Status>
     table_.GetPhysicalDeviceQueueFamilyProperties2KHR(
       dev.vk, &num_queue_families, nullptr);
 
-    Vec<VkQueueFamilyProperties2KHR> queue_family_properties{scratch_};
+    Vec<VkQueueFamilyProperties2KHR> queue_family_properties{scratch};
 
     for (auto _ : range(num_queue_families))
     {
@@ -1977,7 +1968,7 @@ Result<gpu::Device, Status>
       table_.GetPhysicalDeviceQueueFamilyProperties2KHR(
         dev.vk, &num_queue_families, nullptr);
 
-      Vec<VkQueueFamilyProperties2KHR> queue_family_properties{scratch_};
+      Vec<VkQueueFamilyProperties2KHR> queue_family_properties{scratch};
 
       for (auto _ : range(num_queue_families))
       {
@@ -2044,7 +2035,7 @@ Result<gpu::Device, Status>
     return Err{(Status) result};
   }
 
-  Vec<VkExtensionProperties> extensions{scratch_};
+  Vec<VkExtensionProperties> extensions{scratch};
 
   if (!extensions.resize_uninit(num_extensions))
   {
@@ -2069,7 +2060,7 @@ Result<gpu::Device, Status>
     return Err{(Status) result};
   }
 
-  Vec<VkLayerProperties> layers{scratch_};
+  Vec<VkLayerProperties> layers{scratch};
 
   if (!layers.resize_uninit(num_layers))
   {
@@ -2112,7 +2103,7 @@ Result<gpu::Device, Status>
           VK_API_VERSION_VARIANT(layer.implementationVersion));
   }
 
-  Vec<Str> required_extensions{scratch_};
+  Vec<Str> required_extensions{scratch};
 
   required_extensions
     .append(span<Str>({cstr(VK_KHR_SWAPCHAIN_EXTENSION_NAME),
@@ -2123,14 +2114,14 @@ Result<gpu::Device, Status>
                        cstr(VK_KHR_CREATE_RENDERPASS_2_EXTENSION_NAME)}))
     .unwrap();
 
-  Vec<Str> optional_extensions{scratch_};
+  Vec<Str> optional_extensions{scratch};
 
   optional_extensions
     .append(span<Str>({cstr(VK_EXT_DEBUG_MARKER_EXTENSION_NAME),
                        cstr(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME)}))
     .unwrap();
 
-  Vec<Str> load_extensions{scratch_};
+  Vec<Str> load_extensions{scratch};
 
   for (auto ext : required_extensions)
   {
@@ -2163,14 +2154,14 @@ Result<gpu::Device, Status>
           span_bit_eq)
        .is_empty();
 
-  Vec<Str> optional_layers{scratch_};
+  Vec<Str> optional_layers{scratch};
 
   if (vk_debug_messenger_ != nullptr)
   {
     optional_layers.push(DEBUG_LAYER_EXTENSION_NAME).unwrap();
   }
 
-  Vec<Str> load_layers{scratch_};
+  Vec<Str> load_layers{scratch};
 
   for (auto layer : optional_layers)
   {
@@ -2186,14 +2177,14 @@ Result<gpu::Device, Status>
     }
   }
 
-  Vec<char const *> load_extensions_c{scratch_};
+  Vec<char const *> load_extensions_c{scratch};
 
   for (auto l : load_extensions)
   {
     load_extensions_c.push(l.data()).unwrap();
   }
 
-  Vec<char const *> load_layers_c{scratch_};
+  Vec<char const *> load_layers_c{scratch};
 
   for (auto l : load_layers)
   {
@@ -2386,7 +2377,7 @@ Result<gpu::Device, Status>
 
   auto queue_label = "CommandQueue 0"_str;
   dev->set_resource_name(queue_label, dev->vk_queue_, VK_OBJECT_TYPE_QUEUE,
-                         VK_DEBUG_REPORT_OBJECT_TYPE_QUEUE_EXT, scratch_);
+                         VK_DEBUG_REPORT_OBJECT_TYPE_QUEUE_EXT, scratch);
 
   return Ok<gpu::Device>{dev};
 }
@@ -2574,7 +2565,7 @@ Result<gpu::Buffer, Status> IDevice::create_buffer(gpu::BufferInfo const & info)
 {
   ASH_CHECK(info.size != 0, "");
   ASH_CHECK(info.usage != gpu::BufferUsage::None, "");
-  SCRATCH_ALLOCATOR(allocator_);
+  auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
 
   VkBufferCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
                                  .pNext = nullptr,
@@ -2595,7 +2586,7 @@ Result<gpu::Buffer, Status> IDevice::create_buffer(gpu::BufferInfo const & info)
   }
 
   set_resource_name(info.label, vk, VK_OBJECT_TYPE_BUFFER,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT, scratch_);
+                    VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT, scratch);
 
   IBuffer * buffer;
 
@@ -2635,7 +2626,7 @@ Result<gpu::Buffer, Status> IDevice::create_buffer(gpu::BufferInfo const & info)
 Result<gpu::BufferView, Status>
   IDevice::create_buffer_view(gpu::BufferViewInfo const & info)
 {
-  SCRATCH_ALLOCATOR(allocator_);
+  auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
 
   auto * buffer = (Buffer) info.buffer;
 
@@ -2666,7 +2657,7 @@ Result<gpu::BufferView, Status>
   }
 
   set_resource_name(info.label, vk, VK_OBJECT_TYPE_BUFFER_VIEW,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_VIEW_EXT, scratch_);
+                    VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_VIEW_EXT, scratch);
 
   IBufferView * view;
 
@@ -2686,7 +2677,7 @@ Result<gpu::BufferView, Status>
 
 Result<gpu::Image, Status> IDevice::create_image(gpu::ImageInfo const & info)
 {
-  SCRATCH_ALLOCATOR(allocator_);
+  auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
 
   ASH_CHECK(info.format != gpu::Format::Undefined, "");
   ASH_CHECK(info.usage != gpu::ImageUsage::None, "");
@@ -2759,7 +2750,7 @@ Result<gpu::Image, Status> IDevice::create_image(gpu::ImageInfo const & info)
   }
 
   set_resource_name(info.label, vk, VK_OBJECT_TYPE_IMAGE,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT, scratch_);
+                    VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT, scratch);
 
   IImage * image;
 
@@ -2802,7 +2793,7 @@ Result<gpu::Image, Status> IDevice::create_image(gpu::ImageInfo const & info)
 Result<gpu::ImageView, Status>
   IDevice::create_image_view(gpu::ImageViewInfo const & info)
 {
-  SCRATCH_ALLOCATOR(allocator_);
+  auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
 
   auto * src_image = (Image) info.image;
 
@@ -2844,7 +2835,7 @@ Result<gpu::ImageView, Status>
   }
 
   set_resource_name(info.label, vk, VK_OBJECT_TYPE_IMAGE_VIEW,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_VIEW_EXT, scratch_);
+                    VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_VIEW_EXT, scratch);
 
   IImageView * view;
 
@@ -3017,7 +3008,7 @@ Result<gpu::Alias, Status>
 Result<gpu::Sampler, Status>
   IDevice::create_sampler(gpu::SamplerInfo const & info)
 {
-  SCRATCH_ALLOCATOR(allocator_);
+  auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
 
   ASH_CHECK(
     !(info.anisotropy_enable &&
@@ -3054,14 +3045,14 @@ Result<gpu::Sampler, Status>
   }
 
   set_resource_name(info.label, vk_sampler, VK_OBJECT_TYPE_SAMPLER,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_SAMPLER_EXT, scratch_);
+                    VK_DEBUG_REPORT_OBJECT_TYPE_SAMPLER_EXT, scratch);
 
   return Ok{(gpu::Sampler) vk_sampler};
 }
 
 Result<gpu::Shader, Status> IDevice::create_shader(gpu::ShaderInfo const & info)
 {
-  SCRATCH_ALLOCATOR(allocator_);
+  auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
 
   ASH_CHECK(info.spirv_code.size_bytes() > 0, "");
 
@@ -3081,7 +3072,7 @@ Result<gpu::Shader, Status> IDevice::create_shader(gpu::ShaderInfo const & info)
   }
 
   set_resource_name(info.label, vk_shader, VK_OBJECT_TYPE_SHADER_MODULE,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT, scratch_);
+                    VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT, scratch);
 
   return Ok{(gpu::Shader) vk_shader};
 }
@@ -3135,7 +3126,7 @@ bool is_readonly_set(Span<gpu::DescriptorBindingInfo const> bindings)
 Result<gpu::DescriptorSetLayout, Status> IDevice::create_descriptor_set_layout(
   gpu::DescriptorSetLayoutInfo const & info)
 {
-  SCRATCH_ALLOCATOR(allocator_);
+  auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
 
   u32                                   num_descriptors     = 0;
   u32                                   num_variable_length = 0;
@@ -3186,8 +3177,8 @@ Result<gpu::DescriptorSetLayout, Status> IDevice::create_descriptor_set_layout(
       !(binding.is_variable_length && (i != (info.bindings.size() - 1))), "");
   }
 
-  Vec<VkDescriptorSetLayoutBinding, 0> vk_bindings{scratch_};
-  Vec<VkDescriptorBindingFlagsEXT, 0>  vk_binding_flags{scratch_};
+  Vec<VkDescriptorSetLayoutBinding, 0> vk_bindings{scratch};
+  Vec<VkDescriptorBindingFlagsEXT, 0>  vk_binding_flags{scratch};
 
   for (auto [i, binding] : enumerate<u32>(info.bindings))
   {
@@ -3245,7 +3236,7 @@ Result<gpu::DescriptorSetLayout, Status> IDevice::create_descriptor_set_layout(
 
   set_resource_name(info.label, vk, VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT,
                     VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT_EXT,
-                    scratch_);
+                    scratch);
 
   IDescriptorSetLayout * layout;
 
@@ -3272,7 +3263,7 @@ Result<gpu::DescriptorSetLayout, Status> IDevice::create_descriptor_set_layout(
 Result<gpu::DescriptorSet, Status>
   IDevice::create_descriptor_set(gpu::DescriptorSetInfo const & info)
 {
-  SCRATCH_ALLOCATOR(allocator_);
+  auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
 
   auto * layout = (DescriptorSetLayout) info.layout;
   ASH_CHECK(info.variable_lengths.size() == layout->num_variable_length, "");
@@ -3293,7 +3284,7 @@ Result<gpu::DescriptorSet, Status>
 
   constexpr u32 NUM_VK_DESCRIPTOR_TYPES = 11;
 
-  Vec<u32, 0> bindings_sizes{scratch_};
+  Vec<u32, 0> bindings_sizes{scratch};
 
   Array<u32, NUM_VK_DESCRIPTOR_TYPES> vk_type_count;
 
@@ -3381,10 +3372,10 @@ Result<gpu::DescriptorSet, Status>
   }
 
   set_resource_name(info.label, vk, VK_OBJECT_TYPE_DESCRIPTOR_SET,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_SET_EXT, scratch_);
+                    VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_SET_EXT, scratch);
 
   set_resource_name(info.label, vk_pool, VK_OBJECT_TYPE_DESCRIPTOR_POOL,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_POOL_EXT, scratch_);
+                    VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_POOL_EXT, scratch);
 
   SmallVec<DescriptorBinding, 1, 0> bindings{allocator_};
 
@@ -3450,7 +3441,7 @@ Result<gpu::DescriptorSet, Status>
 Result<gpu::PipelineCache, Status>
   IDevice::create_pipeline_cache(gpu::PipelineCacheInfo const & info)
 {
-  SCRATCH_ALLOCATOR(allocator_);
+  auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
 
   VkPipelineCacheCreateInfo create_info{
     .sType           = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO,
@@ -3468,7 +3459,7 @@ Result<gpu::PipelineCache, Status>
   }
 
   set_resource_name(info.label, vk_cache, VK_OBJECT_TYPE_PIPELINE_CACHE,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_CACHE_EXT, scratch_);
+                    VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_CACHE_EXT, scratch);
 
   return Ok{(gpu::PipelineCache) vk_cache};
 }
@@ -3476,7 +3467,7 @@ Result<gpu::PipelineCache, Status>
 Result<gpu::ComputePipeline, Status>
   IDevice::create_compute_pipeline(gpu::ComputePipelineInfo const & info)
 {
-  SCRATCH_ALLOCATOR(allocator_);
+  auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
 
   ASH_CHECK(info.descriptor_set_layouts.size() <=
               phy_.vk_properties.limits.maxBoundDescriptorSets,
@@ -3490,7 +3481,7 @@ Result<gpu::ComputePipeline, Status>
             "");
   ASH_CHECK(info.compute_shader.shader != nullptr, "");
 
-  Vec<VkDescriptorSetLayout, 0> vk_descriptor_set_layouts{scratch_};
+  Vec<VkDescriptorSetLayout, 0> vk_descriptor_set_layouts{scratch};
 
   for (auto layout : info.descriptor_set_layouts)
   {
@@ -3504,7 +3495,7 @@ Result<gpu::ComputePipeline, Status>
     .dataSize = info.compute_shader.specialization_constants_data.size_bytes(),
     .pData    = info.compute_shader.specialization_constants_data.data()};
 
-  Vec<char> entry_point{scratch_};
+  Vec<char> entry_point{scratch};
   entry_point.append(info.compute_shader.entry_point).unwrap();
   entry_point.push('\0').unwrap();
 
@@ -3561,9 +3552,9 @@ Result<gpu::ComputePipeline, Status>
   }
 
   set_resource_name(info.label, vk, VK_OBJECT_TYPE_PIPELINE,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_EXT, scratch_);
+                    VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_EXT, scratch);
   set_resource_name(info.label, vk_layout, VK_OBJECT_TYPE_PIPELINE_LAYOUT,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_LAYOUT_EXT, scratch_);
+                    VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_LAYOUT_EXT, scratch);
 
   IComputePipeline * pipeline;
 
@@ -3586,7 +3577,7 @@ Result<gpu::ComputePipeline, Status>
 Result<gpu::GraphicsPipeline, Status>
   IDevice::create_graphics_pipeline(gpu::GraphicsPipelineInfo const & info)
 {
-  SCRATCH_ALLOCATOR(allocator_);
+  auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
 
   ASH_CHECK(!(info.rasterization_state.polygon_mode != gpu::PolygonMode::Fill &&
               !phy_.vk_features.fillModeNonSolid),
@@ -3607,7 +3598,7 @@ Result<gpu::GraphicsPipeline, Status>
               phy_.vk_properties.limits.maxColorAttachments,
             "");
 
-  Vec<VkDescriptorSetLayout, 0> vk_descriptor_set_layouts{scratch_};
+  Vec<VkDescriptorSetLayout, 0> vk_descriptor_set_layouts{scratch};
 
   for (auto layout : info.descriptor_set_layouts)
   {
@@ -3628,11 +3619,11 @@ Result<gpu::GraphicsPipeline, Status>
     .dataSize = info.fragment_shader.specialization_constants_data.size_bytes(),
     .pData    = info.fragment_shader.specialization_constants_data.data()};
 
-  Vec<char> vs_entry_point{scratch_};
+  Vec<char> vs_entry_point{scratch};
   vs_entry_point.append(info.vertex_shader.entry_point).unwrap();
   vs_entry_point.push('\0').unwrap();
 
-  Vec<char> fs_entry_point{scratch_};
+  Vec<char> fs_entry_point{scratch};
   fs_entry_point.append(info.fragment_shader.entry_point).unwrap();
   fs_entry_point.push('\0').unwrap();
 
@@ -3676,7 +3667,7 @@ Result<gpu::GraphicsPipeline, Status>
     return Err{(Status) result};
   }
 
-  Vec<VkVertexInputBindingDescription, 0> input_bindings{scratch_};
+  Vec<VkVertexInputBindingDescription, 0> input_bindings{scratch};
 
   for (auto binding : info.vertex_input_bindings)
   {
@@ -3688,7 +3679,7 @@ Result<gpu::GraphicsPipeline, Status>
       .unwrap();
   }
 
-  Vec<VkVertexInputAttributeDescription, 0> attributes{scratch_};
+  Vec<VkVertexInputAttributeDescription, 0> attributes{scratch};
 
   for (auto attribute : info.vertex_attributes)
   {
@@ -3798,7 +3789,7 @@ Result<gpu::GraphicsPipeline, Status>
     .maxDepthBounds = info.depth_stencil_state.max_depth_bounds
   };
 
-  Vec<VkPipelineColorBlendAttachmentState, 0> attachment_states{scratch_};
+  Vec<VkPipelineColorBlendAttachmentState, 0> attachment_states{scratch};
 
   for (auto state : info.color_blend_state.attachments)
   {
@@ -3852,7 +3843,7 @@ Result<gpu::GraphicsPipeline, Status>
     .dynamicStateCount = size32(dynamic_states),
     .pDynamicStates    = dynamic_states};
 
-  Vec<VkFormat, 0> color_formats{scratch_};
+  Vec<VkFormat, 0> color_formats{scratch};
 
   for (auto fmt : info.color_formats)
   {
@@ -3906,9 +3897,9 @@ Result<gpu::GraphicsPipeline, Status>
   }
 
   set_resource_name(info.label, vk, VK_OBJECT_TYPE_PIPELINE,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_EXT, scratch_);
+                    VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_EXT, scratch);
   set_resource_name(info.label, vk_layout, VK_OBJECT_TYPE_PIPELINE_LAYOUT,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_LAYOUT_EXT, scratch_);
+                    VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_LAYOUT_EXT, scratch);
 
   IGraphicsPipeline * pipeline;
 
@@ -3937,7 +3928,7 @@ Result<gpu::GraphicsPipeline, Status>
 
 Result<Void, Status> IDevice::recreate_swapchain(Swapchain swapchain)
 {
-  SCRATCH_ALLOCATOR(allocator_);
+  auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
 
   auto info = std::move(swapchain->preference);
   ASH_CHECK(info.preferred_extent.x() > 0, "");
@@ -4050,7 +4041,7 @@ Result<Void, Status> IDevice::recreate_swapchain(Swapchain swapchain)
 
   ASH_CHECK(result == VK_SUCCESS, "");
 
-  Vec<VkImage, 0> vk_images{scratch_};
+  Vec<VkImage, 0> vk_images{scratch};
   vk_images.resize_uninit(num_images).unwrap();
 
   result =
@@ -4095,24 +4086,24 @@ Result<Void, Status> IDevice::recreate_swapchain(Swapchain swapchain)
   }
 
   auto swapchain_label =
-    sformat(scratch_, "{} / Swapchain"_str, info.label).unwrap();
+    sformat(scratch, "{} / Swapchain"_str, info.label).unwrap();
 
   set_resource_name(swapchain_label, vk, VK_OBJECT_TYPE_SWAPCHAIN_KHR,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_SWAPCHAIN_KHR_EXT, scratch_);
+                    VK_DEBUG_REPORT_OBJECT_TYPE_SWAPCHAIN_KHR_EXT, scratch);
   for (auto [i, image, acquire_semaphore] :
        enumerate(images, acquire_semaphores))
   {
     auto label =
-      sformat(scratch_, "{} / SwapchainImage {}"_str, info.label, i).unwrap();
+      sformat(scratch, "{} / SwapchainImage {}"_str, info.label, i).unwrap();
     set_resource_name(label, image->vk, VK_OBJECT_TYPE_IMAGE,
-                      VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT, scratch_);
+                      VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT, scratch);
 
     auto acq_sem_label =
-      sformat(scratch_, "{} / AcquireSemaphore {}"_str, info.label, i).unwrap();
+      sformat(scratch, "{} / AcquireSemaphore {}"_str, info.label, i).unwrap();
 
     set_resource_name(acq_sem_label, acquire_semaphore,
                       VK_OBJECT_TYPE_SEMAPHORE,
-                      VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT, scratch_);
+                      VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT, scratch);
   }
 
   for (auto image : images)
@@ -4230,7 +4221,7 @@ Result<gpu::Swapchain, Status>
 Result<gpu::TimestampQuery, Status>
   IDevice::create_timestamp_query(gpu::TimestampQueryInfo const & info)
 {
-  SCRATCH_ALLOCATOR(allocator_);
+  auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
 
   ASH_CHECK(info.count > 0, "");
 
@@ -4251,7 +4242,7 @@ Result<gpu::TimestampQuery, Status>
   }
 
   set_resource_name(info.label, vk_pool, VK_OBJECT_TYPE_QUERY_POOL,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_QUERY_POOL_EXT, scratch_);
+                    VK_DEBUG_REPORT_OBJECT_TYPE_QUERY_POOL_EXT, scratch);
 
   return Ok{(gpu::TimestampQuery) vk_pool};
 }
@@ -4259,7 +4250,7 @@ Result<gpu::TimestampQuery, Status>
 Result<gpu::StatisticsQuery, Status>
   IDevice::create_statistics_query(gpu::StatisticsQueryInfo const & info)
 {
-  SCRATCH_ALLOCATOR(allocator_);
+  auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
 
   ASH_CHECK(info.count > 0, "");
 
@@ -4294,7 +4285,7 @@ Result<gpu::StatisticsQuery, Status>
   }
 
   set_resource_name(info.label, vk_pool, VK_OBJECT_TYPE_QUERY_POOL,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_QUERY_POOL_EXT, scratch_);
+                    VK_DEBUG_REPORT_OBJECT_TYPE_QUERY_POOL_EXT, scratch);
 
   return Ok{(gpu::StatisticsQuery) vk_pool};
 }
@@ -4317,7 +4308,7 @@ Result<gpu::CommandEncoder, Status>
 Result<gpu::CommandBuffer, Status>
   IDevice::create_command_buffer(gpu::CommandBufferInfo const & info)
 {
-  SCRATCH_ALLOCATOR(allocator_);
+  auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
 
   VkCommandPoolCreateInfo pool_create_info{
     .sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
@@ -4342,9 +4333,9 @@ Result<gpu::CommandBuffer, Status>
   }};
 
   auto pool_label =
-    sformat(scratch_, "{} / CommandPool"_str, info.label).unwrap();
+    sformat(scratch, "{} / CommandPool"_str, info.label).unwrap();
   set_resource_name(pool_label, vk_pool, VK_OBJECT_TYPE_COMMAND_POOL,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_COMMAND_POOL_EXT, scratch_);
+                    VK_DEBUG_REPORT_OBJECT_TYPE_COMMAND_POOL_EXT, scratch);
 
   VkCommandBufferAllocateInfo allocate_info{
     .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -4369,7 +4360,7 @@ Result<gpu::CommandBuffer, Status>
   }};
 
   set_resource_name(info.label, vk, VK_OBJECT_TYPE_COMMAND_BUFFER,
-                    VK_DEBUG_REPORT_OBJECT_TYPE_COMMAND_BUFFER_EXT, scratch_);
+                    VK_DEBUG_REPORT_OBJECT_TYPE_COMMAND_BUFFER_EXT, scratch);
 
   ICommandBuffer * buff;
 
@@ -4389,7 +4380,7 @@ Result<gpu::CommandBuffer, Status>
 Result<gpu::QueueScope, Status>
   IDevice::create_queue_scope(gpu::QueueScopeInfo const & info)
 {
-  SCRATCH_ALLOCATOR(allocator_);
+  auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
 
   SmallVec<VkSemaphore, 4, 0> submit_semaphores{allocator_};
   SmallVec<VkFence, 4, 0>     submit_fences{allocator_};
@@ -4418,9 +4409,9 @@ Result<gpu::QueueScope, Status>
   for (auto i : range(info.buffering))
   {
     auto sbm_sem_label =
-      sformat(scratch_, "{} / SubmitSemaphore {}"_str, info.label, i).unwrap();
+      sformat(scratch, "{} / SubmitSemaphore {}"_str, info.label, i).unwrap();
     auto sbm_fnc_label =
-      sformat(scratch_, "{} / SubmitFence {}"_str, info.label, i).unwrap();
+      sformat(scratch, "{} / SubmitFence {}"_str, info.label, i).unwrap();
 
     VkSemaphore acquire_sem;
     auto        result =
@@ -4435,7 +4426,7 @@ Result<gpu::QueueScope, Status>
     result = table_.CreateSemaphore(vk_dev_, &sem_info, nullptr, &submit_sem);
 
     set_resource_name(sbm_sem_label, submit_sem, VK_OBJECT_TYPE_SEMAPHORE,
-                      VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT, scratch_);
+                      VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT, scratch);
 
     submit_semaphores.push(submit_sem).unwrap();
 
@@ -4443,7 +4434,7 @@ Result<gpu::QueueScope, Status>
     result = table_.CreateFence(vk_dev_, &fence_info, nullptr, &submit_fence);
 
     set_resource_name(sbm_fnc_label, submit_fence, VK_OBJECT_TYPE_FENCE,
-                      VK_DEBUG_REPORT_OBJECT_TYPE_FENCE_EXT, scratch_);
+                      VK_DEBUG_REPORT_OBJECT_TYPE_FENCE_EXT, scratch);
 
     submit_fences.push(submit_fence).unwrap();
   }
@@ -4961,7 +4952,7 @@ Result<Void, Status>
 
 void IDevice::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
 {
-  SCRATCH_ALLOCATOR(allocator_);
+  auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
 
   if (update.buffers.is_empty() && update.texel_buffers.is_empty() &&
       update.images.is_empty())
@@ -5038,9 +5029,9 @@ void IDevice::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
       ASH_CHECK_UNREACHABLE();
   }
 
-  Vec<VkDescriptorBufferInfo> buffer_infos{scratch_};
-  Vec<VkDescriptorImageInfo>  image_infos{scratch_};
-  Vec<VkBufferView>           texel_infos{scratch_};
+  Vec<VkDescriptorBufferInfo> buffer_infos{scratch};
+  Vec<VkDescriptorImageInfo>  image_infos{scratch};
+  Vec<VkBufferView>           texel_infos{scratch};
 
   switch (binding.type)
   {
@@ -5175,7 +5166,7 @@ Result<Void, Status>
   IDevice::get_surface_formats(gpu::Surface              surface_,
                                Vec<gpu::SurfaceFormat> & formats)
 {
-  SCRATCH_ALLOCATOR(allocator_);
+  auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
 
   auto surface = (VkSurfaceKHR) surface_;
 
@@ -5188,7 +5179,7 @@ Result<Void, Status>
     return Err{(Status) result};
   }
 
-  Vec<VkSurfaceFormatKHR> vk_formats{scratch_};
+  Vec<VkSurfaceFormatKHR> vk_formats{scratch};
 
   if (!vk_formats.resize_uninit(num_supported))
   {
@@ -5225,7 +5216,7 @@ Result<Void, Status>
   IDevice::get_surface_present_modes(gpu::Surface            surface_,
                                      Vec<gpu::PresentMode> & modes)
 {
-  SCRATCH_ALLOCATOR(allocator_);
+  auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
 
   auto surface = (VkSurfaceKHR) surface_;
 
@@ -5238,7 +5229,7 @@ Result<Void, Status>
     return Err{(Status) result};
   }
 
-  Vec<VkPresentModeKHR> vk_present_modes{scratch_};
+  Vec<VkPresentModeKHR> vk_present_modes{scratch};
 
   if (!vk_present_modes.resize_uninit(num_supported))
   {
