@@ -58,11 +58,11 @@ constexpr Result<Vec<char>, fmt::Result>
 }
 
 /// @brief Format to a static capacity string
-template <usize Capacity, typename... Args>
-constexpr Result<InplaceVec<char, Capacity>, fmt::Result>
+template <usize Capacity, usize MinAlignment, typename... Args>
+constexpr Result<InplaceVec<char, Capacity, MinAlignment>, fmt::Result>
   snformat(Span<char const> fstr, Args const &... args)
 {
-  InplaceVec<char, Capacity> out;
+  InplaceVec<char, Capacity, MinAlignment> out;
 
   return impl::sformat_to(out, fstr, args...).map([&](auto &) {
     return std::move(out);
@@ -70,11 +70,11 @@ constexpr Result<InplaceVec<char, Capacity>, fmt::Result>
 }
 
 /// @brief Small-string format
-template <usize InlineCapacity, typename... Args>
-constexpr Result<SmallVec<char, InlineCapacity>, fmt::Result>
+template <usize InlineCapacity, usize MinAlignment, typename... Args>
+constexpr Result<SmallVec<char, InlineCapacity, MinAlignment>, fmt::Result>
   ssformat(Allocator allocator, Span<char const> fstr, Args const &... args)
 {
-  SmallVec<char, InlineCapacity> out{allocator};
+  SmallVec<char, InlineCapacity, MinAlignment> out{allocator};
 
   return impl::sformat_to(out, fstr, args...).map([&](auto &) {
     return std::move(out);

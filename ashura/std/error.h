@@ -31,3 +31,15 @@
 
 #define ASH_CHECK_UNREACHABLE() \
   ASH_CHECK(false, "Expected code section to be unreachable")
+
+#define ASH_TRY(var_identifier, ...)                                    \
+  auto __result_for_##var_identifier = (__VA_ARGS__);                   \
+  if (!__result_for_##var_identifier.is_ok_)                            \
+  {                                                                     \
+    return ::ash::Err{                                                  \
+      static_cast<decltype(__result_for_##var_identifier)::ErrType &&>( \
+        __result_for_##var_identifier.v1_)};                            \
+  }                                                                     \
+  auto var_identifier =                                                 \
+    static_cast<decltype(__result_for_##var_identifier)::Type &&>(      \
+      __result_for_##var_identifier.v0_);

@@ -28,6 +28,8 @@ struct [[nodiscard]] Option
     T v0_;
   };
 
+  static constexpr None v1_;
+
   constexpr Option() : is_some_{false}
   {
   }

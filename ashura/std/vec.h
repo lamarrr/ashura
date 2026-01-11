@@ -684,33 +684,35 @@ struct [[nodiscard]] Vec
 namespace vec
 {
 
-template <typename T, usize MinAlignment = SIMD_ALIGNMENT>
-constexpr auto copy(Allocator allocator, Span<T> data)
+template <typename Span, usize MinAlignment = SIMD_ALIGNMENT>
+constexpr auto copy(Allocator allocator, Span items)
 {
-  Result out = Vec<remove_const<T>, MinAlignment>::make(data.size(), allocator);
+  Result out = Vec<remove_const<typename Span::Type>, MinAlignment>::make(
+    items.size(), allocator);
 
   if (!out)
   {
     return out;
   }
 
-  out.v().append(data).unwrap();
+  out.v().append(items).unwrap();
 
   return out;
 }
 
-template <typename T, usize MinAlignment = SIMD_ALIGNMENT>
-requires (NonConst<T>)
-constexpr auto move(Allocator allocator, Span<T> data)
+template <typename Span, usize MinAlignment = SIMD_ALIGNMENT>
+requires (NonConst<typename Span::Type>)
+constexpr auto move(Allocator allocator, Span items)
 {
-  Result out = Vec<T, MinAlignment>::make(data.size(), allocator);
+  Result out =
+    Vec<typename Span::Type, MinAlignment>::make(items.size(), allocator);
 
   if (!out)
   {
     return out;
   }
 
-  out.v().append_move(data).unwrap();
+  out.v().append_move(items).unwrap();
 
   return out;
 }
@@ -718,8 +720,7 @@ constexpr auto move(Allocator allocator, Span<T> data)
 
 /// @brief A Vec with a small inline-reserved storage
 /// @warning SmallVec does not have stable addressing
-template <typename T, usize InlineCapacity = 8,
-          usize MinAlignment = SIMD_ALIGNMENT>
+template <typename T, usize InlineCapacity, usize MinAlignment>
 requires (NonConst<T> && InlineCapacity > 0)
 struct [[nodiscard]] SmallVec
 {
@@ -1455,35 +1456,38 @@ struct [[nodiscard]] SmallVec
 namespace small_vec
 {
 
-template <usize InlineCapacity, typename T, usize MinAlignment = SIMD_ALIGNMENT>
-constexpr auto copy(Allocator allocator, Span<T> data)
+template <usize InlineCapacity, usize MinAlignment, typename Span>
+constexpr auto copy(Allocator allocator, Span items)
 {
-  Result out = SmallVec<remove_const<T>, InlineCapacity, MinAlignment>::make(
-    data.size(), allocator);
+  using T = remove_const<typename Span::Type>;
+  Result out =
+    SmallVec<T, InlineCapacity, MinAlignment>::make(items.size(), allocator);
 
   if (!out)
   {
     return out;
   }
 
-  out.v().append(data).unwrap();
+  out.v().append(within_capacity, items).unwrap();
 
   return out;
 }
 
-template <usize InlineCapacity, typename T, usize MinAlignment = SIMD_ALIGNMENT>
-requires (NonConst<T>)
-constexpr auto move(Allocator allocator, Span<T> data)
+template <usize InlineCapacity, usize MinAlignment, typename Span>
+requires (NonConst<typename Span::Type>)
+constexpr auto move(Allocator allocator, Span items)
 {
+  using T = typename Span::Type;
+
   Result out =
-    SmallVec<T, InlineCapacity, MinAlignment>::make(data.size(), allocator);
+    SmallVec<T, InlineCapacity, MinAlignment>::make(items.size(), allocator);
 
   if (!out)
   {
     return out;
   }
 
-  out.v().append_move(data).unwrap();
+  out.v().append_move(within_capacity, items).unwrap();
 
   return out;
 }
@@ -1491,7 +1495,7 @@ constexpr auto move(Allocator allocator, Span<T> data)
 
 /// @brief InplaceVec doesn't use SIMD_ALIGNMENT as it is usually in-place and
 /// compacted along with other struct members/stack variables.
-template <typename T, usize Capacity, usize MinAlignment = alignof(T)>
+template <typename T, usize Capacity, usize MinAlignment>
 requires (NonConst<T>)
 struct [[nodiscard]] InplaceVec
   : InplaceStorage<max(MinAlignment, alignof(T)), sizeof(T) * Capacity>
@@ -1909,14 +1913,16 @@ struct [[nodiscard]] InplaceVec
 namespace inplace_vec
 {
 
-template <usize InlineCapacity, typename T, usize MinAlignment = alignof(T)>
-constexpr auto copy(Span<T> data)
+template <usize InlineCapacity, usize MinAlignment, typename Span>
+constexpr auto copy(Span items)
 {
-  using R = Result<InplaceVec<remove_const<T>, InlineCapacity, MinAlignment>>;
+  using T = remove_const<typename Span::Type>;
+  using V = InplaceVec<T, InlineCapacity, MinAlignment>;
+  using R = Result<V>;
 
-  InplaceVec<remove_const<T>, InlineCapacity, MinAlignment> out{};
+  V out{};
 
-  if (!out.append(data))
+  if (!out.append(items))
   {
     return R{Err{}};
   }
@@ -1924,15 +1930,17 @@ constexpr auto copy(Span<T> data)
   return Ok{std::move(out)};
 }
 
-template <usize InlineCapacity, typename T, usize MinAlignment = alignof(T)>
-requires (NonConst<T>)
-constexpr auto move(Span<T> data)
+template <usize InlineCapacity, usize MinAlignment, typename Span>
+requires (NonConst<typename Span::Type>)
+constexpr auto move(Span items)
 {
-  using R = Result<InplaceVec<T, InlineCapacity, MinAlignment>>;
+  using T = typename Span::Type;
+  using V = InplaceVec<T, InlineCapacity, MinAlignment>;
+  using R = Result<V>;
 
-  InplaceVec<T, InlineCapacity, MinAlignment> out{};
+  V out{};
 
-  if (!out.append_move(data))
+  if (!out.append_move(items))
   {
     return R{Err{}};
   }
@@ -2287,8 +2295,7 @@ struct [[nodiscard]] CoreBitVec
 template <typename R, usize MinAlignment = SIMD_ALIGNMENT>
 using BitVec = CoreBitVec<Vec<R, MinAlignment>>;
 
-template <typename R, usize MinBitCapacity = 256,
-          usize MinAlignment = SIMD_ALIGNMENT>
+template <typename R, usize MinBitCapacity, usize MinAlignment>
 using SmallBitVec =
   CoreBitVec<SmallVec<R, atom_size_for<R>(MinBitCapacity), MinAlignment>>;
 
@@ -2702,10 +2709,11 @@ struct CoreSparseVec
 };
 
 template <typename Id, typename... T>
-using SparseVec = CoreSparseVec<Id, Vec<UnderlyingType<Id>>, Vec<T>...>;
+using SparseVec = CoreSparseVec<Id, Vec<UnderlyingType<Id>, SIMD_ALIGNMENT>,
+                                Vec<T, SIMD_ALIGNMENT>...>;
 
-template <typename T>
-struct IsTriviallyRelocatable<Vec<T>>
+template <typename T, usize MinAlignment>
+struct IsTriviallyRelocatable<Vec<T, MinAlignment>>
 {
   static constexpr bool value = true;
 };
@@ -2716,26 +2724,29 @@ struct IsTriviallyRelocatable<CoreBitVec<V>>
   static constexpr bool value = TriviallyRelocatable<V>;
 };
 
-template <typename T, usize C>
-struct IsTriviallyRelocatable<InplaceVec<T, C>>
+template <typename T, usize C, usize MinAlignment>
+struct IsTriviallyRelocatable<InplaceVec<T, C, MinAlignment>>
 {
   static constexpr bool value = TriviallyRelocatable<T>;
 };
 
-inline void format(fmt::Sink sink, fmt::Spec spec, Vec<char> const & str)
+template <usize MinAlignment>
+inline void format(fmt::Sink sink, fmt::Spec spec,
+                   Vec<char, MinAlignment> const & str)
 {
   format(sink, spec, str.view());
 }
 
-template <usize C>
-void format(fmt::Sink sink, fmt::Spec spec, InplaceVec<char, C> const & str)
+template <usize InlineCapacity, usize MinAlignment>
+void format(fmt::Sink sink, fmt::Spec spec,
+            InplaceVec<char, InlineCapacity, MinAlignment> const & str)
 {
   format(sink, spec, str.view());
 }
 
-using StrVec   = Vec<char>;
-using StrVec8  = Vec<c8>;
-using StrVec16 = Vec<c16>;
-using StrVec32 = Vec<c32>;
+using StrVec   = Vec<char, SIMD_ALIGNMENT>;
+using StrVec8  = Vec<c8, SIMD_ALIGNMENT>;
+using StrVec16 = Vec<c16, SIMD_ALIGNMENT>;
+using StrVec32 = Vec<c32, SIMD_ALIGNMENT>;
 
 }    // namespace ash

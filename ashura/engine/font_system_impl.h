@@ -20,7 +20,7 @@ struct FontImpl final : IFont
 {
   static constexpr u32 MAX_NAME_SIZE = 256;
 
-  using Name = InplaceVec<char, MAX_NAME_SIZE>;
+  using Name = InplaceVec<char, MAX_NAME_SIZE, 0>;
 
   Vec<char> label;
 

@@ -43,13 +43,13 @@ namespace ash
 template <usize MaxNumChars>
 auto to_c_str(Str s)
 {
-  InplaceVec<char, MaxNumChars + 1> buffer;
+  InplaceVec<char, MaxNumChars + 1, 0> buffer;
   buffer.append(s.slice(0, MaxNumChars)).unwrap();
   buffer.push('\0').unwrap();
   return buffer;
 }
 
-static thread_local InplaceVec<char, 256> thread_name_buffer{};
+static thread_local InplaceVec<char, 256, 0> thread_name_buffer{};
 
 void set_thread_name(Str name_str)
 {

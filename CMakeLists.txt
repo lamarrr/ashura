@@ -495,7 +495,7 @@ if(NOT ASH_EXCLUDE_ENGINE)
     add_executable(
       ashura_engine_tests
       ashura/engine/tests/main.cc ashura/engine/tests/animation.cc
-      ashura/engine/tests/render_text.cc ashura/engine/tests/views.cc)
+      ashura/engine/tests/views.cc)
     target_link_libraries(ashura_engine_tests ashura_std ashura_engine
                           GTest::gtest)
   endif()

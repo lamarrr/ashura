@@ -14,34 +14,35 @@ struct [[nodiscard]] TextRunsStyle
   static auto default_run_indices(Allocator allocator = noop_allocator)
   {
     static constexpr usize data[] = {0uz, USIZE_MAX};
-    return small_vec::copy<4>(allocator, span(data)).unwrap();
+    return small_vec::copy<4, 0>(allocator, span(data)).unwrap();
   }
 
   static auto default_styles(Allocator allocator = noop_allocator)
   {
     static constexpr TextStyle data[] = {{}};
-    return small_vec::copy<1>(allocator, span(data)).unwrap();
+    return small_vec::copy<1, 0>(allocator, span(data)).unwrap();
   }
 
   static auto default_fonts(Allocator allocator = noop_allocator)
   {
     static constexpr FontStyle data[] = {{}};
-    return small_vec::copy<1>(allocator, span(data)).unwrap();
+    return small_vec::copy<1, 0>(allocator, span(data)).unwrap();
   }
 
-  SmallVec<usize, 4>     run_indices_;
-  SmallVec<TextStyle, 1> styles_;
-  SmallVec<FontStyle, 1> fonts_;
+  SmallVec<usize, 4, 0>     run_indices_;
+  SmallVec<TextStyle, 1, 0> styles_;
+  SmallVec<FontStyle, 1, 0> fonts_;
 
-  TextRunsStyle(SmallVec<usize, 4> run_indices, SmallVec<TextStyle, 1> styles,
-                SmallVec<FontStyle, 1> fonts) :
+  TextRunsStyle(SmallVec<usize, 4, 0>     run_indices,
+                SmallVec<TextStyle, 1, 0> styles,
+                SmallVec<FontStyle, 1, 0> fonts) :
     run_indices_{std::move(run_indices)},
     styles_{std::move(styles)},
     fonts_{std::move(fonts)}
   {
   }
 
-  TextRunsStyle(Allocator allocator = noop_allocator) :
+  TextRunsStyle(Allocator allocator) :
     run_indices_{default_run_indices(allocator)},
     styles_{default_styles(allocator)},
     fonts_{default_fonts(allocator)}
@@ -68,9 +69,6 @@ struct [[nodiscard]] TextRunsStyle
                                     Span<usize const>     run_indices,
                                     Span<TextStyle const> styles,
                                     Span<FontStyle const> fonts);
-
-  void update(TextStyle const & style, FontStyle const & font, usize first,
-              usize count);
 
   Span<usize const> run_indices() const
   {
@@ -135,7 +133,7 @@ struct [[nodiscard]] RenderText
     alignment_{ALIGNMENT_LEFT},
     font_scale_{1},
     text_{static_rc(U""_str)},
-    runs_style_{},
+    runs_style_{noop_allocator},
     language_{},
     layout_{.glyphs{allocator},
             .runs{allocator},
@@ -303,7 +301,7 @@ struct [[nodiscard]] EditText
 
     EditHistoryBuffer history;
 
-    SmallVec<Cursor, 8> cursors;
+    SmallVec<Cursor, 8, 0> cursors;
   };
 
   using Renderer = Rc<Fn<RenderText(Allocator, Rc<Str32>)>>;
@@ -390,7 +388,7 @@ struct [[nodiscard]] EditText
   /// @brief action queue of mutations to be performed on the text.
   /// this is queued up whilst an async text edit is being performed.
   /// after each edit action, the text is re-laid out.
-  SmallVec<Edit, 8> action_queue_;
+  SmallVec<Edit, 8, 0> action_queue_;
 
   Cursor cursor_;
 

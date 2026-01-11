@@ -12,9 +12,9 @@ namespace ash
 TextRunsStyle TextRunsStyle::all(TextStyle const & style,
                                  FontStyle const & font)
 {
-  SmallVec<usize, 4>     run_indices{noop_allocator};
-  SmallVec<TextStyle, 1> styles{noop_allocator};
-  SmallVec<FontStyle, 1> fonts{noop_allocator};
+  SmallVec<usize, 4, 0>     run_indices{noop_allocator};
+  SmallVec<TextStyle, 1, 0> styles{noop_allocator};
+  SmallVec<FontStyle, 1, 0> fonts{noop_allocator};
 
   run_indices.append(span({0uz, USIZE_MAX})).unwrap();
   styles.push(style).unwrap();
@@ -36,9 +36,9 @@ TextRunsStyle TextRunsStyle::make_sized(Allocator             allocator,
             "run_sizes and fonts must have the same size");
 
   auto run_indices =
-    SmallVec<usize, 4>::make(run_sizes.size() + 1, allocator).unwrap();
-  auto styles_vec = small_vec::copy<1>(allocator, styles).unwrap();
-  auto fonts_vec  = small_vec::copy<1>(allocator, fonts).unwrap();
+    SmallVec<usize, 4, 0>::make(run_sizes.size() + 1, allocator).unwrap();
+  auto styles_vec = small_vec::copy<1, 0>(allocator, styles).unwrap();
+  auto fonts_vec  = small_vec::copy<1, 0>(allocator, fonts).unwrap();
 
   run_indices.push(0uz).unwrap();
   usize run_start = 0;
@@ -73,132 +73,18 @@ TextRunsStyle TextRunsStyle::make_indexed(Allocator             allocator,
   ASH_CHECK(run_indices.size() - 1 == fonts.size(),
             "run_indices and fonts must have compatible sizes");
 
-  auto run_indices_vec = small_vec::copy<4>(allocator, run_indices).unwrap();
+  auto run_indices_vec = small_vec::copy<4, 0>(allocator, run_indices).unwrap();
 
   if (run_indices_vec.last() != USIZE_MAX)
   {
     run_indices_vec.last() = USIZE_MAX;
   }
 
-  auto styles_vec = small_vec::copy<1>(allocator, styles).unwrap();
-  auto fonts_vec  = small_vec::copy<1>(allocator, fonts).unwrap();
+  auto styles_vec = small_vec::copy<1, 0>(allocator, styles).unwrap();
+  auto fonts_vec  = small_vec::copy<1, 0>(allocator, fonts).unwrap();
 
   return TextRunsStyle{std::move(run_indices_vec), std::move(styles_vec),
                        std::move(fonts_vec)};
-}
-
-void TextRunsStyle::update(TextStyle const & style, FontStyle const & font,
-                           usize first, usize count)
-{
-  if (count == 0)
-  {
-    return;
-  }
-
-  if (run_indices_.is_empty())
-  {
-    run_indices_.push(0uz).unwrap();
-    run_indices_.push(USIZE_MAX).unwrap();
-    styles_.push(style).unwrap();
-    fonts_.push(font).unwrap();
-    return;
-  }
-
-  auto end = sat_add(first, count);
-
-  auto first_run_span = binary_find(run_indices_.view(), gt, first);
-
-  /// should never happen since there's always a USIZE_MAX run end
-  ASH_CHECK(!first_run_span.is_empty(), "");
-
-  auto last_run_span = binary_find(first_run_span, geq, end);
-
-  /// should never happen since there's always a USIZE_MAX run end
-  ASH_CHECK(!last_run_span.is_empty(), "");
-
-  auto first_run =
-    ((usize) (first_run_span.pbegin() - run_indices_.view().pbegin())) - 1;
-  auto last_run =
-    ((usize) (last_run_span.pbegin() - run_indices_.view().pbegin())) - 1;
-
-  auto first_run_begin = run_indices_[first_run];
-  auto last_run_end    = run_indices_[last_run + 1];
-
-  /// run merging
-
-  /// merge middle
-
-  if (last_run > (first_run + 1))
-  {
-    auto first_erase = first_run + 1;
-    auto num_erase   = last_run - first_erase;
-    run_indices_.erase(first_erase + 1, num_erase);
-    styles_.erase(first_erase, num_erase);
-    fonts_.erase(first_erase, num_erase);
-    last_run -= num_erase;
-  }
-
-  /// merge left
-  if (first_run_begin == first)
-  {
-    auto first_erase = first_run;
-    auto num_erase   = last_run - first_run;
-    run_indices_.erase(first_erase + 1, num_erase);
-    styles_.erase(first_erase, num_erase);
-    fonts_.erase(first_erase, num_erase);
-    last_run -= num_erase;
-  }
-
-  /// merge right
-  if (last_run_end == end)
-  {
-    auto first_erase = first_run + 1;
-    auto num_erase   = (last_run + 1) - first_erase;
-    run_indices_.erase(first_erase + 1, num_erase);
-    styles_.erase(first_erase, num_erase);
-    fonts_.erase(first_erase, num_erase);
-    last_run -= num_erase;
-  }
-
-  (void) last_run;
-
-  /// run splitting
-  if (first_run_begin == first && last_run_end == end)
-  {
-    styles_[first_run] = style;
-    fonts_[first_run]  = font;
-  }
-  else
-  {
-    if (first_run_begin == first)
-    {
-      // split with new on left
-      run_indices_.insert(first_run + 1, end).unwrap();
-      styles_.insert(first_run, style).unwrap();
-      fonts_.insert(first_run, font).unwrap();
-    }
-    else if (last_run_end == end)
-    {
-      // split with new on right
-      run_indices_[first_run + 1] = first;
-      run_indices_.insert(first_run + 1 + 1, end).unwrap();
-      styles_.insert(first_run + 1, style).unwrap();
-      fonts_.insert(first_run + 1, font).unwrap();
-    }
-    else
-    {
-      // split with new in the middle of the run
-      run_indices_[first_run + 1] = first;
-      run_indices_.insert(first_run + 1 + 1, end).unwrap();
-      styles_.insert(first_run + 1, style).unwrap();
-      fonts_.insert(first_run + 1, font).unwrap();
-      run_indices_.insert(first_run + 2 + 1, last_run_end).unwrap();
-      styles_.insert(first_run + 2, styles_[first_run]).unwrap();
-      fonts_.insert(first_run + 2, fonts_[first_run]).unwrap();
-    }
-  }
-
-  return;
 }
 
 RenderText & RenderText::style_runs(TextRunsStyle style)
@@ -375,7 +261,7 @@ void RenderText::render(TextRenderer renderer, f32x2 center, f32 align_width,
                         Span<TextHighlightStyle const> highlight_styles,
                         Span<usize const>              carets,
                         Span<CaretStyle const>         caret_styles,
-                        Allocator                      scratch_allocator) const
+                        Allocator                      scratch) const
 {
   TextRenderInfo info{.center           = center,
                       .transform        = transform,
@@ -388,7 +274,7 @@ void RenderText::render(TextRenderer renderer, f32x2 center, f32 align_width,
                       .carets           = carets,
                       .caret_styles     = caret_styles};
 
-  layout_.render(renderer, info, scratch_allocator);
+  layout_.render(renderer, info, scratch);
 }
 
 Tuple<isize, CaretAlignment> RenderText::hit(f32x2 center, f32 align_width,
@@ -1132,9 +1018,9 @@ void EditText::tick(nanoseconds)
            previous_state_ = state_.alias(),
            history         = std::move(state_->history)]() mutable {
             tracing::ScopeTrace trace{"EditText::tick::apply_actions"_str};
-            auto                cursors = SmallVec<Cursor, 8>{allocator};
 
-            Option<RenderText> text = none;
+            auto               cursors = SmallVec<Cursor, 8>{allocator};
+            Option<RenderText> text    = none;
 
             auto render = [&](PieceTable32 const & pieces, f32 max_width,
                               Renderer const & renderer) {
@@ -1144,9 +1030,8 @@ void EditText::tick(nanoseconds)
               auto view      = rc_strvec->view().as_const();
               auto rc_str32  = transmute(std::move(rc_strvec), view);
               auto text      = renderer(allocator, std::move(rc_str32));
-              auto scratch_allocator =
-                IFallbackAllocator{get_thread_arena(), allocator};
-              text.layout(max_width, scratch_allocator);
+              auto scratch = IFallbackAllocator{get_thread_arena(), allocator};
+              text.layout(max_width, scratch);
               return text;
             };
 

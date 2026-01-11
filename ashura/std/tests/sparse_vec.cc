@@ -12,9 +12,9 @@ TEST(SparseVecTest, Start)
   static_assert(TriviallyRelocatable<Vec<int>>);
   static_assert(TriviallyRelocatable<Vec<int>>);
   static_assert(TriviallyRelocatable<Vec<Vec<int>>>);
-  static_assert(TriviallyRelocatable<InplaceVec<Span<int>, 10>>);
-  static_assert(!TriviallyRelocatable<InplaceVec<std::string, 10>>);
-  static_assert(TriviallyRelocatable<InplaceVec<Vec<int>, 10>>);
+  static_assert(TriviallyRelocatable<InplaceVec<Span<int>, 10, 0>>);
+  static_assert(!TriviallyRelocatable<InplaceVec<std::string, 10, 0>>);
+  static_assert(TriviallyRelocatable<InplaceVec<Vec<int>, 10, 0>>);
 
   Vec<int> f{default_allocator};
 

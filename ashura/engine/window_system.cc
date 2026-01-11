@@ -50,7 +50,7 @@ struct ClipBoardImpl final : IClipBoard
 
   virtual Result<> get(Str mime, Vec<u8> & out) override
   {
-    InplaceVec<char, MAX_MIME_SIZE + 1> mime_c_str{};
+    InplaceVec<char, MAX_MIME_SIZE + 1, 0> mime_c_str{};
     mime_c_str.append(mime).unwrap();
     mime_c_str.push('\0').unwrap();
     usize  mime_data_len;
@@ -96,7 +96,7 @@ struct ClipBoardImpl final : IClipBoard
       return Ok{};
     }
 
-    InplaceVec<char, MAX_MIME_SIZE + 1> mime_c_str{};
+    InplaceVec<char, MAX_MIME_SIZE + 1, 0> mime_c_str{};
     mime_c_str.append(mime).unwrap();
     mime_c_str.push('\0').unwrap();
 

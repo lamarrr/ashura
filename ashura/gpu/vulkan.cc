@@ -3308,7 +3308,7 @@ Result<gpu::DescriptorSet, Status>
     }
   }
 
-  InplaceVec<VkDescriptorPoolSize, gpu::NUM_DESCRIPTOR_TYPES> pool_sizes;
+  InplaceVec<VkDescriptorPoolSize, gpu::NUM_DESCRIPTOR_TYPES, 0> pool_sizes;
 
   for (auto [i, count] : enumerate<u32>(vk_type_count))
   {

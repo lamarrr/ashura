@@ -519,12 +519,12 @@ struct TexelBufferUnion
     gpu::Format::R32G32B32A32_SINT,
     gpu::Format::R32G32B32A32_SFLOAT};
 
-  gpu::Buffer                              buffer           = {};
-  u32x2                                    tile_texel_count = {1, 1};
-  u32x2                                    tile_count       = {0, 0};
-  u32x2                                    extent           = {0, 0};
-  u32                                      sample_count     = 1;
-  InplaceVec<View, std::size(ALL_FORMATS)> views            = {};
+  gpu::Buffer                                 buffer           = {};
+  u32x2                                       tile_texel_count = {1, 1};
+  u32x2                                       tile_count       = {0, 0};
+  u32x2                                       extent           = {0, 0};
+  u32                                         sample_count     = 1;
+  InplaceVec<View, std::size(ALL_FORMATS), 0> views            = {};
 
   View interpret(gpu::Format format) const;
 

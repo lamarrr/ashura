@@ -19,11 +19,11 @@ struct EngineCfg
 {
   struct Gpu
   {
-    bool                           validation = false;
-    InplaceVec<gpu::DeviceType, 5> preferences{};
-    bool                           hdr        = true;
-    u32                            buffering  = 2;
-    gpu::SampleCount               msaa_level = gpu::SampleCount::C4;
+    bool                              validation = false;
+    InplaceVec<gpu::DeviceType, 5, 0> preferences{};
+    bool                              hdr        = true;
+    u32                               buffering  = 2;
+    gpu::SampleCount                  msaa_level = gpu::SampleCount::C4;
   };
 
   struct Window

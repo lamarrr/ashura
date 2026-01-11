@@ -25,12 +25,8 @@ Result<KeyState> KeyState::copy(Allocator allocator) const
 
   if (text_.is_some())
   {
-    auto copy_r = vec::copy(allocator, text_->view().as_const());
-    if (!copy_r)
-    {
-      return Err{};
-    }
-    out.text_ = copy_r.unwrap();
+    ASH_TRY(copy, vec::copy(allocator, text_.v0_.view()));
+    out.text_ = std::move(copy);
   }
 
   return Ok{std::move(out)};
@@ -114,26 +110,25 @@ Result<DropState> DropState::copy(Allocator allocator) const
   out.active_ = active_;
   out.event_  = event_;
 
-  auto ok =
-    data_.match([](None) { return true; },
-                [&](DropFilePath const & e) {
-                  auto r = vec::copy(allocator, e.path.view().as_const());
-                  if (!r)
-                  {
-                    return false;
-                  }
-                  out.data_ = DropFilePath{.path = r.unwrap()};
-                  return true;
-                },
-                [&](DropText const & e) {
-                  auto r = vec::copy(allocator, e.text.view().as_const());
-                  if (!r)
-                  {
-                    return false;
-                  }
-                  out.data_ = DropText{.text = r.unwrap()};
-                  return true;
-                });
+  auto ok = data_.match([](None) { return true; },
+                        [&](DropFilePath const & e) {
+                          auto r = vec::copy(allocator, e.path.view());
+                          if (!r)
+                          {
+                            return false;
+                          }
+                          out.data_ = DropFilePath{.path = r.unwrap()};
+                          return true;
+                        },
+                        [&](DropText const & e) {
+                          auto r = vec::copy(allocator, e.text.view());
+                          if (!r)
+                          {
+                            return false;
+                          }
+                          out.data_ = DropText{.text = r.unwrap()};
+                          return true;
+                        });
 
   if (!ok)
   {
