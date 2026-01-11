@@ -69,7 +69,7 @@ struct [[nodiscard]] Rc
       return *this;
     }
 
-    uninit();
+    this->~Rc();
     new (this) Rc{static_cast<Rc &&>(other)};
     return *this;
   }

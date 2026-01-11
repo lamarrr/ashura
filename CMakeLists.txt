@@ -215,6 +215,11 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/google/googletest.git
   GIT_TAG 0bdccf4)
 
+FetchContent_Declare(
+  lz4
+  GIT_REPOSITORY https://github.com/lz4/lz4.git
+  GIT_TAG 92c3963)
+
 find_package(FFMPEG REQUIRED)
 find_package(JPEG REQUIRED)
 find_package(Threads REQUIRED)
@@ -238,6 +243,7 @@ FetchContent_MakeAvailable(fast_float)
 FetchContent_MakeAvailable(simdjson)
 FetchContent_MakeAvailable(libpng)
 FetchContent_MakeAvailable(gtest)
+FetchContent_MakeAvailable(lz4)
 
 set(xxHash_INCLUDE_DIR ${xxhash_SOURCE_DIR})
 set(fast_float_INCLUDE_DIR ${fast_float_SOURCE_DIR}/include)

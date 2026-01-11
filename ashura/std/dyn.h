@@ -44,7 +44,7 @@ struct [[nodiscard]] Dyn
       return *this;
     }
 
-    uninit();
+    this->~Dyn();
     new (this) Dyn{static_cast<Dyn &&>(other)};
     return *this;
   }

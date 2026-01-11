@@ -52,7 +52,6 @@ struct DictEntry<K, Void>
 };
 
 // [ ] default-hash, default-cmp
-// [ ] make it obey growth factors
 
 /// @brief Robin-hood open-address probing HashMap
 /// @tparam K key type
@@ -179,7 +178,7 @@ struct [[nodiscard]] Dict
     other.num_probes_     = 0;
     other.num_entries_    = 0;
     other.max_probe_dist_ = 0;
-    other.allocator_      = default_allocator;
+    other.allocator_      = noop_allocator;
     other.hasher_         = {};
     other.cmp_            = {};
   }
@@ -190,7 +189,7 @@ struct [[nodiscard]] Dict
     {
       return *this;
     }
-    uninit();
+    this->~Dict();
     new (this) Dict{static_cast<Dict &&>(other)};
     return *this;
   }

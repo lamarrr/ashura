@@ -68,7 +68,7 @@ struct [[nodiscard]] Vec
     {
       return *this;
     }
-    uninit();
+    this->~Vec();
     new (this) Vec{static_cast<Vec &&>(other)};
     return *this;
   }
@@ -791,7 +791,7 @@ struct [[nodiscard]] SmallVec
     {
       return *this;
     }
-    uninit();
+    this->~SmallVec();
     new (this) SmallVec{static_cast<SmallVec &&>(other)};
     return *this;
   }
@@ -1528,7 +1528,7 @@ struct [[nodiscard]] InplaceVec
     {
       return *this;
     }
-    uninit();
+    this->~InplaceVec();
     new (this) InplaceVec{other};
     return *this;
   }
@@ -1545,7 +1545,7 @@ struct [[nodiscard]] InplaceVec
     {
       return *this;
     }
-    uninit();
+    this->~InplaceVec();
     new (this) InplaceVec{static_cast<InplaceVec &&>(other)};
     return *this;
   }
@@ -1976,7 +1976,7 @@ struct [[nodiscard]] CoreBitVec
     {
       return *this;
     }
-    uninit();
+    this->~CoreBitVec();
     new (this) CoreBitVec{static_cast<CoreBitVec &&>(other)};
     return *this;
   }
