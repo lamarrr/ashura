@@ -42,8 +42,7 @@ void format_int(fmt::Sink sink, fmt::Spec spec, IntT const & value)
     char scratch_[512];
     Span scratch{scratch_};
 
-    auto [end, ec] =
-      std::to_chars(scratch.pbegin(), scratch.pend(), value, base);
+    auto [end, ec] = std::to_chars(scratch.pbegin(), scratch.pend(), value, base);
     if (ec != std::errc{})
     {
         return;
@@ -71,10 +70,9 @@ void format_float(fmt::Sink sink, fmt::Spec spec, f64 value)
     }
     else
     {
-        if (int status =
-              snprintf(scratch.data(), scratch.size(),
-                       (spec.style == fmt::Style::Default) ? "%0.f" : "%0.g",
-                       (f32) value);
+        if (int status = snprintf(scratch.data(), scratch.size(),
+                                  (spec.style == fmt::Style::Default) ? "%0.f" : "%0.g",
+                                  (f32) value);
             status > 0)
         {
             written = (usize) status;

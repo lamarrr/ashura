@@ -258,8 +258,7 @@ struct [[nodiscard]] Dict
         return num_probes_;
     }
 
-    [[nodiscard]] constexpr Option<Value &> try_get(auto const & key,
-                                                    usize        hash) const
+    [[nodiscard]] constexpr Option<Value &> try_get(auto const & key, usize hash) const
     {
         if (num_probes_ == 0 || num_entries_ == 0)
         {
@@ -322,8 +321,8 @@ struct [[nodiscard]] Dict
         return (num_entries + (num_entries >> 2)) >= num_probes;
     }
 
-    constexpr void reinsert_(Entry *          src_probes,
-                             Distance const * src_probe_dists, usize n)
+    constexpr void reinsert_(Entry * src_probes, Distance const * src_probe_dists,
+                             usize n)
     {
         for (usize src_probe_idx = 0; src_probe_idx < n; src_probe_idx++)
         {
@@ -438,8 +437,7 @@ struct [[nodiscard]] Dict
             *exists = false;
         }
 
-        if (needs_rehash_(num_entries_ + 1, num_probes_) && !rehash_())
-          [[unlikely]]
+        if (needs_rehash_(num_entries_ + 1, num_probes_) && !rehash_()) [[unlikely]]
         {
             return Err{};
         }
@@ -448,8 +446,7 @@ struct [[nodiscard]] Dict
         auto       probe_idx  = hash & (num_probes_ - 1);
         auto       insert_idx = USIZE_MAX;
         Distance   probe_dist = 0;
-        Entry      entry{static_cast<KeyArg &&>(key),
-                    static_cast<ValueArg &&>(value)};
+        Entry      entry{static_cast<KeyArg &&>(key), static_cast<ValueArg &&>(value)};
 
         while (true)
         {
@@ -567,14 +564,12 @@ struct [[nodiscard]] Dict
 
     constexpr View view() const
     {
-        Iter iter{.iter_  = probe_dists_,
-                  .end_   = probe_dists_ + num_probes_,
-                  .probe_ = probes_};
+        Iter iter{
+          .iter_ = probe_dists_, .end_ = probe_dists_ + num_probes_, .probe_ = probes_};
 
         iter.seek();
 
-        return View{
-          .iter_ = iter.iter_, .end_ = iter.end_, .probe_ = iter.probe_};
+        return View{.iter_ = iter.iter_, .end_ = iter.end_, .probe_ = iter.probe_};
     }
 
     constexpr Iter begin() const
@@ -594,8 +589,7 @@ using Set = Dict<T, Void, H, KCmp, D>;
 template <typename K, typename V, typename H, typename KCmp, typename D>
 struct IsTriviallyRelocatable<Dict<K, V, H, KCmp, D>>
 {
-    static constexpr bool value =
-      TriviallyRelocatable<H> && TriviallyRelocatable<KCmp>;
+    static constexpr bool value = TriviallyRelocatable<H> && TriviallyRelocatable<KCmp>;
 };
 
 template <typename V, typename D = usize>

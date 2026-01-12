@@ -112,8 +112,7 @@ f32 square_falloff_attenuation(f32x3 pos_to_light, f32 light_inv_radius)
     return (smoothness * smoothness) / max(dist_square, 1e-4);
 }
 
-f32 spot_angle_attenuation(f32x3 l, f32x3 light_dir, f32 inner_angle,
-                           f32 outer_angle)
+f32 spot_angle_attenuation(f32x3 l, f32x3 light_dir, f32 inner_angle, f32 outer_angle)
 {
     // the scale and offset computations can be done CPU-side
     f32 cos_outer   = cos(outer_angle);
@@ -171,11 +170,11 @@ f32x3 diffuse_brdf(f32x3 albedo)
     return (1 / PI) * albedo;
 }
 
-f32x3 metal_brdf(f32x3 albedo, f32 HoV, f32 roughness, f32 NoL, f32 NoV,
-                 f32 NoH, f32x3 N, f32x3 H)
+f32x3 metal_brdf(f32x3 albedo, f32 HoV, f32 roughness, f32 NoL, f32 NoV, f32 NoH,
+                 f32x3 N, f32x3 H)
 {
-    return conductor_fresnel(
-      albedo, f32x3(specular_brdf(roughness, NoL, NoV, NoH, N, H)), HoV);
+    return conductor_fresnel(albedo,
+                             f32x3(specular_brdf(roughness, NoL, NoV, NoH, N, H)), HoV);
 }
 
 f32x3 fresnel_mix(f32x3 albedo, f32x3 layer, f32 HoV, f32 ior)
@@ -187,12 +186,11 @@ f32x3 fresnel_mix(f32x3 albedo, f32x3 layer, f32 HoV, f32 ior)
 
 // ior - index of refraction: 1.5 default
 // roughness = perceptualRoughness * perceptualRoughness
-f32x3 dielectric_brdf(f32x3 albedo, f32 roughness, f32 NoL, f32 NoV, f32 NoH,
-                      f32x3 N, f32x3 H, f32 HoV, f32 ior)
+f32x3 dielectric_brdf(f32x3 albedo, f32 roughness, f32 NoL, f32 NoV, f32 NoH, f32x3 N,
+                      f32x3 H, f32 HoV, f32 ior)
 {
     return fresnel_mix(diffuse_brdf(albedo),
-                       f32x3(specular_brdf(roughness, NoL, NoV, NoH, N, H)),
-                       HoV, ior);
+                       f32x3(specular_brdf(roughness, NoL, NoV, NoH, N, H)), HoV, ior);
 }
 
 /// apply fresnel coat to a brdf
@@ -252,8 +250,7 @@ namespace bary
 /// @brief Non-perspective correct bezier curve
 BezierRegions bezier_region_blinn(f32x2 uv)
 {
-    return (uv.x * uv.x - uv.y) < 0 ? BezierRegions::Outside :
-                                      BezierRegions::Inside;
+    return (uv.x * uv.x - uv.y) < 0 ? BezierRegions::Outside : BezierRegions::Inside;
 }
 
 /// @brief An anti-aliased screen-space bezier curve
@@ -332,8 +329,7 @@ u32 tiled_flat_offset(u32x2 offset, u32x2 tile_extent_log2, u32x2 tile_extent,
     u32x2 tile_offset      = offset & (tile_extent - 1);
     u32   flat_tile        = tile.y * num_tiles.x + tile.x;
     u32   flat_tile_offset = tile_offset.y * tile_extent.y + tile_offset.x;
-    u32   flat_offset =
-      tile_extent.x * tile_extent.y * flat_tile + flat_tile_offset;
+    u32   flat_offset = tile_extent.x * tile_extent.y * flat_tile + flat_tile_offset;
     return flat_offset;
 }
 

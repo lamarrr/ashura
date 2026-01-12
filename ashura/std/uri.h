@@ -121,8 +121,7 @@ struct UriView
 
         auto hier_part_end = iter;
 
-        auto hier_part =
-          uri.slice(Slice::offsets(hier_part_begin, hier_part_end));
+        auto hier_part = uri.slice(Slice::offsets(hier_part_begin, hier_part_end));
 
         if (iter >= size)
         {
@@ -142,8 +141,7 @@ struct UriView
             }
 
             auto queries_end = iter;
-            auto queries =
-              uri.slice(Slice::offsets(queries_begin, queries_end));
+            auto queries     = uri.slice(Slice::offsets(queries_begin, queries_end));
 
             if (iter >= size)
             {
@@ -178,8 +176,7 @@ struct UriView
 
             auto fragments_begin = iter;
             auto fragments_end   = size;
-            auto fragments =
-              uri.slice(Slice::offsets(fragments_begin, fragments_end));
+            auto fragments = uri.slice(Slice::offsets(fragments_begin, fragments_end));
 
             return Ok{
               UriView{.scheme    = scheme,

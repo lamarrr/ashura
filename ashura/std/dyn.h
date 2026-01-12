@@ -88,8 +88,7 @@ struct [[nodiscard]] Dyn
 };
 
 template <typename T, typename... Args>
-constexpr Result<Dyn<T *>, Void> dyn(Inplace, Allocator allocator,
-                                     Args &&... args)
+constexpr Result<Dyn<T *>, Void> dyn(Inplace, Allocator allocator, Args &&... args)
 {
     Allocated<T> * p;
     if (!allocator->nalloc(1, p)) [[unlikely]]
@@ -139,8 +138,7 @@ constexpr Dyn<To> cast(Dyn<From> from)
 }
 
 template <typename Fn, typename Lambda>
-constexpr Result<Dyn<Fn>, Void> dyn_lambda(Allocator allocator,
-                                           Lambda && lambda)
+constexpr Result<Dyn<Fn>, Void> dyn_lambda(Allocator allocator, Lambda && lambda)
 {
     auto dyn_lambda_r = dyn(allocator, static_cast<Lambda &&>(lambda));
 

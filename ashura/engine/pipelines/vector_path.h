@@ -49,9 +49,8 @@ struct VectorPathFillPipelineParams
 
 struct VectorPathPipeline final : IPipeline
 {
-    gpu::GraphicsPipeline coverage_pipeline_;
-    SparseVec<PipelineVariantId, Tuple<Str, gpu::GraphicsPipeline>>
-      fill_pipelines_;
+    gpu::GraphicsPipeline                                           coverage_pipeline_;
+    SparseVec<PipelineVariantId, Tuple<Str, gpu::GraphicsPipeline>> fill_pipelines_;
 
     VectorPathPipeline(Allocator);
 
@@ -70,9 +69,8 @@ struct VectorPathPipeline final : IPipeline
     virtual void release(GpuFramePlan plan, Allocator allocator,
                          Allocator scratch) override;
 
-    PipelineVariantId add_fill_variant(GpuFramePlan plan, Str label,
-                                       gpu::Shader shader, Allocator allocator,
-                                       Allocator scratch);
+    PipelineVariantId add_fill_variant(GpuFramePlan plan, Str label, gpu::Shader shader,
+                                       Allocator allocator, Allocator scratch);
 
     void remove_fill_variant(GpuFramePlan plan, PipelineVariantId id);
 

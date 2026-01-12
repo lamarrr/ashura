@@ -13,8 +13,7 @@ Str PBRPipeline::label()
     return "PBR"_str;
 }
 
-gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
-                                      gpu::Shader      shader,
+gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label, gpu::Shader shader,
                                       gpu::PolygonMode polygon_mode, Allocator,
                                       Allocator        scratch)
 {
@@ -27,17 +26,17 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
       gpu::RasterizationState{.depth_clamp_enable = false,
                               .polygon_mode       = polygon_mode,
                               .cull_mode          = gpu::CullMode::None,
-                              .front_face = gpu::FrontFace::CounterClockWise,
-                              .depth_bias_enable          = false,
+                              .front_face         = gpu::FrontFace::CounterClockWise,
+                              .depth_bias_enable  = false,
                               .depth_bias_constant_factor = 0,
                               .depth_bias_clamp           = 0,
                               .depth_bias_slope_factor    = 0,
                               .sample_count               = gpu.sample_count()};
 
     auto depth_stencil_state =
-      gpu::DepthStencilState{.depth_test_enable  = false,
-                             .depth_write_enable = false,
-                             .depth_compare_op   = gpu::CompareOp::Greater,
+      gpu::DepthStencilState{.depth_test_enable        = false,
+                             .depth_write_enable       = false,
+                             .depth_compare_op         = gpu::CompareOp::Greater,
                              .depth_bounds_test_enable = false,
                              .stencil_test_enable      = false,
                              .front_stencil            = {},
@@ -72,19 +71,17 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
     };
 
     auto pipeline_info = gpu::GraphicsPipelineInfo{
-      .label = tagged_label,
-      .vertex_shader =
-        gpu::ShaderStageInfo{.shader                        = shader,
-                             .entry_point                   = "vert"_str,
-                             .specialization_constants      = {},
-                             .specialization_constants_data = {}},
-      .fragment_shader =
-        gpu::ShaderStageInfo{.shader                        = shader,
-                             .entry_point                   = "frag"_str,
-                             .specialization_constants      = {},
-                             .specialization_constants_data = {}},
+      .label                  = tagged_label,
+      .vertex_shader          = gpu::ShaderStageInfo{.shader                        = shader,
+                                                     .entry_point                   = "vert"_str,
+                                                     .specialization_constants      = {},
+                                                     .specialization_constants_data = {}},
+      .fragment_shader        = gpu::ShaderStageInfo{.shader                   = shader,
+                                                     .entry_point              = "frag"_str,
+                                                     .specialization_constants = {},
+                                                     .specialization_constants_data = {}},
       .color_formats          = span({gpu.color_format()}
-        ),
+                 ),
       .depth_format           = gpu.depth_stencil_format(),
       .stencil_format         = gpu.depth_stencil_format(),
       .vertex_input_bindings  = {},
@@ -101,17 +98,16 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
     return gpu.device()->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
-PBRPipeline::Pipeline create_pipeline(GpuFramePlan plan, Str label,
-                                      gpu::Shader shader, Allocator allocator,
-                                      Allocator scratch)
+PBRPipeline::Pipeline create_pipeline(GpuFramePlan plan, Str label, gpu::Shader shader,
+                                      Allocator allocator, Allocator scratch)
 {
     return {
-      .fill  = create_pipeline(plan, label, shader, gpu::PolygonMode::Fill,
-                               allocator, scratch),
-      .line  = create_pipeline(plan, label, shader, gpu::PolygonMode::Line,
-                               allocator, scratch),
-      .point = create_pipeline(plan, label, shader, gpu::PolygonMode::Point,
-                               allocator, scratch),
+      .fill  = create_pipeline(plan, label, shader, gpu::PolygonMode::Fill, allocator,
+                               scratch),
+      .line  = create_pipeline(plan, label, shader, gpu::PolygonMode::Line, allocator,
+                               scratch),
+      .point = create_pipeline(plan, label, shader, gpu::PolygonMode::Point, allocator,
+                               scratch),
     };
 }
 
@@ -119,24 +115,20 @@ PBRPipeline::PBRPipeline(Allocator allocator) : variants_{allocator}
 {
 }
 
-void PBRPipeline::acquire(GpuFramePlan plan, Allocator allocator,
-                          Allocator scratch)
+void PBRPipeline::acquire(GpuFramePlan plan, Allocator allocator, Allocator scratch)
 {
-    auto id =
-      add_variant(plan, "base"_str,
-                  sys.shader->get("defaults/pbr_base"_str).unwrap().shader,
-                  allocator, scratch);
+    auto id = add_variant(plan, "base"_str,
+                          sys.shader->get("defaults/pbr_base"_str).unwrap().shader,
+                          allocator, scratch);
     ASH_CHECK(id == PipelineVariantId::Base, "");
 }
 
 PipelineVariantId PBRPipeline::add_variant(GpuFramePlan plan, Str label,
-                                           gpu::Shader shader,
-                                           Allocator   allocator,
-                                           Allocator   scratch)
+                                           gpu::Shader shader, Allocator allocator,
+                                           Allocator scratch)
 {
     auto pipeline = create_pipeline(plan, label, shader, allocator, scratch);
-    auto id =
-      (PipelineVariantId) variants_.push(Tuple{label, pipeline}).unwrap();
+    auto id       = (PipelineVariantId) variants_.push(Tuple{label, pipeline}).unwrap();
     ASH_CHECK(id == PipelineVariantId::Base, "");
     return id;
 }
@@ -154,32 +146,29 @@ void PBRPipeline::remove_variant(GpuFramePlan plan, PipelineVariantId id)
     });
 }
 
-void PBRPipeline::encode(gpu::CommandEncoder       e,
-                         PBRPipelineParams const & params)
+void PBRPipeline::encode(gpu::CommandEncoder e, PBRPipelineParams const & params)
 {
     InplaceVec<gpu::RenderingAttachment, 1> color;
 
     params.framebuffer.color_msaa.match(
       [&](ColorMsaaImage const & tex) {
           color
-            .push(gpu::RenderingAttachment{
-              .view         = tex.view,
-              .resolve      = params.framebuffer.color.view,
-              .resolve_mode = gpu::ResolveModes::Average,
-              .load_op      = gpu::LoadOp::Load,
-              .store_op     = gpu::StoreOp::Store,
-              .clear        = {}})
+            .push(gpu::RenderingAttachment{.view    = tex.view,
+                                           .resolve = params.framebuffer.color.view,
+                                           .resolve_mode = gpu::ResolveModes::Average,
+                                           .load_op      = gpu::LoadOp::Load,
+                                           .store_op     = gpu::StoreOp::Store,
+                                           .clear        = {}})
             .unwrap();
       },
       [&]() {
           color
-            .push(
-              gpu::RenderingAttachment{.view    = params.framebuffer.color.view,
-                                       .resolve = nullptr,
-                                       .resolve_mode = gpu::ResolveModes::None,
-                                       .load_op      = gpu::LoadOp::Load,
-                                       .store_op     = gpu::StoreOp::Store,
-                                       .clear        = {}})
+            .push(gpu::RenderingAttachment{.view    = params.framebuffer.color.view,
+                                           .resolve = nullptr,
+                                           .resolve_mode = gpu::ResolveModes::None,
+                                           .load_op      = gpu::LoadOp::Load,
+                                           .store_op     = gpu::StoreOp::Store,
+                                           .clear        = {}})
             .unwrap();
       });
 
@@ -201,12 +190,12 @@ void PBRPipeline::encode(gpu::CommandEncoder       e,
                                         .clear        = {}};
     });
 
-    auto info = gpu::RenderingInfo{
-      .render_area{.extent = params.framebuffer.extent().xy()},
-      .num_layers         = 1,
-      .color_attachments  = color,
-      .depth_attachment   = depth,
-      .stencil_attachment = stencil};
+    auto info =
+      gpu::RenderingInfo{.render_area{.extent = params.framebuffer.extent().xy()},
+                         .num_layers         = 1,
+                         .color_attachments  = color,
+                         .depth_attachment   = depth,
+                         .stencil_attachment = stencil};
 
     e->begin_rendering(info);
 

@@ -68,8 +68,8 @@ struct Lambda<R(Args...), Alignment, Capacity>
     requires (ALIGNMENT >= alignof(Functor) && CAPACITY >= sizeof(Functor) &&
               Callable<Functor, Args...> &&
               Convertible<CallResult<Functor, Args...>, R>)
-    constexpr Lambda(Functor functor,
-                     Thunk   thunk = &FunctorThunk<Functor, R(Args...)>::thunk,
+    constexpr Lambda(Functor   functor,
+                     Thunk     thunk     = &FunctorThunk<Functor, R(Args...)>::thunk,
                      Lifecycle lifecycle = LIFECYCLE<Functor>) :
       thunk_{thunk},
       lifecycle_{lifecycle}
@@ -94,8 +94,7 @@ struct Lambda<R(Args...), Alignment, Capacity>
 
     template <usize SrcAlignment, usize SrcCapacity>
     requires (ALIGNMENT >= SrcAlignment && CAPACITY >= SrcCapacity)
-    constexpr Lambda &
-      operator=(Lambda<R(Args...), SrcAlignment, SrcCapacity> && other)
+    constexpr Lambda & operator=(Lambda<R(Args...), SrcAlignment, SrcCapacity> && other)
     {
         if constexpr (ALIGNMENT == SrcAlignment && CAPACITY == SrcCapacity)
         {

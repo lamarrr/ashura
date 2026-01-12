@@ -53,7 +53,7 @@ StructuredBuffer<ITEM_TYPE> quads;
 [[shader("fragment")]] f32x4 frag(VertexOutput in) : COLOR
 {
     var material = quads[in.instance].material;
-    var frag = QuadFragmentInfo(in.world_pos, in.screen_pos, in.rel_pos, in.uv,
-                                in.instance);
+    var frag =
+      QuadFragmentInfo(in.world_pos, in.screen_pos, in.rel_pos, in.uv, in.instance);
     return material.shade(frag, samplers, textures);
 }

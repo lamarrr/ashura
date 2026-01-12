@@ -240,8 +240,7 @@ struct [[nodiscard]] Buffer
         }
 
         // potentially overlapping
-        mem::move(Span{data() + first, size_ - first},
-                  data() + first + distance);
+        mem::move(Span{data() + first, size_ - first}, data() + first + distance);
 
         size_ += distance;
 

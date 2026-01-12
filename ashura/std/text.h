@@ -43,9 +43,7 @@ template <typename Iter>
         iter++;
         c32 const c3 = static_cast<c32>(*iter);
         iter++;
-        return {((c0 & 0x07) << 18) | ((c1 & 0x3F) << 12) | ((c2 & 0x3F) << 6) |
-                  c3,
-                4};
+        return {((c0 & 0x07) << 18) | ((c1 & 0x3F) << 12) | ((c2 & 0x3F) << 6) | c3, 4};
     }
     else if ((c0 & 0xF0) == 0xE0)
     {
@@ -158,8 +156,7 @@ inline Result<> utf8_decode(Str8 text, Vec<c32> & decoded)
     {
         return Err{};
     }
-    usize const count =
-      utf8_decode(text, decoded.view().slice(first, max_count));
+    usize const count = utf8_decode(text, decoded.view().slice(first, max_count));
     decoded.resize_uninit(first + count).unwrap();
     return Ok{};
 }
@@ -174,14 +171,12 @@ inline Result<> utf8_decode(Str8 text, Vec<c32> & decoded)
     {
         return Err{};
     }
-    usize const count =
-      utf8_encode(text, encoded.view().slice(first, max_count));
+    usize const count = utf8_encode(text, encoded.view().slice(first, max_count));
     encoded.resize_uninit(first + count).unwrap();
     return Ok{};
 }
 
-constexpr void replace_invalid_codepoints(Str32 input, MutStr32 output,
-                                          c32 replacement)
+constexpr void replace_invalid_codepoints(Str32 input, MutStr32 output, c32 replacement)
 {
     c32 const * in  = input.pbegin();
     c32 const * end = input.pend();
@@ -265,8 +260,7 @@ struct Utf8DecodeIter
         return iter_.size() * 4;
     }
 
-    constexpr auto max_size() const
-      requires (BoundedSizeIter<Iter> && !SizedIter<Iter>)
+    constexpr auto max_size() const requires (BoundedSizeIter<Iter> && !SizedIter<Iter>)
     {
         return iter_.max_size() * 4;
     }
@@ -310,8 +304,7 @@ struct Utf8EncodeIter
         return iter_.size() * 4;
     }
 
-    constexpr auto max_size() const
-      requires (BoundedSizeIter<Iter> && !SizedIter<Iter>)
+    constexpr auto max_size() const requires (BoundedSizeIter<Iter> && !SizedIter<Iter>)
     {
         return iter_.max_size() * 4;
     }

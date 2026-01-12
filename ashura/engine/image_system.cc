@@ -30,10 +30,9 @@ Result<ImageInfo, SysErr>
 
     for (gpu::ImageViewInfo view_info : view_infos)
     {
-        view_info.image = gpu_image;
-        gpu::ImageView view =
-          gpu_sys_->device()->create_image_view(view_info).unwrap();
-        TextureIndex tex_index = gpu_sys_->alloc_texture_index(view);
+        view_info.image     = gpu_image;
+        gpu::ImageView view = gpu_sys_->device()->create_image_view(view_info).unwrap();
+        TextureIndex   tex_index = gpu_sys_->alloc_texture_index(view);
         image.view_infos.push(view_info).unwrap();
         image.views.push(view).unwrap();
         image.textures.push(tex_index).unwrap();
@@ -58,18 +57,17 @@ void IImageSys::shutdown()
     }
 }
 
-Result<ImageInfo, SysErr>
-  IImageSys::upload_(Str label_span, gpu::ImageInfo const & info,
-                     Span<gpu::ImageViewInfo const> view_infos,
-                     Span<u8 const>                 channels)
+Result<ImageInfo, SysErr> IImageSys::upload_(Str                            label_span,
+                                             gpu::ImageInfo const &         info,
+                                             Span<gpu::ImageViewInfo const> view_infos,
+                                             Span<u8 const>                 channels)
 {
     tracing::ScopeTrace trace;
 
     ASH_CHECK(info.type == gpu::ImageType::Type2D, "");
-    ASH_CHECK(
-      (info.usage & ~(gpu::ImageUsage::Sampled | gpu::ImageUsage::TransferSrc |
-                      gpu::ImageUsage::TransferDst)) == gpu::ImageUsage::None,
-      "");
+    ASH_CHECK((info.usage & ~(gpu::ImageUsage::Sampled | gpu::ImageUsage::TransferSrc |
+                              gpu::ImageUsage::TransferDst)) == gpu::ImageUsage::None,
+              "");
     ASH_CHECK(info.aspects == gpu::ImageAspects::Color, "");
     ASH_CHECK(info.extent.z() == 1, "");
     ASH_CHECK(info.mip_levels == 1, "");
@@ -83,8 +81,7 @@ Result<ImageInfo, SysErr>
 
     gpu::Format resolved_format = gpu::Format::B8G8R8A8_UNORM;
 
-    u64 const bgra_size =
-      pixel_size_bytes(info.extent.xy(), 4) * info.array_layers;
+    u64 const bgra_size = pixel_size_bytes(info.extent.xy(), 4) * info.array_layers;
 
     Vec<u8> bgra_tmp{allocator_};
 
@@ -173,8 +170,7 @@ Result<ImageInfo, SysErr>
     auto buffer_id = gpu_sys_->current_plan()->push_gpu(bgra);
 
     gpu_sys_->current_plan()->add_pass(
-      [buffer_id, img = image.image, info](GpuFrame            frame,
-                                           gpu::CommandEncoder enc) {
+      [buffer_id, img = image.image, info](GpuFrame frame, gpu::CommandEncoder enc) {
           auto buffer = frame->get(buffer_id);
           enc->copy_buffer_to_image(
             buffer.buffer.buffer, img,
@@ -217,40 +213,38 @@ Future<Result<ImageInfo, SysErr>>
                                     .sample_count = info.sample_count};
 
     return scheduler_
-      ->run(allocator_, MainThread::Main,
-            [label = std::move(label), info = info_copy,
-             view_infos = std::move(view_infos_vec),
-             channels   = std::move(channels), this]() mutable {
-                return upload_(label, info, view_infos.view(), channels);
-            })
+      ->run(
+        allocator_, MainThread::Main,
+        [label = std::move(label), info = info_copy,
+         view_infos = std::move(view_infos_vec), channels = std::move(channels),
+         this]() mutable { return upload_(label, info, view_infos.view(), channels); })
       .unwrap();
 }
 
-Future<Result<ImageInfo, SysErr>> IImageSys::load_from_path(Str label_span,
-                                                            Str path)
+Future<Result<ImageInfo, SysErr>> IImageSys::load_from_path(Str label_span, Str path)
 {
     Future load_fut = file_sys_->load_file(allocator_, path);
     StrVec label{allocator_};
     label.append(label_span).unwrap();
 
-    auto decode_fut =
-      scheduler_
-        ->then(
-          allocator_, WorkerThread::Any,
-          [allocator = allocator_](Result<Vec<u8>, SysErr> & r) {
-              using R = Result<Tuple<Vec<u8>, DecodedImageInfo>, SysErr>;
-              return r.match(
-                [&](Span<u8 const> buffer) -> R {
-                    Vec<u8> channels{allocator};
-                    return decode_image(buffer, channels)
-                      .map([&](DecodedImageInfo const & info) {
-                          return Tuple{std::move(channels), info};
-                      });
-                },
-                [&](SysErr err) -> R { return Err{err}; });
-          },
-          std::move(load_fut))
-        .unwrap();
+    auto decode_fut = scheduler_
+                        ->then(
+                          allocator_, WorkerThread::Any,
+                          [allocator = allocator_](Result<Vec<u8>, SysErr> & r) {
+                              using R =
+                                Result<Tuple<Vec<u8>, DecodedImageInfo>, SysErr>;
+                              return r.match(
+                                [&](Span<u8 const> buffer) -> R {
+                                    Vec<u8> channels{allocator};
+                                    return decode_image(buffer, channels)
+                                      .map([&](DecodedImageInfo const & info) {
+                                          return Tuple{std::move(channels), info};
+                                      });
+                                },
+                                [&](SysErr err) -> R { return Err{err}; });
+                          },
+                          std::move(load_fut))
+                        .unwrap();
 
     return scheduler_
       ->then(
@@ -260,18 +254,17 @@ Future<Result<ImageInfo, SysErr>> IImageSys::load_from_path(Str label_span,
             using R = Result<ImageInfo, SysErr>;
             return r.match(
               [&](Tuple<Vec<u8>, DecodedImageInfo> & t) -> R {
-                  gpu::ImageInfo image_info{
-                    .label  = label,
-                    .type   = gpu::ImageType::Type2D,
-                    .format = t.v1.format,
-                    .usage  = gpu::ImageUsage::Sampled |
-                             gpu::ImageUsage::TransferDst |
-                             gpu::ImageUsage::TransferSrc,
-                    .aspects      = gpu::ImageAspects::Color,
-                    .extent       = t.v1.extent.append(1),
-                    .mip_levels   = 1,
-                    .array_layers = 1,
-                    .sample_count = gpu::SampleCount::C1};
+                  gpu::ImageInfo image_info{.label  = label,
+                                            .type   = gpu::ImageType::Type2D,
+                                            .format = t.v1.format,
+                                            .usage  = gpu::ImageUsage::Sampled |
+                                                     gpu::ImageUsage::TransferDst |
+                                                     gpu::ImageUsage::TransferSrc,
+                                            .aspects      = gpu::ImageAspects::Color,
+                                            .extent       = t.v1.extent.append(1),
+                                            .mip_levels   = 1,
+                                            .array_layers = 1,
+                                            .sample_count = gpu::SampleCount::C1};
 
                   gpu::ImageViewInfo view_infos[] = {
                     {.label       = label,

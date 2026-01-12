@@ -93,10 +93,9 @@ struct ImageLayerSpan
     {
         u64 data_offset = (u64) layer * (u64) extent.x() * (u64) extent.y() * C;
         u64 data_span   = extent.product<u64>() * C;
-        return ImageSpan<R, C>{.channels =
-                                 channels.slice(data_offset, data_span),
-                               .extent = extent,
-                               .stride = extent.x()};
+        return ImageSpan<R, C>{.channels = channels.slice(data_offset, data_span),
+                               .extent   = extent,
+                               .stride   = extent.x()};
     }
 };
 
@@ -116,8 +115,8 @@ void copy_image(ImageSpan<T const, C> src, ImageSpan<T, C> dst)
 }
 
 template <typename T>
-void copy_alpha_image_to_BGRA(ImageSpan<T const, 1> src, ImageSpan<T, 4> dst,
-                              T B, T G, T R)
+void copy_alpha_image_to_BGRA(ImageSpan<T const, 1> src, ImageSpan<T, 4> dst, T B, T G,
+                              T R)
 {
     src.extent = src.extent.min(dst.extent);
 

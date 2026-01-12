@@ -343,9 +343,9 @@ struct IArenaPool final : IAllocator
     {
         while (!arenas_.is_empty())
         {
-            auto it     = arenas_.pop_back();
-            auto layout = Layout{.alignment = cfg_.arena_alignment,
-                                 .size      = it->v.capacity()};
+            auto it = arenas_.pop_back();
+            auto layout =
+              Layout{.alignment = cfg_.arena_alignment, .size = it->v.capacity()};
             source_->dealloc(layout, it->v.begin);
             source_->ndealloc(1, it);
         };
@@ -467,13 +467,11 @@ struct IArenaPool final : IAllocator
                 }
 
                 // if only and first allocation on the arena, realloc arena
-                if (arena.v.begin == mem &&
-                    arena.v.offset == (mem + layout.size))
+                if (arena.v.begin == mem && arena.v.offset == (mem + layout.size))
                 {
-                    if (!source_->realloc(
-                          Layout{.alignment = cfg_.arena_alignment,
-                                 .size      = arena.v.capacity()},
-                          new_size, arena.v.begin))
+                    if (!source_->realloc(Layout{.alignment = cfg_.arena_alignment,
+                                                 .size      = arena.v.capacity()},
+                                          new_size, arena.v.begin))
                     {
                         return false;
                     }
@@ -545,12 +543,11 @@ struct IFallbackAllocator : IAllocator
     {
     }
 
-    constexpr IFallbackAllocator(IFallbackAllocator const &) = delete;
-    constexpr IFallbackAllocator(IFallbackAllocator &&)      = default;
-    constexpr IFallbackAllocator &
-      operator=(IFallbackAllocator const &)                         = delete;
-    constexpr IFallbackAllocator & operator=(IFallbackAllocator &&) = default;
-    constexpr ~IFallbackAllocator()                                 = default;
+    constexpr IFallbackAllocator(IFallbackAllocator const &)             = delete;
+    constexpr IFallbackAllocator(IFallbackAllocator &&)                  = default;
+    constexpr IFallbackAllocator & operator=(IFallbackAllocator const &) = delete;
+    constexpr IFallbackAllocator & operator=(IFallbackAllocator &&)      = default;
+    constexpr ~IFallbackAllocator()                                      = default;
 
     /// @copydoc IAllocator::alloc
     virtual bool alloc(Layout layout, u8 *& mem) override

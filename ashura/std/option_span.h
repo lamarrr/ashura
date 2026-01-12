@@ -58,9 +58,7 @@ struct OptionSpan
     SpanType span_;
     Mask     is_some_;
 
-    constexpr OptionSpan(SpanType span, Mask is_some) :
-      span_{span},
-      is_some_{is_some}
+    constexpr OptionSpan(SpanType span, Mask is_some) : span_{span}, is_some_{is_some}
     {
     }
 
@@ -204,8 +202,7 @@ struct OptionBitIter
 };
 
 template <typename Repr, typename MaskRepr>
-requires ((Const<Repr> && Const<MaskRepr>) ||
-          (NonConst<Repr> && NonConst<MaskRepr>) )
+requires ((Const<Repr> && Const<MaskRepr>) || (NonConst<Repr> && NonConst<MaskRepr>) )
 struct OptionBitSpan
 {
     using SpanType = BitSpan<Repr>;

@@ -9,8 +9,7 @@
 namespace ash
 {
 
-TextRunsStyle TextRunsStyle::all(TextStyle const & style,
-                                 FontStyle const & font)
+TextRunsStyle TextRunsStyle::all(TextStyle const & style, FontStyle const & font)
 {
     SmallVec<usize, 4, 0>     run_indices{noop_allocator};
     SmallVec<TextStyle, 1, 0> styles{noop_allocator};
@@ -20,8 +19,7 @@ TextRunsStyle TextRunsStyle::all(TextStyle const & style,
     styles.push(style).unwrap();
     fonts.push(font).unwrap();
 
-    return TextRunsStyle{std::move(run_indices), std::move(styles),
-                         std::move(fonts)};
+    return TextRunsStyle{std::move(run_indices), std::move(styles), std::move(fonts)};
 }
 
 TextRunsStyle TextRunsStyle::make_sized(Allocator             allocator,
@@ -65,16 +63,14 @@ TextRunsStyle TextRunsStyle::make_indexed(Allocator             allocator,
                                           Span<FontStyle const> fonts)
 {
     ASH_CHECK(!run_indices.is_empty(), "run_indices cannot be empty");
-    ASH_CHECK(run_indices.size() >= 2,
-              "run_indices must have at least two entries");
+    ASH_CHECK(run_indices.size() >= 2, "run_indices must have at least two entries");
     ASH_CHECK(run_indices.first() == 0, "first entry of run_indices must be 0");
     ASH_CHECK(run_indices.size() - 1 == styles.size(),
               "run_indices and styles must have compatible sizes");
     ASH_CHECK(run_indices.size() - 1 == fonts.size(),
               "run_indices and fonts must have compatible sizes");
 
-    auto run_indices_vec =
-      small_vec::copy<4, 0>(allocator, run_indices).unwrap();
+    auto run_indices_vec = small_vec::copy<4, 0>(allocator, run_indices).unwrap();
 
     if (run_indices_vec.last() != USIZE_MAX)
     {
@@ -235,9 +231,8 @@ TextBlock RenderText::block() const
 
 TextBlockStyle RenderText::block_style(f32 aligned_width) const
 {
-    return TextBlockStyle{.alignment   = alignment_,
-                          .align_width = aligned_width,
-                          .user_data   = user_data_};
+    return TextBlockStyle{
+      .alignment = alignment_, .align_width = aligned_width, .user_data = user_data_};
 }
 
 TextLayout const & RenderText::get_layout() const
@@ -260,9 +255,8 @@ void RenderText::render(TextRenderer renderer, f32x2 center, f32 align_width,
                         f32x4x4 const & transform, CRect const & clip,
                         Span<Slice const>              highlights,
                         Span<TextHighlightStyle const> highlight_styles,
-                        Span<usize const>              carets,
-                        Span<CaretStyle const>         caret_styles,
-                        Allocator                      scratch) const
+                        Span<usize const> carets, Span<CaretStyle const> caret_styles,
+                        Allocator scratch) const
 {
     TextRenderInfo info{.center           = center,
                         .transform        = transform,
@@ -280,7 +274,7 @@ void RenderText::render(TextRenderer renderer, f32x2 center, f32 align_width,
 
 Tuple<isize, CaretAlignment> RenderText::hit(f32x2 center, f32 align_width,
                                              f32x4x4 const & transform,
-                                             f32x2 transformed_pos) const
+                                             f32x2           transformed_pos) const
 {
     auto inv_xfm   = inverse(transform);
     auto pos       = ash::transform(inv_xfm, transformed_pos.append(0)).xy();
@@ -288,12 +282,10 @@ Tuple<isize, CaretAlignment> RenderText::hit(f32x2 center, f32 align_width,
     return layout_.hit(block(), block_style(align_width), local_pos);
 }
 
-EditHistoryBuffer EditHistoryBuffer::create(Allocator allocator,
-                                            usize     records_capacity)
+EditHistoryBuffer EditHistoryBuffer::create(Allocator allocator, usize records_capacity)
 {
     ASH_CHECK(records_capacity > 0, "");
-    return EditHistoryBuffer{
-      Vec<Record>::make(records_capacity, allocator).unwrap()};
+    return EditHistoryBuffer{Vec<Record>::make(records_capacity, allocator).unwrap()};
 }
 
 Option<Slice> EditHistoryBuffer::redo(PieceTable32 & str)
@@ -377,8 +369,7 @@ void EditHistoryBuffer::add_record(Record::Type type, usize pos, Rc<Str32> str)
     current_record_ = records_.size() - 1;
 }
 
-void EditHistoryBuffer::insert(usize pos, PieceTable32 & str,
-                               Rc<Str32> insert_str)
+void EditHistoryBuffer::insert(usize pos, PieceTable32 & str, Rc<Str32> insert_str)
 {
     auto record_str = insert_str.alias();
     str.insert(pos, std::move(insert_str)).unwrap();
@@ -403,8 +394,7 @@ static constexpr bool is_symbol(Span<c32 const> symbols, c32 c)
 }
 
 template <typename Fn>
-static constexpr Option<usize> seek(Str32 text, usize pos, bool left,
-                                    Fn && pred)
+static constexpr Option<usize> seek(Str32 text, usize pos, bool left, Fn && pred)
 {
     if (pos >= text.size())
     {
@@ -457,17 +447,14 @@ static constexpr Slice span_boundary(Str32 text, usize pos, Fn && pred)
     }
 }
 
-static constexpr Slice span_sym_boundary(Str32 text, usize pos,
-                                         Span<c32 const> symbols)
+static constexpr Slice span_sym_boundary(Str32 text, usize pos, Span<c32 const> symbols)
 {
-    return span_boundary(text, pos,
-                         [&](c32 c) { return is_symbol(symbols, c); });
+    return span_boundary(text, pos, [&](c32 c) { return is_symbol(symbols, c); });
 }
 
-static inline Option<isize> translate_caret(TextLayout const & layout,
-                                            isize              caret,
-                                            CaretXAlignment    alignment,
-                                            isize line_displacement)
+static inline Option<isize> translate_caret(TextLayout const & layout, isize caret,
+                                            CaretXAlignment alignment,
+                                            isize           line_displacement)
 {
     if (layout.lines.is_empty())
     {
@@ -579,8 +566,7 @@ void EditText::word_start(Span<c32 const> word_symbols)
     auto   c      = layout.get_caret_codepoint(cursor.caret());
     auto   text   = get_text();
     cursor.move_to(layout.to_caret(
-      seek_sym(text, c.codepoint + (c.after ? 1 : 0), true, word_symbols)
-        .unwrap_or(),
+      seek_sym(text, c.codepoint + (c.after ? 1 : 0), true, word_symbols).unwrap_or(),
       true));
     cursor_ = Cursor{action_id_++, cursor};
 }
@@ -591,8 +577,7 @@ void EditText::word_end(Span<c32 const> word_symbols)
     auto   cursor = cursor_.v;
     auto   c      = layout.get_caret_codepoint(cursor.caret());
     cursor.move_to(layout.to_caret(
-      seek_sym(get_text(), c.codepoint, false, word_symbols).unwrap_or(),
-      true));
+      seek_sym(get_text(), c.codepoint, false, word_symbols).unwrap_or(), true));
     cursor_ = Cursor{action_id_++, cursor};
 }
 
@@ -636,9 +621,9 @@ void EditText::page_up(usize lines_per_page)
 {
     auto & layout = get_layout();
     auto   cursor = cursor_.v;
-    cursor.move_to(translate_caret(layout, cursor.caret(), caret_alignment_,
-                                   -(isize) lines_per_page)
-                     .unwrap_or(cursor.caret()));
+    cursor.move_to(
+      translate_caret(layout, cursor.caret(), caret_alignment_, -(isize) lines_per_page)
+        .unwrap_or(cursor.caret()));
     cursor_ = Cursor{action_id_++, cursor};
 }
 
@@ -646,9 +631,9 @@ void EditText::page_down(usize lines_per_page)
 {
     auto & layout = get_layout();
     auto   cursor = cursor_.v;
-    cursor.move_to(translate_caret(layout, cursor.caret(), caret_alignment_,
-                                   (isize) lines_per_page)
-                     .unwrap_or(cursor.caret()));
+    cursor.move_to(
+      translate_caret(layout, cursor.caret(), caret_alignment_, (isize) lines_per_page)
+        .unwrap_or(cursor.caret()));
     cursor_ = Cursor{action_id_++, cursor};
 }
 
@@ -702,8 +687,7 @@ void EditText::select_to_word_end(Span<c32 const> word_symbols)
     auto   cursor = cursor_.v;
     auto   c      = layout.get_caret_codepoint(cursor.caret());
     cursor.span_to(layout.to_caret(
-      seek_sym(get_text(), c.codepoint, false, word_symbols).unwrap_or(),
-      true));
+      seek_sym(get_text(), c.codepoint, false, word_symbols).unwrap_or(), true));
     cursor_ = Cursor{action_id_++, cursor};
 }
 
@@ -729,9 +713,9 @@ void EditText::select_page_up(usize lines_per_page)
 {
     auto & layout = get_layout();
     auto   cursor = cursor_.v;
-    cursor.span_to(translate_caret(layout, cursor.caret(), caret_alignment_,
-                                   -(isize) lines_per_page)
-                     .unwrap_or(cursor.caret()));
+    cursor.span_to(
+      translate_caret(layout, cursor.caret(), caret_alignment_, -(isize) lines_per_page)
+        .unwrap_or(cursor.caret()));
     cursor_ = Cursor{action_id_++, cursor};
 }
 
@@ -739,9 +723,9 @@ void EditText::select_page_down(usize lines_per_page)
 {
     auto & layout = get_layout();
     auto   cursor = cursor_.v;
-    cursor.span_to(translate_caret(layout, cursor.caret(), caret_alignment_,
-                                   (isize) lines_per_page)
-                     .unwrap_or(cursor.caret()));
+    cursor.span_to(
+      translate_caret(layout, cursor.caret(), caret_alignment_, (isize) lines_per_page)
+        .unwrap_or(cursor.caret()));
     cursor_ = Cursor{action_id_++, cursor};
 }
 
@@ -758,8 +742,7 @@ void EditText::select_word(Span<c32 const> word_symbols)
     auto & layout    = get_layout();
     auto   cursor    = cursor_.v;
     auto   selection = span_sym_boundary(
-      get_text(), layout.get_caret_codepoint(cursor.caret()).codepoint,
-      word_symbols);
+      get_text(), layout.get_caret_codepoint(cursor.caret()).codepoint, word_symbols);
     cursor.select(layout.get_caret_selection(selection));
     cursor_ = Cursor{action_id_++, cursor};
 }
@@ -947,8 +930,8 @@ void EditText::undo()
 {
     auto id = action_id_++;
     action_queue_
-      .push(UndoAction{
-        .id = id, .max_width = max_width_, .renderer = renderer_.alias()})
+      .push(
+        UndoAction{.id = id, .max_width = max_width_, .renderer = renderer_.alias()})
       .unwrap();
 }
 
@@ -956,8 +939,8 @@ void EditText::redo()
 {
     auto id = action_id_++;
     action_queue_
-      .push(RedoAction{
-        .id = id, .max_width = max_width_, .renderer = renderer_.alias()})
+      .push(
+        RedoAction{.id = id, .max_width = max_width_, .renderer = renderer_.alias()})
       .unwrap();
 }
 
@@ -993,7 +976,7 @@ void EditText::tick(nanoseconds)
 
             auto old_text = std::move(state_->text);
 
-            *state_ = State{.text = result->text.unwrap_or(std::move(old_text)),
+            *state_ = State{.text    = result->text.unwrap_or(std::move(old_text)),
                             .history = std::move(result->history)};
 
             for (auto & cursor : result->cursors)
@@ -1021,71 +1004,63 @@ void EditText::tick(nanoseconds)
               [allocator = allocator_, actions = std::move(actions),
                previous_state_ = state_.alias(),
                history         = std::move(state_->history)]() mutable {
-                  tracing::ScopeTrace trace{
-                    "EditText::tick::apply_actions"_str};
+                  tracing::ScopeTrace trace{"EditText::tick::apply_actions"_str};
 
-                  auto cursors            = SmallVec<Cursor, 8, 0>{allocator};
-                  Option<RenderText> text = none;
+                  auto               cursors = SmallVec<Cursor, 8, 0>{allocator};
+                  Option<RenderText> text    = none;
 
                   auto render = [&](PieceTable32 const & pieces, f32 max_width,
                                     Renderer const & renderer) {
                       StrVec32 str{allocator};
                       pieces.compact(Slice::all(), str).unwrap();
-                      auto rc_strvec =
-                        rc<StrVec32>(allocator, std::move(str)).unwrap();
-                      auto view     = rc_strvec->view().as_const();
-                      auto rc_str32 = transmute(std::move(rc_strvec), view);
-                      auto text     = renderer(allocator, std::move(rc_str32));
-                      auto scratch =
-                        IFallbackAllocator{get_thread_arena(), allocator};
+                      auto rc_strvec = rc<StrVec32>(allocator, std::move(str)).unwrap();
+                      auto view      = rc_strvec->view().as_const();
+                      auto rc_str32  = transmute(std::move(rc_strvec), view);
+                      auto text      = renderer(allocator, std::move(rc_str32));
+                      auto scratch = IFallbackAllocator{get_thread_arena(), allocator};
                       text.layout(max_width, scratch);
                       return text;
                   };
 
                   for (auto & action : actions)
                   {
-                      auto &       layout = text.is_some() ?
-                                              text->get_layout() :
-                                              previous_state_->text.get_layout();
-                      auto &       str    = text.is_some() ? text->text_ :
-                                                             previous_state_->text.text_;
+                      auto & layout = text.is_some() ?
+                                        text->get_layout() :
+                                        previous_state_->text.get_layout();
+                      auto & str =
+                        text.is_some() ? text->text_ : previous_state_->text.text_;
                       PieceTable32 pieces{allocator};
                       pieces.insert(0, str.alias()).unwrap();
 
                       action.match(
                         [&](InsertAction & a) {
                             a.cursor.normalize(layout.num_carets);
-                            auto cp =
-                              layout.get_caret_codepoint(a.cursor.caret());
+                            auto cp = layout.get_caret_codepoint(a.cursor.caret());
                             auto codepoint = cp.codepoint + (cp.after ? 1 : 0);
                             history.insert(codepoint, pieces, a.str.alias());
-                            text = render(pieces, a.max_width, a.renderer);
+                            text              = render(pieces, a.max_width, a.renderer);
                             auto & new_layout = text->get_layout();
-                            auto   caret      = new_layout.to_caret(
-                              codepoint + a.str.get().size(), true);
+                            auto   caret =
+                              new_layout.to_caret(codepoint + a.str.get().size(), true);
                             auto cursor = TextCursor{};
-                            cursor.move_to(caret).normalize(
-                              new_layout.num_carets);
-                            cursors.push(Cursor{.id = a.id, .v = cursor})
-                              .unwrap();
+                            cursor.move_to(caret).normalize(new_layout.num_carets);
+                            cursors.push(Cursor{.id = a.id, .v = cursor}).unwrap();
                         },
                         [&](EraseAction & a) {
                             a.cursor.normalize(layout.num_carets);
                             auto selection =
                               layout.get_caret_selection(a.cursor.selection());
                             history.erase(selection, pieces);
-                            text = render(pieces, a.max_width, a.renderer);
+                            text        = render(pieces, a.max_width, a.renderer);
                             auto cursor = TextCursor{};
                             cursor.move_to(a.cursor.left_caret())
                               .normalize(text->get_layout().num_carets);
-                            cursors.push(Cursor{.id = a.id, .v = cursor})
-                              .unwrap();
+                            cursors.push(Cursor{.id = a.id, .v = cursor}).unwrap();
                         },
                         [&](UndoAction & a) {
                             history.undo(pieces).match(
                               [&](Slice insertion) {
-                                  text =
-                                    render(pieces, a.max_width, a.renderer);
+                                  text = render(pieces, a.max_width, a.renderer);
                                   auto & new_layout = text->get_layout();
                                   auto   selection =
                                     new_layout.to_caret_selection(insertion);
@@ -1094,16 +1069,12 @@ void EditText::tick(nanoseconds)
                                   cursors.push(Cursor{.id = a.id, .v = cursor})
                                     .unwrap();
                               },
-                              [&] {
-                                  text =
-                                    render(pieces, a.max_width, a.renderer);
-                              });
+                              [&] { text = render(pieces, a.max_width, a.renderer); });
                         },
                         [&](RedoAction & a) {
                             history.redo(pieces).match(
                               [&](Slice insertion) {
-                                  text =
-                                    render(pieces, a.max_width, a.renderer);
+                                  text = render(pieces, a.max_width, a.renderer);
                                   auto & new_layout = text->get_layout();
                                   auto   selection =
                                     new_layout.to_caret_selection(insertion);
@@ -1112,10 +1083,7 @@ void EditText::tick(nanoseconds)
                                   cursors.push(Cursor{.id = a.id, .v = cursor})
                                     .unwrap();
                               },
-                              [&] {
-                                  text =
-                                    render(pieces, a.max_width, a.renderer);
-                              });
+                              [&] { text = render(pieces, a.max_width, a.renderer); });
                         },
                         [&](RelayoutAction & a) {
                             text = render(pieces, a.max_width, a.renderer);
@@ -1131,10 +1099,9 @@ void EditText::tick(nanoseconds)
                         });
                   }
 
-                  return rc(allocator,
-                            ActionResult{.text    = std::move(text),
-                                         .history = std::move(history),
-                                         .cursors = std::move(cursors)})
+                  return rc(allocator, ActionResult{.text    = std::move(text),
+                                                    .history = std::move(history),
+                                                    .cursors = std::move(cursors)})
                     .unwrap();
               })
             .unwrap();

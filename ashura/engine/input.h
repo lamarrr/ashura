@@ -724,12 +724,10 @@ struct DropTextEvent
     Str8 text{};
 };
 
-using DropEvent =
-  Enum<DropEventType, DropPositionEvent, DropFileEvent, DropTextEvent>;
+using DropEvent = Enum<DropEventType, DropPositionEvent, DropFileEvent, DropTextEvent>;
 
-using WindowEvent =
-  Enum<KeyEvent, MouseMotionEvent, MouseClickEvent, MouseWheelEvent,
-       TextInputEvent, WindowEventType, DropEvent>;
+using WindowEvent = Enum<KeyEvent, MouseMotionEvent, MouseClickEvent, MouseWheelEvent,
+                         TextInputEvent, WindowEventType, DropEvent>;
 
 enum class SystemEventType : u8
 {

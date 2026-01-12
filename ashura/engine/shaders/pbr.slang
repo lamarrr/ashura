@@ -60,8 +60,7 @@ ConstantBuffer<ITEM_TYPE> item;
 StructuredBuffer<PunctualLight> lights;
 
 [[shader("vertex")]]
-VertexOutput vert(u32 vertex : SV_VulkanVertexID,
-                  u32 instance : SV_VulkanInstanceID)
+VertexOutput vert(u32 vertex : SV_VulkanVertexID, u32 instance : SV_VulkanInstanceID)
 {
     var   idx        = indices[vertex];
     var   vtx        = vertices[idx];
@@ -75,7 +74,7 @@ VertexOutput vert(u32 vertex : SV_VulkanVertexID,
 [[shader("fragment")]]
 FragmentOutput frag(VertexOutput in)
 {
-    var frag = PbrFragmentInfo(in.world_pos, in.screen_pos, in.uv, in.instance);
+    var frag     = PbrFragmentInfo(in.world_pos, in.screen_pos, in.uv, in.instance);
     var material = item.material;
     var m        = material.shade(frag, samplers, textures);
 
@@ -84,8 +83,7 @@ FragmentOutput frag(VertexOutput in)
     f32x3 V   = normalize(item.eye_position.xyz - in.world_pos.xyz);
     f32   NoV = dot(m.normal, V.xyz);
 
-    for (u32 i = item.first_light; i < (item.first_light + item.num_lights);
-         i++)
+    for (u32 i = item.first_light; i < (item.first_light + item.num_lights); i++)
     {
         // irradiance - light from source
         // radiance - reaction of the object to the light source
@@ -93,8 +91,7 @@ FragmentOutput frag(VertexOutput in)
         f32x3 light_pos = light.position().xyz;
         f32x3 irradiance =
           m.lit * light.irradiance(f32x4(light_pos, 1), f32x4(m.normal, 1)).xyz;
-        luminance +=
-          m.radiance(light_pos, in.world_pos.xyz, V, NoV, irradiance);
+        luminance += m.radiance(light_pos, in.world_pos.xyz, V, NoV, irradiance);
     }
 
     return FragmentOutput::make(f32x4(luminance, 1), f32x4(m.emission, 1));

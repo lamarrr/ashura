@@ -11,8 +11,7 @@ namespace str
 namespace impl
 {
 template <typename Vec, typename C>
-Result<> join(Vec & out, Span<C const> delimiter,
-              Span<Span<C const> const> strings)
+Result<> join(Vec & out, Span<C const> delimiter, Span<Span<C const> const> strings)
 {
     if (strings.size() == 0)
     {
@@ -40,8 +39,7 @@ Result<> join(Vec & out, Span<C const> delimiter,
 }
 }    // namespace impl
 
-template <typename Char, typename DelimChar, typename Str0Char,
-          typename... StrChars>
+template <typename Char, typename DelimChar, typename Str0Char, typename... StrChars>
 Result<> join(Vec<Char> & out, Span<DelimChar> delimiter, Span<Str0Char> str0,
               Span<StrChars>... strs)
 {

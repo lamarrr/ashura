@@ -357,9 +357,8 @@ struct TriangleFillEncoder final : ICanvasEncoder
 
     PipelineVariantId variant_;
 
-    explicit TriangleFillEncoder(Allocator           allocator,
-                                 Attachments const & attachments,
-                                 Item const &        item) :
+    explicit TriangleFillEncoder(Allocator allocator, Attachments const & attachments,
+                                 Item const & item) :
       ICanvasEncoder{CanvasEncoderType::TriangleFill},
       num_instances_{0},
       attachments_{attachments},
@@ -463,9 +462,8 @@ struct FillStencilEncoder final : ICanvasEncoder
 
     Vec<u8> indices_;
 
-    explicit FillStencilEncoder(Allocator           allocator,
-                                Attachments const & attachments,
-                                Item const &        item) :
+    explicit FillStencilEncoder(Allocator allocator, Attachments const & attachments,
+                                Item const & item) :
       ICanvasEncoder{CanvasEncoderType::Custom},
       num_instances_{0},
       attachments_{attachments},
@@ -581,16 +579,15 @@ struct BezierStencilEncoder final : ICanvasEncoder
     ~BezierStencilEncoder()                                        = default;
 
     void push_(State const & state, f32x4x4 const & world_transform,
-               Span<u8 const> vertices, Span<u32 const> indices,
-               u32 first_bezier_index)
+               Span<u8 const> vertices, Span<u32 const> indices, u32 first_bezier_index)
     {
         impl::push_index(size32(indices), index_runs_);
         impl::push_state(state, states_, state_runs_);
 
         auto index_prefix = index_runs_[size32(indices) - 2];
-        auto item         = shader::BezierStencilItem{
-                  .world_transform    = world_transform,
-                  .first_bezier_index = index_prefix + first_bezier_index};
+        auto item = shader::BezierStencilItem{.world_transform = world_transform,
+                                              .first_bezier_index =
+                                                index_prefix + first_bezier_index};
         items_.append(as_u8_span(item)).unwrap();
         vertices_.append(vertices).unwrap();
         indices_.append(indices.as_u8()).unwrap();
@@ -640,8 +637,8 @@ struct FillPathEncoder final : ICanvasEncoder
         CanvasEncoderType::Custom
     },
       stencil_{allocator,
-               FillStencilEncoder::Attachments{
-                 .depth_stencil = attachment.scratch_depth_stencil},
+               FillStencilEncoder::Attachments{.depth_stencil =
+                                                 attachment.scratch_depth_stencil},
                FillStencilEncoder::Item{.write_mask      = 1,
                                         .scissor         = item.scissor,
                                         .viewport        = item.viewport,
@@ -707,20 +704,19 @@ struct BezierPathEncoder final : ICanvasEncoder
         CanvasEncoderType::Custom
     },
       stencil_{allocator,
-               BezierStencilEncoder::Attachments{
-                 .depth_stencil = attachment.scratch_depth_stencil},
-               BezierStencilEncoder::Item{
-                 .write_mask         = 1,
-                 .scissor            = item.scissor,
-                 .viewport           = item.viewport,
-                 .fill_rule          = item.fill_rule,
-                 .invert             = item.invert,
-                 .front_face         = item.front_face,
-                 .world_to_ndc       = item.world_to_ndc,
-                 .world_transform    = item.world_transform,
-                 .first_bezier_index = item.first_bezier_index,
-                 .vertices           = item.vertices,
-                 .indices            = item.indices}},
+               BezierStencilEncoder::Attachments{.depth_stencil =
+                                                   attachment.scratch_depth_stencil},
+               BezierStencilEncoder::Item{.write_mask         = 1,
+                                          .scissor            = item.scissor,
+                                          .viewport           = item.viewport,
+                                          .fill_rule          = item.fill_rule,
+                                          .invert             = item.invert,
+                                          .front_face         = item.front_face,
+                                          .world_to_ndc       = item.world_to_ndc,
+                                          .world_transform    = item.world_transform,
+                                          .first_bezier_index = item.first_bezier_index,
+                                          .vertices           = item.vertices,
+                                          .indices            = item.indices}},
       fill_{allocator,
             SdfEncoder::Attachments{
               .color         = attachment.color,
@@ -760,9 +756,8 @@ struct VectorPathEncoder final : ICanvasEncoder
 
         State state() const
         {
-            return State{.front_face = front_face,
-                         .scissor    = scissor,
-                         .viewport   = viewport};
+            return State{
+              .front_face = front_face, .scissor = scissor, .viewport = viewport};
         }
     };
 
@@ -805,9 +800,8 @@ struct VectorPathEncoder final : ICanvasEncoder
 
     PipelineVariantId variant_;
 
-    explicit VectorPathEncoder(Allocator           allocator,
-                               Attachments const & attachments,
-                               Item const &        item) :
+    explicit VectorPathEncoder(Allocator allocator, Attachments const & attachments,
+                               Item const & item) :
       ICanvasEncoder{CanvasEncoderType::VectorPath},
       num_coverage_items_{0},
       num_fill_items_{0},
@@ -836,8 +830,7 @@ struct VectorPathEncoder final : ICanvasEncoder
     ~VectorPathEncoder()                                     = default;
 
     void push_(State const & state, f32x4x4 const & world_transform,
-               Span<shader::VectorPathVertex const>   vertices,
-               Span<u32 const>                        indices,
+               Span<shader::VectorPathVertex const> vertices, Span<u32 const> indices,
                Span<shader::VectorPathFillItem const> fill_items)
     {
         impl::push_index(size32(indices), index_runs_);

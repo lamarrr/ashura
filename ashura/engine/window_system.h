@@ -30,8 +30,7 @@ struct IWindowSys
 
     virtual void shutdown() = 0;
 
-    virtual Option<IWindow &> create_window(gpu::Instance instance,
-                                            Str           title) = 0;
+    virtual Option<IWindow &> create_window(gpu::Instance instance, Str title) = 0;
 
     virtual void uninit_window(Window window) = 0;
 
@@ -95,8 +94,7 @@ struct IWindowSys
 
     virtual void unlisten(Window window, WindowListenerId listener) = 0;
 
-    virtual Result<> set_hit_test(Window                  window,
-                                  Fn<WindowRegion(u32x2)> hit) = 0;
+    virtual Result<> set_hit_test(Window window, Fn<WindowRegion(u32x2)> hit) = 0;
 
     virtual gpu::Surface get_surface(Window window) = 0;
 

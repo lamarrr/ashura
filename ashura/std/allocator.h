@@ -54,11 +54,9 @@ struct IAllocator
 
     /// @brief resize memory of size `old_num` objects of type `T` to `new_num`
     template <typename T>
-    [[nodiscard]] constexpr bool nrealloc(usize old_num, usize new_num,
-                                          T *& mem)
+    [[nodiscard]] constexpr bool nrealloc(usize old_num, usize new_num, T *& mem)
     {
-        return realloc(layout_of<T>.array(old_num), sizeof(T) * new_num,
-                       (u8 *&) mem);
+        return realloc(layout_of<T>.array(old_num), sizeof(T) * new_num, (u8 *&) mem);
     }
 
     /// @brief deallocate memory of `num` objects of type `T`

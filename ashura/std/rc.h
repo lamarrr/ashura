@@ -43,9 +43,7 @@ struct [[nodiscard]] Rc
     H    handle_;
     RcOp rc_;
 
-    constexpr Rc(H handle, RcOp rc) :
-      handle_{Consume<H>::consume(handle)},
-      rc_{rc}
+    constexpr Rc(H handle, RcOp rc) : handle_{Consume<H>::consume(handle)}, rc_{rc}
     {
     }
 
@@ -169,8 +167,7 @@ struct RcObject
 };
 
 template <typename T, typename... Args>
-constexpr Result<Rc<T *>, Void> rc(Inplace, Allocator allocator,
-                                   Args &&... args)
+constexpr Result<Rc<T *>, Void> rc(Inplace, Allocator allocator, Args &&... args)
 {
     Allocated<RcObject<T>> * p;
 

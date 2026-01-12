@@ -14,8 +14,7 @@ inline constexpr i32 AU_UNIT = 128 * 64;
 
 inline constexpr f32 AU_SCALE = 1 / (f32) AU_UNIT;
 
-static_assert((AU_UNIT % 64) == 0,
-              "App Unit needs to be in 26.6 Fractional Unit");
+static_assert((AU_UNIT % 64) == 0, "App Unit needs to be in 26.6 Fractional Unit");
 
 static_assert((AU_UNIT / 64) >= 64,
               "App Unit needs to be at least 64 26.6 Fractional Units");

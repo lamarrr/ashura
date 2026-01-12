@@ -10,19 +10,16 @@
 namespace ash
 {
 
-#define CHECK_SDL(cond_expr) \
-    ASH_CHECK(cond_expr, "SDL Error: {}", SDL_GetError())
+#define CHECK_SDL(cond_expr) ASH_CHECK(cond_expr, "SDL Error: {}", SDL_GetError())
 
 struct WindowImpl
 {
-    SDL_Window * win     = nullptr;
-    gpu::Surface surface = nullptr;
-    SDL_WindowID id      = 0;
+    SDL_Window *                                               win     = nullptr;
+    gpu::Surface                                               surface = nullptr;
+    SDL_WindowID                                               id      = 0;
     SparseVec<WindowListenerId, Fn<void(WindowEvent const &)>> listeners;
-    gpu::Instance           instance = nullptr;
-    Fn<WindowRegion(u32x2)> hit_test = [](u32x2) {
-        return WindowRegion::Normal;
-    };
+    gpu::Instance                                              instance = nullptr;
+    Fn<WindowRegion(u32x2)> hit_test = [](u32x2) { return WindowRegion::Normal; };
 
     WindowImpl(Allocator allocator, SDL_Window * window, gpu::Surface surface,
                SDL_WindowID id, gpu::Instance instance) :
@@ -67,8 +64,7 @@ struct ClipBoardImpl final : IClipBoard
         return Ok{};
     }
 
-    static void const * get_callback(void * pimpl, char const * mime_type,
-                                     usize * size)
+    static void const * get_callback(void * pimpl, char const * mime_type, usize * size)
     {
         if (mime_type == nullptr || pimpl == nullptr)
         {
@@ -106,8 +102,7 @@ struct ClipBoardImpl final : IClipBoard
 
         local_.append(data).unwrap();
 
-        if (!SDL_SetClipboardData(get_callback, cleanup_callback, this,
-                                  mime_types, 1))
+        if (!SDL_SetClipboardData(get_callback, cleanup_callback, this, mime_types, 1))
         {
             return Err{};
         }
@@ -161,8 +156,7 @@ struct WindowSysImpl final : IWindowSys
             return none;
         }
 
-        defer title_c_str_{
-          [&] { allocator->ndealloc(title.size() + 1, title_c_str); }};
+        defer title_c_str_{[&] { allocator->ndealloc(title.size() + 1, title_c_str); }};
 
         mem::copy(title, title_c_str);
         title_c_str[title.size()] = 0;
@@ -178,15 +172,13 @@ struct WindowSysImpl final : IWindowSys
         vk::IInstance & vk_instance = (vk::IInstance &) *instance;
         VkSurfaceKHR    surface;
 
-        CHECK_SDL(
-          SDL_Vulkan_CreateSurface(window, vk_instance.vk_, nullptr, &surface));
+        CHECK_SDL(SDL_Vulkan_CreateSurface(window, vk_instance.vk_, nullptr, &surface));
 
         WindowImpl * impl;
 
         ASH_CHECK(allocator->nalloc(1, impl), "");
 
-        new (impl)
-          WindowImpl{allocator, window, (gpu::Surface) surface, id, instance};
+        new (impl) WindowImpl{allocator, window, (gpu::Surface) surface, id, instance};
 
         SDL_PropertiesID props_id = SDL_GetWindowProperties(window);
         ASH_CHECK(SDL_SetPointerProperty(props_id, "impl", impl), "");
@@ -211,8 +203,7 @@ struct WindowSysImpl final : IWindowSys
         char * title_c_str;
         ASH_CHECK(allocator->nalloc(title.size() + 1, title_c_str), "");
 
-        defer title_c_str_{
-          [&] { allocator->ndealloc(title.size() + 1, title_c_str); }};
+        defer title_c_str_{[&] { allocator->ndealloc(title.size() + 1, title_c_str); }};
 
         mem::copy(title, title_c_str);
         title_c_str[title.size()] = 0;
@@ -277,8 +268,8 @@ struct WindowSysImpl final : IWindowSys
 
     virtual void set_min_extent(Window window, u32x2 min) override
     {
-        CHECK_SDL(SDL_SetWindowMinimumSize(
-          psdl(window), static_cast<i32>(min.x()), static_cast<i32>(min.y())));
+        CHECK_SDL(SDL_SetWindowMinimumSize(psdl(window), static_cast<i32>(min.x()),
+                                           static_cast<i32>(min.y())));
     }
 
     virtual u32x2 get_min_extent(Window window) override
@@ -290,8 +281,8 @@ struct WindowSysImpl final : IWindowSys
 
     virtual void set_max_extent(Window window, u32x2 max) override
     {
-        CHECK_SDL(SDL_SetWindowMaximumSize(
-          psdl(window), static_cast<i32>(max.x()), static_cast<i32>(max.y())));
+        CHECK_SDL(SDL_SetWindowMaximumSize(psdl(window), static_cast<i32>(max.x()),
+                                           static_cast<i32>(max.y())));
     }
 
     virtual u32x2 get_max_extent(Window window) override
@@ -319,8 +310,7 @@ struct WindowSysImpl final : IWindowSys
         }
 
         SDL_Surface * icon = SDL_CreateSurfaceFrom(
-          static_cast<i32>(image.extent.x()),
-          static_cast<i32>(image.extent.y()), fmt,
+          static_cast<i32>(image.extent.x()), static_cast<i32>(image.extent.y()), fmt,
           (void *) image.channels.data(), static_cast<i32>(image.pitch()));
         CHECK_SDL(icon != nullptr);
         CHECK_SDL(SDL_SetWindowIcon(psdl(window), icon));
@@ -359,8 +349,8 @@ struct WindowSysImpl final : IWindowSys
 
     virtual void request_attention(Window window, bool briefly) override
     {
-        CHECK_SDL(SDL_FlashWindow(
-          psdl(window), briefly ? SDL_FLASH_BRIEFLY : SDL_FLASH_UNTIL_FOCUSED));
+        CHECK_SDL(SDL_FlashWindow(psdl(window), briefly ? SDL_FLASH_BRIEFLY :
+                                                          SDL_FLASH_UNTIL_FOCUSED));
     }
 
     virtual void make_fullscreen(Window window) override
@@ -383,14 +373,13 @@ struct WindowSysImpl final : IWindowSys
         CHECK_SDL(SDL_SetWindowResizable(psdl(window), false));
     }
 
-    virtual WindowListenerId
-      listen(Fn<void(SystemEvent const &)> callback) override
+    virtual WindowListenerId listen(Fn<void(SystemEvent const &)> callback) override
     {
         return listeners.push(callback).unwrap();
     }
 
-    virtual WindowListenerId
-      listen(Window window, Fn<void(WindowEvent const &)> callback) override
+    virtual WindowListenerId listen(Window                        window,
+                                    Fn<void(WindowEvent const &)> callback) override
     {
         WindowImpl * pwin = (WindowImpl *) window;
         return pwin->listeners.push(callback).unwrap();
@@ -405,9 +394,8 @@ struct WindowSysImpl final : IWindowSys
     static SDL_HitTestResult sdl_hit_test(SDL_Window *, SDL_Point const * area,
                                           void * data)
     {
-        WindowImpl * win = (WindowImpl *) data;
-        WindowRegion region =
-          win->hit_test(u32x2{(u32) area->x, (u32) area->y});
+        WindowImpl * win    = (WindowImpl *) data;
+        WindowRegion region = win->hit_test(u32x2{(u32) area->x, (u32) area->y});
         switch (region)
         {
             case WindowRegion::Normal:
@@ -435,8 +423,7 @@ struct WindowSysImpl final : IWindowSys
         }
     }
 
-    virtual Result<> set_hit_test(Window                  window,
-                                  Fn<WindowRegion(u32x2)> hit) override
+    virtual Result<> set_hit_test(Window window, Fn<WindowRegion(u32x2)> hit) override
     {
         WindowImpl * pwin = (WindowImpl *) window;
         pwin->hit_test    = hit;
@@ -502,24 +489,19 @@ struct WindowSysImpl final : IWindowSys
             switch (event.type)
             {
                 case SDL_EVENT_WINDOW_SHOWN:
-                    push_window_event(event.window.windowID,
-                                      WindowEventType::Shown);
+                    push_window_event(event.window.windowID, WindowEventType::Shown);
                     break;
                 case SDL_EVENT_WINDOW_HIDDEN:
-                    push_window_event(event.window.windowID,
-                                      WindowEventType::Hidden);
+                    push_window_event(event.window.windowID, WindowEventType::Hidden);
                     break;
                 case SDL_EVENT_WINDOW_EXPOSED:
-                    push_window_event(event.window.windowID,
-                                      WindowEventType::Exposed);
+                    push_window_event(event.window.windowID, WindowEventType::Exposed);
                     break;
                 case SDL_EVENT_WINDOW_MOVED:
-                    push_window_event(event.window.windowID,
-                                      WindowEventType::Moved);
+                    push_window_event(event.window.windowID, WindowEventType::Moved);
                     break;
                 case SDL_EVENT_WINDOW_RESIZED:
-                    push_window_event(event.window.windowID,
-                                      WindowEventType::Resized);
+                    push_window_event(event.window.windowID, WindowEventType::Resized);
                     break;
                 case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
                     push_window_event(event.window.windowID,
@@ -534,8 +516,7 @@ struct WindowSysImpl final : IWindowSys
                                       WindowEventType::Maximized);
                     break;
                 case SDL_EVENT_WINDOW_RESTORED:
-                    push_window_event(event.window.windowID,
-                                      WindowEventType::Restored);
+                    push_window_event(event.window.windowID, WindowEventType::Restored);
                     break;
                 case SDL_EVENT_WINDOW_MOUSE_ENTER:
                     push_window_event(event.window.windowID,
@@ -558,8 +539,7 @@ struct WindowSysImpl final : IWindowSys
                                       WindowEventType::CloseRequested);
                     break;
                 case SDL_EVENT_WINDOW_OCCLUDED:
-                    push_window_event(event.window.windowID,
-                                      WindowEventType::Occluded);
+                    push_window_event(event.window.windowID, WindowEventType::Occluded);
                     break;
                 case SDL_EVENT_WINDOW_ENTER_FULLSCREEN:
                     push_window_event(event.window.windowID,
@@ -632,9 +612,8 @@ struct WindowSysImpl final : IWindowSys
                     push_window_event(
                       event.wheel.windowID,
                       MouseWheelEvent{
-                        .position{event.wheel.mouse_x,   event.wheel.mouse_y},
-                        .translation{event.wheel.integer_x,
-                                  event.wheel.integer_y                     }
+                        .position{event.wheel.mouse_x,   event.wheel.mouse_y  },
+                        .translation{event.wheel.integer_x, event.wheel.integer_y}
                     });
                     break;
 
@@ -659,8 +638,7 @@ struct WindowSysImpl final : IWindowSys
                 case SDL_EVENT_TEXT_INPUT:
                 {
                     char const * text = event.text.text;
-                    usize const  size =
-                      (text == nullptr) ? 0 : std::strlen(text);
+                    usize const  size = (text == nullptr) ? 0 : std::strlen(text);
                     push_window_event(event.text.windowID,
                                       TextInputEvent{
                                         .text{(c8 const *) text, size}
@@ -689,32 +667,27 @@ struct WindowSysImpl final : IWindowSys
                     break;
 
                 case SDL_EVENT_DROP_POSITION:
-                    push_window_event(event.drop.windowID,
-                                      DropEvent{DropPositionEvent{
-                                        .pos{event.drop.x, event.drop.y}}});
+                    push_window_event(
+                      event.drop.windowID,
+                      DropEvent{DropPositionEvent{.pos{event.drop.x, event.drop.y}}});
                     break;
 
                 case SDL_EVENT_DROP_FILE:
                 {
                     char const * text = event.drop.data;
-                    usize const  size =
-                      (text == nullptr) ? 0 : std::strlen(text);
-                    push_window_event(
-                      event.drop.windowID,
-                      DropEvent{DropFileEvent{.path{text, size}}});
+                    usize const  size = (text == nullptr) ? 0 : std::strlen(text);
+                    push_window_event(event.drop.windowID,
+                                      DropEvent{DropFileEvent{.path{text, size}}});
                 }
                 break;
 
                 case SDL_EVENT_DROP_TEXT:
                 {
-                    c8 const * text =
-                      reinterpret_cast<c8 const *>(event.drop.data);
-                    usize const size = (event.drop.data == nullptr) ?
-                                         0 :
-                                         std::strlen(event.drop.data);
-                    push_window_event(
-                      event.drop.windowID,
-                      DropEvent{DropTextEvent{.text{text, size}}});
+                    c8 const *  text = reinterpret_cast<c8 const *>(event.drop.data);
+                    usize const size =
+                      (event.drop.data == nullptr) ? 0 : std::strlen(event.drop.data);
+                    push_window_event(event.drop.windowID,
+                                      DropEvent{DropTextEvent{.text{text, size}}});
                 }
                 break;
 
@@ -735,8 +708,7 @@ struct WindowSysImpl final : IWindowSys
                     break;
 
                 case SDL_EVENT_AUDIO_DEVICE_FORMAT_CHANGED:
-                    push_system_event(
-                      SystemEventType::AudioDeviceFormatChanged);
+                    push_system_event(SystemEventType::AudioDeviceFormatChanged);
                     break;
 
                 case SDL_EVENT_DISPLAY_ORIENTATION:
@@ -1293,8 +1265,7 @@ struct WindowSysImpl final : IWindowSys
     }
 
     virtual Tuple<KeyModifiers, Option<IWindow &>>
-      get_keyboard_state(BitSpan<u64> scan_state,
-                         BitSpan<u64> key_state) override
+      get_keyboard_state(BitSpan<u64> scan_state, BitSpan<u64> key_state) override
     {
         ASH_CHECK(scan_state.size() >= NUM_SCAN_CODES, "");
         ASH_CHECK(key_state.size() >= NUM_KEY_CODES, "");
@@ -1327,13 +1298,11 @@ struct WindowSysImpl final : IWindowSys
         return {(KeyModifiers) sdl_mod, (IWindow &) *impl};
     }
 
-    virtual Tuple<MouseButtons, f32x2, Option<IWindow &>>
-      get_mouse_state() override
+    virtual Tuple<MouseButtons, f32x2, Option<IWindow &>> get_mouse_state() override
     {
         f32x2 pos{};
 
-        SDL_MouseButtonFlags const flags =
-          SDL_GetMouseState(&pos.x(), &pos.y());
+        SDL_MouseButtonFlags const flags = SDL_GetMouseState(&pos.x(), &pos.y());
 
         MouseButtons state = MouseButtons::None;
 
@@ -1370,8 +1339,7 @@ struct WindowSysImpl final : IWindowSys
         return {state, pos, (IWindow &) *impl};
     }
 
-    virtual void set_text_input(Window                window,
-                                Option<TextInputInfo> info) override
+    virtual void set_text_input(Window window, Option<TextInputInfo> info) override
     {
         info.match(
           [&](auto i) {
@@ -1432,8 +1400,8 @@ struct WindowSysImpl final : IWindowSys
                       ASH_CHECK_UNREACHABLE();
               }
 
-              CHECK_SDL(SDL_SetNumberProperty(
-                props, SDL_PROP_TEXTINPUT_TYPE_NUMBER, type));
+              CHECK_SDL(
+                SDL_SetNumberProperty(props, SDL_PROP_TEXTINPUT_TYPE_NUMBER, type));
 
               CHECK_SDL(SDL_SetNumberProperty(
                 props, SDL_PROP_TEXTINPUT_CAPITALIZATION_NUMBER, cap));
@@ -1563,8 +1531,7 @@ struct WindowSysImpl final : IWindowSys
 Dyn<WindowSys> IWindowSys::create_SDL(Allocator allocator)
 {
     CHECK_SDL(SDL_Init(SDL_INIT_VIDEO));
-    return cast<WindowSys>(
-      dyn<WindowSysImpl>(inplace, allocator, allocator).unwrap());
+    return cast<WindowSys>(dyn<WindowSysImpl>(inplace, allocator, allocator).unwrap());
 }
 
 }    // namespace ash

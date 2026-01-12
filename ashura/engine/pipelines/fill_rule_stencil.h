@@ -7,8 +7,7 @@
 namespace ash
 {
 
-constexpr auto fill_rule_stencil(FillRule fill_rule, bool invert,
-                                 u32 write_mask)
+constexpr auto fill_rule_stencil(FillRule fill_rule, bool invert, u32 write_mask)
 {
     auto even_odd_pass_op = gpu::StencilOp::Invert;
     auto even_odd_fail_op = gpu::StencilOp::Keep;
@@ -19,21 +18,17 @@ constexpr auto fill_rule_stencil(FillRule fill_rule, bool invert,
     auto non_zero_back_pass_op = gpu::StencilOp::DecrementAndWrap;
     auto non_zero_back_fail_op = gpu::StencilOp::Keep;
 
-    auto front_fail_op = (fill_rule == FillRule::EvenOdd) ?
-                           even_odd_fail_op :
-                           non_zero_front_fail_op;
+    auto front_fail_op =
+      (fill_rule == FillRule::EvenOdd) ? even_odd_fail_op : non_zero_front_fail_op;
 
-    auto front_pass_op = (fill_rule == FillRule::EvenOdd) ?
-                           even_odd_pass_op :
-                           non_zero_front_pass_op;
+    auto front_pass_op =
+      (fill_rule == FillRule::EvenOdd) ? even_odd_pass_op : non_zero_front_pass_op;
 
-    auto back_fail_op = (fill_rule == FillRule::EvenOdd) ?
-                          even_odd_fail_op :
-                          non_zero_back_fail_op;
+    auto back_fail_op =
+      (fill_rule == FillRule::EvenOdd) ? even_odd_fail_op : non_zero_back_fail_op;
 
-    auto back_pass_op = (fill_rule == FillRule::EvenOdd) ?
-                          even_odd_pass_op :
-                          non_zero_back_pass_op;
+    auto back_pass_op =
+      (fill_rule == FillRule::EvenOdd) ? even_odd_pass_op : non_zero_back_pass_op;
 
     if (invert)
     {

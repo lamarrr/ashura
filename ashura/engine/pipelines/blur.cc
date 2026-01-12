@@ -23,9 +23,8 @@ Str BlurPipeline::label()
     return "Blur"_str;
 }
 
-gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
-                                      gpu::Shader shader, Allocator,
-                                      Allocator   scratch)
+gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label, gpu::Shader shader,
+                                      Allocator, Allocator scratch)
 {
     auto & gpu = *plan->sys();
 
@@ -36,12 +35,12 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
       gpu::RasterizationState{.depth_clamp_enable = false,
                               .polygon_mode       = gpu::PolygonMode::Fill,
                               .cull_mode          = gpu::CullMode::None,
-                              .front_face = gpu::FrontFace::CounterClockWise,
-                              .depth_bias_enable          = false,
+                              .front_face         = gpu::FrontFace::CounterClockWise,
+                              .depth_bias_enable  = false,
                               .depth_bias_constant_factor = 0,
                               .depth_bias_clamp           = 0,
                               .depth_bias_slope_factor    = 0,
-                              .sample_count = gpu::SampleCount::C1};
+                              .sample_count               = gpu::SampleCount::C1};
 
     auto depth_stencil_state =
       gpu::DepthStencilState{.depth_test_enable        = false,
@@ -65,8 +64,8 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
        .color_write_mask       = gpu::ColorComponents::All}
     };
 
-    auto color_blend_state = gpu::ColorBlendState{
-      .attachments = attachment_states, .blend_constant = {}};
+    auto color_blend_state =
+      gpu::ColorBlendState{.attachments = attachment_states, .blend_constant = {}};
 
     auto const & layout = gpu.descriptors_layout();
 
@@ -77,19 +76,17 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
     };
 
     auto pipeline_info = gpu::GraphicsPipelineInfo{
-      .label = tagged_label,
-      .vertex_shader =
-        gpu::ShaderStageInfo{.shader                        = shader,
-                             .entry_point                   = "vert"_str,
-                             .specialization_constants      = {},
-                             .specialization_constants_data = {}},
-      .fragment_shader =
-        gpu::ShaderStageInfo{.shader                        = shader,
-                             .entry_point                   = "frag"_str,
-                             .specialization_constants      = {},
-                             .specialization_constants_data = {}},
+      .label                  = tagged_label,
+      .vertex_shader          = gpu::ShaderStageInfo{.shader                        = shader,
+                                                     .entry_point                   = "vert"_str,
+                                                     .specialization_constants      = {},
+                                                     .specialization_constants_data = {}},
+      .fragment_shader        = gpu::ShaderStageInfo{.shader                   = shader,
+                                                     .entry_point              = "frag"_str,
+                                                     .specialization_constants = {},
+                                                     .specialization_constants_data = {}},
       .color_formats          = span({gpu.color_format()}
-        ),
+                 ),
       .depth_format           = {},
       .stencil_format         = gpu.depth_stencil_format(),
       .vertex_input_bindings  = {},
@@ -106,17 +103,16 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
     return gpu.device()->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
-void BlurPipeline::acquire(GpuFramePlan plan, Allocator allocator,
-                           Allocator scratch)
+void BlurPipeline::acquire(GpuFramePlan plan, Allocator allocator, Allocator scratch)
 {
-    downsample_pipeline_ = create_pipeline(
-      plan, "Downsample"_str,
-      sys.shader->get("defaults/blur_downsample"_str).unwrap().shader,
-      allocator, scratch);
-    upsample_pipeline_ = create_pipeline(
-      plan, "Upsample"_str,
-      sys.shader->get("defaults/blur_upsample"_str).unwrap().shader, allocator,
-      scratch);
+    downsample_pipeline_ =
+      create_pipeline(plan, "Downsample"_str,
+                      sys.shader->get("defaults/blur_downsample"_str).unwrap().shader,
+                      allocator, scratch);
+    upsample_pipeline_ =
+      create_pipeline(plan, "Upsample"_str,
+                      sys.shader->get("defaults/blur_upsample"_str).unwrap().shader,
+                      allocator, scratch);
 }
 
 void BlurPipeline::release(GpuFramePlan plan, Allocator, Allocator)
@@ -128,14 +124,13 @@ void BlurPipeline::release(GpuFramePlan plan, Allocator, Allocator)
     });
 }
 
-void BlurPipeline::encode(gpu::CommandEncoder        e,
-                          BlurPipelineParams const & params)
+void BlurPipeline::encode(gpu::CommandEncoder e, BlurPipelineParams const & params)
 {
     InplaceVec<gpu::RenderingAttachment, 1> color;
 
     color
-      .push(gpu::RenderingAttachment{.view    = params.framebuffer.color.view,
-                                     .resolve = nullptr,
+      .push(gpu::RenderingAttachment{.view         = params.framebuffer.color.view,
+                                     .resolve      = nullptr,
                                      .resolve_mode = gpu::ResolveModes::None,
                                      .load_op      = gpu::LoadOp::Load,
                                      .store_op     = gpu::StoreOp::Store,
@@ -170,15 +165,14 @@ void BlurPipeline::encode(gpu::CommandEncoder        e,
         params.stencil.map([](auto s) { return s.front; }).unwrap_or(),
       .back_face_stencil =
         params.stencil.map([](auto s) { return s.back; }).unwrap_or()});
-    e->bind_descriptor_sets(
-      span({
-        params.samplers,                           // 0: samplers
-        params.textures,                           // 1: textures
-        params.blurs.buffer.read_storage_buffer    // 2: blur
-      }),
-      span({
-        params.blurs.slice.as_u32().offset    // 2: blur
-      }));
+    e->bind_descriptor_sets(span({
+                              params.samplers,                           // 0: samplers
+                              params.textures,                           // 1: textures
+                              params.blurs.buffer.read_storage_buffer    // 2: blur
+                            }),
+                            span({
+                              params.blurs.slice.as_u32().offset    // 2: blur
+                            }));
     e->draw({0, 4}, params.instances);
     e->end_rendering();
 }

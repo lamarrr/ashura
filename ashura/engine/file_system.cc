@@ -25,8 +25,7 @@ SysErr to_sys_err(IoErr err)
     }
 }
 
-Future<Result<Vec<u8>, SysErr>> IFileSys::load_file(Allocator allocator,
-                                                    Str       path)
+Future<Result<Vec<u8>, SysErr>> IFileSys::load_file(Allocator allocator, Str path)
 {
     Vec<char> path_copy{allocator};
     path_copy.append(path).unwrap();

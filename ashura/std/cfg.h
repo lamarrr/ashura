@@ -131,8 +131,8 @@
 
 /*********************** ARCHITECTURES ***********************/
 
-#if defined(__i386__) || defined(__i386) || defined(_X86_) || \
-  defined(_M_IX86) || defined(_M_I86)    // X86
+#if defined(__i386__) || defined(__i386) || defined(_X86_) || defined(_M_IX86) || \
+  defined(_M_I86)    // X86
 #    define ASH_ARCH_X86 1
 #else
 #    define ASH_ARCH_X86 0
@@ -253,8 +253,7 @@
 #    endif
 #endif
 
-#if ASH_CFG(COMPILER, GNUC) || ASH_CFG(COMPILER, CLANG) || \
-  ASH_CFG(COMPILER, NVCC)
+#if ASH_CFG(COMPILER, GNUC) || ASH_CFG(COMPILER, CLANG) || ASH_CFG(COMPILER, NVCC)
 #    define ASH_RESTRICT __restrict__
 #else
 #    if ASH_CFG(COMPILER, MSVC)

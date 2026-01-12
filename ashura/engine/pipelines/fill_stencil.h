@@ -51,8 +51,7 @@ struct FillStencilPipeline final : IPipeline
     virtual void release(GpuFramePlan plan, Allocator allocator,
                          Allocator scratch) override;
 
-    void encode(gpu::CommandEncoder               encoder,
-                FillStencilPipelineParams const & params);
+    void encode(gpu::CommandEncoder encoder, FillStencilPipelineParams const & params);
 };
 
 }    // namespace ash

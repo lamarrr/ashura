@@ -40,23 +40,20 @@ struct RootView final : ui::View
         fill(sizes, allocated);
     }
 
-    constexpr virtual ui::Layout fit(ui::Scope const &, f32x2 allocated,
-                                     Span<f32x2 const>,
-                                     Span<f32x2> centers) override
+    constexpr virtual ui::Layout fit(ui::Scope const &, f32x2       allocated,
+                                     Span<f32x2 const>, Span<f32x2> centers) override
     {
         fill(centers, f32x2{0, 0});
         return ui::Layout{.extent = allocated, .viewport_extent = allocated};
     }
 
-    constexpr virtual i32 layer(ui::Scope const &, i32,
-                                Span<i32> indices) override
+    constexpr virtual i32 layer(ui::Scope const &, i32, Span<i32> indices) override
     {
         fill(indices, 0);
         return 0;
     }
 
-    constexpr virtual i32 z_index(ui::Scope const &, i32,
-                                  Span<i32> indices) override
+    constexpr virtual i32 z_index(ui::Scope const &, i32, Span<i32> indices) override
     {
         fill(indices, 0);
         return 0;
@@ -134,8 +131,7 @@ struct IViewSys
         Option<ui::ViewId> tgt = none;
     };
 
-    using CrossFrameHitState =
-      Enum<None, CrossFrameDragState, CrossFramePointState>;
+    using CrossFrameHitState = Enum<None, CrossFrameDragState, CrossFramePointState>;
 
     struct CrossFrameFocusState
     {
@@ -282,9 +278,8 @@ struct IViewSys
       prev_frame_sys_state_{},
       prev_frame_win_state_{noop_allocator},
       prev_frame_sys_scope_{ui::default_core_theme(), std::move(user_data_map)},
-      prev_frame_scope_{
-        ui::InputScope{prev_frame_sys_state_, prev_frame_win_state_},
-        prev_frame_sys_scope_},
+      prev_frame_scope_{ui::InputScope{prev_frame_sys_state_, prev_frame_win_state_},
+                        prev_frame_sys_scope_},
       root_view_{none},
       next_id_{0},
       hot_ids_{allocator},
@@ -300,14 +295,12 @@ struct IViewSys
     IViewSys & operator=(IViewSys &&)      = delete;
     ~IViewSys()                            = default;
 
-    void push_view_(Tree & tree, ui::View & view, u16 depth, u16 breadth,
-                    u16 parent);
+    void push_view_(Tree & tree, ui::View & view, u16 depth, u16 breadth, u16 parent);
 
     ui::Events drain_events_(Tree & tree, ui::View & view, u16 idx);
 
-    void build_children_(Tree & tree, ui::View & view, u16 idx, u16 depth,
-                         u16 viewport, i32 & tab_index,
-                         RequestQueue & request_queue);
+    void build_children_(Tree & tree, ui::View & view, u16 idx, u16 depth, u16 viewport,
+                         i32 & tab_index, RequestQueue & request_queue);
 
     void build_(Tree & tree, RootView & root, RequestQueue & request_queue);
 
@@ -334,38 +327,34 @@ struct IViewSys
 
     u16 navigate_focus_(Tree & tree, u16 from, bool forward) const;
 
-    HitState none_seq_(Tree & tree, ui::InputScope const & input,
-                       Vec<Event> & events, RequestQueue & request_queue);
+    HitState none_seq_(Tree & tree, ui::InputScope const & input, Vec<Event> & events,
+                       RequestQueue & request_queue);
 
-    HitState drag_start_seq_(Tree & tree, ui::InputScope const & input,
-                             Option<u16> src, Vec<Event> & events);
+    HitState drag_start_seq_(Tree & tree, ui::InputScope const & input, Option<u16> src,
+                             Vec<Event> & events);
 
     HitState drag_update_seq_(Tree & tree, ui::InputScope const & input,
-                              Option<u16> src, Option<u16> tgt,
-                              Vec<Event> & events);
+                              Option<u16> src, Option<u16> tgt, Vec<Event> & events);
 
-    HitState point_seq_(Tree & tree, ui::InputScope const & input,
-                        Option<u16> tgt, Vec<Event> & events,
-                        RequestQueue & request_queue);
+    HitState point_seq_(Tree & tree, ui::InputScope const & input, Option<u16> tgt,
+                        Vec<Event> & events, RequestQueue & request_queue);
 
-    void hit_seq_(Tree & tree, ui::InputScope const & input,
-                  Vec<Event> & events, RequestQueue & request_queue);
+    void hit_seq_(Tree & tree, ui::InputScope const & input, Vec<Event> & events,
+                  RequestQueue & request_queue);
 
-    void focus_seq_(Tree & tree, ui::InputScope const & input,
-                    Vec<Event> & events, RequestQueue & request_queue);
+    void focus_seq_(Tree & tree, ui::InputScope const & input, Vec<Event> & events,
+                    RequestQueue & request_queue);
 
     void compose_event_(Tree & tree, ui::ViewId id, ui::Events::Type event,
                         Option<ui::HitInfo> hit, Option<ui::ScrollInfo> scroll);
 
     Tuple<Option<ui::FocusRect>, Option<TextInputInfo>, Cursor>
       prepare_events_(Tree & tree, ui::InputScope const & input,
-                      RequestQueue & request_queue,
-                      Allocator      scratch_allocator);
+                      RequestQueue & request_queue, Allocator scratch_allocator);
 
-    ViewSysState tick(Engine engine, ui::InputScope const & input,
-                      Canvas                                    canvas,
+    ViewSysState tick(Engine engine, ui::InputScope const & input, Canvas canvas,
                       Fn<ui::View &(Engine, ui::Scope const &)> loop,
-                      Allocator scratch_allocator);
+                      Allocator                                 scratch_allocator);
 };
 
 }    // namespace ash

@@ -61,11 +61,10 @@ struct FontImpl final : IFont
 
     Option<GpuFontAtlas> gpu_atlas = none;
 
-    FontImpl(Vec<char> label, Vec<char> font_data, bool has_color,
-             Name postscript_name, Name family_name, Name style_name,
-             hb_blob_t * hb_blob, hb_face_t * hb_face, hb_font_t * hb_font,
-             FT_Library ft_lib, FT_Face ft_face, u32 face,
-             Vec<GlyphMetrics> glyphs, u32 replacement_glyph,
+    FontImpl(Vec<char> label, Vec<char> font_data, bool has_color, Name postscript_name,
+             Name family_name, Name style_name, hb_blob_t * hb_blob,
+             hb_face_t * hb_face, hb_font_t * hb_font, FT_Library ft_lib,
+             FT_Face ft_face, u32 face, Vec<GlyphMetrics> glyphs, u32 replacement_glyph,
              u32 ellipsis_glyph, u32 space_glyph, FontMetrics metrics) :
       label{std::move(label)},
       font_data{std::move(font_data)},
@@ -111,8 +110,8 @@ struct FontSysImpl final : IFontSys
     ImageSys                     image_sys_;
     Scheduler                    scheduler_;
 
-    explicit FontSysImpl(Allocator allocator, FileSys file_sys,
-                         ImageSys image_sys, Scheduler scheduler) :
+    explicit FontSysImpl(Allocator allocator, FileSys file_sys, ImageSys image_sys,
+                         Scheduler scheduler) :
       allocator_{allocator},
       rw_lock_{},
       fonts_{allocator},
@@ -132,8 +131,7 @@ struct FontSysImpl final : IFontSys
 
     virtual void shutdown() override;
 
-    Result<Dyn<Font>, SysErr> decode_(Str label, Span<u8 const> encoded,
-                                      u32 face);
+    Result<Dyn<Font>, SysErr> decode_(Str label, Span<u8 const> encoded, u32 face);
 
     /// @brief Rasterize the font at the specified font height. Note: raster is
     /// stored as alpha values.
@@ -153,10 +151,8 @@ struct FontSysImpl final : IFontSys
     virtual void layout_text(TextBlock const & block, f32 max_width,
                              TextLayout & layout, Allocator scratch) override;
 
-    virtual Future<Result<FontId, SysErr>> load_from_memory(Str     label,
-                                                            RcBlob8 encoded,
-                                                            u32     font_height,
-                                                            u32 face) override;
+    virtual Future<Result<FontId, SysErr>>
+      load_from_memory(Str label, RcBlob8 encoded, u32 font_height, u32 face) override;
 
     virtual Future<Result<FontId, SysErr>>
       load_from_path(Str label, Str path, u32 font_height, u32 face) override;

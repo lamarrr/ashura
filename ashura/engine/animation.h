@@ -34,20 +34,17 @@ struct Tween
         return lerp((f32) low, (f32) high, t);
     }
 
-    constexpr f32x2 operator()(f32x2 const & low, f32x2 const & high,
-                               f32 t) const
+    constexpr f32x2 operator()(f32x2 const & low, f32x2 const & high, f32 t) const
     {
         return lerp(low, high, f32x2::splat(t));
     }
 
-    constexpr f32x3 operator()(f32x3 const & low, f32x3 const & high,
-                               f32 t) const
+    constexpr f32x3 operator()(f32x3 const & low, f32x3 const & high, f32 t) const
     {
         return lerp(low, high, f32x3::splat(t));
     }
 
-    constexpr f32x4 operator()(f32x4 const & low, f32x4 const & high,
-                               f32 t) const
+    constexpr f32x4 operator()(f32x4 const & low, f32x4 const & high, f32 t) const
     {
         return lerp(low, high, f32x4::splat(t));
     }
@@ -107,9 +104,8 @@ inline Easing catmull_rom(f32 p0, f32 p1, f32 p2, f32 p3)
 
 inline Easing elastic(f32 amplitude, f32 period)
 {
-    return Easing{[amplitude, period](f32 t) {
-        return ash::elastic(amplitude, period, t);
-    }};
+    return Easing{
+      [amplitude, period](f32 t) { return ash::elastic(amplitude, period, t); }};
 }
 
 inline Easing bounce(f32 strength)
@@ -136,9 +132,8 @@ inline Easing out_cubic()
 
 inline Easing in_out_cubic()
 {
-    return Easing{[](f32 t) {
-        return t < 0.5F ? 4 * t * t * t : 1 - pow3(-2 * t + 2) * 0.5F;
-    }};
+    return Easing{
+      [](f32 t) { return t < 0.5F ? 4 * t * t * t : 1 - pow3(-2 * t + 2) * 0.5F; }};
 }
 
 inline Easing in_quart()
@@ -153,9 +148,8 @@ inline Easing out_quart()
 
 inline Easing in_out_quart()
 {
-    return Easing{[](f32 t) {
-        return t < 0.5F ? 8 * pow4(t) : 1 - pow4(-2 * t + 2) * 0.5F;
-    }};
+    return Easing{
+      [](f32 t) { return t < 0.5F ? 8 * pow4(t) : 1 - pow4(-2 * t + 2) * 0.5F; }};
 }
 
 inline Easing in_quint()
@@ -496,7 +490,7 @@ struct AnimationState
 
     template <typename T>
     constexpr AnimationState & iterations(TimelineView<T> const & timeline,
-                                          i64 num_iterations)
+                                          i64                     num_iterations)
     {
         run_time_ = timeline.duration() * num_iterations;
         return *this;
@@ -513,8 +507,7 @@ struct AnimationState
         /// timeline-duration
         auto const timeline_end = timeline.duration() + 1ns;
 
-        auto const time =
-          (timeline.duration() == 0ns) ? 0ns : (time_ % timeline_end);
+        auto const time = (timeline.duration() == 0ns) ? 0ns : (time_ % timeline_end);
 
         auto const timestamps = timeline.timestamps;
 
@@ -524,8 +517,7 @@ struct AnimationState
 
         ASH_CHECK(!span.is_empty(), "");
 
-        u64 const end_idx =
-          static_cast<u64>(span.pbegin() - timestamps.pbegin());
+        u64 const end_idx = static_cast<u64>(span.pbegin() - timestamps.pbegin());
 
         u64 const ease_idx  = end_idx - 1;
         u64 const frame_idx = ease_idx * 2;
@@ -770,9 +762,8 @@ struct StaggeredAnimation
         states.resize(num_items).unwrap();
 
         Tuple<Timeline<T>...> timelines{
-          Timeline<T>{.timestamps_{allocator},
-                      .easings_{allocator},
-                      .frames_{allocator}}
+          Timeline<T>{
+                      .timestamps_{allocator}, .easings_{allocator}, .frames_{allocator}}
           ...
         };
 

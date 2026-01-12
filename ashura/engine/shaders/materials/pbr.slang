@@ -19,8 +19,7 @@ struct PbrShading
     f32x3 clearcoat_normal    = f32x3(0);
     f32   lit                 = 1;
 
-    f32x3 radiance(f32x3 light_pos, f32x3 world_pos, f32x3 V, f32 NoV,
-                   f32x3 irradiance)
+    f32x3 radiance(f32x3 light_pos, f32x3 world_pos, f32x3 V, f32 NoV, f32x3 irradiance)
     {
         f32x3 Lu  = light_pos.xyz - world_pos;
         f32x3 L   = normalize(Lu);
@@ -31,17 +30,14 @@ struct PbrShading
 
         f32x3 metal_brdf =
           pbr::metal_brdf(albedo, HoV, roughness, NoL, NoV, NoH, normal, H);
-        f32x3 dielectric = pbr::dielectric_brdf(albedo, roughness, NoL, NoV,
-                                                NoH, normal, H, HoV, ior);
-        f32x3 radiance =
-          irradiance * pbr::brdf(dielectric, metal_brdf, metallic);
-        f32 clearcoat_brdf =
-          pbr::specular_brdf(clearcoat_roughness, dot(clearcoat_normal, L),
-                             dot(clearcoat_normal, V), dot(clearcoat_normal, H),
-                             clearcoat_normal, H);
-        radiance =
-          pbr::fresnel_coat(clearcoat_normal, ior, clearcoat, radiance,
-                            f32x3(clearcoat_brdf), dot(clearcoat_normal, V));
+        f32x3 dielectric =
+          pbr::dielectric_brdf(albedo, roughness, NoL, NoV, NoH, normal, H, HoV, ior);
+        f32x3 radiance       = irradiance * pbr::brdf(dielectric, metal_brdf, metallic);
+        f32   clearcoat_brdf = pbr::specular_brdf(
+          clearcoat_roughness, dot(clearcoat_normal, L), dot(clearcoat_normal, V),
+          dot(clearcoat_normal, H), clearcoat_normal, H);
+        radiance = pbr::fresnel_coat(clearcoat_normal, ior, clearcoat, radiance,
+                                     f32x3(clearcoat_brdf), dot(clearcoat_normal, V));
 
         return radiance;
     }
@@ -148,8 +144,7 @@ struct PunctualLight : PbrLighting
         f32   NoL = clamp(dot(surface_normal.xyz, L), 0.0, 1.0);
         f32   attenuation =
           ::light::square_falloff_attenuation(Lu, 1 / max(radius, EPSILON)) *
-          ::light::spot_angle_attenuation(L, direction.xyz, inner_angle,
-                                          outer_angle);
+          ::light::spot_angle_attenuation(L, direction.xyz, inner_angle, outer_angle);
         f32x3 irradiance = this.intensity * attenuation * NoL * color.xyz;
         return f32x4(irradiance, 1);
     }

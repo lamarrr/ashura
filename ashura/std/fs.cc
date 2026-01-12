@@ -7,8 +7,7 @@
 namespace ash
 {
 
-Result<Void, IoErr> read_file(Str path, Vec<u8> & buff,
-                              Allocator scratch_allocator)
+Result<Void, IoErr> read_file(Str path, Vec<u8> & buff, Allocator scratch_allocator)
 {
     Vec<char> path_c_str{scratch_allocator};
 

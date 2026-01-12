@@ -272,8 +272,7 @@ struct EnumerateView
 
     constexpr auto begin() const
     {
-        return EnumerateIter<Index, BaseIter, Iters...>{.index_ = 0,
-                                                        .iters_ = iters_};
+        return EnumerateIter<Index, BaseIter, Iters...>{.index_ = 0, .iters_ = iters_};
     }
 
     constexpr auto end() const
@@ -295,8 +294,7 @@ struct EnumerateView
 template <typename Index = usize, Range BaseRange, Range... Ranges>
 constexpr auto enumerate(BaseRange && base, Ranges &&... ranges)
 {
-    return EnumerateView<Index, decltype(begin(base)),
-                         decltype(begin(ranges))...>{
+    return EnumerateView<Index, decltype(begin(base)), decltype(begin(ranges))...>{
       .iters_{begin(base), begin(ranges)...}
     };
 }
@@ -427,14 +425,12 @@ struct FilterIter
         return !this->operator!=(iter_end);
     }
 
-    constexpr auto max_size() const
-      requires (SizedIter<Iter> && !BoundedSizeIter<Iter>)
+    constexpr auto max_size() const requires (SizedIter<Iter> && !BoundedSizeIter<Iter>)
     {
         return valid_iter_.size();
     }
 
-    constexpr auto max_size() const
-      requires (BoundedSizeIter<Iter> && !SizedIter<Iter>)
+    constexpr auto max_size() const requires (BoundedSizeIter<Iter> && !SizedIter<Iter>)
     {
         return valid_iter_.max_size();
     }
@@ -469,8 +465,7 @@ struct FilterView
 };
 
 template <typename Iter, typename Predicate>
-constexpr FilterView<Iter, Predicate> filter(Iter &&      iter,
-                                             Predicate && predicate)
+constexpr FilterView<Iter, Predicate> filter(Iter && iter, Predicate && predicate)
 {
     return FilterView<Iter, Predicate>{
       .valid_iter_{static_cast<Iter &&>(iter)},
@@ -768,8 +763,7 @@ constexpr Init transform_reduce(R && range, Init && init, Map && mapper,
 }
 
 template <OutRange R, typename E, typename F, typename Cmp = Eq>
-constexpr void replace(R && range, E && target, F && replacement,
-                       Cmp && cmp = {})
+constexpr void replace(R && range, E && target, F && replacement, Cmp && cmp = {})
 {
     auto iter = begin(range);
 
@@ -851,13 +845,11 @@ constexpr void indirect_stable_sort(Span<I> indices, Cmp && cmp = {})
 template <typename T, typename Cmp = Less>
 constexpr bool is_sorted(Span<T> values, Cmp && cmp = {})
 {
-    return std::is_sorted(values.pbegin(), values.pend(),
-                          static_cast<Cmp &&>(cmp));
+    return std::is_sorted(values.pbegin(), values.pend(), static_cast<Cmp &&>(cmp));
 }
 
 template <typename T, typename Predicate>
-constexpr Tuple<Span<T>, Span<T>> partition(Span<T>      range,
-                                            Predicate && predicate)
+constexpr Tuple<Span<T>, Span<T>> partition(Span<T> range, Predicate && predicate)
 {
     auto       iter      = range.pbegin();
     auto const range_end = range.pend();
@@ -896,8 +888,7 @@ constexpr void iota(R && range, T && first)
 }
 
 template <typename T, typename I, typename O, typename Op = Add>
-constexpr T inclusive_scan(Span<I const> in, Span<O> out, T init = {},
-                           Op && op = {})
+constexpr T inclusive_scan(Span<I const> in, Span<O> out, T init = {}, Op && op = {})
 {
     I const *       in_iter  = in.pbegin();
     I const * const in_end   = in.pend();
@@ -915,8 +906,7 @@ constexpr T inclusive_scan(Span<I const> in, Span<O> out, T init = {},
 }
 
 template <typename T, typename I, typename O, typename Op = Add>
-constexpr T exclusive_scan(Span<I const> in, Span<O> out, T init = {},
-                           Op && op = {})
+constexpr T exclusive_scan(Span<I const> in, Span<O> out, T init = {}, Op && op = {})
 {
     I const *       in_iter  = in.pbegin();
     I const * const in_end   = in.pend();
@@ -973,8 +963,9 @@ template <typename T, typename Cmp, typename U>
 constexpr Span<T> binary_find(Span<T> span, Cmp && cmp, U && value)
 {
     return binary_find<T>(span, [value_ = static_cast<U &&>(value),
-                                 cmp_   = static_cast<Cmp &&>(cmp)](
-                                  auto const & a) { return cmp_(a, value_); });
+                                 cmp_   = static_cast<Cmp &&>(cmp)](auto const & a) {
+        return cmp_(a, value_);
+    });
 }
 
 /// @param window_advance_ must be non-zero
@@ -1021,8 +1012,8 @@ struct WindowView
     usize               window_size_;
     usize               window_advance_;
 
-    constexpr WindowView(usize window_size, usize window_advance,
-                         Span<T0> span0, Span<T>... spans) :
+    constexpr WindowView(usize window_size, usize window_advance, Span<T0> span0,
+                         Span<T>... spans) :
       data_{span0.pbegin(), spans.pbegin()...},
       size_{(window_size > span0.size()) ? 0 : span0.size()},
       window_size_{window_size},
@@ -1099,9 +1090,7 @@ struct RunBatchView
     constexpr RunBatchView(Span<Index const> run_indices, Span<T>... items) :
       run_indices_{run_indices.pbegin()},
       items_{items.pbegin()...},
-      size_{(run_indices.size() < 2) ?
-              0 :
-              static_cast<Index>(run_indices.size() - 1)}
+      size_{(run_indices.size() < 2) ? 0 : static_cast<Index>(run_indices.size() - 1)}
     {
     }
 
@@ -1166,9 +1155,9 @@ struct RunItemIter
     constexpr void seek(Index index)
     {
         if (run_iter_ < num_runs_ &&
-            (index == item_iter_ || Slice::offsets(run_indices_[run_iter_],
-                                                   run_indices_[run_iter_ + 1])
-                                      .contains(index))) [[likely]]
+            (index == item_iter_ ||
+             Slice::offsets(run_indices_[run_iter_], run_indices_[run_iter_ + 1])
+               .contains(index))) [[likely]]
         {
         }
         else if (index < item_iter_)
@@ -1183,8 +1172,7 @@ struct RunItemIter
         {
             // index > item_iter_
 
-            while (run_iter_ < num_runs_ &&
-                   index >= run_indices_[run_iter_ + 1])
+            while (run_iter_ < num_runs_ && index >= run_indices_[run_iter_ + 1])
             {
                 item_iter_ = run_indices_[run_iter_ + 1];
                 run_iter_++;
@@ -1201,9 +1189,8 @@ struct RunItemIter
 
     constexpr auto operator*() const
     {
-        return apply(
-          [&](T *... data) { return Tuple<T &...>{data[run_iter_]...}; },
-          items_);
+        return apply([&](T *... data) { return Tuple<T &...>{data[run_iter_]...}; },
+                     items_);
     }
 
     constexpr bool operator!=(IterEnd) const
@@ -1231,9 +1218,8 @@ struct RunItemView
       run_indices_{run_indices.pbegin()},
       items_{items.pbegin()...},
       size_{(run_indices.size() < 2) ? 0 : run_indices.last()},
-      num_runs_{(run_indices.size() < 2) ?
-                  0 :
-                  static_cast<Index>(run_indices.size() - 1)}
+      num_runs_{(run_indices.size() < 2) ? 0 :
+                                           static_cast<Index>(run_indices.size() - 1)}
     {
     }
 
@@ -1249,8 +1235,7 @@ struct RunItemView
 
     constexpr Span<Index const> run_indices() const
     {
-        return Span<Index const>{run_indices_,
-                                 (num_runs_ == 0) ? 0 : (num_runs_ + 1)};
+        return Span<Index const>{run_indices_, (num_runs_ == 0) ? 0 : (num_runs_ + 1)};
     }
 
     constexpr Tuple<Span<T>...> items() const

@@ -788,11 +788,10 @@ enum class MemoryType : u8
     Aliased = 1
 };
 
-using Object =
-  Enum<Instance, Device, CommandEncoder, CommandBuffer, Buffer, BufferView,
-       Image, ImageView, Alias, Sampler, Shader, DescriptorSetLayout,
-       DescriptorSet, PipelineCache, ComputePipeline, GraphicsPipeline,
-       TimestampQuery, StatisticsQuery, Surface, Swapchain, QueueScope>;
+using Object = Enum<Instance, Device, CommandEncoder, CommandBuffer, Buffer, BufferView,
+                    Image, ImageView, Alias, Sampler, Shader, DescriptorSetLayout,
+                    DescriptorSet, PipelineCache, ComputePipeline, GraphicsPipeline,
+                    TimestampQuery, StatisticsQuery, Surface, Swapchain, QueueScope>;
 
 struct SurfaceFormat
 {
@@ -911,21 +910,21 @@ struct ImageViewInfo
 
 struct SamplerInfo
 {
-    Str                label             = {};
-    Filter             mag_filter        = Filter::Nearest;
-    Filter             min_filter        = Filter::Nearest;
-    SamplerMipMapMode  mip_map_mode      = SamplerMipMapMode::Nearest;
-    SamplerAddressMode address_mode_u    = SamplerAddressMode::Repeat;
-    SamplerAddressMode address_mode_v    = SamplerAddressMode::Repeat;
-    SamplerAddressMode address_mode_w    = SamplerAddressMode::Repeat;
-    f32                mip_lod_bias      = 0;
-    bool               anisotropy_enable = false;
-    f32                max_anisotropy    = 1.0;
-    bool               compare_enable    = false;
-    CompareOp          compare_op        = CompareOp::Never;
-    f32                min_lod           = 0;
-    f32                max_lod           = 0;
-    BorderColor        border_color      = BorderColor::FloatTransparentBlack;
+    Str                label                    = {};
+    Filter             mag_filter               = Filter::Nearest;
+    Filter             min_filter               = Filter::Nearest;
+    SamplerMipMapMode  mip_map_mode             = SamplerMipMapMode::Nearest;
+    SamplerAddressMode address_mode_u           = SamplerAddressMode::Repeat;
+    SamplerAddressMode address_mode_v           = SamplerAddressMode::Repeat;
+    SamplerAddressMode address_mode_w           = SamplerAddressMode::Repeat;
+    f32                mip_lod_bias             = 0;
+    bool               anisotropy_enable        = false;
+    f32                max_anisotropy           = 1.0;
+    bool               compare_enable           = false;
+    CompareOp          compare_op               = CompareOp::Never;
+    f32                min_lod                  = 0;
+    f32                max_lod                  = 0;
+    BorderColor        border_color             = BorderColor::FloatTransparentBlack;
     bool               unnormalized_coordinates = false;
 };
 
@@ -1114,11 +1113,11 @@ struct GraphicsPipelineInfo
     Span<VertexAttribute const>     vertex_attributes      = {};
     u32                             push_constants_size    = 0;
     Span<DescriptorSetLayout const> descriptor_set_layouts = {};
-    PrimitiveTopology  primitive_topology  = PrimitiveTopology::PointList;
-    RasterizationState rasterization_state = {};
-    DepthStencilState  depth_stencil_state = {};
-    ColorBlendState    color_blend_state   = {};
-    PipelineCache      cache               = nullptr;
+    PrimitiveTopology               primitive_topology  = PrimitiveTopology::PointList;
+    RasterizationState              rasterization_state = {};
+    DepthStencilState               depth_stencil_state = {};
+    ColorBlendState                 color_blend_state   = {};
+    PipelineCache                   cache               = nullptr;
 };
 
 struct SwapchainInfo
@@ -1408,8 +1407,7 @@ struct ICommandEncoder
 
     virtual void reset_timestamp_query(TimestampQuery query, Slice32 range) = 0;
 
-    virtual void reset_statistics_query(StatisticsQuery query,
-                                        Slice32         range) = 0;
+    virtual void reset_statistics_query(StatisticsQuery query, Slice32 range) = 0;
 
     virtual void write_timestamp(TimestampQuery query, PipelineStages stage,
                                  u32 index) = 0;
@@ -1424,22 +1422,18 @@ struct ICommandEncoder
 
     virtual void fill_buffer(Buffer dst, Slice64 range, u32 data) = 0;
 
-    virtual void copy_buffer(Buffer src, Buffer dst,
-                             Span<BufferCopy const> copies) = 0;
+    virtual void copy_buffer(Buffer src, Buffer dst, Span<BufferCopy const> copies) = 0;
 
-    virtual void update_buffer(Span<u8 const> src, u64 dst_offset,
-                               Buffer dst) = 0;
+    virtual void update_buffer(Span<u8 const> src, u64 dst_offset, Buffer dst) = 0;
 
-    virtual void
-      clear_color_image(Image dst, Color value,
-                        Span<ImageSubresourceRange const> ranges) = 0;
+    virtual void clear_color_image(Image dst, Color value,
+                                   Span<ImageSubresourceRange const> ranges) = 0;
 
     virtual void
       clear_depth_stencil_image(Image dst, DepthStencil value,
                                 Span<ImageSubresourceRange const> ranges) = 0;
 
-    virtual void copy_image(Image src, Image dst,
-                            Span<ImageCopy const> copies) = 0;
+    virtual void copy_image(Image src, Image dst, Span<ImageCopy const> copies) = 0;
 
     virtual void copy_buffer_to_image(Buffer src, Image dst,
                                       Span<BufferImageCopy const> copies) = 0;
@@ -1463,7 +1457,7 @@ struct ICommandEncoder
     virtual void bind_graphics_pipeline(GraphicsPipeline pipeline) = 0;
 
     virtual void bind_descriptor_sets(Span<DescriptorSet const> descriptor_sets,
-                                      Span<u32 const> dynamic_offsets) = 0;
+                                      Span<u32 const>           dynamic_offsets) = 0;
 
     virtual void push_constants(Span<u8 const> push_constants_data) = 0;
 
@@ -1487,8 +1481,8 @@ struct ICommandEncoder
     virtual void draw_indirect(Buffer buffer, u64 offset, u32 draw_count,
                                u32 stride) = 0;
 
-    virtual void draw_indexed_indirect(Buffer buffer, u64 offset,
-                                       u32 draw_count, u32 stride) = 0;
+    virtual void draw_indexed_indirect(Buffer buffer, u64 offset, u32 draw_count,
+                                       u32 stride) = 0;
 
     virtual void present(Swapchain swapchain) = 0;
 };
@@ -1522,13 +1516,11 @@ struct IDevice
 
     virtual Result<Image, Status> create_image(ImageInfo const & info) = 0;
 
-    virtual Result<ImageView, Status>
-      create_image_view(ImageViewInfo const & info) = 0;
+    virtual Result<ImageView, Status> create_image_view(ImageViewInfo const & info) = 0;
 
     virtual Result<Alias, Status> create_alias(AliasInfo const & info) = 0;
 
-    virtual Result<Sampler, Status>
-      create_sampler(SamplerInfo const & info) = 0;
+    virtual Result<Sampler, Status> create_sampler(SamplerInfo const & info) = 0;
 
     virtual Result<Shader, Status> create_shader(ShaderInfo const & info) = 0;
 
@@ -1547,8 +1539,7 @@ struct IDevice
     virtual Result<GraphicsPipeline, Status>
       create_graphics_pipeline(GraphicsPipelineInfo const & info) = 0;
 
-    virtual Result<Swapchain, Status>
-      create_swapchain(SwapchainInfo const & info) = 0;
+    virtual Result<Swapchain, Status> create_swapchain(SwapchainInfo const & info) = 0;
 
     virtual Result<TimestampQuery, Status>
       create_timestamp_query(TimestampQueryInfo const & info) = 0;
@@ -1605,26 +1596,22 @@ struct IDevice
 
     virtual DeviceProperties get_properties() = 0;
 
-    virtual Result<FormatProperties, Status>
-      get_format_properties(Format format) = 0;
+    virtual Result<FormatProperties, Status> get_format_properties(Format format) = 0;
 
     virtual Result<Span<u8>, Status> get_memory_map(Buffer buffer) = 0;
 
     virtual Result<Void, Status> invalidate_mapped_memory(Buffer  buffer,
                                                           Slice64 range) = 0;
 
-    virtual Result<Void, Status> flush_mapped_memory(Buffer  buffer,
-                                                     Slice64 range) = 0;
+    virtual Result<Void, Status> flush_mapped_memory(Buffer buffer, Slice64 range) = 0;
 
-    virtual Result<usize, Status>
-      get_pipeline_cache_size(PipelineCache cache) = 0;
+    virtual Result<usize, Status> get_pipeline_cache_size(PipelineCache cache) = 0;
 
     virtual Result<Void, Status> get_pipeline_cache_data(PipelineCache cache,
                                                          Vec<u8> &     out) = 0;
 
     virtual Result<Void, Status>
-      merge_pipeline_cache(PipelineCache             dst,
-                           Span<PipelineCache const> srcs) = 0;
+      merge_pipeline_cache(PipelineCache dst, Span<PipelineCache const> srcs) = 0;
 
     virtual void update_descriptor_set(DescriptorSetUpdate const & update) = 0;
 
@@ -1634,8 +1621,8 @@ struct IDevice
 
     virtual Result<Void, Status> await_queue_idle() = 0;
 
-    virtual Result<Void, Status>
-      get_surface_formats(Surface surface, Vec<SurfaceFormat> & formats) = 0;
+    virtual Result<Void, Status> get_surface_formats(Surface              surface,
+                                                     Vec<SurfaceFormat> & formats) = 0;
 
     virtual Result<Void, Status>
       get_surface_present_modes(Surface surface, Vec<PresentMode> & modes) = 0;
@@ -1643,50 +1630,43 @@ struct IDevice
     virtual Result<SurfaceCapabilities, Status>
       get_surface_capabilities(Surface surface) = 0;
 
-    virtual Result<SwapchainState, Status>
-      get_swapchain_state(Swapchain swapchain) = 0;
+    virtual Result<SwapchainState, Status> get_swapchain_state(Swapchain swapchain) = 0;
 
-    virtual Result<Void, Status>
-      get_timestamp_query_result(TimestampQuery query, u32 first,
-                                 Span<u64> timestamps) = 0;
+    virtual Result<Void, Status> get_timestamp_query_result(TimestampQuery query,
+                                                            u32            first,
+                                                            Span<u64> timestamps) = 0;
 
     virtual Result<Void, Status>
       get_statistics_query_result(StatisticsQuery query, u32 first,
                                   Span<PipelineStatistics> statistics) = 0;
 
     virtual Result<Void, Status>
-      mark_swapchain_out_of_date(Swapchain             swapchain,
-                                 SwapchainInfo const & info) = 0;
+      mark_swapchain_out_of_date(Swapchain swapchain, SwapchainInfo const & info) = 0;
 
     virtual Result<Void, Status> acquire_next(Swapchain swapchain) = 0;
 
-    virtual Result<u64, Status> submit(CommandBuffer buffer,
-                                       QueueScope    scope) = 0;
+    virtual Result<u64, Status> submit(CommandBuffer buffer, QueueScope scope) = 0;
 
-    virtual Result<Void, Status>
-      await_queue_scope_idle(QueueScope scope, nanoseconds timeout) = 0;
+    virtual Result<Void, Status> await_queue_scope_idle(QueueScope  scope,
+                                                        nanoseconds timeout) = 0;
 
-    virtual Result<Void, Status>
-      await_queue_scope_frame(QueueScope scope, u64 frame,
-                              nanoseconds timeout) = 0;
+    virtual Result<Void, Status> await_queue_scope_frame(QueueScope scope, u64 frame,
+                                                         nanoseconds timeout) = 0;
 };
 
 inline void IDevice::uninit_object(Object object)
 {
     object.match(
       [](Instance) { ASH_CHECK_UNREACHABLE(); },
-      [](Device) { ASH_CHECK_UNREACHABLE(); },
-      [&](CommandEncoder r) { uninit(r); }, [&](CommandBuffer r) { uninit(r); },
-      [&](Buffer r) { uninit(r); }, [&](BufferView r) { uninit(r); },
-      [&](Image r) { uninit(r); }, [&](ImageView r) { uninit(r); },
-      [&](Alias r) { uninit(r); }, [&](Sampler r) { uninit(r); },
-      [&](Shader r) { uninit(r); }, [&](DescriptorSetLayout r) { uninit(r); },
-      [&](DescriptorSet r) { uninit(r); }, [&](PipelineCache r) { uninit(r); },
-      [&](ComputePipeline r) { uninit(r); },
-      [&](GraphicsPipeline r) { uninit(r); },
-      [&](TimestampQuery r) { uninit(r); },
-      [&](StatisticsQuery r) { uninit(r); },
-      [&](Surface) { ASH_CHECK_UNREACHABLE(); },
+      [](Device) { ASH_CHECK_UNREACHABLE(); }, [&](CommandEncoder r) { uninit(r); },
+      [&](CommandBuffer r) { uninit(r); }, [&](Buffer r) { uninit(r); },
+      [&](BufferView r) { uninit(r); }, [&](Image r) { uninit(r); },
+      [&](ImageView r) { uninit(r); }, [&](Alias r) { uninit(r); },
+      [&](Sampler r) { uninit(r); }, [&](Shader r) { uninit(r); },
+      [&](DescriptorSetLayout r) { uninit(r); }, [&](DescriptorSet r) { uninit(r); },
+      [&](PipelineCache r) { uninit(r); }, [&](ComputePipeline r) { uninit(r); },
+      [&](GraphicsPipeline r) { uninit(r); }, [&](TimestampQuery r) { uninit(r); },
+      [&](StatisticsQuery r) { uninit(r); }, [&](Surface) { ASH_CHECK_UNREACHABLE(); },
       [&](Swapchain r) { uninit(r); }, [&](QueueScope r) { uninit(r); });
 }
 
@@ -1695,8 +1675,7 @@ struct IInstance
     virtual ~IInstance() = default;
 
     virtual Result<Device, Status>
-      create_device(Allocator              allocator,
-                    Span<DeviceType const> preferred_types) = 0;
+      create_device(Allocator allocator, Span<DeviceType const> preferred_types) = 0;
 
     virtual Backend get_backend() = 0;
 
@@ -1706,7 +1685,7 @@ struct IInstance
 };
 
 Result<Dyn<Instance>, Status> create_vulkan_instance(Allocator allocator,
-                                                     bool enable_validation);
+                                                     bool      enable_validation);
 
 static constexpr u32 BUFFER_OFFSET_ALIGNMENT = 512;
 

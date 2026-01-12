@@ -63,8 +63,7 @@ EventSink<I64RangeRecord> & get_scope_trace_sink()
           EventData{.label = "ScopeTrace"_str,
                     .type  = "I64Range"_str,
                     .unit  = "nanoseconds"_str},
-          Vec<I64RangeRecord>::make(CFG_BUFFER_SIZE, default_allocator)
-            .unwrap()
+          Vec<I64RangeRecord>::make(CFG_BUFFER_SIZE, default_allocator).unwrap()
         };
     }()};
 

@@ -41,8 +41,7 @@ struct VertexOutput
 };
 
 [[shader("vertex")]]
-VertexOutput vert(u32 instance : SV_VulkanInstanceID,
-                  u32 vertex : SV_VulkanVertexID)
+VertexOutput vert(u32 instance : SV_VulkanInstanceID, u32 vertex : SV_VulkanVertexID)
 {
     var   item       = items[instance];
     f32x2 pos        = VERTEX_BUFFER[vertex];
@@ -71,8 +70,8 @@ f32x4 frag(VertexOutput in) :
 
     f32 alpha = smoothstep(item.feather_min, item.feather_max, alpha_mask);
 
-    var info = QuadFragmentInfo(in.world_pos, in.screen_pos, in.rel_pos, in.uv,
-                                in.instance);
+    var info =
+      QuadFragmentInfo(in.world_pos, in.screen_pos, in.rel_pos, in.uv, in.instance);
 
     f32x4 color = item.material.shade(info, samplers, textures);
 

@@ -77,9 +77,8 @@ struct Size
 
     constexpr f32 operator()(f32 anchor) const
     {
-        return clamp(
-          clamp(abs_ + anchor * rel_, rel_min_ * anchor, rel_max_ * anchor),
-          min_, max_);
+        return clamp(clamp(abs_ + anchor * rel_, rel_min_ * anchor, rel_max_ * anchor),
+                     min_, max_);
     }
 };
 
@@ -879,8 +878,7 @@ struct View
     /// @brief Distributes the size allocated to it to its child views.
     /// @param allocated the size allocated to this view
     /// @param[out] sizes sizes allocated to the children.
-    constexpr virtual void size(Scope const & scope, f32x2 allocated,
-                                Span<f32x2> sizes)
+    constexpr virtual void size(Scope const & scope, f32x2 allocated, Span<f32x2> sizes)
     {
         (void) scope;
         fill(sizes, allocated);
@@ -908,8 +906,7 @@ struct View
     /// index has a higher priority over the z-index and events do not bubble
     /// through it.
     /// @return stack index for the view
-    constexpr virtual i32 layer(Scope const & scope, i32 allocated,
-                                Span<i32> indices)
+    constexpr virtual i32 layer(Scope const & scope, i32 allocated, Span<i32> indices)
     {
         (void) scope;
         fill(indices, allocated);
@@ -920,8 +917,7 @@ struct View
     /// @param allocated z-index allocated to this view by parent
     /// @param[out] indices z-index assigned to children
     /// @return preferred z_index
-    constexpr virtual i32 z_index(Scope const & scope, i32 allocated,
-                                  Span<i32> indices)
+    constexpr virtual i32 z_index(Scope const & scope, i32 allocated, Span<i32> indices)
     {
         (void) scope;
         fill(indices, allocated);
@@ -946,8 +942,7 @@ struct View
     /// @param extent layout extent of the view
     /// @param position local-space position of the pointer
     /// @return preferred cursor type
-    constexpr virtual Cursor cursor(Scope const & scope, f32x2 extent,
-                                    f32x2 position)
+    constexpr virtual Cursor cursor(Scope const & scope, f32x2 extent, f32x2 position)
     {
         (void) scope;
         (void) extent;

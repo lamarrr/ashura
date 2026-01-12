@@ -76,8 +76,7 @@ void circle(Vec<f32x2> & vtx, f32x2 extent, f32x2 center, u32 segments);
 /// @param segments upper bound on the number of segments to divide the circle
 /// into
 /// @param degree number of degrees of the super-ellipse
-void squircle(Vec<f32x2> & vtx, f32x2 extent, f32x2 center, f32 degree,
-              u32 segments);
+void squircle(Vec<f32x2> & vtx, f32x2 extent, f32x2 center, f32 degree, u32 segments);
 
 /// @brief Generate vertices for a circle
 /// @param segments upper bound on the number of segments to divide the circle
@@ -93,11 +92,11 @@ void rrect(Vec<f32x2> & vtx, f32x2 extent, f32x2 center, f32x4 corner_radii,
 void brect(Vec<f32x2> & vtx, f32x2 extent, f32x2 center, f32x4 slants);
 
 /// @brief Triangulate a stroke path, given the vertices for its points
-void triangulate_stroke(Span<f32x2 const> points, Vec<f32x2> & vtx,
-                        Vec<u32> & idx, f32 thickness, LineCap cap);
+void triangulate_stroke(Span<f32x2 const> points, Vec<f32x2> & vtx, Vec<u32> & idx,
+                        f32 thickness, LineCap cap);
 
-void triangulate_stroke(Span<f32x2 const> points, Vec<f32x2> & vtx,
-                        Vec<u16> & idx, f32 thickness, LineCap cap);
+void triangulate_stroke(Span<f32x2 const> points, Vec<f32x2> & vtx, Vec<u16> & idx,
+                        f32 thickness, LineCap cap);
 
 /// @brief Generate indices for a triangle list
 void triangles(u32 first_vertex, u32 num_vertices, Vec<u32> & idx);
@@ -109,8 +108,7 @@ void triangulate_convex(Vec<u32> & idx, u32 first_vertex, u32 num_vertices);
 void triangulate_convex(Vec<u16> & idx, u16 first_vertex, u16 num_vertices);
 
 void tesselate_curves(Vec<f32x2> & curves, Span<CurveType const> segment_types,
-                      Span<u32 const>   subdivisions,
-                      Span<f32x2 const> control_points);
+                      Span<u32 const> subdivisions, Span<f32x2 const> control_points);
 
 };    // namespace path
 
@@ -604,8 +602,7 @@ struct ICanvas
 
     TextRenderer default_text_renderer();
 
-    void begin(gpu::Viewport const & viewport, f32x2 extent,
-               u32x2 framebuffer_extent);
+    void begin(gpu::Viewport const & viewport, f32x2 extent, u32x2 framebuffer_extent);
 
     void end();
 
@@ -668,11 +665,9 @@ struct ICanvas
     void render_paths_stencil_then_cover_(Span<PathInfo const> paths,
                                           bool                 has_overlaps);
 
-    void render_paths_bezier_stencil_(Span<PathInfo const> paths,
-                                      bool                 has_overlaps);
+    void render_paths_bezier_stencil_(Span<PathInfo const> paths, bool has_overlaps);
 
-    void render_paths_vector_feathering_(Span<PathInfo const> paths,
-                                         bool                 has_overlaps);
+    void render_paths_vector_feathering_(Span<PathInfo const> paths, bool has_overlaps);
 
     void render_paths_(Span<PathInfo const> paths, bool has_overlaps);
 
@@ -735,8 +730,7 @@ struct ICanvas
     ICanvas & paths(Span<PathInfo const> info, bool has_overlaps);
 
     /// @brief Render a text block
-    ICanvas & text(TextRenderInfo const & info,
-                   TextPlacement const &  placement);
+    ICanvas & text(TextRenderInfo const & info, TextPlacement const & placement);
 };
 
 }    // namespace ash

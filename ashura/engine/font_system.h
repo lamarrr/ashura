@@ -28,10 +28,8 @@ struct IFontSys
     virtual void layout_text(TextBlock const & block, f32 max_width,
                              TextLayout & layout, Allocator scratch) = 0;
 
-    virtual Future<Result<FontId, SysErr>> load_from_memory(Str     label,
-                                                            RcBlob8 encoded,
-                                                            u32     font_height,
-                                                            u32     face) = 0;
+    virtual Future<Result<FontId, SysErr>>
+      load_from_memory(Str label, RcBlob8 encoded, u32 font_height, u32 face) = 0;
 
     virtual Future<Result<FontId, SysErr>>
       load_from_path(Str label, Str path, u32 font_height, u32 face) = 0;

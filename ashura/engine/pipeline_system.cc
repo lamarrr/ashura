@@ -23,14 +23,12 @@ void IPipelineSys::init(Allocator allocator)
     Dyn quad = dyn<QuadPipeline>(inplace, allocator, allocator).unwrap();
     Dyn triangle_fill =
       dyn<TriangleFillPipeline>(inplace, allocator, allocator).unwrap();
-    Dyn fill_stencil =
-      dyn<FillStencilPipeline>(inplace, allocator, allocator).unwrap();
+    Dyn fill_stencil = dyn<FillStencilPipeline>(inplace, allocator, allocator).unwrap();
     Dyn bezier_stencil =
       dyn<BezierStencilPipeline>(inplace, allocator, allocator).unwrap();
-    Dyn blur = dyn<BlurPipeline>(inplace, allocator, allocator).unwrap();
-    Dyn pbr  = dyn<PBRPipeline>(inplace, allocator, allocator).unwrap();
-    Dyn vector_path =
-      dyn<VectorPathPipeline>(inplace, allocator, allocator).unwrap();
+    Dyn blur        = dyn<BlurPipeline>(inplace, allocator, allocator).unwrap();
+    Dyn pbr         = dyn<PBRPipeline>(inplace, allocator, allocator).unwrap();
+    Dyn vector_path = dyn<VectorPathPipeline>(inplace, allocator, allocator).unwrap();
 
     auto p_sdf            = sdf.get();
     auto p_quad           = quad.get();
@@ -124,14 +122,13 @@ VectorPathPipeline & IPipelineSys::vector_path() const
 Future<PipelineId> IPipelineSys::add_pipeline(Dyn<Pipeline> pipeline)
 {
     return scheduler
-      ->run(
-        allocator_, MainThread::Main,
-        [pipeline = std::move(pipeline), this]() mutable {
-            auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
-            pipeline->acquire(gpu_sys_->current_plan(), allocator_, scratch);
-            WriteGuard guard{this->rw_lock_};
-            return this->all_.push(std::move(pipeline)).unwrap();
-        })
+      ->run(allocator_, MainThread::Main,
+            [pipeline = std::move(pipeline), this]() mutable {
+                auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
+                pipeline->acquire(gpu_sys_->current_plan(), allocator_, scratch);
+                WriteGuard guard{this->rw_lock_};
+                return this->all_.push(std::move(pipeline)).unwrap();
+            })
       .unwrap();
 }
 

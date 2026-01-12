@@ -126,8 +126,7 @@ struct PieceTable
 
         constexpr Piece alias() const
         {
-            return piece_->subslice(
-              Slice::slice(iter_ - piece_pos_, end_ - iter_));
+            return piece_->subslice(Slice::slice(iter_ - piece_pos_, end_ - iter_));
         }
 
         constexpr Tuple<usize, usize> diff(PieceIter const & rhs) const
@@ -349,10 +348,10 @@ struct PieceTable
                 auto left_range  = Slice::offsets(range.begin(), erase.begin());
                 auto right_range = Slice::offsets(erase.end(), range.end());
 
-                auto left_slice = Slice::slice(
-                  left_range.begin() - range.begin(), left_range.span);
-                auto right_slice = Slice::slice(
-                  right_range.begin() - range.begin(), right_range.span);
+                auto left_slice =
+                  Slice::slice(left_range.begin() - range.begin(), left_range.span);
+                auto right_slice =
+                  Slice::slice(right_range.begin() - range.begin(), right_range.span);
 
                 auto left  = piece.subslice(left_slice);
                 auto right = piece.subslice(right_slice);
@@ -369,15 +368,13 @@ struct PieceTable
             else if (range.begin() > erase.begin())
             {
                 auto result = Slice::offsets(erase.end(), range.end());
-                auto slice =
-                  Slice::slice(result.offset - range.begin(), result.span);
+                auto slice  = Slice::slice(result.offset - range.begin(), result.span);
                 pieces_.push(piece.with_slice(slice)).unwrap();
             }
             else
             {
                 auto result = Slice::offsets(range.begin(), erase.begin());
-                auto slice =
-                  Slice::slice(result.offset - range.begin(), result.span);
+                auto slice  = Slice::slice(result.offset - range.begin(), result.span);
                 pieces_.push(piece.with_slice(slice)).unwrap();
             }
 

@@ -17,8 +17,7 @@ struct QuadFragmentInfo
 
 interface QuadMaterial
 {
-    f32x4 shade(QuadFragmentInfo info, SamplerState samplers[],
-                Texture2D textures[]);
+    f32x4 shade(QuadFragmentInfo info, SamplerState samplers[], Texture2D textures[]);
 }
 
 struct QuadGradientMaterial : QuadMaterial
@@ -30,8 +29,7 @@ struct QuadGradientMaterial : QuadMaterial
     SamplerIndex sampler;
     TextureIndex texture;
 
-    f32x4 shade(QuadFragmentInfo info, SamplerState samplers[],
-                Texture2D textures[])
+    f32x4 shade(QuadFragmentInfo info, SamplerState samplers[], Texture2D textures[])
     {
         f32x2 norm_uv   = info.uv + 0.5;
         var   smp       = samplers[NonUniformResourceIndex(this.sampler)];

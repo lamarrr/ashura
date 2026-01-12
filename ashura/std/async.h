@@ -53,8 +53,7 @@ struct [[nodiscard]] IWaitToken
                                       std::memory_order failure)
     {
         std::atomic_ref state{state__};
-        return state.compare_exchange_strong(expected, desired, success,
-                                             failure);
+        return state.compare_exchange_strong(expected, desired, success, failure);
     }
 
     void store(u32 state, std::memory_order order)
@@ -158,8 +157,7 @@ struct [[nodiscard]] ISpinLock
         usize           target   = true;
         u64             poll     = 0;
         std::atomic_ref flag{flag_};
-        while (!flag.compare_exchange_weak(expected, target,
-                                           std::memory_order_acquire,
+        while (!flag.compare_exchange_weak(expected, target, std::memory_order_acquire,
                                            std::memory_order_relaxed))
         {
             expected = false;
@@ -286,8 +284,7 @@ struct [[nodiscard]] IRWSpinLock
 
         while (true)
         {
-            if (state.compare_exchange_weak(expected, target,
-                                            std::memory_order_acquire,
+            if (state.compare_exchange_weak(expected, target, std::memory_order_acquire,
                                             std::memory_order_relaxed))
             {
                 return;
@@ -312,8 +309,7 @@ struct [[nodiscard]] IRWSpinLock
 
         while (true)
         {
-            if (state.compare_exchange_weak(expected, target,
-                                            std::memory_order_acquire,
+            if (state.compare_exchange_weak(expected, target, std::memory_order_acquire,
                                             std::memory_order_relaxed))
             {
                 return;
@@ -431,8 +427,7 @@ struct [[nodiscard]] AtomicInit
         // to acquire write side effects from other writers (if any)
         std::atomic_ref stage{stage_};
 
-        if (stage.load(std::memory_order_acquire) == FutureStage::Yielded)
-          [[likely]]
+        if (stage.load(std::memory_order_acquire) == FutureStage::Yielded) [[likely]]
         {
             v_.~T();
         }
@@ -448,8 +443,7 @@ struct [[nodiscard]] AtomicInit
         FutureStage     target   = FutureStage::Yielding;
 
         /// no side-effects need to be observed
-        if (!stage.compare_exchange_strong(expected, target,
-                                           std::memory_order_relaxed,
+        if (!stage.compare_exchange_strong(expected, target, std::memory_order_relaxed,
                                            std::memory_order_relaxed))
         {
             return false;
@@ -483,9 +477,7 @@ struct [[nodiscard]] ISync
     T data_;
 
     template <typename... Args>
-    constexpr ISync(Args &&... args) :
-      lock_{},
-      data_{static_cast<Args &&>(args)...}
+    constexpr ISync(Args &&... args) : lock_{}, data_{static_cast<Args &&>(args)...}
     {
     }
 
@@ -597,9 +589,8 @@ struct [[nodiscard]] ITimelineSemaphore
         auto            next    = sat_add(complete_stage, 1ULL);
         u64             current = 0;
         std::atomic_ref stage{stage_};
-        while (!stage.compare_exchange_weak(
-          current, next, std::memory_order_release, std::memory_order_relaxed))
-          [[unlikely]]
+        while (!stage.compare_exchange_weak(current, next, std::memory_order_release,
+                                            std::memory_order_relaxed)) [[unlikely]]
         {
             if (current >= next)
             {
@@ -617,9 +608,8 @@ struct [[nodiscard]] ITimelineSemaphore
         u64             current = 0;
         u64             target  = inc;
         std::atomic_ref stage{stage_};
-        while (!stage.compare_exchange_weak(
-          current, target, std::memory_order_release,
-          std::memory_order_relaxed)) [[unlikely]]
+        while (!stage.compare_exchange_weak(current, target, std::memory_order_release,
+                                            std::memory_order_relaxed)) [[unlikely]]
         {
             target = sat_add(current, inc);
         }
@@ -639,8 +629,7 @@ typedef Rc<TimelineSemaphore> RcTimelineSemaphore;
 typedef Dyn<TimelineSemaphore> DynTimelineSemaphore;
 
 /// @brief Create an independently allocated semaphore object
-inline Result<RcTimelineSemaphore> semaphore(Allocator allocator,
-                                             u64       initial_stage = 0)
+inline Result<RcTimelineSemaphore> semaphore(Allocator allocator, u64 initial_stage = 0)
 {
     return rc<ITimelineSemaphore>(inplace, allocator, initial_stage);
 }
@@ -655,8 +644,7 @@ namespace impl
 /// completion.
 /// @param any if to wait for all semaphores or atleast 1 semaphore.
 /// @returns returns true if the semaphore poll operation completed successfully
-template <typename Sem, typename Stage, typename SemaphoreKey,
-          typename StageKey>
+template <typename Sem, typename Stage, typename SemaphoreKey, typename StageKey>
 [[nodiscard]] bool poll_semaphores(Span<Sem> semaphores, Span<Stage> stages,
                                    SemaphoreKey && semaphore_key = {},
                                    StageKey &&     stage_key     = {})
@@ -680,8 +668,7 @@ template <typename Sem, typename Stage, typename SemaphoreKey,
 }
 
 template <typename Future, typename FutureStageKey>
-[[nodiscard]] bool poll_futures(Span<Future>      futures,
-                                FutureStageKey && stage_key = {})
+[[nodiscard]] bool poll_futures(Span<Future> futures, FutureStageKey && stage_key = {})
 {
     usize const n = futures.size();
 
@@ -703,8 +690,7 @@ template <typename Future, typename FutureStageKey>
 
 [[nodiscard]] inline bool poll_futures(Span<FutureStage * const> futures)
 {
-    return poll_futures(futures,
-                        [](auto const & f) -> FutureStage & { return *f; });
+    return poll_futures(futures, [](auto const & f) -> FutureStage & { return *f; });
 }
 
 }    // namespace impl
@@ -763,8 +749,7 @@ struct [[nodiscard]] Stream
 };
 
 template <typename T, typename... Args>
-Result<Stream<T>> stream(Inplace, Allocator allocator, u64 num_stages,
-                         Args &&... args)
+Result<Stream<T>> stream(Inplace, Allocator allocator, u64 num_stages, Args &&... args)
 {
     Result data = rc<T>(inplace, allocator, static_cast<Args &&>(args)...);
     if (!data)
@@ -828,15 +813,14 @@ struct [[nodiscard]] Future
 
     T & get(SourceLocation loc = SourceLocation::current()) const
     {
-        return state_->ref().unwrap(
-          "Called `Future::get()` on a pending Future"_str, loc);
+        return state_->ref().unwrap("Called `Future::get()` on a pending Future"_str,
+                                    loc);
     }
 
     Result<ref<T>> poll() const
     {
-        return state_->ref().match(
-          [](T & v) -> Result<ref<T>> { return Ok{ref{v}}; },
-          []() -> Result<ref<T>> { return Err{}; });
+        return state_->ref().match([](T & v) -> Result<ref<T>> { return Ok{ref{v}}; },
+                                   []() -> Result<ref<T>> { return Err{}; });
     }
 
     template <typename... Args>
@@ -884,8 +868,7 @@ struct [[nodiscard]] AnyFuture
     }
 
     template <typename T>
-    AnyFuture(Future<T> future) :
-      state_{transmute(static_cast<Future<T> &&>(future))}
+    AnyFuture(Future<T> future) : state_{transmute(static_cast<Future<T> &&>(future))}
     {
     }
 
@@ -965,9 +948,8 @@ struct [[nodiscard]] TaskInfo
 template <TaskFrame F>
 constexpr TaskInfo to_task_info(F & frame)
 {
-    Fn init{&frame, +[](F * frame, void * mem) {
-                new (mem) F{static_cast<F &&>(*frame)};
-            }};
+    Fn init{&frame,
+            +[](F * frame, void * mem) { new (mem) F{static_cast<F &&>(*frame)}; }};
 
     TaskInfo::Uninit uninit = [](void * f) {
         F * frame = reinterpret_cast<F *>(f);
@@ -995,10 +977,8 @@ constexpr TaskInfo to_task_info(F & frame)
         }
     };
 
-    return TaskInfo{.frame_layout = layout_of<F>,
-                    .init         = init,
-                    .uninit       = uninit,
-                    .tick         = tick};
+    return TaskInfo{
+      .frame_layout = layout_of<F>, .init = init, .uninit = uninit, .tick = tick};
 }
 
 template <Poll P, Runner R>
@@ -1017,9 +997,8 @@ struct TaskInstance
     u64 idx = 0;
 };
 
-[[nodiscard]] inline bool
-  poll_semaphores(Span<TimelineSemaphore const> semaphores,
-                  Span<u64 const>               stages)
+[[nodiscard]] inline bool poll_semaphores(Span<TimelineSemaphore const> semaphores,
+                                          Span<u64 const>               stages)
 {
     return impl::poll_semaphores(
       semaphores, stages,
@@ -1229,12 +1208,11 @@ struct IScheduler
     template <Callable F, Poll P = Ready>
     void once(Thread thread, F fn, P poll)
     {
-        this->schedule(thread,
-                       TaskBody{static_cast<P &&>(poll),
-                                [fn = static_cast<F &&>(fn)]() mutable -> bool {
-                                    fn();
-                                    return false;
-                                }});
+        this->schedule(thread, TaskBody{static_cast<P &&>(poll),
+                                        [fn = static_cast<F &&>(fn)]() mutable -> bool {
+                                            fn();
+                                            return false;
+                                        }});
     }
 
     /// @brief Launch a one-shot task with multiple functions to be called in
@@ -1242,12 +1220,13 @@ struct IScheduler
     template <Callable F, Callable... F1, Poll P = Ready>
     void once(Thread thread, Tuple<F, F1...> fns, P poll)
     {
-        this->schedule(thread, TaskBody{static_cast<P &&>(poll),
-                                        [fns = static_cast<Tuple<F, F1...> &&>(
-                                           fns)]() mutable -> bool {
-                                            ash::fold(fns);
-                                            return false;
-                                        }});
+        this->schedule(
+          thread,
+          TaskBody{static_cast<P &&>(poll),
+                   [fns = static_cast<Tuple<F, F1...> &&>(fns)]() mutable -> bool {
+                       ash::fold(fns);
+                       return false;
+                   }});
     }
 
     /// @brief Launch a task that produces a future value
@@ -1313,8 +1292,8 @@ struct IScheduler
             bool run()
             {
                 yield_fut
-                  .yield(apply(
-                    [this](auto &... fs) { return func(fs.get()...); }, awaits))
+                  .yield(
+                    apply([this](auto &... fs) { return func(fs.get()...); }, awaits))
                   .unwrap();
                 return false;
             }
@@ -1329,8 +1308,7 @@ struct IScheduler
 
     /// @brief Flattens a nested future result into a single future result
     template <typename FlattenFunc, typename T, typename E>
-    auto flatten(Allocator future_allocator, Thread thread,
-                 FlattenFunc                             flatten_func,
+    auto flatten(Allocator future_allocator, Thread thread, FlattenFunc flatten_func,
                  Future<Result<Future<Result<T, E>>, E>> await)
     {
         using U   = decltype(flatten_func(declval<Result<T, E>>()));
@@ -1375,8 +1353,8 @@ struct IScheduler
                         if (r0.is_err())
                         {
                             yield_fut
-                              .yield(flatten_func(
-                                Result<T, E>{Err{std::move(r0.err())}}))
+                              .yield(
+                                flatten_func(Result<T, E>{Err{std::move(r0.err())}}))
                               .unwrap();
                             return false;
                         }
@@ -1416,11 +1394,10 @@ struct IScheduler
 
         auto fut = std::move(fut_r.v());
 
-        this->schedule(
-          thread,
-          Frame{.flatten_func{static_cast<FlattenFunc &&>(flatten_func)},
-                .await{std::move(await)},
-                .yield_fut{fut.alias()}});
+        this->schedule(thread,
+                       Frame{.flatten_func{static_cast<FlattenFunc &&>(flatten_func)},
+                             .await{std::move(await)},
+                             .yield_fut{fut.alias()}});
 
         return Result<Fut>{Ok{std::move(fut)}};
     }
@@ -1444,11 +1421,10 @@ struct IScheduler
     requires (Convertible<CallResult<F>, bool>)
     void loop(Thread thread, F fn, P poll)
     {
-        this->schedule(thread,
-                       TaskBody{static_cast<P &&>(poll),
-                                [fn = static_cast<F &&>(fn)]() mutable -> bool {
-                                    return fn();
-                                }});
+        this->schedule(thread, TaskBody{static_cast<P &&>(poll),
+                                        [fn = static_cast<F &&>(fn)]() mutable -> bool {
+                                            return fn();
+                                        }});
     }
 
     /// @brief Launch a task that is repeatedly called n times
@@ -1460,8 +1436,7 @@ struct IScheduler
     /// @param poll Poller functor that returns true when ready
     /// @param schedule How to schedule the task
     template <Callable<u64> F, Poll P = Ready>
-    requires (Same<CallResult<F, u64>, void> ||
-              Convertible<CallResult<F, u64>, bool>)
+    requires (Same<CallResult<F, u64>, void> || Convertible<CallResult<F, u64>, bool>)
     void repeat(Thread thread, F fn, u64 n, P poll)
     {
         if (n == 0)
@@ -1470,23 +1445,23 @@ struct IScheduler
         }
 
         this->schedule(
-          thread, TaskBody{static_cast<P &&>(poll),
-                           [fn = static_cast<F &&>(fn), n,
-                            i  = (u64) 0]() mutable -> bool {
-                               if constexpr (Same<CallResult<F, u64>, void>)
-                               {
-                                   fn(i);
-                                   i++;
-                                   return n == i;
-                               }
-                               else
-                               {
-                                   // early exit
-                                   bool const done = fn(i);
-                                   i++;
-                                   return done || (n == i);
-                               }
-                           }});
+          thread,
+          TaskBody{static_cast<P &&>(poll),
+                   [fn = static_cast<F &&>(fn), n, i = (u64) 0]() mutable -> bool {
+                       if constexpr (Same<CallResult<F, u64>, void>)
+                       {
+                           fn(i);
+                           i++;
+                           return n == i;
+                       }
+                       else
+                       {
+                           // early exit
+                           bool const done = fn(i);
+                           i++;
+                           return done || (n == i);
+                       }
+                   }});
     }
 
     /// @brief Launch shards of tasks, All shards share the same state and task
@@ -1520,23 +1495,21 @@ struct IScheduler
         //
         this->schedule(
           thread,
-          TaskBody{
-            static_cast<P &&>(poll),
-            [fn, state = std::move(state), thread, dim,
-             this]() mutable -> bool {
-                for (u64 i = 0; i < dim; i++)
-                {
-                    this->schedule(
-                      thread,
-                      TaskBody{
-                        ready,
-                        [fn, i, dim, state = state.alias()]() mutable -> bool {
-                            fn(TaskInstance{.dim = dim, .idx = i}, state.get());
-                            return false;
-                        }});
-                }
-                return false;
-            }});
+          TaskBody{static_cast<P &&>(poll),
+                   [fn, state = std::move(state), thread, dim, this]() mutable -> bool {
+                       for (u64 i = 0; i < dim; i++)
+                       {
+                           this->schedule(
+                             thread,
+                             TaskBody{
+                               ready,
+                               [fn, i, dim, state = state.alias()]() mutable -> bool {
+                                   fn(TaskInstance{.dim = dim, .idx = i}, state.get());
+                                   return false;
+                               }});
+                       }
+                       return false;
+                   }});
     }
 };
 

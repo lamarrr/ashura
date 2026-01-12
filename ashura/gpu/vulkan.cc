@@ -26,15 +26,13 @@ VkResult DebugMarkerSetObjectTagEXT_Stub(VkDevice,
     return VK_SUCCESS;
 }
 
-VkResult
-  DebugMarkerSetObjectNameEXT_Stub(VkDevice,
-                                   VkDebugMarkerObjectNameInfoEXT const *)
+VkResult DebugMarkerSetObjectNameEXT_Stub(VkDevice,
+                                          VkDebugMarkerObjectNameInfoEXT const *)
 {
     return VK_SUCCESS;
 }
 
-void CmdDebugMarkerBeginEXT_Stub(VkCommandBuffer,
-                                 VkDebugMarkerMarkerInfoEXT const *)
+void CmdDebugMarkerBeginEXT_Stub(VkCommandBuffer, VkDebugMarkerMarkerInfoEXT const *)
 {
 }
 
@@ -42,8 +40,7 @@ void CmdDebugMarkerEndEXT_Stub(VkCommandBuffer)
 {
 }
 
-void CmdDebugMarkerInsertEXT_Stub(VkCommandBuffer,
-                                  VkDebugMarkerMarkerInfoEXT const *)
+void CmdDebugMarkerInsertEXT_Stub(VkCommandBuffer, VkDebugMarkerMarkerInfoEXT const *)
 {
 }
 
@@ -109,9 +106,9 @@ bool load_device_table(VkDevice dev, InstanceTable const & instance_table,
     mem::zero(&vk_table, 1);
     bool all_loaded = true;
 
-#define LOAD_VK(function)                                                    \
-    vk_table.function = (PFN_vk##function) instance_table.GetDeviceProcAddr( \
-      dev, "vk" #function);                                                  \
+#define LOAD_VK(function)                                                       \
+    vk_table.function =                                                         \
+      (PFN_vk##function) instance_table.GetDeviceProcAddr(dev, "vk" #function); \
     all_loaded = all_loaded && (vk_table.function != nullptr)
 
     // DEVICE OBJECT FUNCTIONS
@@ -271,9 +268,8 @@ bool load_device_table(VkDevice dev, InstanceTable const & instance_table,
     return all_loaded;
 }
 
-void load_vma_table(InstanceTable const & instance_table,
-                    DeviceTable const &   vk_table,
-                    VmaVulkanFunctions &  vma_table)
+void load_vma_table(InstanceTable const & instance_table, DeviceTable const & vk_table,
+                    VmaVulkanFunctions & vma_table)
 {
     mem::zero(&vma_table, 1);
 #define SET_VMA_INST(function) vma_table.vk##function = instance_table.function
@@ -334,8 +330,7 @@ void IDescriptorSet::update_link(u32 ibinding, u32 first_element,
             continue;
         }
 
-        auto loc =
-          BindLocation{.set = this, .binding = ibinding, .element = element};
+        auto loc = BindLocation{.set = this, .binding = ibinding, .element = element};
 
         if (current.is_some())
         {
@@ -361,15 +356,14 @@ void IDescriptorSet::update_link(u32 ibinding, u32 first_element,
     {
         auto   element = first_element + i;
         auto & current = sync_resources[element];
-        auto   next = Option<IBufferView &>::from_ptr((BufferView) buffer_view);
+        auto   next    = Option<IBufferView &>::from_ptr((BufferView) buffer_view);
 
         if (current.ptr() == next.ptr())
         {
             continue;
         }
 
-        auto loc =
-          BindLocation{.set = this, .binding = ibinding, .element = element};
+        auto loc = BindLocation{.set = this, .binding = ibinding, .element = element};
 
         if (current.is_some())
         {
@@ -395,16 +389,14 @@ void IDescriptorSet::update_link(u32 ibinding, u32 first_element,
     {
         auto   element = first_element + i;
         auto & current = sync_resources[element];
-        auto   next =
-          Option<IImageView &>::from_ptr((ImageView) image.image_view);
+        auto   next    = Option<IImageView &>::from_ptr((ImageView) image.image_view);
 
         if (current.ptr() == next.ptr())
         {
             continue;
         }
 
-        auto loc =
-          BindLocation{.set = this, .binding = ibinding, .element = element};
+        auto loc = BindLocation{.set = this, .binding = ibinding, .element = element};
 
         if (current.is_some())
         {
@@ -568,8 +560,7 @@ enum class SyncResourceType : u8
     ImageView  = 3
 };
 
-constexpr SyncResourceType
-  descriptor_sync_resource_type(gpu::DescriptorType type)
+constexpr SyncResourceType descriptor_sync_resource_type(gpu::DescriptorType type)
 {
     switch (type)
     {
@@ -650,101 +641,95 @@ void HazardBarriers::barrier(IImage const & image, MemAccess old_access,
                              VkImageLayout old_layout, MemAccess new_access,
                              VkImageLayout new_layout)
 {
-    this->image(
-      old_access.stages, new_access.stages,
-      VkImageMemoryBarrier{
-        .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .pNext               = nullptr,
-        .srcAccessMask       = old_access.access,
-        .dstAccessMask       = new_access.access,
-        .oldLayout           = old_layout,
-        .newLayout           = new_layout,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image               = image.vk,
-        .subresourceRange = {.aspectMask   = (VkImageAspectFlags) image.aspects,
-                             .baseMipLevel = 0,
-                             .levelCount   = VK_REMAINING_MIP_LEVELS,
-                             .baseArrayLayer = 0,
-                             .layerCount     = VK_REMAINING_ARRAY_LAYERS}
+    this->image(old_access.stages, new_access.stages,
+                VkImageMemoryBarrier{
+                  .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+                  .pNext               = nullptr,
+                  .srcAccessMask       = old_access.access,
+                  .dstAccessMask       = new_access.access,
+                  .oldLayout           = old_layout,
+                  .newLayout           = new_layout,
+                  .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                  .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                  .image               = image.vk,
+                  .subresourceRange = {.aspectMask = (VkImageAspectFlags) image.aspects,
+                                       .baseMipLevel   = 0,
+                                       .levelCount     = VK_REMAINING_MIP_LEVELS,
+                                       .baseArrayLayer = 0,
+                                       .layerCount     = VK_REMAINING_ARRAY_LAYERS}
     });
 }
 
 void HazardBarriers::discard_barrier(IImage const & image, MemAccess old_access,
-                                     MemAccess     new_access,
-                                     VkImageLayout new_layout)
+                                     MemAccess new_access, VkImageLayout new_layout)
 {
-    this->image(
-      old_access.stages, new_access.stages,
-      VkMemoryBarrier{
-        .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
-        .pNext         = nullptr,
-        .srcAccessMask = old_access.access,
-        .dstAccessMask = new_access.access
+    this->image(old_access.stages, new_access.stages,
+                VkMemoryBarrier{
+                  .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+                  .pNext         = nullptr,
+                  .srcAccessMask = old_access.access,
+                  .dstAccessMask = new_access.access
     },
-      VkImageMemoryBarrier{
-        .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .pNext               = nullptr,
-        .srcAccessMask       = VK_ACCESS_NONE,
-        .dstAccessMask       = new_access.access,
-        .oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
-        .newLayout           = new_layout,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image               = image.vk,
-        .subresourceRange = {.aspectMask   = (VkImageAspectFlags) image.aspects,
-                             .baseMipLevel = 0,
-                             .levelCount   = VK_REMAINING_MIP_LEVELS,
-                             .baseArrayLayer = 0,
-                             .layerCount     = VK_REMAINING_ARRAY_LAYERS}});
+                VkImageMemoryBarrier{
+                  .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+                  .pNext               = nullptr,
+                  .srcAccessMask       = VK_ACCESS_NONE,
+                  .dstAccessMask       = new_access.access,
+                  .oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
+                  .newLayout           = new_layout,
+                  .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                  .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                  .image               = image.vk,
+                  .subresourceRange = {.aspectMask = (VkImageAspectFlags) image.aspects,
+                                       .baseMipLevel   = 0,
+                                       .levelCount     = VK_REMAINING_MIP_LEVELS,
+                                       .baseArrayLayer = 0,
+                                       .layerCount     = VK_REMAINING_ARRAY_LAYERS}});
 }
 
 void HazardBarriers::barrier(IBuffer const & buffer, MemAccess old_access,
                              MemAccess new_access)
 {
-    this->buffer(
-      old_access.stages, new_access.stages,
-      VkBufferMemoryBarrier{.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-                            .pNext = nullptr,
-                            .srcAccessMask       = old_access.access,
-                            .dstAccessMask       = new_access.access,
-                            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                            .buffer              = buffer.vk,
-                            .offset              = 0,
-                            .size                = VK_WHOLE_SIZE});
+    this->buffer(old_access.stages, new_access.stages,
+                 VkBufferMemoryBarrier{.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+                                       .pNext = nullptr,
+                                       .srcAccessMask       = old_access.access,
+                                       .dstAccessMask       = new_access.access,
+                                       .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                                       .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                                       .buffer              = buffer.vk,
+                                       .offset              = 0,
+                                       .size                = VK_WHOLE_SIZE});
 }
 
-void HazardBarriers::discard_barrier(IBuffer const & buffer,
-                                     MemAccess old_access, MemAccess new_access)
+void HazardBarriers::discard_barrier(IBuffer const & buffer, MemAccess old_access,
+                                     MemAccess new_access)
 {
-    this->buffer(
-      old_access.stages, new_access.stages,
-      VkMemoryBarrier{.sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
-                      .pNext         = nullptr,
-                      .srcAccessMask = old_access.access,
-                      .dstAccessMask = new_access.access},
-      VkBufferMemoryBarrier{.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-                            .pNext = nullptr,
-                            .srcAccessMask       = VK_ACCESS_NONE,
-                            .dstAccessMask       = new_access.access,
-                            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                            .buffer              = buffer.vk,
-                            .offset              = 0,
-                            .size                = VK_WHOLE_SIZE});
+    this->buffer(old_access.stages, new_access.stages,
+                 VkMemoryBarrier{.sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+                                 .pNext         = nullptr,
+                                 .srcAccessMask = old_access.access,
+                                 .dstAccessMask = new_access.access},
+                 VkBufferMemoryBarrier{.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+                                       .pNext = nullptr,
+                                       .srcAccessMask       = VK_ACCESS_NONE,
+                                       .dstAccessMask       = new_access.access,
+                                       .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                                       .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                                       .buffer              = buffer.vk,
+                                       .offset              = 0,
+                                       .size                = VK_WHOLE_SIZE});
 }
 
 constexpr bool has_read_access(VkAccessFlags access)
 {
     return has_any_bit(
       access,
-      (VkAccessFlags) (VK_ACCESS_INDIRECT_COMMAND_READ_BIT |
-                       VK_ACCESS_INDEX_READ_BIT |
+      (VkAccessFlags) (VK_ACCESS_INDIRECT_COMMAND_READ_BIT | VK_ACCESS_INDEX_READ_BIT |
                        VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT |
                        VK_ACCESS_UNIFORM_READ_BIT |
-                       VK_ACCESS_INPUT_ATTACHMENT_READ_BIT |
-                       VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT |
+                       VK_ACCESS_INPUT_ATTACHMENT_READ_BIT | VK_ACCESS_SHADER_READ_BIT |
+                       VK_ACCESS_SHADER_WRITE_BIT |
                        VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
                        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
                        VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_HOST_READ_BIT |
@@ -761,21 +746,19 @@ constexpr bool has_read_access(VkAccessFlags access)
 constexpr bool has_write_access(VkAccessFlags access)
 {
     return has_any_bit(
-      access,
-      (VkAccessFlags) (VK_ACCESS_SHADER_WRITE_BIT |
-                       VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
-                       VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |
-                       VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_HOST_WRITE_BIT |
-                       VK_ACCESS_MEMORY_WRITE_BIT |
-                       VK_ACCESS_TRANSFORM_FEEDBACK_WRITE_BIT_EXT |
-                       VK_ACCESS_TRANSFORM_FEEDBACK_COUNTER_WRITE_BIT_EXT |
-                       VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR |
-                       VK_ACCESS_COMMAND_PREPROCESS_WRITE_BIT_NV |
-                       VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_NV));
+      access, (VkAccessFlags) (VK_ACCESS_SHADER_WRITE_BIT |
+                               VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
+                               VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |
+                               VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_HOST_WRITE_BIT |
+                               VK_ACCESS_MEMORY_WRITE_BIT |
+                               VK_ACCESS_TRANSFORM_FEEDBACK_WRITE_BIT_EXT |
+                               VK_ACCESS_TRANSFORM_FEEDBACK_COUNTER_WRITE_BIT_EXT |
+                               VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR |
+                               VK_ACCESS_COMMAND_PREPROCESS_WRITE_BIT_NV |
+                               VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_NV));
 }
 
-void EncoderResourceStates::access(IImage const &    image,
-                                   MemAccess const & access,
+void EncoderResourceStates::access(IImage const & image, MemAccess const & access,
                                    VkImageLayout layout, u32 pass,
                                    HazardBarriers & barriers)
 {
@@ -806,8 +789,7 @@ void EncoderResourceStates::access(IImage const &    image,
         alias_.dense.v1.set_bit(alias_.to_index(alias));
     };
 
-    auto mark_combined = [&](HazardType type, MemAccess previous,
-                             MemAccess latest) {
+    auto mark_combined = [&](HazardType type, MemAccess previous, MemAccess latest) {
         hazard = Hazard{
           .type     = type,
           .latest   = latest,
@@ -835,7 +817,7 @@ void EncoderResourceStates::access(IImage const &    image,
       [&](ImageMemState const & h) {
           auto current_layout   = h.layout;
           auto needs_transition = current_layout != layout;
-          auto has_write = has_write_access(access.access) || needs_transition;
+          auto has_write        = has_write_access(access.access) || needs_transition;
 
           auto barrier = [&](MemAccess const & from) {
               barriers.barrier(image, from, current_layout, access, layout);
@@ -858,8 +840,7 @@ void EncoderResourceStates::access(IImage const &    image,
 
                       if (needs_transition)
                       {
-                          barrier(MemAccess{.stages =
-                                              VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                          barrier(MemAccess{.stages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                                             .access = VK_ACCESS_NONE});
 
                           return;
@@ -899,11 +880,10 @@ void EncoderResourceStates::access(IImage const &    image,
                       // combine all subsequent reads, so the next writer knows to wait on
                       // all combined reads to complete
 
-                      mark_combined(HazardType::Reads, {},
-                                    MemAccess{.stages = previous_reads.stages |
-                                                        access.stages,
-                                              .access = previous_reads.access |
-                                                        access.access});
+                      mark_combined(
+                        HazardType::Reads, {},
+                        MemAccess{.stages = previous_reads.stages | access.stages,
+                                  .access = previous_reads.access | access.access});
 
                       return;
                   }
@@ -981,10 +961,9 @@ void EncoderResourceStates::access(IImage const &    image,
                           return;
                       }
 
-                      mark_combined(
-                        HazardType::ReadsAfterWrite, previous_write,
-                        {.stages = previous_reads.stages | access.stages,
-                         .access = previous_reads.access | access.access});
+                      mark_combined(HazardType::ReadsAfterWrite, previous_write,
+                                    {.stages = previous_reads.stages | access.stages,
+                                     .access = previous_reads.access | access.access});
 
                       barrier(previous_write);
 
@@ -1002,17 +981,15 @@ void EncoderResourceStates::access(IImage const &    image,
     return;
 }
 
-void EncoderResourceStates::access(IImageView const & image,
-                                   MemAccess const &  access,
+void EncoderResourceStates::access(IImageView const & image, MemAccess const & access,
                                    VkImageLayout layout, u32 pass,
                                    HazardBarriers & barriers)
 {
     this->access(*image.image, access, layout, pass, barriers);
 }
 
-void EncoderResourceStates::access(IBuffer const &   buffer,
-                                   MemAccess const & access, u32 pass,
-                                   HazardBarriers & barriers)
+void EncoderResourceStates::access(IBuffer const & buffer, MemAccess const & access,
+                                   u32 pass, HazardBarriers & barriers)
 {
     auto alias     = buffer.memory.alias->id;
     auto has_write = has_write_access(access.access);
@@ -1039,8 +1016,7 @@ void EncoderResourceStates::access(IBuffer const &   buffer,
         alias_.dense.v1.set_bit(alias_.to_index(alias));
     };
 
-    auto mark_combined = [&](HazardType type, MemAccess previous,
-                             MemAccess latest) {
+    auto mark_combined = [&](HazardType type, MemAccess previous, MemAccess latest) {
         hazard = Hazard{.type     = type,
                         .latest   = latest,
                         .previous = previous,
@@ -1112,10 +1088,9 @@ void EncoderResourceStates::access(IBuffer const &   buffer,
                       // combine all subsequent reads, so the next writer knows to wait on
                       // all combined reads to complete
 
-                      mark_combined(
-                        HazardType::Reads, {},
-                        {.stages = previous_reads.stages | access.stages,
-                         .access = previous_reads.access | access.access});
+                      mark_combined(HazardType::Reads, {},
+                                    {.stages = previous_reads.stages | access.stages,
+                                     .access = previous_reads.access | access.access});
 
                       return;
                   }
@@ -1192,10 +1167,9 @@ void EncoderResourceStates::access(IBuffer const &   buffer,
                           return;
                       }
 
-                      mark_combined(
-                        HazardType::ReadsAfterWrite, previous_write,
-                        {.stages = previous_reads.stages | access.stages,
-                         .access = previous_reads.access | access.access});
+                      mark_combined(HazardType::ReadsAfterWrite, previous_write,
+                                    {.stages = previous_reads.stages | access.stages,
+                                     .access = previous_reads.access | access.access});
 
                       barrier(previous_write);
 
@@ -1235,7 +1209,7 @@ void EncoderResourceStates::access(IDescriptorSet const & set, u32 pass,
     for (auto & binding : set.bindings)
     {
         auto access_flags = descriptor_access(binding.type);
-        auto acc = MemAccess{.stages = shader_stages, .access = access_flags};
+        auto acc          = MemAccess{.stages = shader_stages, .access = access_flags};
 
         binding.sync_resources.match(
           [](None) {},
@@ -1411,9 +1385,8 @@ constexpr u64 index_type_size(gpu::IndexType type)
 constexpr bool is_valid_buffer_access(u64 size, Slice64 access_range,
                                       u64 offset_alignment, u64 size_alignment)
 {
-    access_range.span = access_range.span == U64_MAX ?
-                          (size - access_range.offset) :
-                          access_range.span;
+    access_range.span =
+      access_range.span == U64_MAX ? (size - access_range.offset) : access_range.span;
 
     bool is_valid_offset = access_range.offset < size;
     bool is_valid_span   = access_range.span > 0;
@@ -1424,8 +1397,8 @@ constexpr bool is_valid_buffer_access(u64 size, Slice64 access_range,
            is_aligned(size_alignment, access_range.span);
 }
 
-constexpr bool is_valid_image_access(gpu::ImageAspects aspects,
-                                     u32 num_mip_levels, u32 num_array_layers,
+constexpr bool is_valid_image_access(gpu::ImageAspects aspects, u32 num_mip_levels,
+                                     u32               num_array_layers,
                                      gpu::ImageAspects access_aspects,
                                      Slice32           access_mip_levels,
                                      Slice32           access_array_layers)
@@ -1439,9 +1412,8 @@ constexpr bool is_valid_image_access(gpu::ImageAspects aspects,
 
     bool is_valid_offset = access_mip_levels.offset < num_mip_levels &&
                            access_array_layers.offset < num_array_layers;
-    bool is_valid_span =
-      access_mip_levels.span > 0 && access_array_layers.span > 0;
-    bool is_valid_end = access_mip_levels.end() <= num_mip_levels &&
+    bool is_valid_span = access_mip_levels.span > 0 && access_array_layers.span > 0;
+    bool is_valid_end  = access_mip_levels.end() <= num_mip_levels &&
                         access_array_layers.end() <= num_array_layers;
 
     return is_valid_offset && is_valid_span && is_valid_end &&
@@ -1449,11 +1421,10 @@ constexpr bool is_valid_image_access(gpu::ImageAspects aspects,
            access_aspects != gpu::ImageAspects::None;
 }
 
-static VkBool32 VKAPI_ATTR VKAPI_CALL
-  debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT       message_severity,
-                 VkDebugUtilsMessageTypeFlagsEXT              message_type,
-                 VkDebugUtilsMessengerCallbackDataEXT const * data,
-                 [[maybe_unused]] void *                      pUserData)
+static VkBool32 VKAPI_ATTR VKAPI_CALL debug_callback(
+  VkDebugUtilsMessageSeverityFlagBitsEXT       message_severity,
+  VkDebugUtilsMessageTypeFlagsEXT              message_type,
+  VkDebugUtilsMessengerCallbackDataEXT const * data, [[maybe_unused]] void * pUserData)
 {
     LogLevel level = LogLevel::Trace;
     if (message_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
@@ -1474,10 +1445,10 @@ static VkBool32 VKAPI_ATTR VKAPI_CALL
     }
 
     auto message_type_s = string_VkDebugUtilsMessageTypeFlagsEXT(message_type);
-    logger->log(
-      level, "[Type: {}, Id: {}, Name: {} ] {}"_str, span(message_type_s),
-      data->messageIdNumber, cstr(data->pMessageIdName),
-      data->pMessage == nullptr ? "(empty message)"_str : cstr(data->pMessage));
+    logger->log(level, "[Type: {}, Id: {}, Name: {} ] {}"_str, span(message_type_s),
+                data->messageIdNumber, cstr(data->pMessageIdName),
+                data->pMessage == nullptr ? "(empty message)"_str :
+                                            cstr(data->pMessage));
 
     if (data->objectCount > 0)
     {
@@ -1524,8 +1495,7 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
     auto scratch = IFallbackAllocator{get_thread_arena(), allocator};
 
     u32  num_exts;
-    auto result =
-      vkEnumerateInstanceExtensionProperties(nullptr, &num_exts, nullptr);
+    auto result = vkEnumerateInstanceExtensionProperties(nullptr, &num_exts, nullptr);
 
     if (result != VK_SUCCESS)
     {
@@ -1539,8 +1509,8 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
         return Err{Status::OutOfHostMemory};
     }
 
-    result = vkEnumerateInstanceExtensionProperties(nullptr, &num_exts,
-                                                    extensions.data());
+    result =
+      vkEnumerateInstanceExtensionProperties(nullptr, &num_exts, extensions.data());
 
     if (result != VK_SUCCESS)
     {
@@ -1577,8 +1547,8 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
 
     for (auto const & ext : extensions)
     {
-        trace("{}\t\t(spec version {}.{}.{} variant {})"_str,
-              cstr(ext.extensionName), VK_API_VERSION_MAJOR(ext.specVersion),
+        trace("{}\t\t(spec version {}.{}.{} variant {})"_str, cstr(ext.extensionName),
+              VK_API_VERSION_MAJOR(ext.specVersion),
               VK_API_VERSION_MINOR(ext.specVersion),
               VK_API_VERSION_PATCH(ext.specVersion),
               VK_API_VERSION_VARIANT(ext.specVersion));
@@ -1606,9 +1576,8 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
     Vec<Str> required_extensions{scratch};
 
     required_extensions
-      .append(
-        span({cstr(VK_KHR_SURFACE_EXTENSION_NAME),
-              cstr(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME)}))
+      .append(span({cstr(VK_KHR_SURFACE_EXTENSION_NAME),
+                    cstr(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME)}))
       .unwrap();
 
     Vec<Str> optional_extensions{scratch};
@@ -1625,20 +1594,18 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
 
     if (enable_validation)
     {
-        optional_extensions.push(cstr(VK_EXT_DEBUG_UTILS_EXTENSION_NAME))
-          .unwrap();
+        optional_extensions.push(cstr(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)).unwrap();
     }
 
     for (auto ext : required_extensions)
     {
-        ASH_CHECK(!find(extensions.view(), ext,
-                        [](auto a, auto b) {
-                            return mem::eq(cstr(a.extensionName), b);
-                        })
-                     .is_empty(),
-                  "Required Vulkan "
-                  "Instance Extension: {}  is not supported on instance",
-                  ext);
+        ASH_CHECK(
+          !find(extensions.view(), ext,
+                [](auto a, auto b) { return mem::eq(cstr(a.extensionName), b); })
+             .is_empty(),
+          "Required Vulkan "
+          "Instance Extension: {}  is not supported on instance",
+          ext);
         load_extensions.push(ext).unwrap();
     }
 
@@ -1684,14 +1651,13 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
       !find(load_extensions.view(), cstr(VK_EXT_DEBUG_UTILS_EXTENSION_NAME),
             span_bit_eq)
          .is_empty() &&
-      !find(load_layers.view(), DEBUG_LAYER_EXTENSION_NAME, span_bit_eq)
-         .is_empty();
+      !find(load_layers.view(), DEBUG_LAYER_EXTENSION_NAME, span_bit_eq).is_empty();
 
     // setup before vkInstance to allow debug reporter report
     // messages through the pointer to it
 
-    VkApplicationInfo app_info{.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-                               .pNext = nullptr,
+    VkApplicationInfo app_info{.sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO,
+                               .pNext              = nullptr,
                                .pApplicationName   = CLIENT_NAME,
                                .applicationVersion = CLIENT_VERSION,
                                .pEngineName        = ENGINE_NAME,
@@ -1699,9 +1665,9 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
                                .apiVersion         = ENGINE_VULKAN_VERSION};
 
     VkDebugUtilsMessengerCreateInfoEXT debug_create_info{
-      .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
-      .pNext = nullptr,
-      .flags = 0,
+      .sType           = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+      .pNext           = nullptr,
+      .flags           = 0,
       .messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
                          VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
                          VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
@@ -1713,8 +1679,8 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
       .pUserData       = nullptr};
 
     auto has_portability_ext =
-      !find(load_extensions.view(),
-            cstr(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME), span_bit_eq)
+      !find(load_extensions.view(), cstr(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME),
+            span_bit_eq)
          .is_empty();
 
     Vec<char const *> load_extensions_c{scratch};
@@ -1734,15 +1700,14 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
     // .pNext helps to debug issues with vkDestroyInstance and vkCreateInstance
     // i.e. (before and after the debug messenger is installed)
     VkInstanceCreateInfo create_info{
-      .sType                 = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-      .pNext                 = enable_validation ? &debug_create_info : nullptr,
-      .flags                 = has_portability_ext ?
-                                 VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR :
-                                 ((VkInstanceCreateFlags) 0),
-      .pApplicationInfo      = &app_info,
-      .enabledLayerCount     = size32(load_layers_c),
-      .ppEnabledLayerNames   = load_layers_c.data(),
-      .enabledExtensionCount = size32(load_extensions_c),
+      .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+      .pNext = enable_validation ? &debug_create_info : nullptr,
+      .flags = has_portability_ext ? VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR :
+                                     ((VkInstanceCreateFlags) 0),
+      .pApplicationInfo        = &app_info,
+      .enabledLayerCount       = size32(load_layers_c),
+      .ppEnabledLayerNames     = load_layers_c.data(),
+      .enabledExtensionCount   = size32(load_extensions_c),
       .ppEnabledExtensionNames = load_extensions_c.data()};
 
     VkInstance vk_instance;
@@ -1770,8 +1735,8 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
 
     if (validation_enabled)
     {
-        result = vk_table.CreateDebugUtilsMessengerEXT(
-          vk_instance, &debug_create_info, nullptr, &vk_debug_messenger);
+        result = vk_table.CreateDebugUtilsMessengerEXT(vk_instance, &debug_create_info,
+                                                       nullptr, &vk_debug_messenger);
         if (result != VK_SUCCESS)
         {
             return Err{(Status) result};
@@ -1796,8 +1761,8 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
 namespace gpu
 {
 
-Result<Dyn<gpu::Instance>, Status>
-  create_vulkan_instance(Allocator allocator, bool enable_validation)
+Result<Dyn<gpu::Instance>, Status> create_vulkan_instance(Allocator allocator,
+                                                          bool      enable_validation)
 {
     return vk::create_instance(allocator, enable_validation);
 }
@@ -1866,8 +1831,7 @@ Result<gpu::Device, Status>
         return Err{Status::OutOfHostMemory};
     }
 
-    result =
-      table_.EnumeratePhysicalDevices(vk_, &num_devs, vk_phy_devs.data());
+    result = table_.EnumeratePhysicalDevices(vk_, &num_devs, vk_phy_devs.data());
 
     if (result != VK_SUCCESS)
     {
@@ -1889,13 +1853,11 @@ Result<gpu::Device, Status>
           .pNext    = nullptr,
           .features = {}};
         table_.GetPhysicalDeviceFeatures2KHR(vk_dev, &features);
-        table_.GetPhysicalDeviceMemoryProperties(vk_dev,
-                                                 &dev.vk_memory_properties);
+        table_.GetPhysicalDeviceMemoryProperties(vk_dev, &dev.vk_memory_properties);
 
         VkPhysicalDeviceDescriptorIndexingPropertiesEXT descriptor_properties{
-          .sType =
-            VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_PROPERTIES_EXT,
-          .pNext                                                = nullptr,
+          .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_PROPERTIES_EXT,
+          .pNext = nullptr,
           .maxUpdateAfterBindDescriptorsInAllPools              = {},
           .shaderUniformBufferArrayNonUniformIndexingNative     = {},
           .shaderSampledImageArrayNonUniformIndexingNative      = {},
@@ -1937,20 +1899,19 @@ Result<gpu::Device, Status>
     for (auto [i, dev] : enumerate(physical_devs))
     {
         auto const & properties = dev.vk_properties;
-        trace(
-          "[Device: {}] {} {} Vulkan API version {}.{}.{} variant "
-          "{}, Driver "
-          "Version: {}, Vendor ID: {}, Device ID: {}"_str,
-          i, cstr(string_VkPhysicalDeviceType(properties.deviceType)),
-          properties.deviceName, VK_API_VERSION_MAJOR(properties.apiVersion),
-          VK_API_VERSION_MINOR(properties.apiVersion),
-          VK_API_VERSION_PATCH(properties.apiVersion),
-          VK_API_VERSION_VARIANT(properties.apiVersion),
-          properties.driverVersion, properties.vendorID, properties.deviceID);
+        trace("[Device: {}] {} {} Vulkan API version {}.{}.{} variant "
+              "{}, Driver "
+              "Version: {}, Vendor ID: {}, Device ID: {}"_str,
+              i, cstr(string_VkPhysicalDeviceType(properties.deviceType)),
+              properties.deviceName, VK_API_VERSION_MAJOR(properties.apiVersion),
+              VK_API_VERSION_MINOR(properties.apiVersion),
+              VK_API_VERSION_PATCH(properties.apiVersion),
+              VK_API_VERSION_VARIANT(properties.apiVersion), properties.driverVersion,
+              properties.vendorID, properties.deviceID);
 
         u32 num_queue_families;
-        table_.GetPhysicalDeviceQueueFamilyProperties2KHR(
-          dev.vk, &num_queue_families, nullptr);
+        table_.GetPhysicalDeviceQueueFamilyProperties2KHR(dev.vk, &num_queue_families,
+                                                          nullptr);
 
         Vec<VkQueueFamilyProperties2KHR> queue_family_properties{scratch};
 
@@ -2003,17 +1964,15 @@ Result<gpu::Device, Status>
               dev.vk, &num_queue_families, queue_family_properties.data());
             ASH_CHECK(queue_family_properties.size() == num_queue_families, "");
 
-            if (((VkPhysicalDeviceType) preferred_type) ==
-                dev.vk_properties.deviceType)
+            if (((VkPhysicalDeviceType) preferred_type) == dev.vk_properties.deviceType)
             {
                 for (auto [iqueue_family, queue_family_prop] :
                      enumerate<u32>(queue_family_properties))
                 {
-                    if (has_bits(
-                          queue_family_prop.queueFamilyProperties.queueFlags,
-                          (VkQueueFlags) (VK_QUEUE_COMPUTE_BIT |
-                                          VK_QUEUE_GRAPHICS_BIT |
-                                          VK_QUEUE_TRANSFER_BIT)))
+                    if (has_bits(queue_family_prop.queueFamilyProperties.queueFlags,
+                                 (VkQueueFlags) (VK_QUEUE_COMPUTE_BIT |
+                                                 VK_QUEUE_GRAPHICS_BIT |
+                                                 VK_QUEUE_TRANSFER_BIT)))
                     {
                         selected_dev_idx      = idev;
                         selected_queue_family = iqueue_family;
@@ -2047,8 +2006,8 @@ Result<gpu::Device, Status>
     trace("Selected Device {}"_str, selected_dev_idx);
 
     u32 num_extensions;
-    result = table_.EnumerateDeviceExtensionProperties(
-      selected_dev.vk, nullptr, &num_extensions, nullptr);
+    result = table_.EnumerateDeviceExtensionProperties(selected_dev.vk, nullptr,
+                                                       &num_extensions, nullptr);
 
     if (result != VK_SUCCESS)
     {
@@ -2072,8 +2031,8 @@ Result<gpu::Device, Status>
     ASH_CHECK(num_extensions == extensions.size(), "");
 
     u32 num_layers;
-    result = table_.EnumerateDeviceLayerProperties(selected_dev.vk, &num_layers,
-                                                   nullptr);
+    result =
+      table_.EnumerateDeviceLayerProperties(selected_dev.vk, &num_layers, nullptr);
 
     if (result != VK_SUCCESS)
     {
@@ -2100,8 +2059,8 @@ Result<gpu::Device, Status>
 
     for (auto & ext : extensions)
     {
-        trace("\t\t{} (spec version: {}.{}.{} variant {})"_str,
-              cstr(ext.extensionName), VK_API_VERSION_MAJOR(ext.specVersion),
+        trace("\t\t{} (spec version: {}.{}.{} variant {})"_str, cstr(ext.extensionName),
+              VK_API_VERSION_MAJOR(ext.specVersion),
               VK_API_VERSION_MINOR(ext.specVersion),
               VK_API_VERSION_PATCH(ext.specVersion),
               VK_API_VERSION_VARIANT(ext.specVersion));
@@ -2146,14 +2105,13 @@ Result<gpu::Device, Status>
 
     for (auto ext : required_extensions)
     {
-        ASH_CHECK(!find(extensions.view(), ext,
-                        [](auto a, auto b) {
-                            return mem::eq(cstr(a.extensionName), b);
-                        })
-                     .is_empty(),
-                  "Required Vulkan "
-                  "Device Extension: {}  is not supported on instance",
-                  ext);
+        ASH_CHECK(
+          !find(extensions.view(), ext,
+                [](auto a, auto b) { return mem::eq(cstr(a.extensionName), b); })
+             .is_empty(),
+          "Required Vulkan "
+          "Device Extension: {}  is not supported on instance",
+          ext);
         load_extensions.push(ext).unwrap();
     }
 
@@ -2224,32 +2182,31 @@ Result<gpu::Device, Status>
       .pQueuePriorities = &queue_priority};
 
     VkPhysicalDeviceFeatures features{
-      .robustBufferAccess        = VK_FALSE,
-      .fullDrawIndexUint32       = VK_FALSE,
-      .imageCubeArray            = VK_TRUE,
-      .independentBlend          = VK_TRUE,
-      .geometryShader            = selected_dev.vk_features.geometryShader,
-      .tessellationShader        = selected_dev.vk_features.tessellationShader,
-      .sampleRateShading         = VK_FALSE,
-      .dualSrcBlend              = VK_TRUE,
-      .logicOp                   = VK_FALSE,
-      .multiDrawIndirect         = VK_TRUE,
-      .drawIndirectFirstInstance = VK_TRUE,
-      .depthClamp                = VK_TRUE,
-      .depthBiasClamp            = VK_TRUE,
-      .fillModeNonSolid          = selected_dev.vk_features.fillModeNonSolid,
-      .depthBounds               = selected_dev.vk_features.depthBounds,
-      .wideLines                 = selected_dev.vk_features.wideLines,
-      .largePoints               = selected_dev.vk_features.largePoints,
-      .alphaToOne                = selected_dev.vk_features.alphaToOne,
-      .multiViewport             = selected_dev.vk_features.multiViewport,
-      .samplerAnisotropy         = VK_TRUE,
-      .textureCompressionETC2 = selected_dev.vk_features.textureCompressionETC2,
-      .textureCompressionASTC_LDR =
-        selected_dev.vk_features.textureCompressionASTC_LDR,
-      .textureCompressionBC    = selected_dev.vk_features.textureCompressionBC,
-      .occlusionQueryPrecise   = VK_FALSE,
-      .pipelineStatisticsQuery = VK_TRUE,
+      .robustBufferAccess         = VK_FALSE,
+      .fullDrawIndexUint32        = VK_FALSE,
+      .imageCubeArray             = VK_TRUE,
+      .independentBlend           = VK_TRUE,
+      .geometryShader             = selected_dev.vk_features.geometryShader,
+      .tessellationShader         = selected_dev.vk_features.tessellationShader,
+      .sampleRateShading          = VK_FALSE,
+      .dualSrcBlend               = VK_TRUE,
+      .logicOp                    = VK_FALSE,
+      .multiDrawIndirect          = VK_TRUE,
+      .drawIndirectFirstInstance  = VK_TRUE,
+      .depthClamp                 = VK_TRUE,
+      .depthBiasClamp             = VK_TRUE,
+      .fillModeNonSolid           = selected_dev.vk_features.fillModeNonSolid,
+      .depthBounds                = selected_dev.vk_features.depthBounds,
+      .wideLines                  = selected_dev.vk_features.wideLines,
+      .largePoints                = selected_dev.vk_features.largePoints,
+      .alphaToOne                 = selected_dev.vk_features.alphaToOne,
+      .multiViewport              = selected_dev.vk_features.multiViewport,
+      .samplerAnisotropy          = VK_TRUE,
+      .textureCompressionETC2     = selected_dev.vk_features.textureCompressionETC2,
+      .textureCompressionASTC_LDR = selected_dev.vk_features.textureCompressionASTC_LDR,
+      .textureCompressionBC       = selected_dev.vk_features.textureCompressionBC,
+      .occlusionQueryPrecise      = VK_FALSE,
+      .pipelineStatisticsQuery    = VK_TRUE,
       .vertexPipelineStoresAndAtomics          = VK_FALSE,
       .fragmentStoresAndAtomics                = VK_TRUE,
       .shaderTessellationAndGeometryPointSize  = VK_FALSE,
@@ -2281,12 +2238,10 @@ Result<gpu::Device, Status>
       .variableMultisampleRate  = VK_FALSE,
       .inheritedQueries         = VK_FALSE};
 
-    VkPhysicalDeviceExtendedDynamicStateFeaturesEXT
-      extended_dynamic_state_features{
-        .sType =
-          VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_FEATURES_EXT,
-        .pNext                = nullptr,
-        .extendedDynamicState = VK_TRUE};
+    VkPhysicalDeviceExtendedDynamicStateFeaturesEXT extended_dynamic_state_features{
+      .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_FEATURES_EXT,
+      .pNext = nullptr,
+      .extendedDynamicState = VK_TRUE};
 
     VkPhysicalDeviceDynamicRenderingFeaturesKHR dynamic_rendering_features{
       .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR,
@@ -2294,10 +2249,9 @@ Result<gpu::Device, Status>
       .dynamicRendering = VK_TRUE};
 
     VkPhysicalDeviceDescriptorIndexingFeaturesEXT descriptor_indexing_features{
-      .sType =
-        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES_EXT,
-      .pNext                                     = &dynamic_rendering_features,
-      .shaderInputAttachmentArrayDynamicIndexing = VK_TRUE,
+      .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES_EXT,
+      .pNext = &dynamic_rendering_features,
+      .shaderInputAttachmentArrayDynamicIndexing          = VK_TRUE,
       .shaderUniformTexelBufferArrayDynamicIndexing       = VK_TRUE,
       .shaderStorageTexelBufferArrayDynamicIndexing       = VK_TRUE,
       .shaderUniformBufferArrayNonUniformIndexing         = VK_TRUE,
@@ -2318,21 +2272,19 @@ Result<gpu::Device, Status>
       .descriptorBindingVariableDescriptorCount           = VK_TRUE,
       .runtimeDescriptorArray                             = VK_TRUE};
 
-    VkDeviceCreateInfo create_info{
-      .sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-      .pNext                   = &descriptor_indexing_features,
-      .flags                   = 0,
-      .queueCreateInfoCount    = 1,
-      .pQueueCreateInfos       = &queue_create_info,
-      .enabledLayerCount       = size32(load_layers_c),
-      .ppEnabledLayerNames     = load_layers_c.data(),
-      .enabledExtensionCount   = size32(load_extensions_c),
-      .ppEnabledExtensionNames = load_extensions_c.data(),
-      .pEnabledFeatures        = &features};
+    VkDeviceCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+                                   .pNext = &descriptor_indexing_features,
+                                   .flags = 0,
+                                   .queueCreateInfoCount    = 1,
+                                   .pQueueCreateInfos       = &queue_create_info,
+                                   .enabledLayerCount       = size32(load_layers_c),
+                                   .ppEnabledLayerNames     = load_layers_c.data(),
+                                   .enabledExtensionCount   = size32(load_extensions_c),
+                                   .ppEnabledExtensionNames = load_extensions_c.data(),
+                                   .pEnabledFeatures        = &features};
 
     VkDevice vk_dev;
-    result =
-      table_.CreateDevice(selected_dev.vk, &create_info, nullptr, &vk_dev);
+    result = table_.CreateDevice(selected_dev.vk, &create_info, nullptr, &vk_dev);
 
     if (result != VK_SUCCESS)
     {
@@ -2341,9 +2293,8 @@ Result<gpu::Device, Status>
 
     DeviceTable        vk_dev_table;
     VmaVulkanFunctions vma_table;
-    ASH_CHECK(
-      load_device_table(vk_dev, table_, vk_dev_table, has_debug_marker_ext),
-      "");
+    ASH_CHECK(load_device_table(vk_dev, table_, vk_dev_table, has_debug_marker_ext),
+              "");
 
     load_vma_table(table_, vk_dev_table, vma_table);
 
@@ -2358,16 +2309,16 @@ Result<gpu::Device, Status>
     vk_dev_table.GetDeviceQueue(vk_dev, selected_queue_family, 0, &vk_queue);
 
     VmaAllocatorCreateInfo vma_create_info{
-      .flags          = VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT,
-      .physicalDevice = selected_dev.vk,
-      .device         = vk_dev,
-      .preferredLargeHeapBlockSize    = 0,
-      .pAllocationCallbacks           = nullptr,
-      .pDeviceMemoryCallbacks         = nullptr,
-      .pHeapSizeLimit                 = nullptr,
-      .pVulkanFunctions               = &vma_table,
-      .instance                       = vk_,
-      .vulkanApiVersion               = VK_API_VERSION_1_0,
+      .flags                       = VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT,
+      .physicalDevice              = selected_dev.vk,
+      .device                      = vk_dev,
+      .preferredLargeHeapBlockSize = 0,
+      .pAllocationCallbacks        = nullptr,
+      .pDeviceMemoryCallbacks      = nullptr,
+      .pHeapSizeLimit              = nullptr,
+      .pVulkanFunctions            = &vma_table,
+      .instance                    = vk_,
+      .vulkanApiVersion            = VK_API_VERSION_1_0,
       .pTypeExternalMemoryHandleTypes = nullptr};
 
     VmaAllocator vma_allocator;
@@ -2430,8 +2381,7 @@ void IInstance::uninit(gpu::Surface surface)
     table_.DestroySurfaceKHR(vk_, (Surface) surface, nullptr);
 }
 
-void IDevice::set_resource_name(Str label, void const * resource,
-                                VkObjectType               type,
+void IDevice::set_resource_name(Str label, void const * resource, VkObjectType type,
                                 VkDebugReportObjectTypeEXT debug_type,
                                 Allocator                  scratch)
 {
@@ -2465,10 +2415,9 @@ gpu::DeviceProperties IDevice::get_properties()
     bool has_uma = false;
     for (u32 i = 0; i < phy_.vk_memory_properties.memoryTypeCount; i++)
     {
-        if (has_bits(
-              phy_.vk_memory_properties.memoryTypes[i].propertyFlags,
-              (VkMemoryPropertyFlags) (VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
-                                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)))
+        if (has_bits(phy_.vk_memory_properties.memoryTypes[i].propertyFlags,
+                     (VkMemoryPropertyFlags) (VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
+                                              VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)))
         {
             has_uma = true;
             break;
@@ -2478,22 +2427,21 @@ gpu::DeviceProperties IDevice::get_properties()
     auto & vklimit = phy_.vk_properties.limits;
 
     gpu::DeviceLimits limits{
-      .image_extent_1d           = vklimit.maxImageDimension1D,
-      .image_extent_2d           = vklimit.maxImageDimension2D,
-      .image_extent_3d           = vklimit.maxImageDimension3D,
-      .image_extent_cube         = vklimit.maxImageDimensionCube,
-      .image_array_layers        = vklimit.maxImageArrayLayers,
-      .uniform_buffer_range      = vklimit.maxUniformBufferRange,
-      .storage_buffer_range      = vklimit.maxStorageBufferRange,
-      .push_constants_size       = vklimit.maxPushConstantsSize,
-      .bound_descriptor_sets     = vklimit.maxBoundDescriptorSets,
-      .per_stage_samplers        = vklimit.maxPerStageDescriptorSamplers,
-      .per_stage_uniform_buffers = vklimit.maxPerStageDescriptorUniformBuffers,
-      .per_stage_storage_buffers = vklimit.maxPerStageDescriptorStorageBuffers,
-      .per_stage_sampled_images  = vklimit.maxPerStageDescriptorSampledImages,
-      .per_stage_storage_images  = vklimit.maxPerStageDescriptorStorageImages,
-      .per_stage_input_attachments =
-        vklimit.maxPerStageDescriptorInputAttachments,
+      .image_extent_1d                = vklimit.maxImageDimension1D,
+      .image_extent_2d                = vklimit.maxImageDimension2D,
+      .image_extent_3d                = vklimit.maxImageDimension3D,
+      .image_extent_cube              = vklimit.maxImageDimensionCube,
+      .image_array_layers             = vklimit.maxImageArrayLayers,
+      .uniform_buffer_range           = vklimit.maxUniformBufferRange,
+      .storage_buffer_range           = vklimit.maxStorageBufferRange,
+      .push_constants_size            = vklimit.maxPushConstantsSize,
+      .bound_descriptor_sets          = vklimit.maxBoundDescriptorSets,
+      .per_stage_samplers             = vklimit.maxPerStageDescriptorSamplers,
+      .per_stage_uniform_buffers      = vklimit.maxPerStageDescriptorUniformBuffers,
+      .per_stage_storage_buffers      = vklimit.maxPerStageDescriptorStorageBuffers,
+      .per_stage_sampled_images       = vklimit.maxPerStageDescriptorSampledImages,
+      .per_stage_storage_images       = vklimit.maxPerStageDescriptorStorageImages,
+      .per_stage_input_attachments    = vklimit.maxPerStageDescriptorInputAttachments,
       .per_stage_resources            = vklimit.maxPerStageResources,
       .descriptor_set_samplers        = vklimit.maxDescriptorSetSamplers,
       .descriptor_set_uniform_buffers = vklimit.maxDescriptorSetUniformBuffers,
@@ -2502,32 +2450,28 @@ gpu::DeviceProperties IDevice::get_properties()
       .descriptor_set_storage_buffers = vklimit.maxDescriptorSetStorageBuffers,
       .descriptor_set_storage_buffers_dynamic =
         vklimit.maxDescriptorSetStorageBuffersDynamic,
-      .descriptor_set_sampled_images = vklimit.maxDescriptorSetSampledImages,
-      .descriptor_set_storage_images = vklimit.maxDescriptorSetStorageImages,
-      .descriptor_set_input_attachments =
-        vklimit.maxDescriptorSetInputAttachments,
-      .compute_work_group_invocations = vklimit.maxComputeWorkGroupInvocations,
-      .compute_shared_memory_size     = vklimit.maxComputeSharedMemorySize,
-      .compute_work_groups            = {vklimit.maxComputeWorkGroupCount[0],
-                                         vklimit.maxComputeWorkGroupCount[1],
-                                         vklimit.maxComputeWorkGroupCount[2]},
-      .compute_work_group_size        = {vklimit.maxComputeWorkGroupSize[0],
-                                         vklimit.maxComputeWorkGroupSize[1],
-                                         vklimit.maxComputeWorkGroupSize[2]},
-      .draw_indirect                  = vklimit.maxDrawIndirectCount,
-      .sampler_lod                    = vklimit.maxSamplerLodBias,
-      .sampler_anisotropy             = vklimit.maxSamplerAnisotropy,
-      .viewports                      = vklimit.maxViewports,
-      .viewport_extent                = {vklimit.maxViewportDimensions[0],
-                                         vklimit.maxViewportDimensions[1]},
-      .uniform_buffer_offset_alignment =
-        vklimit.minUniformBufferOffsetAlignment,
-      .texel_buffer_offset_alignment = vklimit.minTexelBufferOffsetAlignment,
-      .storage_buffer_offset_alignment =
-        vklimit.minStorageBufferOffsetAlignment,
-      .framebuffer_extent            = {vklimit.maxFramebufferWidth,
-                                         vklimit.maxFramebufferHeight},
-      .framebuffer_layers            = vklimit.maxFramebufferLayers,
+      .descriptor_set_sampled_images    = vklimit.maxDescriptorSetSampledImages,
+      .descriptor_set_storage_images    = vklimit.maxDescriptorSetStorageImages,
+      .descriptor_set_input_attachments = vklimit.maxDescriptorSetInputAttachments,
+      .compute_work_group_invocations   = vklimit.maxComputeWorkGroupInvocations,
+      .compute_shared_memory_size       = vklimit.maxComputeSharedMemorySize,
+      .compute_work_groups              = {vklimit.maxComputeWorkGroupCount[0],
+                                           vklimit.maxComputeWorkGroupCount[1],
+                                           vklimit.maxComputeWorkGroupCount[2]},
+      .compute_work_group_size          = {vklimit.maxComputeWorkGroupSize[0],
+                                           vklimit.maxComputeWorkGroupSize[1],
+                                           vklimit.maxComputeWorkGroupSize[2]},
+      .draw_indirect                    = vklimit.maxDrawIndirectCount,
+      .sampler_lod                      = vklimit.maxSamplerLodBias,
+      .sampler_anisotropy               = vklimit.maxSamplerAnisotropy,
+      .viewports                        = vklimit.maxViewports,
+      .viewport_extent                  = {vklimit.maxViewportDimensions[0],
+                                           vklimit.maxViewportDimensions[1]},
+      .uniform_buffer_offset_alignment  = vklimit.minUniformBufferOffsetAlignment,
+      .texel_buffer_offset_alignment    = vklimit.minTexelBufferOffsetAlignment,
+      .storage_buffer_offset_alignment  = vklimit.minStorageBufferOffsetAlignment,
+      .framebuffer_extent = {vklimit.maxFramebufferWidth, vklimit.maxFramebufferHeight},
+      .framebuffer_layers = vklimit.maxFramebufferLayers,
       .framebuffer_color_samples     = vklimit.framebufferColorSampleCounts,
       .framebuffer_depth_samples     = vklimit.framebufferDepthSampleCounts,
       .framebuffer_stencil_samples   = vklimit.framebufferStencilSampleCounts,
@@ -2540,53 +2484,49 @@ gpu::DeviceProperties IDevice::get_properties()
     auto & vkfeat = phy_.vk_features;
 
     gpu::DeviceFeatures features{
-      .geometry_shader          = vkfeat.geometryShader == VK_TRUE,
-      .tessellation_shader      = vkfeat.tessellationShader == VK_TRUE,
-      .depth_bounds             = vkfeat.depthBounds == VK_TRUE,
-      .wide_lines               = vkfeat.wideLines == VK_TRUE,
-      .large_points             = vkfeat.largePoints == VK_TRUE,
-      .alpha_to_one             = vkfeat.alphaToOne == VK_TRUE,
-      .multi_viewport           = vkfeat.multiViewport == VK_TRUE,
-      .texture_compression_etc2 = vkfeat.textureCompressionETC2 == VK_TRUE,
-      .texture_compression_astc_ldr =
-        vkfeat.textureCompressionASTC_LDR == VK_TRUE,
-      .texture_compression_bc = vkfeat.textureCompressionBC == VK_TRUE,
-      .shader_float64         = vkfeat.shaderFloat64 == VK_TRUE,
-      .shader_int64           = vkfeat.shaderInt64 == VK_TRUE,
-      .shader_int16           = vkfeat.shaderInt16 == VK_TRUE,
+      .geometry_shader              = vkfeat.geometryShader == VK_TRUE,
+      .tessellation_shader          = vkfeat.tessellationShader == VK_TRUE,
+      .depth_bounds                 = vkfeat.depthBounds == VK_TRUE,
+      .wide_lines                   = vkfeat.wideLines == VK_TRUE,
+      .large_points                 = vkfeat.largePoints == VK_TRUE,
+      .alpha_to_one                 = vkfeat.alphaToOne == VK_TRUE,
+      .multi_viewport               = vkfeat.multiViewport == VK_TRUE,
+      .texture_compression_etc2     = vkfeat.textureCompressionETC2 == VK_TRUE,
+      .texture_compression_astc_ldr = vkfeat.textureCompressionASTC_LDR == VK_TRUE,
+      .texture_compression_bc       = vkfeat.textureCompressionBC == VK_TRUE,
+      .shader_float64               = vkfeat.shaderFloat64 == VK_TRUE,
+      .shader_int64                 = vkfeat.shaderInt64 == VK_TRUE,
+      .shader_int16                 = vkfeat.shaderInt16 == VK_TRUE,
     };
 
-    gpu::DeviceProperties properties{
-      .api_version        = vk_properties.apiVersion,
-      .driver_version     = vk_properties.driverVersion,
-      .vendor_id          = vk_properties.vendorID,
-      .device_id          = vk_properties.deviceID,
-      .device_name        = cstr(vk_properties.deviceName),
-      .type               = (gpu::DeviceType) vk_properties.deviceType,
-      .has_unified_memory = has_uma,
-      .timestamp_period   = vk_properties.limits.timestampPeriod,
-      .features           = features,
-      .limits             = limits};
+    gpu::DeviceProperties properties{.api_version    = vk_properties.apiVersion,
+                                     .driver_version = vk_properties.driverVersion,
+                                     .vendor_id      = vk_properties.vendorID,
+                                     .device_id      = vk_properties.deviceID,
+                                     .device_name    = cstr(vk_properties.deviceName),
+                                     .type = (gpu::DeviceType) vk_properties.deviceType,
+                                     .has_unified_memory = has_uma,
+                                     .timestamp_period =
+                                       vk_properties.limits.timestampPeriod,
+                                     .features = features,
+                                     .limits   = limits};
 
     return properties;
 }
 
-Result<gpu::FormatProperties, Status>
-  IDevice::get_format_properties(gpu::Format format)
+Result<gpu::FormatProperties, Status> IDevice::get_format_properties(gpu::Format format)
 {
-    VkFormatProperties2KHR props{.sType =
-                                   VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2_KHR,
-                                 .pNext            = nullptr,
+    VkFormatProperties2KHR props{.sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2_KHR,
+                                 .pNext = nullptr,
                                  .formatProperties = {}};
-    instance_->table_.GetPhysicalDeviceFormatProperties2KHR(
-      phy_.vk, (VkFormat) format, &props);
+    instance_->table_.GetPhysicalDeviceFormatProperties2KHR(phy_.vk, (VkFormat) format,
+                                                            &props);
     return Ok(gpu::FormatProperties{
       .linear_tiling_features =
         (gpu::FormatFeatures) props.formatProperties.linearTilingFeatures,
       .optimal_tiling_features =
         (gpu::FormatFeatures) props.formatProperties.optimalTilingFeatures,
-      .buffer_features =
-        (gpu::FormatFeatures) props.formatProperties.bufferFeatures});
+      .buffer_features = (gpu::FormatFeatures) props.formatProperties.bufferFeatures});
 }
 
 Result<gpu::Buffer, Status> IDevice::create_buffer(gpu::BufferInfo const & info)
@@ -2595,12 +2535,11 @@ Result<gpu::Buffer, Status> IDevice::create_buffer(gpu::BufferInfo const & info)
     ASH_CHECK(info.usage != gpu::BufferUsage::None, "");
     auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
 
-    VkBufferCreateInfo create_info{.sType =
-                                     VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-                                   .pNext = nullptr,
-                                   .flags = 0,
-                                   .size  = info.size,
-                                   .usage = (VkBufferUsageFlags) info.usage,
+    VkBufferCreateInfo create_info{.sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+                                   .pNext       = nullptr,
+                                   .flags       = 0,
+                                   .size        = info.size,
+                                   .usage       = (VkBufferUsageFlags) info.usage,
                                    .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
                                    .queueFamilyIndexCount = 1,
                                    .pQueueFamilyIndices   = nullptr};
@@ -2626,20 +2565,18 @@ Result<gpu::Buffer, Status> IDevice::create_buffer(gpu::BufferInfo const & info)
     }
 
     new (buffer) IBuffer{
-      .vk             = vk,
-      .usage          = info.usage,
-      .host_mapped    = info.host_mapped,
-      .size           = info.size,
-      .memory         = MemoryInfo{.alias   = nullptr,
-                                   .element = 0,
-                                   .type    = gpu::MemoryType::Unique},
+      .vk          = vk,
+      .usage       = info.usage,
+      .host_mapped = info.host_mapped,
+      .size        = info.size,
+      .memory =
+        MemoryInfo{.alias = nullptr, .element = 0, .type = gpu::MemoryType::Unique},
       .bind_locations = BindLocations{allocator_}
     };
 
     if (info.memory_type == gpu::MemoryType::Unique)
     {
-        Enum<gpu::Buffer, gpu::Image> const resources[] = {
-          (gpu::Buffer) buffer};
+        Enum<gpu::Buffer, gpu::Image> const resources[] = {(gpu::Buffer) buffer};
 
         auto status = create_alias(gpu::AliasInfo{.resources = resources});
 
@@ -2661,23 +2598,22 @@ Result<gpu::BufferView, Status>
     auto * buffer = (Buffer) info.buffer;
 
     ASH_CHECK(buffer != nullptr, "");
-    ASH_CHECK(
-      has_any_bit(buffer->usage, gpu::BufferUsage::UniformTexelBuffer |
-                                   gpu::BufferUsage::StorageTexelBuffer),
-      "");
+    ASH_CHECK(has_any_bit(buffer->usage, gpu::BufferUsage::UniformTexelBuffer |
+                                           gpu::BufferUsage::StorageTexelBuffer),
+              "");
     ASH_CHECK(info.format != gpu::Format::Undefined, "");
     ASH_CHECK(is_valid_buffer_access(buffer->size, info.slice, 1, 1), "");
 
     auto slice = info.slice(buffer->size);
 
-    VkBufferViewCreateInfo create_info{
-      .sType  = VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO,
-      .pNext  = nullptr,
-      .flags  = 0,
-      .buffer = buffer->vk,
-      .format = (VkFormat) info.format,
-      .offset = slice.offset,
-      .range  = slice.span};
+    VkBufferViewCreateInfo create_info{.sType =
+                                         VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO,
+                                       .pNext  = nullptr,
+                                       .flags  = 0,
+                                       .buffer = buffer->vk,
+                                       .format = (VkFormat) info.format,
+                                       .offset = slice.offset,
+                                       .range  = slice.span};
 
     VkBufferView vk;
 
@@ -2718,38 +2654,31 @@ Result<gpu::Image, Status> IDevice::create_image(gpu::ImageInfo const & info)
     ASH_CHECK(info.mip_levels > 0, "");
     ASH_CHECK(info.mip_levels <= info.extent.mips(), "");
     ASH_CHECK(info.array_layers > 0, "");
-    ASH_CHECK(
-      info.array_layers <= phy_.vk_properties.limits.maxImageArrayLayers, "");
+    ASH_CHECK(info.array_layers <= phy_.vk_properties.limits.maxImageArrayLayers, "");
 
     switch (info.type)
     {
         case gpu::ImageType::Type1D:
-            ASH_CHECK(info.extent.x() <=
-                        phy_.vk_properties.limits.maxImageDimension1D,
+            ASH_CHECK(info.extent.x() <= phy_.vk_properties.limits.maxImageDimension1D,
                       "");
             ASH_CHECK(info.extent.y() == 1, "");
             ASH_CHECK(info.extent.z() == 1, "");
             break;
 
         case gpu::ImageType::Type2D:
-            ASH_CHECK(info.extent.x() <=
-                        phy_.vk_properties.limits.maxImageDimension2D,
+            ASH_CHECK(info.extent.x() <= phy_.vk_properties.limits.maxImageDimension2D,
                       "");
-            ASH_CHECK(info.extent.y() <=
-                        phy_.vk_properties.limits.maxImageDimension2D,
+            ASH_CHECK(info.extent.y() <= phy_.vk_properties.limits.maxImageDimension2D,
                       "");
             ASH_CHECK(info.extent.z() == 1, "");
             break;
 
         case gpu::ImageType::Type3D:
-            ASH_CHECK(info.extent.x() <=
-                        phy_.vk_properties.limits.maxImageDimension3D,
+            ASH_CHECK(info.extent.x() <= phy_.vk_properties.limits.maxImageDimension3D,
                       "");
-            ASH_CHECK(info.extent.y() <=
-                        phy_.vk_properties.limits.maxImageDimension3D,
+            ASH_CHECK(info.extent.y() <= phy_.vk_properties.limits.maxImageDimension3D,
                       "");
-            ASH_CHECK(info.extent.z() <=
-                        phy_.vk_properties.limits.maxImageDimension3D,
+            ASH_CHECK(info.extent.z() <= phy_.vk_properties.limits.maxImageDimension3D,
                       "");
             break;
 
@@ -2807,8 +2736,7 @@ Result<gpu::Image, Status> IDevice::create_image(gpu::ImageInfo const & info)
       .mip_levels         = info.mip_levels,
       .array_layers       = info.array_layers,
       .is_swapchain_image = false,
-      .memory =
-        MemoryInfo{.alias = nullptr, .element = 0, .type = info.memory_type}
+      .memory = MemoryInfo{.alias = nullptr, .element = 0, .type = info.memory_type}
     };
 
     if (info.memory_type == gpu::MemoryType::Unique)
@@ -2836,8 +2764,7 @@ Result<gpu::ImageView, Status>
 
     ASH_CHECK(info.image != nullptr, "");
     ASH_CHECK(info.view_format != gpu::Format::Undefined, "");
-    ASH_CHECK(is_image_view_type_compatible(src_image->type, info.view_type),
-              "");
+    ASH_CHECK(is_image_view_type_compatible(src_image->type, info.view_type), "");
     ASH_CHECK(is_valid_image_access(src_image->aspects, src_image->mip_levels,
                                     src_image->array_layers, info.aspects,
                                     info.mip_levels, info.array_layers),
@@ -2847,27 +2774,26 @@ Result<gpu::ImageView, Status>
     auto array_layers = info.array_layers(src_image->array_layers);
 
     VkImageViewCreateInfo create_info{
-      .sType    = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-      .pNext    = nullptr,
-      .flags    = 0,
-      .image    = src_image->vk,
-      .viewType = (VkImageViewType) info.view_type,
-      .format   = (VkFormat) info.view_format,
-      .components =
-        VkComponentMapping{.r = (VkComponentSwizzle) info.mapping.r,
-                           .g = (VkComponentSwizzle) info.mapping.g,
-                           .b = (VkComponentSwizzle) info.mapping.b,
-                           .a = (VkComponentSwizzle) info.mapping.a},
+      .sType      = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+      .pNext      = nullptr,
+      .flags      = 0,
+      .image      = src_image->vk,
+      .viewType   = (VkImageViewType) info.view_type,
+      .format     = (VkFormat) info.view_format,
+      .components = VkComponentMapping{.r = (VkComponentSwizzle) info.mapping.r,
+                                       .g = (VkComponentSwizzle) info.mapping.g,
+                                       .b = (VkComponentSwizzle) info.mapping.b,
+                                       .a = (VkComponentSwizzle) info.mapping.a},
       .subresourceRange =
-        VkImageSubresourceRange{.aspectMask = (VkImageAspectFlags) info.aspects,
-                           .baseMipLevel   = mip_levels.offset,
-                           .levelCount     = mip_levels.span,
-                           .baseArrayLayer = array_layers.offset,
-                           .layerCount     = array_layers.span}
+        VkImageSubresourceRange{.aspectMask     = (VkImageAspectFlags) info.aspects,
+                                       .baseMipLevel   = mip_levels.offset,
+                                       .levelCount     = mip_levels.span,
+                                       .baseArrayLayer = array_layers.offset,
+                                       .layerCount     = array_layers.span}
     };
 
     VkImageView vk;
-    auto result = table_.CreateImageView(vk_dev_, &create_info, nullptr, &vk);
+    auto        result = table_.CreateImageView(vk_dev_, &create_info, nullptr, &vk);
     if (result != VK_SUCCESS)
     {
         return Err{(Status) result};
@@ -2929,8 +2855,7 @@ Result<gpu::Alias, Status> IDevice::create_alias(gpu::AliasInfo const & info)
               table_.GetImageMemoryRequirements(vk_dev_, image->vk, &req);
           });
 
-        layout = layout.unioned(
-          Layout64{.alignment = req.alignment, .size = req.size});
+        layout = layout.unioned(Layout64{.alignment = req.alignment, .size = req.size});
 
         memory_type_bits |= req.memoryTypeBits;
     }
@@ -2942,15 +2867,15 @@ Result<gpu::Alias, Status> IDevice::create_alias(gpu::AliasInfo const & info)
                      VMA_ALLOCATION_CREATE_MAPPED_BIT) :
                     0;
 
-    VmaAllocationCreateInfo alloc_create_info{
-      .flags          = flags,
-      .usage          = VMA_MEMORY_USAGE_AUTO,
-      .requiredFlags  = {},
-      .preferredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-      .memoryTypeBits = memory_type_bits,
-      .pool           = nullptr,
-      .pUserData      = nullptr,
-      .priority       = 0};
+    VmaAllocationCreateInfo alloc_create_info{.flags         = flags,
+                                              .usage         = VMA_MEMORY_USAGE_AUTO,
+                                              .requiredFlags = {},
+                                              .preferredFlags =
+                                                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                                              .memoryTypeBits = memory_type_bits,
+                                              .pool           = nullptr,
+                                              .pUserData      = nullptr,
+                                              .priority       = 0};
 
     VmaAllocationInfo    vma_allocation_info;
     VmaAllocation        vma_allocation;
@@ -2958,17 +2883,15 @@ Result<gpu::Alias, Status> IDevice::create_alias(gpu::AliasInfo const & info)
                                       .alignment      = layout.alignment,
                                       .memoryTypeBits = memory_type_bits};
 
-    auto result =
-      vmaAllocateMemory(vma_allocator_, &requirements, &alloc_create_info,
-                        &vma_allocation, &vma_allocation_info);
+    auto result = vmaAllocateMemory(vma_allocator_, &requirements, &alloc_create_info,
+                                    &vma_allocation, &vma_allocation_info);
 
     if (result != VK_SUCCESS)
     {
         return Err{(Status) result};
     }
 
-    ASH_CHECK(!(host_mapped && (vma_allocation_info.pMappedData == nullptr)),
-              "");
+    ASH_CHECK(!(host_mapped && (vma_allocation_info.pMappedData == nullptr)), "");
 
     auto id = allocate_alias_id();
 
@@ -2987,15 +2910,15 @@ Result<gpu::Alias, Status> IDevice::create_alias(gpu::AliasInfo const & info)
         resource.match(
           [&](gpu::Buffer p) {
               auto buffer = ptr(p);
-              result = vmaBindBufferMemory2(vma_allocator_, vma_allocation, 0,
-                                            buffer->vk, nullptr);
+              result      = vmaBindBufferMemory2(vma_allocator_, vma_allocation, 0,
+                                                 buffer->vk, nullptr);
               buffer->memory.alias   = alias;
               buffer->memory.element = i;
           },
           [&](gpu::Image p) {
               auto image = ptr(p);
-              result = vmaBindImageMemory2(vma_allocator_, vma_allocation, 0,
-                                           image->vk, nullptr);
+              result = vmaBindImageMemory2(vma_allocator_, vma_allocation, 0, image->vk,
+                                           nullptr);
               image->memory.alias   = alias;
               image->memory.element = i;
           });
@@ -3006,8 +2929,7 @@ Result<gpu::Alias, Status> IDevice::create_alias(gpu::AliasInfo const & info)
     return Ok{(gpu::Alias) alias};
 }
 
-Result<gpu::Alias, Status>
-  IDevice::create_shim_alias(gpu::AliasInfo const & info)
+Result<gpu::Alias, Status> IDevice::create_shim_alias(gpu::AliasInfo const & info)
 {
     ASH_CHECK(!info.resources.is_empty(), "");
 
@@ -3045,15 +2967,13 @@ Result<gpu::Alias, Status>
     return Ok{(gpu::Alias) alias};
 }
 
-Result<gpu::Sampler, Status>
-  IDevice::create_sampler(gpu::SamplerInfo const & info)
+Result<gpu::Sampler, Status> IDevice::create_sampler(gpu::SamplerInfo const & info)
 {
     auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
 
-    ASH_CHECK(
-      !(info.anisotropy_enable &&
-        (info.max_anisotropy > phy_.vk_properties.limits.maxSamplerAnisotropy)),
-      "");
+    ASH_CHECK(!(info.anisotropy_enable &&
+                (info.max_anisotropy > phy_.vk_properties.limits.maxSamplerAnisotropy)),
+              "");
     ASH_CHECK(!(info.anisotropy_enable && (info.max_anisotropy < 1.0)), "");
 
     VkSamplerCreateInfo create_info{
@@ -3077,8 +2997,7 @@ Result<gpu::Sampler, Status>
       .unnormalizedCoordinates = (VkBool32) info.unnormalized_coordinates};
 
     VkSampler vk_sampler;
-    auto      result =
-      table_.CreateSampler(vk_dev_, &create_info, nullptr, &vk_sampler);
+    auto result = table_.CreateSampler(vk_dev_, &create_info, nullptr, &vk_sampler);
     if (result != VK_SUCCESS)
     {
         return Err{(Status) result};
@@ -3096,16 +3015,15 @@ Result<gpu::Shader, Status> IDevice::create_shader(gpu::ShaderInfo const & info)
 
     ASH_CHECK(info.spirv_code.size_bytes() > 0, "");
 
-    VkShaderModuleCreateInfo create_info{
-      .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-      .pNext    = nullptr,
-      .flags    = 0,
-      .codeSize = info.spirv_code.size_bytes(),
-      .pCode    = info.spirv_code.data()};
+    VkShaderModuleCreateInfo create_info{.sType =
+                                           VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+                                         .pNext    = nullptr,
+                                         .flags    = 0,
+                                         .codeSize = info.spirv_code.size_bytes(),
+                                         .pCode    = info.spirv_code.data()};
 
     VkShaderModule vk_shader;
-    auto           result =
-      table_.CreateShaderModule(vk_dev_, &create_info, nullptr, &vk_shader);
+    auto result = table_.CreateShaderModule(vk_dev_, &create_info, nullptr, &vk_shader);
     if (result != VK_SUCCESS)
     {
         return Err{(Status) result};
@@ -3163,8 +3081,8 @@ bool is_readonly_set(Span<gpu::DescriptorBindingInfo const> bindings)
     return all_is(bindings, is_readonly_binding);
 }
 
-Result<gpu::DescriptorSetLayout, Status> IDevice::create_descriptor_set_layout(
-  gpu::DescriptorSetLayoutInfo const & info)
+Result<gpu::DescriptorSetLayout, Status>
+  IDevice::create_descriptor_set_layout(gpu::DescriptorSetLayoutInfo const & info)
 {
     auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
 
@@ -3187,36 +3105,33 @@ Result<gpu::DescriptorSetLayout, Status> IDevice::create_descriptor_set_layout(
       sizing[(u32) gpu::DescriptorType::DynUniformBuffer];
 
     ASH_CHECK(info.bindings.size() > 0, "");
-    ASH_CHECK((num_dynamic_read_storage_buffers +
-               num_dynamic_read_write_storage_buffers) <=
-                phy_.vk_descriptor_properties
-                  .maxDescriptorSetUpdateAfterBindStorageBuffersDynamic,
-              "");
+    ASH_CHECK(
+      (num_dynamic_read_storage_buffers + num_dynamic_read_write_storage_buffers) <=
+        phy_.vk_descriptor_properties
+          .maxDescriptorSetUpdateAfterBindStorageBuffersDynamic,
+      "");
     ASH_CHECK(num_dynamic_uniform_buffers <=
                 phy_.vk_descriptor_properties
                   .maxDescriptorSetUpdateAfterBindUniformBuffersDynamic,
               "");
-    ASH_CHECK(
-      num_descriptors <=
-        phy_.vk_descriptor_properties.maxPerStageUpdateAfterBindResources,
-      "");
+    ASH_CHECK(num_descriptors <=
+                phy_.vk_descriptor_properties.maxPerStageUpdateAfterBindResources,
+              "");
     ASH_CHECK(num_variable_length <= 1, "");
-    ASH_CHECK(!(num_variable_length > 0 &&
-                (num_dynamic_read_storage_buffers > 0 ||
-                 num_dynamic_read_write_storage_buffers > 0 ||
-                 num_dynamic_uniform_buffers > 0)),
-              "Variable-length descriptor sets must not have dynamic offsets");
+    ASH_CHECK(
+      !(num_variable_length > 0 && (num_dynamic_read_storage_buffers > 0 ||
+                                    num_dynamic_read_write_storage_buffers > 0 ||
+                                    num_dynamic_uniform_buffers > 0)),
+      "Variable-length descriptor sets must not have dynamic offsets");
 
     for (auto [i, binding] : enumerate<u32>(info.bindings))
     {
         ASH_CHECK(binding.count > 0, "");
-        ASH_CHECK(
-          binding.count <=
-            phy_.vk_descriptor_properties.maxPerStageUpdateAfterBindResources,
-          "");
-        ASH_CHECK(
-          !(binding.is_variable_length && (i != (info.bindings.size() - 1))),
-          "");
+        ASH_CHECK(binding.count <=
+                    phy_.vk_descriptor_properties.maxPerStageUpdateAfterBindResources,
+                  "");
+        ASH_CHECK(!(binding.is_variable_length && (i != (info.bindings.size() - 1))),
+                  "");
     }
 
     Vec<VkDescriptorSetLayoutBinding, 0> vk_bindings{scratch};
@@ -3225,17 +3140,15 @@ Result<gpu::DescriptorSetLayout, Status> IDevice::create_descriptor_set_layout(
     for (auto [i, binding] : enumerate<u32>(info.bindings))
     {
         auto stage_flags =
-          (VkShaderStageFlags) (binding.type ==
-                                    gpu::DescriptorType::InputAttachment ?
+          (VkShaderStageFlags) (binding.type == gpu::DescriptorType::InputAttachment ?
                                   VK_SHADER_STAGE_FRAGMENT_BIT :
                                   VK_SHADER_STAGE_ALL);
         vk_bindings
-          .push(
-            VkDescriptorSetLayoutBinding{.binding         = i,
-                                         .descriptorType  = to_vk(binding.type),
-                                         .descriptorCount = binding.count,
-                                         .stageFlags      = stage_flags,
-                                         .pImmutableSamplers = nullptr})
+          .push(VkDescriptorSetLayoutBinding{.binding            = i,
+                                             .descriptorType     = to_vk(binding.type),
+                                             .descriptorCount    = binding.count,
+                                             .stageFlags         = stage_flags,
+                                             .pImmutableSamplers = nullptr})
           .unwrap();
 
         VkDescriptorBindingFlagsEXT const vk_flags =
@@ -3248,22 +3161,20 @@ Result<gpu::DescriptorSetLayout, Status> IDevice::create_descriptor_set_layout(
     }
 
     VkDescriptorSetLayoutBindingFlagsCreateInfoEXT vk_binding_flags_create_info{
-      .sType =
-        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO_EXT,
-      .pNext         = nullptr,
+      .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO_EXT,
+      .pNext = nullptr,
       .bindingCount  = size32(vk_binding_flags),
       .pBindingFlags = vk_binding_flags.data()};
 
     VkDescriptorSetLayoutCreateInfo create_info{
-      .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-      .pNext = &vk_binding_flags_create_info,
-      .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT_EXT,
+      .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+      .pNext        = &vk_binding_flags_create_info,
+      .flags        = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT_EXT,
       .bindingCount = size32(vk_bindings),
       .pBindings    = vk_bindings.data()};
 
     VkDescriptorSetLayout vk;
-    auto                  result =
-      table_.CreateDescriptorSetLayout(vk_dev_, &create_info, nullptr, &vk);
+    auto result = table_.CreateDescriptorSetLayout(vk_dev_, &create_info, nullptr, &vk);
 
     if (result != VK_SUCCESS)
     {
@@ -3278,8 +3189,7 @@ Result<gpu::DescriptorSetLayout, Status> IDevice::create_descriptor_set_layout(
     }};
 
     set_resource_name(info.label, vk, VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT,
-                      VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT_EXT,
-                      scratch);
+                      VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT_EXT, scratch);
 
     IDescriptorSetLayout * layout;
 
@@ -3293,11 +3203,10 @@ Result<gpu::DescriptorSetLayout, Status> IDevice::create_descriptor_set_layout(
 
     auto is_readonly = is_readonly_set(info.bindings);
 
-    new (layout)
-      IDescriptorSetLayout{.vk                  = vk,
-                           .bindings            = std::move(bindings),
-                           .num_variable_length = num_variable_length,
-                           .is_readonly         = is_readonly};
+    new (layout) IDescriptorSetLayout{.vk                  = vk,
+                                      .bindings            = std::move(bindings),
+                                      .num_variable_length = num_variable_length,
+                                      .is_readonly         = is_readonly};
 
     vk = nullptr;
 
@@ -3377,16 +3286,14 @@ Result<gpu::DescriptorSet, Status>
       .pPoolSizes    = pool_sizes.data()};
 
     VkDescriptorPool vk_pool;
-    auto             result =
-      table_.CreateDescriptorPool(vk_dev_, &create_info, nullptr, &vk_pool);
+    auto result = table_.CreateDescriptorPool(vk_dev_, &create_info, nullptr, &vk_pool);
 
     if (result != VK_SUCCESS)
     {
         return Err{(Status) result};
     }
 
-    defer vk_pool_{
-      [&] { table_.DestroyDescriptorPool(vk_dev_, vk_pool, nullptr); }};
+    defer vk_pool_{[&] { table_.DestroyDescriptorPool(vk_dev_, vk_pool, nullptr); }};
 
     VkDescriptorSetVariableDescriptorCountAllocateInfoEXT var_alloc_info{
       .sType =
@@ -3406,9 +3313,8 @@ Result<gpu::DescriptorSet, Status>
     result = table_.AllocateDescriptorSets(vk_dev_, &alloc_info, &vk);
 
     // must not have these errors
-    ASH_CHECK(result != VK_ERROR_OUT_OF_POOL_MEMORY &&
-                result != VK_ERROR_FRAGMENTED_POOL,
-              "");
+    ASH_CHECK(
+      result != VK_ERROR_OUT_OF_POOL_MEMORY && result != VK_ERROR_FRAGMENTED_POOL, "");
 
     if (result != VK_SUCCESS)
     {
@@ -3426,8 +3332,8 @@ Result<gpu::DescriptorSet, Status>
     for (auto [size, info] : zip(bindings_sizes, layout->bindings))
     {
         bindings
-          .push(DescriptorBinding{
-            .sync_resources = none, .type = info.type, .count = size})
+          .push(
+            DescriptorBinding{.sync_resources = none, .type = info.type, .count = size})
           .unwrap();
     }
 
@@ -3442,8 +3348,7 @@ Result<gpu::DescriptorSet, Status>
             case SyncResourceType::Buffer:
             {
                 binding.sync_resources =
-                  SmallVec<Option<IBuffer &>, 4, 0>::make(size, allocator_)
-                    .unwrap();
+                  SmallVec<Option<IBuffer &>, 4, 0>::make(size, allocator_).unwrap();
             }
             break;
             case SyncResourceType::BufferView:
@@ -3456,8 +3361,7 @@ Result<gpu::DescriptorSet, Status>
             case SyncResourceType::ImageView:
             {
                 binding.sync_resources =
-                  SmallVec<Option<IImageView &>, 4, 0>::make(size, allocator_)
-                    .unwrap();
+                  SmallVec<Option<IImageView &>, 4, 0>::make(size, allocator_).unwrap();
             }
             break;
         }
@@ -3497,8 +3401,7 @@ Result<gpu::PipelineCache, Status>
       .pInitialData    = info.initial_data.data()};
 
     VkPipelineCache vk_cache;
-    auto            result =
-      table_.CreatePipelineCache(vk_dev_, &create_info, nullptr, &vk_cache);
+    auto result = table_.CreatePipelineCache(vk_dev_, &create_info, nullptr, &vk_cache);
     if (result != VK_SUCCESS)
     {
         return Err{(Status) result};
@@ -3518,9 +3421,8 @@ Result<gpu::ComputePipeline, Status>
     ASH_CHECK(info.descriptor_set_layouts.size() <=
                 phy_.vk_properties.limits.maxBoundDescriptorSets,
               "");
-    ASH_CHECK(info.push_constants_size <=
-                phy_.vk_properties.limits.maxPushConstantsSize,
-              "");
+    ASH_CHECK(
+      info.push_constants_size <= phy_.vk_properties.limits.maxPushConstantsSize, "");
     ASH_CHECK(is_aligned(4U, info.push_constants_size), "");
     ASH_CHECK(info.compute_shader.entry_point.size() > 0 &&
                 info.compute_shader.entry_point.size() < 256,
@@ -3531,35 +3433,32 @@ Result<gpu::ComputePipeline, Status>
 
     for (auto layout : info.descriptor_set_layouts)
     {
-        vk_descriptor_set_layouts.push(((DescriptorSetLayout) layout)->vk)
-          .unwrap();
+        vk_descriptor_set_layouts.push(((DescriptorSetLayout) layout)->vk).unwrap();
     }
 
     VkSpecializationInfo vk_specialization{
       .mapEntryCount = size32(info.compute_shader.specialization_constants),
       .pMapEntries   = (VkSpecializationMapEntry const *)
                        info.compute_shader.specialization_constants.data(),
-      .dataSize =
-        info.compute_shader.specialization_constants_data.size_bytes(),
-      .pData = info.compute_shader.specialization_constants_data.data()};
+      .dataSize = info.compute_shader.specialization_constants_data.size_bytes(),
+      .pData    = info.compute_shader.specialization_constants_data.data()};
 
     Vec<char> entry_point{scratch};
     entry_point.append(info.compute_shader.entry_point).unwrap();
     entry_point.push('\0').unwrap();
 
     VkPipelineShaderStageCreateInfo vk_stage{
-      .sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-      .pNext  = nullptr,
-      .flags  = 0,
-      .stage  = VK_SHADER_STAGE_COMPUTE_BIT,
-      .module = (Shader) info.compute_shader.shader,
-      .pName  = entry_point.data(),
+      .sType               = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+      .pNext               = nullptr,
+      .flags               = 0,
+      .stage               = VK_SHADER_STAGE_COMPUTE_BIT,
+      .module              = (Shader) info.compute_shader.shader,
+      .pName               = entry_point.data(),
       .pSpecializationInfo = &vk_specialization};
 
-    VkPushConstantRange push_constants_range{.stageFlags =
-                                               VK_SHADER_STAGE_COMPUTE_BIT,
-                                             .offset = 0,
-                                             .size = info.push_constants_size};
+    VkPushConstantRange push_constants_range{.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+                                             .offset     = 0,
+                                             .size       = info.push_constants_size};
 
     VkPipelineLayoutCreateInfo layout_create_info{
       .sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
@@ -3572,8 +3471,8 @@ Result<gpu::ComputePipeline, Status>
         info.push_constants_size == 0 ? nullptr : &push_constants_range};
 
     VkPipelineLayout vk_layout;
-    auto result = table_.CreatePipelineLayout(vk_dev_, &layout_create_info,
-                                              nullptr, &vk_layout);
+    auto             result =
+      table_.CreatePipelineLayout(vk_dev_, &layout_create_info, nullptr, &vk_layout);
     if (result != VK_SUCCESS)
     {
         return Err{(Status) result};
@@ -3613,11 +3512,10 @@ Result<gpu::ComputePipeline, Status>
         return Err{Status::OutOfHostMemory};
     }
 
-    new (pipeline)
-      IComputePipeline{.vk                  = vk,
-                       .vk_layout           = vk_layout,
-                       .push_constants_size = info.push_constants_size,
-                       .num_sets = size32(info.descriptor_set_layouts)};
+    new (pipeline) IComputePipeline{.vk                  = vk,
+                                    .vk_layout           = vk_layout,
+                                    .push_constants_size = info.push_constants_size,
+                                    .num_sets = size32(info.descriptor_set_layouts)};
 
     return Ok{(gpu::ComputePipeline) pipeline};
 }
@@ -3627,16 +3525,14 @@ Result<gpu::GraphicsPipeline, Status>
 {
     auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
 
-    ASH_CHECK(
-      !(info.rasterization_state.polygon_mode != gpu::PolygonMode::Fill &&
-        !phy_.vk_features.fillModeNonSolid),
-      "");
+    ASH_CHECK(!(info.rasterization_state.polygon_mode != gpu::PolygonMode::Fill &&
+                !phy_.vk_features.fillModeNonSolid),
+              "");
     ASH_CHECK(info.descriptor_set_layouts.size() <=
                 phy_.vk_properties.limits.maxBoundDescriptorSets,
               "");
-    ASH_CHECK(info.push_constants_size <=
-                phy_.vk_properties.limits.maxPushConstantsSize,
-              "");
+    ASH_CHECK(
+      info.push_constants_size <= phy_.vk_properties.limits.maxPushConstantsSize, "");
     ASH_CHECK(is_aligned(4U, info.push_constants_size), "");
     ASH_CHECK(!info.vertex_shader.entry_point.is_empty(), "");
     ASH_CHECK(!info.fragment_shader.entry_point.is_empty(), "");
@@ -3651,8 +3547,7 @@ Result<gpu::GraphicsPipeline, Status>
 
     for (auto layout : info.descriptor_set_layouts)
     {
-        vk_descriptor_set_layouts.push(((DescriptorSetLayout) layout)->vk)
-          .unwrap();
+        vk_descriptor_set_layouts.push(((DescriptorSetLayout) layout)->vk).unwrap();
     }
 
     VkSpecializationInfo vk_vs_specialization{
@@ -3666,9 +3561,8 @@ Result<gpu::GraphicsPipeline, Status>
       .mapEntryCount = size32(info.fragment_shader.specialization_constants),
       .pMapEntries   = (VkSpecializationMapEntry const *)
                        info.fragment_shader.specialization_constants.data(),
-      .dataSize =
-        info.fragment_shader.specialization_constants_data.size_bytes(),
-      .pData = info.fragment_shader.specialization_constants_data.data()};
+      .dataSize = info.fragment_shader.specialization_constants_data.size_bytes(),
+      .pData    = info.fragment_shader.specialization_constants_data.data()};
 
     Vec<char> vs_entry_point{scratch};
     vs_entry_point.append(info.vertex_shader.entry_point).unwrap();
@@ -3679,25 +3573,24 @@ Result<gpu::GraphicsPipeline, Status>
     fs_entry_point.push('\0').unwrap();
 
     VkPipelineShaderStageCreateInfo vk_stages[2] = {
-      {.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-       .pNext  = nullptr,
-       .flags  = 0,
-       .stage  = VK_SHADER_STAGE_VERTEX_BIT,
-       .module = (Shader) info.vertex_shader.shader,
-       .pName  = vs_entry_point.data(),
+      {.sType               = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+       .pNext               = nullptr,
+       .flags               = 0,
+       .stage               = VK_SHADER_STAGE_VERTEX_BIT,
+       .module              = (Shader) info.vertex_shader.shader,
+       .pName               = vs_entry_point.data(),
        .pSpecializationInfo = &vk_vs_specialization},
-      {.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-       .pNext  = nullptr,
-       .flags  = 0,
-       .stage  = VK_SHADER_STAGE_FRAGMENT_BIT,
-       .module = (Shader) info.fragment_shader.shader,
-       .pName  = fs_entry_point.data(),
+      {.sType               = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+       .pNext               = nullptr,
+       .flags               = 0,
+       .stage               = VK_SHADER_STAGE_FRAGMENT_BIT,
+       .module              = (Shader) info.fragment_shader.shader,
+       .pName               = fs_entry_point.data(),
        .pSpecializationInfo = &vk_fs_specialization}
     };
 
-    VkPushConstantRange push_constants_range{.stageFlags = VK_SHADER_STAGE_ALL,
-                                             .offset     = 0,
-                                             .size = info.push_constants_size};
+    VkPushConstantRange push_constants_range{
+      .stageFlags = VK_SHADER_STAGE_ALL, .offset = 0, .size = info.push_constants_size};
 
     VkPipelineLayoutCreateInfo layout_create_info{
       .sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
@@ -3711,8 +3604,8 @@ Result<gpu::GraphicsPipeline, Status>
 
     VkPipelineLayout vk_layout;
 
-    auto result = table_.CreatePipelineLayout(vk_dev_, &layout_create_info,
-                                              nullptr, &vk_layout);
+    auto result =
+      table_.CreatePipelineLayout(vk_dev_, &layout_create_info, nullptr, &vk_layout);
     if (result != VK_SUCCESS)
     {
         return Err{(Status) result};
@@ -3735,11 +3628,10 @@ Result<gpu::GraphicsPipeline, Status>
     for (auto attribute : info.vertex_attributes)
     {
         attributes
-          .push(VkVertexInputAttributeDescription{
-            .location = attribute.location,
-            .binding  = attribute.binding,
-            .format   = (VkFormat) attribute.format,
-            .offset   = attribute.offset})
+          .push(VkVertexInputAttributeDescription{.location = attribute.location,
+                                                  .binding  = attribute.binding,
+                                                  .format = (VkFormat) attribute.format,
+                                                  .offset = attribute.offset})
           .unwrap();
     }
 
@@ -3776,21 +3668,19 @@ Result<gpu::GraphicsPipeline, Status>
       .pScissors     = &scissor};
 
     VkPipelineRasterizationStateCreateInfo rasterization_state{
-      .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-      .pNext = nullptr,
-      .flags = 0,
-      .depthClampEnable =
-        (VkBool32) info.rasterization_state.depth_clamp_enable,
+      .sType            = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+      .pNext            = nullptr,
+      .flags            = 0,
+      .depthClampEnable = (VkBool32) info.rasterization_state.depth_clamp_enable,
       .rasterizerDiscardEnable = VK_FALSE,
-      .polygonMode     = (VkPolygonMode) info.rasterization_state.polygon_mode,
-      .cullMode        = (VkCullModeFlags) info.rasterization_state.cull_mode,
-      .frontFace       = (VkFrontFace) info.rasterization_state.front_face,
-      .depthBiasEnable = (VkBool32) info.rasterization_state.depth_bias_enable,
-      .depthBiasConstantFactor =
-        info.rasterization_state.depth_bias_constant_factor,
-      .depthBiasClamp       = info.rasterization_state.depth_bias_clamp,
-      .depthBiasSlopeFactor = info.rasterization_state.depth_bias_slope_factor,
-      .lineWidth            = 1.0F};
+      .polygonMode             = (VkPolygonMode) info.rasterization_state.polygon_mode,
+      .cullMode                = (VkCullModeFlags) info.rasterization_state.cull_mode,
+      .frontFace               = (VkFrontFace) info.rasterization_state.front_face,
+      .depthBiasEnable         = (VkBool32) info.rasterization_state.depth_bias_enable,
+      .depthBiasConstantFactor = info.rasterization_state.depth_bias_constant_factor,
+      .depthBiasClamp          = info.rasterization_state.depth_bias_clamp,
+      .depthBiasSlopeFactor    = info.rasterization_state.depth_bias_slope_factor,
+      .lineWidth               = 1.0F};
 
     VkPipelineMultisampleStateCreateInfo multisample_state{
       .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
@@ -3805,27 +3695,22 @@ Result<gpu::GraphicsPipeline, Status>
       .alphaToOneEnable      = (VkBool32) false};
 
     VkPipelineDepthStencilStateCreateInfo depth_stencil_state{
-      .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-      .pNext = nullptr,
-      .flags = 0,
-      .depthTestEnable = (VkBool32) info.depth_stencil_state.depth_test_enable,
-      .depthWriteEnable =
-        (VkBool32) info.depth_stencil_state.depth_write_enable,
-      .depthCompareOp = (VkCompareOp) info.depth_stencil_state.depth_compare_op,
+      .sType            = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+      .pNext            = nullptr,
+      .flags            = 0,
+      .depthTestEnable  = (VkBool32) info.depth_stencil_state.depth_test_enable,
+      .depthWriteEnable = (VkBool32) info.depth_stencil_state.depth_write_enable,
+      .depthCompareOp   = (VkCompareOp) info.depth_stencil_state.depth_compare_op,
       .depthBoundsTestEnable =
         (VkBool32) info.depth_stencil_state.depth_bounds_test_enable,
-      .stencilTestEnable =
-        (VkBool32) info.depth_stencil_state.stencil_test_enable,
+      .stencilTestEnable = (VkBool32) info.depth_stencil_state.stencil_test_enable,
       .front =
         VkStencilOpState{
-                         .failOp =
-            (VkStencilOp) info.depth_stencil_state.front_stencil.fail_op,
-                         .passOp =
-            (VkStencilOp) info.depth_stencil_state.front_stencil.pass_op,
+                         .failOp = (VkStencilOp) info.depth_stencil_state.front_stencil.fail_op,
+                         .passOp = (VkStencilOp) info.depth_stencil_state.front_stencil.pass_op,
                          .depthFailOp =
             (VkStencilOp) info.depth_stencil_state.front_stencil.depth_fail_op,
-                         .compareOp =
-            (VkCompareOp) info.depth_stencil_state.front_stencil.compare_op,
+                         .compareOp = (VkCompareOp) info.depth_stencil_state.front_stencil.compare_op,
                          .compareMask = info.depth_stencil_state.front_stencil.compare_mask,
                          .writeMask   = info.depth_stencil_state.front_stencil.write_mask,
                          .reference   = info.depth_stencil_state.front_stencil.reference},
@@ -3835,8 +3720,7 @@ Result<gpu::GraphicsPipeline, Status>
                          .passOp = (VkStencilOp) info.depth_stencil_state.back_stencil.pass_op,
                          .depthFailOp =
             (VkStencilOp) info.depth_stencil_state.back_stencil.depth_fail_op,
-                         .compareOp =
-            (VkCompareOp) info.depth_stencil_state.back_stencil.compare_op,
+                         .compareOp   = (VkCompareOp) info.depth_stencil_state.back_stencil.compare_op,
                          .compareMask = info.depth_stencil_state.back_stencil.compare_mask,
                          .writeMask   = info.depth_stencil_state.back_stencil.write_mask,
                          .reference   = info.depth_stencil_state.back_stencil.reference },
@@ -3857,16 +3741,16 @@ Result<gpu::GraphicsPipeline, Status>
             .srcAlphaBlendFactor = (VkBlendFactor) state.src_alpha_blend_factor,
             .dstAlphaBlendFactor = (VkBlendFactor) state.dst_alpha_blend_factor,
             .alphaBlendOp        = (VkBlendOp) state.alpha_blend_op,
-            .colorWriteMask = (VkColorComponentFlags) state.color_write_mask})
+            .colorWriteMask      = (VkColorComponentFlags) state.color_write_mask})
           .unwrap();
     }
 
     VkPipelineColorBlendStateCreateInfo color_blend_state{
-      .sType         = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-      .pNext         = nullptr,
-      .flags         = 0,
-      .logicOpEnable = (VkBool32) info.color_blend_state.logic_op_enable,
-      .logicOp       = (VkLogicOp) info.color_blend_state.logic_op,
+      .sType           = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+      .pNext           = nullptr,
+      .flags           = 0,
+      .logicOpEnable   = (VkBool32) info.color_blend_state.logic_op_enable,
+      .logicOp         = (VkLogicOp) info.color_blend_state.logic_op,
       .attachmentCount = size32(attachment_states),
       .pAttachments    = attachment_states.data(),
       .blendConstants  = {info.color_blend_state.blend_constant.x(),
@@ -3911,9 +3795,9 @@ Result<gpu::GraphicsPipeline, Status>
       (VkFormat) info.stencil_format.unwrap_or(gpu::Format::Undefined);
 
     VkPipelineRenderingCreateInfoKHR rendering_info{
-      .sType    = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR,
-      .pNext    = nullptr,
-      .viewMask = 0,
+      .sType                   = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR,
+      .pNext                   = nullptr,
+      .viewMask                = 0,
       .colorAttachmentCount    = size32(color_formats),
       .pColorAttachmentFormats = color_formats.data(),
       .depthAttachmentFormat   = depth_format,
@@ -3965,16 +3849,16 @@ Result<gpu::GraphicsPipeline, Status>
         return Err{Status::OutOfHostMemory};
     }
 
-    new (pipeline) IGraphicsPipeline{
-      .vk                  = vk,
-      .vk_layout           = vk_layout,
-      .push_constants_size = info.push_constants_size,
-      .num_sets            = size32(info.descriptor_set_layouts),
-      .color_fmts{allocator_},
-      .depth_fmt             = info.depth_format,
-      .stencil_fmt           = info.stencil_format,
-      .sample_count          = info.rasterization_state.sample_count,
-      .num_vertex_attributes = size32(info.vertex_attributes)};
+    new (pipeline)
+      IGraphicsPipeline{.vk                  = vk,
+                        .vk_layout           = vk_layout,
+                        .push_constants_size = info.push_constants_size,
+                        .num_sets            = size32(info.descriptor_set_layouts),
+                        .color_fmts{allocator_},
+                        .depth_fmt             = info.depth_format,
+                        .stencil_fmt           = info.stencil_format,
+                        .sample_count          = info.rasterization_state.sample_count,
+                        .num_vertex_attributes = size32(info.vertex_attributes)};
 
     pipeline->color_fmts.append(info.color_formats).unwrap();
 
@@ -4009,8 +3893,7 @@ Result<Void, Status> IDevice::recreate_swapchain(Swapchain swapchain)
         return Err{(Status) result};
     }
 
-    ASH_CHECK(info.preferred_buffering <= surface_capabilities.maxImageCount,
-              "");
+    ASH_CHECK(info.preferred_buffering <= surface_capabilities.maxImageCount, "");
     ASH_CHECK(has_bits(surface_capabilities.supportedUsageFlags,
                        (VkImageUsageFlags) info.usage),
               "");
@@ -4030,12 +3913,12 @@ Result<Void, Status> IDevice::recreate_swapchain(Swapchain swapchain)
     if (surface_capabilities.currentExtent.width == 0xFFFF'FFFFU &&
         surface_capabilities.currentExtent.height == 0xFFFF'FFFFU)
     {
-        vk_extent.width  = clamp(info.preferred_extent.x(),
-                                 surface_capabilities.minImageExtent.width,
-                                 surface_capabilities.maxImageExtent.width);
-        vk_extent.height = clamp(info.preferred_extent.y(),
-                                 surface_capabilities.minImageExtent.height,
-                                 surface_capabilities.maxImageExtent.height);
+        vk_extent.width =
+          clamp(info.preferred_extent.x(), surface_capabilities.minImageExtent.width,
+                surface_capabilities.maxImageExtent.width);
+        vk_extent.height =
+          clamp(info.preferred_extent.y(), surface_capabilities.minImageExtent.height,
+                surface_capabilities.maxImageExtent.height);
     }
     else
     {
@@ -4052,8 +3935,7 @@ Result<Void, Status> IDevice::recreate_swapchain(Swapchain swapchain)
     }
     else
     {
-        min_image_count =
-          max(min_image_count, surface_capabilities.minImageCount);
+        min_image_count = max(min_image_count, surface_capabilities.minImageCount);
     }
 
     VkSwapchainCreateInfoKHR create_info{
@@ -4071,10 +3953,10 @@ Result<Void, Status> IDevice::recreate_swapchain(Swapchain swapchain)
       .queueFamilyIndexCount = 1,
       .pQueueFamilyIndices   = nullptr,
       .preTransform          = surface_capabilities.currentTransform,
-      .compositeAlpha = (VkCompositeAlphaFlagBitsKHR) info.composite_alpha,
-      .presentMode    = (VkPresentModeKHR) info.present_mode,
-      .clipped        = VK_TRUE,
-      .oldSwapchain   = old_vk_swapchain};
+      .compositeAlpha        = (VkCompositeAlphaFlagBitsKHR) info.composite_alpha,
+      .presentMode           = (VkPresentModeKHR) info.present_mode,
+      .clipped               = VK_TRUE,
+      .oldSwapchain          = old_vk_swapchain};
 
     VkSwapchainKHR vk;
 
@@ -4101,16 +3983,13 @@ Result<Void, Status> IDevice::recreate_swapchain(Swapchain swapchain)
     Vec<VkImage, 0> vk_images{scratch};
     vk_images.resize_uninit(num_images).unwrap();
 
-    result =
-      table_.GetSwapchainImagesKHR(vk_dev_, vk, &num_images, vk_images.data());
+    result = table_.GetSwapchainImagesKHR(vk_dev_, vk, &num_images, vk_images.data());
 
     ASH_CHECK(num_images == vk_images.size(), "");
     ASH_CHECK(result == VK_SUCCESS, "");
 
-    VkSemaphoreCreateInfo sem_info{.sType =
-                                     VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-                                   .pNext = nullptr,
-                                   .flags = 0};
+    VkSemaphoreCreateInfo sem_info{
+      .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, .pNext = nullptr, .flags = 0};
 
     SmallVec<Image, 8, 0> images{allocator_};
     images.resize(num_images).unwrap();
@@ -4136,32 +4015,27 @@ Result<Void, Status> IDevice::recreate_swapchain(Swapchain swapchain)
                                  .alias = nullptr, .element = 0,     .type = gpu::MemoryType::Unique}
         };
 
-        auto result = table_.CreateSemaphore(vk_dev_, &sem_info, nullptr,
-                                             &acquire_semaphore);
+        auto result =
+          table_.CreateSemaphore(vk_dev_, &sem_info, nullptr, &acquire_semaphore);
 
         ASH_CHECK(result == VK_SUCCESS, "");
     }
 
-    auto swapchain_label =
-      sformat(scratch, "{} / Swapchain"_str, info.label).unwrap();
+    auto swapchain_label = sformat(scratch, "{} / Swapchain"_str, info.label).unwrap();
 
     set_resource_name(swapchain_label, vk, VK_OBJECT_TYPE_SWAPCHAIN_KHR,
                       VK_DEBUG_REPORT_OBJECT_TYPE_SWAPCHAIN_KHR_EXT, scratch);
-    for (auto [i, image, acquire_semaphore] :
-         enumerate(images, acquire_semaphores))
+    for (auto [i, image, acquire_semaphore] : enumerate(images, acquire_semaphores))
     {
         auto label =
-          sformat(scratch, "{} / SwapchainImage {}"_str, info.label, i)
-            .unwrap();
+          sformat(scratch, "{} / SwapchainImage {}"_str, info.label, i).unwrap();
         set_resource_name(label, image->vk, VK_OBJECT_TYPE_IMAGE,
                           VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT, scratch);
 
         auto acq_sem_label =
-          sformat(scratch, "{} / AcquireSemaphore {}"_str, info.label, i)
-            .unwrap();
+          sformat(scratch, "{} / AcquireSemaphore {}"_str, info.label, i).unwrap();
 
-        set_resource_name(acq_sem_label, acquire_semaphore,
-                          VK_OBJECT_TYPE_SEMAPHORE,
+        set_resource_name(acq_sem_label, acquire_semaphore, VK_OBJECT_TYPE_SEMAPHORE,
                           VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT, scratch);
     }
 
@@ -4169,8 +4043,7 @@ Result<Void, Status> IDevice::recreate_swapchain(Swapchain swapchain)
     {
         Enum<gpu::Buffer, gpu::Image> resources[] = {(gpu::Image) image};
 
-        create_shim_alias(gpu::AliasInfo{.label = {}, .resources = resources})
-          .unwrap();
+        create_shim_alias(gpu::AliasInfo{.label = {}, .resources = resources}).unwrap();
     }
 
     release(*swapchain);
@@ -4201,8 +4074,7 @@ Result<Void, Status> IDevice::recreate_swapchain(Swapchain swapchain)
 }
 
 Result<SwapchainPreference, Void>
-  SwapchainPreference::make(gpu::SwapchainInfo const & info,
-                            Allocator                  allocator)
+  SwapchainPreference::make(gpu::SwapchainInfo const & info, Allocator allocator)
 {
     Vec<char> label{allocator};
     if (!label.append(info.label))
@@ -4284,16 +4156,14 @@ Result<gpu::TimestampQuery, Status>
 
     ASH_CHECK(info.count > 0, "");
 
-    VkQueryPoolCreateInfo create_info{
-      .sType              = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO,
-      .pNext              = nullptr,
-      .flags              = 0,
-      .queryType          = VK_QUERY_TYPE_TIMESTAMP,
-      .queryCount         = info.count,
-      .pipelineStatistics = 0};
-    VkQueryPool vk_pool;
-    auto        result =
-      table_.CreateQueryPool(vk_dev_, &create_info, nullptr, &vk_pool);
+    VkQueryPoolCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO,
+                                      .pNext = nullptr,
+                                      .flags = 0,
+                                      .queryType          = VK_QUERY_TYPE_TIMESTAMP,
+                                      .queryCount         = info.count,
+                                      .pipelineStatistics = 0};
+    VkQueryPool           vk_pool;
+    auto result = table_.CreateQueryPool(vk_dev_, &create_info, nullptr, &vk_pool);
 
     if (result != VK_SUCCESS)
     {
@@ -4327,17 +4197,15 @@ Result<gpu::StatisticsQuery, Status>
       VK_QUERY_PIPELINE_STATISTIC_FRAGMENT_SHADER_INVOCATIONS_BIT |
       VK_QUERY_PIPELINE_STATISTIC_COMPUTE_SHADER_INVOCATIONS_BIT;
 
-    VkQueryPoolCreateInfo create_info{
-      .sType              = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO,
-      .pNext              = nullptr,
-      .flags              = 0,
-      .queryType          = VK_QUERY_TYPE_PIPELINE_STATISTICS,
-      .queryCount         = info.count,
-      .pipelineStatistics = QUERY_STATS};
+    VkQueryPoolCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO,
+                                      .pNext = nullptr,
+                                      .flags = 0,
+                                      .queryType  = VK_QUERY_TYPE_PIPELINE_STATISTICS,
+                                      .queryCount = info.count,
+                                      .pipelineStatistics = QUERY_STATS};
 
     VkQueryPool vk_pool;
-    auto        result =
-      table_.CreateQueryPool(vk_dev_, &create_info, nullptr, &vk_pool);
+    auto result = table_.CreateQueryPool(vk_dev_, &create_info, nullptr, &vk_pool);
     if (result != VK_SUCCESS)
     {
         return Err{(Status) result};
@@ -4391,8 +4259,7 @@ Result<gpu::CommandBuffer, Status>
         }
     }};
 
-    auto pool_label =
-      sformat(scratch, "{} / CommandPool"_str, info.label).unwrap();
+    auto pool_label = sformat(scratch, "{} / CommandPool"_str, info.label).unwrap();
     set_resource_name(pool_label, vk_pool, VK_OBJECT_TYPE_COMMAND_POOL,
                       VK_DEBUG_REPORT_OBJECT_TYPE_COMMAND_POOL_EXT, scratch);
 
@@ -4456,10 +4323,8 @@ Result<gpu::QueueScope, Status>
         }
     }};
 
-    VkSemaphoreCreateInfo sem_info{.sType =
-                                     VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-                                   .pNext = nullptr,
-                                   .flags = 0};
+    VkSemaphoreCreateInfo sem_info{
+      .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, .pNext = nullptr, .flags = 0};
 
     VkFenceCreateInfo fence_info{.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
                                  .pNext = nullptr,
@@ -4468,14 +4333,12 @@ Result<gpu::QueueScope, Status>
     for (auto i : range(info.buffering))
     {
         auto sbm_sem_label =
-          sformat(scratch, "{} / SubmitSemaphore {}"_str, info.label, i)
-            .unwrap();
+          sformat(scratch, "{} / SubmitSemaphore {}"_str, info.label, i).unwrap();
         auto sbm_fnc_label =
           sformat(scratch, "{} / SubmitFence {}"_str, info.label, i).unwrap();
 
         VkSemaphore acquire_sem;
-        auto        result =
-          table_.CreateSemaphore(vk_dev_, &sem_info, nullptr, &acquire_sem);
+        auto result = table_.CreateSemaphore(vk_dev_, &sem_info, nullptr, &acquire_sem);
         if (result != VK_SUCCESS)
         {
             return Err{(Status) result};
@@ -4483,8 +4346,7 @@ Result<gpu::QueueScope, Status>
 
         VkSemaphore submit_sem;
 
-        result =
-          table_.CreateSemaphore(vk_dev_, &sem_info, nullptr, &submit_sem);
+        result = table_.CreateSemaphore(vk_dev_, &sem_info, nullptr, &submit_sem);
 
         set_resource_name(sbm_sem_label, submit_sem, VK_OBJECT_TYPE_SEMAPHORE,
                           VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT, scratch);
@@ -4492,8 +4354,7 @@ Result<gpu::QueueScope, Status>
         submit_semaphores.push(submit_sem).unwrap();
 
         VkFence submit_fence;
-        result =
-          table_.CreateFence(vk_dev_, &fence_info, nullptr, &submit_fence);
+        result = table_.CreateFence(vk_dev_, &fence_info, nullptr, &submit_fence);
 
         set_resource_name(sbm_fnc_label, submit_fence, VK_OBJECT_TYPE_FENCE,
                           VK_DEBUG_REPORT_OBJECT_TYPE_FENCE_EXT, scratch);
@@ -4722,8 +4583,7 @@ void IDevice::uninit(gpu::DescriptorSet set_)
                   {
                       IDescriptorSet::remove_bind_loc(
                         buffer->bind_locations,
-                        BindLocation{
-                          .set = set, .binding = ibinding, .element = i});
+                        BindLocation{.set = set, .binding = ibinding, .element = i});
                   }
               }
           },
@@ -4734,8 +4594,7 @@ void IDevice::uninit(gpu::DescriptorSet set_)
                   {
                       IDescriptorSet::remove_bind_loc(
                         buffer_view->bind_locations,
-                        BindLocation{
-                          .set = set, .binding = ibinding, .element = i});
+                        BindLocation{.set = set, .binding = ibinding, .element = i});
                   }
               }
           },
@@ -4746,8 +4605,7 @@ void IDevice::uninit(gpu::DescriptorSet set_)
                   {
                       IDescriptorSet::remove_bind_loc(
                         image_view->bind_locations,
-                        BindLocation{
-                          .set = set, .binding = ibinding, .element = i});
+                        BindLocation{.set = set, .binding = ibinding, .element = i});
                   }
               }
           });
@@ -4917,8 +4775,8 @@ Result<Void, Status> IDevice::invalidate_mapped_memory(gpu::Buffer buffer_,
 
     auto & mem = buffer->memory;
 
-    auto result = vmaInvalidateAllocation(
-      vma_allocator_, mem.alias->vma_allocation, range.offset, range.span);
+    auto result = vmaInvalidateAllocation(vma_allocator_, mem.alias->vma_allocation,
+                                          range.offset, range.span);
     if (result != VK_SUCCESS)
     {
         return Err{(Status) result};
@@ -4926,8 +4784,7 @@ Result<Void, Status> IDevice::invalidate_mapped_memory(gpu::Buffer buffer_,
     return Ok{};
 }
 
-Result<Void, Status> IDevice::flush_mapped_memory(gpu::Buffer buffer_,
-                                                  Slice64     range)
+Result<Void, Status> IDevice::flush_mapped_memory(gpu::Buffer buffer_, Slice64 range)
 {
     auto * buffer = (Buffer) buffer_;
 
@@ -4951,8 +4808,8 @@ Result<usize, Status> IDevice::get_pipeline_cache_size(gpu::PipelineCache cache)
 {
     usize size;
 
-    auto result = table_.GetPipelineCacheData(vk_dev_, (PipelineCache) cache,
-                                              &size, nullptr);
+    auto result =
+      table_.GetPipelineCacheData(vk_dev_, (PipelineCache) cache, &size, nullptr);
     if (result != VK_SUCCESS)
     {
         return Err{(Status) result};
@@ -4965,8 +4822,8 @@ Result<Void, Status> IDevice::get_pipeline_cache_data(gpu::PipelineCache cache,
 {
     auto size = 0uz;
 
-    auto result = table_.GetPipelineCacheData(vk_dev_, (PipelineCache) cache,
-                                              &size, nullptr);
+    auto result =
+      table_.GetPipelineCacheData(vk_dev_, (PipelineCache) cache, &size, nullptr);
 
     if (result == VK_SUCCESS)
     {
@@ -4997,16 +4854,15 @@ Result<Void, Status> IDevice::get_pipeline_cache_data(gpu::PipelineCache cache,
     return Ok{};
 }
 
-Result<Void, Status>
-  IDevice::merge_pipeline_cache(gpu::PipelineCache             dst,
-                                Span<gpu::PipelineCache const> srcs)
+Result<Void, Status> IDevice::merge_pipeline_cache(gpu::PipelineCache             dst,
+                                                   Span<gpu::PipelineCache const> srcs)
 {
     auto num_srcs = size32(srcs);
 
     ASH_CHECK(num_srcs > 0, "");
 
-    auto result = table_.MergePipelineCaches(
-      vk_dev_, (PipelineCache) dst, num_srcs, (PipelineCache *) srcs.data());
+    auto result = table_.MergePipelineCaches(vk_dev_, (PipelineCache) dst, num_srcs,
+                                             (PipelineCache *) srcs.data());
 
     if (result != VK_SUCCESS)
     {
@@ -5046,16 +4902,13 @@ void IDevice::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
                 {
                     continue;
                 }
-                ASH_CHECK(has_bits(buffer->usage,
-                                   descriptor_buffer_usage(binding.type)),
-                          "");
+                ASH_CHECK(
+                  has_bits(buffer->usage, descriptor_buffer_usage(binding.type)), "");
                 ASH_CHECK(
                   is_valid_buffer_access(
                     buffer->size, b.range,
-                    max(
-                      phy_.vk_properties.limits.minStorageBufferOffsetAlignment,
-                      phy_.vk_properties.limits
-                        .minUniformBufferOffsetAlignment),
+                    max(phy_.vk_properties.limits.minStorageBufferOffsetAlignment,
+                        phy_.vk_properties.limits.minUniformBufferOffsetAlignment),
                     1),
                   "");
             }
@@ -5070,9 +4923,9 @@ void IDevice::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
                 {
                     continue;
                 }
-                ASH_CHECK(has_bits(view->buffer->usage,
-                                   descriptor_buffer_usage(binding.type)),
-                          "");
+                ASH_CHECK(
+                  has_bits(view->buffer->usage, descriptor_buffer_usage(binding.type)),
+                  "");
             }
         }
         break;
@@ -5086,9 +4939,8 @@ void IDevice::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
                     continue;
                 }
                 auto * image = (Image) view->image;
-                ASH_CHECK(
-                  has_bits(image->usage, descriptor_image_usage(binding.type)),
-                  "");
+                ASH_CHECK(has_bits(image->usage, descriptor_image_usage(binding.type)),
+                          "");
                 ASH_CHECK(image->sample_count == gpu::SampleCount::C1, "");
             }
         }
@@ -5116,10 +4968,10 @@ void IDevice::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
             {
                 auto * buffer = (Buffer) b.buffer;
                 auto   range  = b.range(buffer->size);
-                vk            = VkDescriptorBufferInfo{
-                             .buffer = (buffer == nullptr) ? nullptr : buffer->vk,
-                             .offset = range.offset,
-                             .range  = range.span};
+                vk = VkDescriptorBufferInfo{.buffer = (buffer == nullptr) ? nullptr :
+                                                                            buffer->vk,
+                                            .offset = range.offset,
+                                            .range  = range.span};
             }
         }
         break;
@@ -5178,8 +5030,7 @@ void IDevice::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
     {
         case SyncResourceType::Buffer:
         {
-            set->update_link(update.binding, update.first_element,
-                             update.buffers);
+            set->update_link(update.binding, update.first_element, update.buffers);
             break;
         }
         break;
@@ -5192,8 +5043,7 @@ void IDevice::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
         break;
         case SyncResourceType::ImageView:
         {
-            set->update_link(update.binding, update.first_element,
-                             update.images);
+            set->update_link(update.binding, update.first_element, update.images);
             break;
         }
         break;
@@ -5233,9 +5083,8 @@ Result<Void, Status> IDevice::await_queue_idle()
     return Ok{};
 }
 
-Result<Void, Status>
-  IDevice::get_surface_formats(gpu::Surface              surface_,
-                               Vec<gpu::SurfaceFormat> & formats)
+Result<Void, Status> IDevice::get_surface_formats(gpu::Surface              surface_,
+                                                  Vec<gpu::SurfaceFormat> & formats)
 {
     auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
 
@@ -5265,8 +5114,7 @@ Result<Void, Status>
         return Err{(Status) result};
     }
 
-    ASH_CHECK(vk_formats.size() == num_supported && result != VK_INCOMPLETE,
-              "");
+    ASH_CHECK(vk_formats.size() == num_supported && result != VK_INCOMPLETE, "");
 
     usize const offset = formats.size();
 
@@ -5277,17 +5125,15 @@ Result<Void, Status>
 
     for (auto [fmt, vk] : zip(formats.view().slice(offset), vk_formats))
     {
-        fmt =
-          gpu::SurfaceFormat{.format      = (gpu::Format) vk.format,
-                             .color_space = (gpu::ColorSpace) vk.colorSpace};
+        fmt = gpu::SurfaceFormat{.format      = (gpu::Format) vk.format,
+                                 .color_space = (gpu::ColorSpace) vk.colorSpace};
     }
 
     return Ok{};
 }
 
-Result<Void, Status>
-  IDevice::get_surface_present_modes(gpu::Surface            surface_,
-                                     Vec<gpu::PresentMode> & modes)
+Result<Void, Status> IDevice::get_surface_present_modes(gpu::Surface surface_,
+                                                        Vec<gpu::PresentMode> & modes)
 {
     auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
 
@@ -5317,8 +5163,7 @@ Result<Void, Status>
         return Err{(Status) result};
     }
 
-    ASH_CHECK(
-      vk_present_modes.size() == num_supported && result != VK_INCOMPLETE, "");
+    ASH_CHECK(vk_present_modes.size() == num_supported && result != VK_INCOMPLETE, "");
 
     auto offset = modes.size();
 
@@ -5350,9 +5195,8 @@ Result<gpu::SurfaceCapabilities, Status>
 
     return Ok{
       gpu::SurfaceCapabilities{
-                               .image_usage = (gpu::ImageUsage) capabilities.supportedUsageFlags,
-                               .composite_alpha =
-          (gpu::CompositeAlpha) capabilities.supportedCompositeAlpha}
+                               .image_usage     = (gpu::ImageUsage) capabilities.supportedUsageFlags,
+                               .composite_alpha = (gpu::CompositeAlpha) capabilities.supportedCompositeAlpha}
     };
 }
 
@@ -5361,20 +5205,20 @@ Result<gpu::SwapchainState, Status>
 {
     auto * swapchain = (Swapchain) swapchain_;
 
-    gpu::SwapchainState state{
-      .extent          = swapchain->extent,
-      .format          = swapchain->format,
-      .present_mode    = swapchain->present_mode,
-      .composite_alpha = swapchain->composite_alpha,
-      .images          = swapchain->images.view().reinterpret<gpu::Image>(),
-      .current_image   = swapchain->current_image};
+    gpu::SwapchainState state{.extent          = swapchain->extent,
+                              .format          = swapchain->format,
+                              .present_mode    = swapchain->present_mode,
+                              .composite_alpha = swapchain->composite_alpha,
+                              .images =
+                                swapchain->images.view().reinterpret<gpu::Image>(),
+                              .current_image = swapchain->current_image};
 
     return Ok{state};
 }
 
-Result<Void, Status>
-  IDevice::get_timestamp_query_result(gpu::TimestampQuery query_, u32 first,
-                                      Span<u64> timestamps)
+Result<Void, Status> IDevice::get_timestamp_query_result(gpu::TimestampQuery query_,
+                                                         u32                 first,
+                                                         Span<u64>           timestamps)
 {
     if (timestamps.is_empty())
     {
@@ -5385,9 +5229,9 @@ Result<Void, Status>
 
     auto n = size32(timestamps);
 
-    auto result = table_.GetQueryPoolResults(
-      vk_dev_, vk_pool, first, n, sizeof(u64) * n, timestamps.data(),
-      sizeof(u64), VK_QUERY_RESULT_64_BIT);
+    auto result = table_.GetQueryPoolResults(vk_dev_, vk_pool, first, n,
+                                             sizeof(u64) * n, timestamps.data(),
+                                             sizeof(u64), VK_QUERY_RESULT_64_BIT);
 
     if (result != VK_SUCCESS)
     {
@@ -5412,8 +5256,7 @@ Result<Void, Status>
 
     auto result = table_.GetQueryPoolResults(
       vk_dev_, vk_pool, first, n, sizeof(gpu::PipelineStatistics) * n,
-      statistics.data(), sizeof(gpu::PipelineStatistics),
-      VK_QUERY_RESULT_64_BIT);
+      statistics.data(), sizeof(gpu::PipelineStatistics), VK_QUERY_RESULT_64_BIT);
 
     if (result != VK_SUCCESS)
     {
@@ -5450,8 +5293,7 @@ Result<Void, Status> IDevice::acquire_next(gpu::Swapchain swapchain_)
 
     VkResult result = VK_SUCCESS;
 
-    if (swapchain->is_out_of_date || !swapchain->is_optimal ||
-        swapchain->is_deferred)
+    if (swapchain->is_out_of_date || !swapchain->is_optimal || swapchain->is_deferred)
     {
         // await all pending submitted operations on the device possibly using
         // the swapchain, to avoid destroying whilst in use
@@ -5469,8 +5311,7 @@ Result<Void, Status> IDevice::acquire_next(gpu::Swapchain swapchain_)
         u32 next_image;
         result = table_.AcquireNextImageKHR(
           vk_dev_, swapchain->vk, U64_MAX,
-          swapchain->acquire_semaphores[swapchain->ring_index], nullptr,
-          &next_image);
+          swapchain->acquire_semaphores[swapchain->ring_index], nullptr, &next_image);
 
         if (result == VK_SUBOPTIMAL_KHR)
         {
@@ -5483,15 +5324,13 @@ Result<Void, Status> IDevice::acquire_next(gpu::Swapchain swapchain_)
 
         swapchain->current_image     = next_image;
         swapchain->current_semaphore = swapchain->ring_index;
-        swapchain->ring_index =
-          (swapchain->ring_index + 1) % size32(swapchain->images);
+        swapchain->ring_index = (swapchain->ring_index + 1) % size32(swapchain->images);
     }
 
     return Ok{};
 }
 
-Result<u64, Status> IDevice::submit(gpu::CommandBuffer buffer_,
-                                    gpu::QueueScope    scope_)
+Result<u64, Status> IDevice::submit(gpu::CommandBuffer buffer_, gpu::QueueScope scope_)
 {
     auto * buffer = (CommandBuffer) buffer_;
     ASH_CHECK(buffer != nullptr, "");
@@ -5505,8 +5344,7 @@ Result<u64, Status> IDevice::submit(gpu::CommandBuffer buffer_,
     auto submit_semaphore = scope->submit_semaphores_[scope->ring_index_];
 
     // wait to re-use sync primitives
-    auto result =
-      table_.WaitForFences(vk_dev_, 1, &submit_fence, VK_TRUE, U64_MAX);
+    auto result = table_.WaitForFences(vk_dev_, 1, &submit_fence, VK_TRUE, U64_MAX);
 
     ASH_CHECK(result == VK_SUCCESS, "");
 
@@ -5514,9 +5352,9 @@ Result<u64, Status> IDevice::submit(gpu::CommandBuffer buffer_,
 
     ASH_CHECK(result == VK_SUCCESS, "");
 
-    auto swapchain     = buffer->swapchain_;
-    auto is_presenting = swapchain.is_some() && !swapchain->is_out_of_date &&
-                         !swapchain->is_deferred;
+    auto swapchain = buffer->swapchain_;
+    auto is_presenting =
+      swapchain.is_some() && !swapchain->is_out_of_date && !swapchain->is_deferred;
     auto acquire_semaphore =
       is_presenting ?
         swapchain->acquire_semaphores[swapchain->current_semaphore.unwrap()] :
@@ -5524,16 +5362,16 @@ Result<u64, Status> IDevice::submit(gpu::CommandBuffer buffer_,
 
     VkPipelineStageFlags wait_stages = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
 
-    auto submit_info = VkSubmitInfo{
-      .sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-      .pNext                = nullptr,
-      .waitSemaphoreCount   = is_presenting ? 1U : 0U,
-      .pWaitSemaphores      = is_presenting ? &acquire_semaphore : nullptr,
-      .pWaitDstStageMask    = is_presenting ? &wait_stages : nullptr,
-      .commandBufferCount   = 1,
-      .pCommandBuffers      = &buffer->vk_,
-      .signalSemaphoreCount = is_presenting ? 1U : 0U,
-      .pSignalSemaphores    = is_presenting ? &submit_semaphore : nullptr};
+    auto submit_info =
+      VkSubmitInfo{.sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                   .pNext                = nullptr,
+                   .waitSemaphoreCount   = is_presenting ? 1U : 0U,
+                   .pWaitSemaphores      = is_presenting ? &acquire_semaphore : nullptr,
+                   .pWaitDstStageMask    = is_presenting ? &wait_stages : nullptr,
+                   .commandBufferCount   = 1,
+                   .pCommandBuffers      = &buffer->vk_,
+                   .signalSemaphoreCount = is_presenting ? 1U : 0U,
+                   .pSignalSemaphores    = is_presenting ? &submit_semaphore : nullptr};
 
     result = table_.QueueSubmit(vk_queue_, 1, &submit_info, submit_fence);
 
@@ -5551,8 +5389,8 @@ Result<u64, Status> IDevice::submit(gpu::CommandBuffer buffer_,
     {
         auto image = swapchain->current_image.unwrap();
         auto present_info =
-          VkPresentInfoKHR{.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-                           .pNext = nullptr,
+          VkPresentInfoKHR{.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+                           .pNext              = nullptr,
                            .waitSemaphoreCount = 1,
                            .pWaitSemaphores    = &submit_semaphore,
                            .swapchainCount     = 1,
@@ -5598,9 +5436,8 @@ Result<Void, Status> IDevice::await_queue_scope_idle(gpu::QueueScope scope_,
     return Ok{};
 }
 
-Result<Void, Status> IDevice::await_queue_scope_frame(gpu::QueueScope scope_,
-                                                      u64             frame,
-                                                      nanoseconds     timeout)
+Result<Void, Status> IDevice::await_queue_scope_frame(gpu::QueueScope scope_, u64 frame,
+                                                      nanoseconds timeout)
 {
     ASH_CHECK(scope_ != nullptr, "");
     auto scope = (QueueScope) scope_;
@@ -5701,8 +5538,7 @@ void ICommandEncoder::reset()
         return;                                  \
     }
 
-void ICommandEncoder::reset_timestamp_query(gpu::TimestampQuery query,
-                                            Slice32             range)
+void ICommandEncoder::reset_timestamp_query(gpu::TimestampQuery query, Slice32 range)
 {
     PRELUDE();
     ASH_CHECK(pass_ == Pass::None, "");
@@ -5712,8 +5548,7 @@ void ICommandEncoder::reset_timestamp_query(gpu::TimestampQuery query,
     tracker_.end_pass();
 }
 
-void ICommandEncoder::reset_statistics_query(gpu::StatisticsQuery query,
-                                             Slice32              range)
+void ICommandEncoder::reset_statistics_query(gpu::StatisticsQuery query, Slice32 range)
 {
     PRELUDE();
     ASH_CHECK(pass_ == Pass::None, "");
@@ -5803,8 +5638,7 @@ void ICommandEncoder::fill_buffer(gpu::Buffer dst_, Slice64 range, u32 data)
 
     tracker_.begin_pass();
     CMD(FillBuffer{.dst = dst->vk, .range = range, .data = data});
-    tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                   VK_ACCESS_TRANSFER_WRITE_BIT);
+    tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT);
     tracker_.end_pass();
 }
 
@@ -5824,10 +5658,9 @@ void ICommandEncoder::copy_buffer(gpu::Buffer src_, gpu::Buffer dst_,
     for (auto & copy : copies_)
     {
         ASH_CHECK(is_valid_buffer_access(src->size, copy.src_range, 1, 1), "");
-        ASH_CHECK(
-          is_valid_buffer_access(
-            dst->size, Slice64{copy.dst_offset, copy.src_range.span}, 1, 1),
-          "");
+        ASH_CHECK(is_valid_buffer_access(
+                    dst->size, Slice64{copy.dst_offset, copy.src_range.span}, 1, 1),
+                  "");
     }
 
     tracker_.begin_pass();
@@ -5846,10 +5679,8 @@ void ICommandEncoder::copy_buffer(gpu::Buffer src_, gpu::Buffer dst_,
 
     cmd->copies = copies.leak();
 
-    tracker_.track(src, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                   VK_ACCESS_TRANSFER_READ_BIT);
-    tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                   VK_ACCESS_TRANSFER_WRITE_BIT);
+    tracker_.track(src, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT);
+    tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT);
     tracker_.end_pass();
 }
 
@@ -5864,9 +5695,8 @@ void ICommandEncoder::update_buffer(Span<u8 const> src_, u64 dst_offset,
     auto   copy_size = size64(src_);
 
     ASH_CHECK(has_bits(dst->usage, gpu::BufferUsage::TransferDst), "");
-    ASH_CHECK(
-      is_valid_buffer_access(dst->size, Slice64{dst_offset, copy_size}, 4, 4),
-      "");
+    ASH_CHECK(is_valid_buffer_access(dst->size, Slice64{dst_offset, copy_size}, 4, 4),
+              "");
 
     tracker_.begin_pass();
     CMD(UpdateBuffer{.src = {}, .dst_offset = dst_offset, .dst = dst->vk});
@@ -5877,14 +5707,12 @@ void ICommandEncoder::update_buffer(Span<u8 const> src_, u64 dst_offset,
 
     cmd->src = src.leak();
 
-    tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                   VK_ACCESS_TRANSFER_WRITE_BIT);
+    tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT);
     tracker_.end_pass();
 }
 
-void ICommandEncoder::clear_color_image(
-  gpu::Image dst_, gpu::Color value,
-  Span<gpu::ImageSubresourceRange const> ranges_)
+void ICommandEncoder::clear_color_image(gpu::Image dst_, gpu::Color value,
+                                        Span<gpu::ImageSubresourceRange const> ranges_)
 {
     PRELUDE();
     ASH_CHECK(pass_ == Pass::None, "");
@@ -5903,11 +5731,11 @@ void ICommandEncoder::clear_color_image(
     }
 
     tracker_.begin_pass();
-    CMD(ClearColorImage{.dst        = dst->vk,
-                        .dst_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                        .value      = {.uint32{value.u32[0], value.u32[1],
-                                          value.u32[2], value.u32[3]}},
-                        .ranges     = {}});
+    CMD(ClearColorImage{
+      .dst        = dst->vk,
+      .dst_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+      .value      = {.uint32{value.u32[0], value.u32[1], value.u32[2], value.u32[3]}},
+      .ranges     = {}});
 
     Vec<VkImageSubresourceRange, 0> ranges{arena_};
 
@@ -5915,18 +5743,16 @@ void ICommandEncoder::clear_color_image(
 
     for (auto [vk, range] : zip(ranges, ranges_))
     {
-        vk = VkImageSubresourceRange{
-          .aspectMask     = (VkImageAspectFlags) range.aspects,
-          .baseMipLevel   = range.mip_levels.offset,
-          .levelCount     = range.mip_levels.span,
-          .baseArrayLayer = range.array_layers.offset,
-          .layerCount     = range.array_layers.span};
+        vk = VkImageSubresourceRange{.aspectMask   = (VkImageAspectFlags) range.aspects,
+                                     .baseMipLevel = range.mip_levels.offset,
+                                     .levelCount   = range.mip_levels.span,
+                                     .baseArrayLayer = range.array_layers.offset,
+                                     .layerCount     = range.array_layers.span};
     }
 
     cmd->ranges = ranges.leak();
 
-    tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                   VK_ACCESS_TRANSFER_WRITE_BIT,
+    tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
     tracker_.end_pass();
 }
@@ -5956,11 +5782,10 @@ void ICommandEncoder::clear_depth_stencil_image(
 
     tracker_.begin_pass();
 
-    CMD(
-      ClearDepthStencilImage{.dst        = dst->vk,
-                             .dst_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                             .value      = vk_depth_stencil,
-                             .ranges     = {}});
+    CMD(ClearDepthStencilImage{.dst        = dst->vk,
+                               .dst_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                               .value      = vk_depth_stencil,
+                               .ranges     = {}});
 
     Vec<VkImageSubresourceRange, 0> ranges{arena_};
 
@@ -5968,18 +5793,16 @@ void ICommandEncoder::clear_depth_stencil_image(
 
     for (auto [vk, range] : zip(ranges, ranges_))
     {
-        vk = VkImageSubresourceRange{
-          .aspectMask     = (VkImageAspectFlags) range.aspects,
-          .baseMipLevel   = range.mip_levels.offset,
-          .levelCount     = range.mip_levels.span,
-          .baseArrayLayer = range.array_layers.offset,
-          .layerCount     = range.array_layers.span};
+        vk = VkImageSubresourceRange{.aspectMask   = (VkImageAspectFlags) range.aspects,
+                                     .baseMipLevel = range.mip_levels.offset,
+                                     .levelCount   = range.mip_levels.span,
+                                     .baseArrayLayer = range.array_layers.offset,
+                                     .layerCount     = range.array_layers.span};
     }
 
     cmd->ranges = ranges.leak();
 
-    tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                   VK_ACCESS_TRANSFER_WRITE_BIT,
+    tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
     tracker_.end_pass();
 }
@@ -6000,14 +5823,12 @@ void ICommandEncoder::copy_image(gpu::Image src_, gpu::Image dst_,
     for (auto & copy : copies_)
     {
         ASH_CHECK(is_valid_image_access(src->aspects, src->mip_levels,
-                                        src->array_layers,
-                                        copy.src_layers.aspects,
+                                        src->array_layers, copy.src_layers.aspects,
                                         Slice32{copy.src_layers.mip_level, 1},
                                         copy.src_layers.array_layers),
                   "");
         ASH_CHECK(is_valid_image_access(dst->aspects, dst->mip_levels,
-                                        dst->array_layers,
-                                        copy.dst_layers.aspects,
+                                        dst->array_layers, copy.dst_layers.aspects,
                                         Slice32{copy.dst_layers.mip_level, 1},
                                         copy.dst_layers.array_layers),
                   "");
@@ -6026,14 +5847,11 @@ void ICommandEncoder::copy_image(gpu::Image src_, gpu::Image dst_,
         ASH_CHECK(copy.dst_offset.x() <= dst_extent.x(), "");
         ASH_CHECK(copy.dst_offset.y() <= dst_extent.y(), "");
         ASH_CHECK(copy.dst_offset.z() <= dst_extent.z(), "");
-        ASH_CHECK((copy.dst_offset.x() + copy.src_area.extent.x()) <=
-                    dst_extent.x(),
+        ASH_CHECK((copy.dst_offset.x() + copy.src_area.extent.x()) <= dst_extent.x(),
                   "");
-        ASH_CHECK((copy.dst_offset.y() + copy.src_area.extent.y()) <=
-                    dst_extent.y(),
+        ASH_CHECK((copy.dst_offset.y() + copy.src_area.extent.y()) <= dst_extent.y(),
                   "");
-        ASH_CHECK((copy.dst_offset.z() + copy.src_area.extent.z()) <=
-                    dst_extent.z(),
+        ASH_CHECK((copy.dst_offset.z() + copy.src_area.extent.z()) <= dst_extent.z(),
                   "");
     }
 
@@ -6064,8 +5882,7 @@ void ICommandEncoder::copy_image(gpu::Image src_, gpu::Image dst_,
           .mipLevel       = copy.dst_layers.mip_level,
           .baseArrayLayer = copy.dst_layers.array_layers.offset,
           .layerCount     = copy.dst_layers.array_layers.span};
-        VkOffset3D dst_offset{(i32) copy.dst_offset.x(),
-                              (i32) copy.dst_offset.y(),
+        VkOffset3D dst_offset{(i32) copy.dst_offset.x(), (i32) copy.dst_offset.y(),
                               (i32) copy.dst_offset.z()};
         VkExtent3D extent{copy.src_area.extent.x(), copy.src_area.extent.y(),
                           copy.src_area.extent.z()};
@@ -6079,17 +5896,15 @@ void ICommandEncoder::copy_image(gpu::Image src_, gpu::Image dst_,
 
     cmd->copies = copies.leak();
 
-    tracker_.track(src, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                   VK_ACCESS_TRANSFER_READ_BIT,
+    tracker_.track(src, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT,
                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-    tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                   VK_ACCESS_TRANSFER_WRITE_BIT,
+    tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
     tracker_.end_pass();
 }
 
-void ICommandEncoder::copy_buffer_to_image(
-  gpu::Buffer src_, gpu::Image dst_, Span<gpu::BufferImageCopy const> copies_)
+void ICommandEncoder::copy_buffer_to_image(gpu::Buffer src_, gpu::Image dst_,
+                                           Span<gpu::BufferImageCopy const> copies_)
 {
     PRELUDE();
     ASH_CHECK(pass_ == Pass::None, "");
@@ -6103,14 +5918,12 @@ void ICommandEncoder::copy_buffer_to_image(
 
     for (auto & copy : copies_)
     {
-        ASH_CHECK(
-          is_valid_buffer_access(
-            src->size, Slice64{copy.buffer_offset, gpu::WHOLE_SIZE}, 1, 1),
-          "");
+        ASH_CHECK(is_valid_buffer_access(
+                    src->size, Slice64{copy.buffer_offset, gpu::WHOLE_SIZE}, 1, 1),
+                  "");
 
         ASH_CHECK(is_valid_image_access(dst->aspects, dst->mip_levels,
-                                        dst->array_layers,
-                                        copy.image_layers.aspects,
+                                        dst->array_layers, copy.image_layers.aspects,
                                         Slice32{copy.image_layers.mip_level, 1},
                                         copy.image_layers.array_layers),
                   "");
@@ -6161,17 +5974,14 @@ void ICommandEncoder::copy_buffer_to_image(
 
     cmd->copies = copies.leak();
 
-    tracker_.track(src, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                   VK_ACCESS_TRANSFER_READ_BIT);
-    tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                   VK_ACCESS_TRANSFER_WRITE_BIT,
+    tracker_.track(src, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT);
+    tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
     tracker_.end_pass();
 }
 
 void ICommandEncoder::blit_image(gpu::Image src_, gpu::Image dst_,
-                                 Span<gpu::ImageBlit const> blits_,
-                                 gpu::Filter                filter)
+                                 Span<gpu::ImageBlit const> blits_, gpu::Filter filter)
 {
     PRELUDE();
     ASH_CHECK(pass_ == Pass::None, "");
@@ -6186,15 +5996,13 @@ void ICommandEncoder::blit_image(gpu::Image src_, gpu::Image dst_,
     for (auto & blit : blits_)
     {
         ASH_CHECK(is_valid_image_access(src->aspects, src->mip_levels,
-                                        src->array_layers,
-                                        blit.src_layers.aspects,
+                                        src->array_layers, blit.src_layers.aspects,
                                         Slice32{blit.src_layers.mip_level, 1},
                                         blit.src_layers.array_layers),
                   "");
 
         ASH_CHECK(is_valid_image_access(dst->aspects, dst->mip_levels,
-                                        dst->array_layers,
-                                        blit.dst_layers.aspects,
+                                        dst->array_layers, blit.dst_layers.aspects,
                                         Slice32{blit.dst_layers.mip_level, 1},
                                         blit.dst_layers.array_layers),
                   "");
@@ -6249,22 +6057,19 @@ void ICommandEncoder::blit_image(gpu::Image src_, gpu::Image dst_,
                                     (i32) blit.src_area.end().y(),
                                     (i32) blit.src_area.end().z()}},
           .dstSubresource = dst_subresource,
-          .dstOffsets     = {VkOffset3D{(i32) blit.dst_area.offset.x(),
-                                    (i32) blit.dst_area.offset.y(),
-                                    (i32) blit.dst_area.offset.z()},
-                             VkOffset3D{(i32) blit.dst_area.end().x(),
-                                    (i32) blit.dst_area.end().y(),
-                                    (i32) blit.dst_area.end().z()}}
+          .dstOffsets     = {
+                             VkOffset3D{(i32) blit.dst_area.offset.x(), (i32) blit.dst_area.offset.y(),
+                       (i32) blit.dst_area.offset.z()},
+                             VkOffset3D{(i32) blit.dst_area.end().x(), (i32) blit.dst_area.end().y(),
+                       (i32) blit.dst_area.end().z()}             }
         };
     }
 
     cmd->blits = blits.leak();
 
-    tracker_.track(src, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                   VK_ACCESS_TRANSFER_READ_BIT,
+    tracker_.track(src, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT,
                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-    tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                   VK_ACCESS_TRANSFER_WRITE_BIT,
+    tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
     tracker_.end_pass();
@@ -6286,18 +6091,16 @@ void ICommandEncoder::resolve_image(gpu::Image src_, gpu::Image dst_,
 
     for (auto & resolve : resolves_)
     {
-        ASH_CHECK(
-          is_valid_image_access(src->aspects, src->mip_levels,
-                                src->array_layers, resolve.src_layers.aspects,
-                                Slice32{resolve.src_layers.mip_level, 1},
-                                resolve.src_layers.array_layers),
-          "");
-        ASH_CHECK(
-          is_valid_image_access(dst->aspects, dst->mip_levels,
-                                dst->array_layers, resolve.dst_layers.aspects,
-                                Slice32{resolve.dst_layers.mip_level, 1},
-                                resolve.dst_layers.array_layers),
-          "");
+        ASH_CHECK(is_valid_image_access(src->aspects, src->mip_levels,
+                                        src->array_layers, resolve.src_layers.aspects,
+                                        Slice32{resolve.src_layers.mip_level, 1},
+                                        resolve.src_layers.array_layers),
+                  "");
+        ASH_CHECK(is_valid_image_access(dst->aspects, dst->mip_levels,
+                                        dst->array_layers, resolve.dst_layers.aspects,
+                                        Slice32{resolve.dst_layers.mip_level, 1},
+                                        resolve.dst_layers.array_layers),
+                  "");
 
         auto src_extent = src->extent.mip(resolve.src_layers.mip_level);
         auto dst_extent = dst->extent.mip(resolve.dst_layers.mip_level);
@@ -6313,15 +6116,12 @@ void ICommandEncoder::resolve_image(gpu::Image src_, gpu::Image dst_,
         ASH_CHECK(resolve.dst_offset.x() <= dst_extent.x(), "");
         ASH_CHECK(resolve.dst_offset.y() <= dst_extent.y(), "");
         ASH_CHECK(resolve.dst_offset.z() <= dst_extent.z(), "");
-        ASH_CHECK((resolve.dst_offset.x() + resolve.src_area.extent.x()) <=
-                    dst_extent.x(),
-                  "");
-        ASH_CHECK((resolve.dst_offset.y() + resolve.src_area.extent.y()) <=
-                    dst_extent.y(),
-                  "");
-        ASH_CHECK((resolve.dst_offset.z() + resolve.src_area.extent.z()) <=
-                    dst_extent.z(),
-                  "");
+        ASH_CHECK(
+          (resolve.dst_offset.x() + resolve.src_area.extent.x()) <= dst_extent.x(), "");
+        ASH_CHECK(
+          (resolve.dst_offset.y() + resolve.src_area.extent.y()) <= dst_extent.y(), "");
+        ASH_CHECK(
+          (resolve.dst_offset.z() + resolve.src_area.extent.z()) <= dst_extent.z(), "");
     }
 
     tracker_.begin_pass();
@@ -6354,8 +6154,7 @@ void ICommandEncoder::resolve_image(gpu::Image src_, gpu::Image dst_,
         VkOffset3D dst_offset{(i32) resolve.dst_offset.x(),
                               (i32) resolve.dst_offset.y(),
                               (i32) resolve.dst_offset.z()};
-        VkExtent3D extent{resolve.src_area.extent.x(),
-                          resolve.src_area.extent.y(),
+        VkExtent3D extent{resolve.src_area.extent.x(), resolve.src_area.extent.y(),
                           resolve.src_area.extent.z()};
 
         vk = VkImageResolve{.srcSubresource = src_subresource,
@@ -6367,11 +6166,9 @@ void ICommandEncoder::resolve_image(gpu::Image src_, gpu::Image dst_,
 
     cmd->resolves = resolves.leak();
 
-    tracker_.track(src, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                   VK_ACCESS_TRANSFER_READ_BIT,
+    tracker_.track(src, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT,
                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-    tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                   VK_ACCESS_TRANSFER_WRITE_BIT,
+    tracker_.track(dst, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
     tracker_.end_pass();
 }
@@ -6398,12 +6195,10 @@ void ICommandEncoder::end_compute_pass()
 void validate_attachment(gpu::RenderingAttachment const & info,
                          gpu::ImageAspects aspects, gpu::ImageUsage usage)
 {
-    ASH_CHECK(
-      !(info.resolve_mode != gpu::ResolveModes::None && info.view == nullptr),
-      "");
-    ASH_CHECK(!(info.resolve_mode != gpu::ResolveModes::None &&
-                info.resolve == nullptr),
+    ASH_CHECK(!(info.resolve_mode != gpu::ResolveModes::None && info.view == nullptr),
               "");
+    ASH_CHECK(
+      !(info.resolve_mode != gpu::ResolveModes::None && info.resolve == nullptr), "");
     if (info.view != nullptr)
     {
         auto image = ((ImageView) info.view)->image;
@@ -6516,8 +6311,7 @@ void ICommandEncoder::begin_rendering(gpu::RenderingInfo const & info)
 
     MEMTRY(color_attachments.resize_uninit(info.color_attachments.size()));
 
-    constexpr VkImageLayout COLOR_LAYOUT =
-      VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    constexpr VkImageLayout COLOR_LAYOUT = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
     constexpr VkPipelineStageFlags RESOLVE_STAGE =
       VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -6526,8 +6320,7 @@ void ICommandEncoder::begin_rendering(gpu::RenderingInfo const & info)
       VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
 
     constexpr VkAccessFlags RESOLVE_COLOR_DST_ACCESS =
-      VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
-      VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+      VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
     constexpr VkAccessFlags RESOLVE_DEPTH_STENCIL_SRC_ACCESS =
       VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
@@ -6549,14 +6342,13 @@ void ICommandEncoder::begin_rendering(gpu::RenderingInfo const & info)
 
     for (auto [vk, attachment] : zip(color_attachments, info.color_attachments))
     {
-        auto view =
-          attachment.view == nullptr ? nullptr : ptr(attachment.view)->vk;
+        auto view = attachment.view == nullptr ? nullptr : ptr(attachment.view)->vk;
         auto resolve =
           attachment.resolve == nullptr ? nullptr : ptr(attachment.resolve)->vk;
 
-        VkClearValue clear_value{.color{.uint32{
-          attachment.clear.color.u32.x(), attachment.clear.color.u32.y(),
-          attachment.clear.color.u32.z(), attachment.clear.color.u32.w()}}};
+        VkClearValue clear_value{.color{
+          .uint32{attachment.clear.color.u32.x(), attachment.clear.color.u32.y(),
+                  attachment.clear.color.u32.z(), attachment.clear.color.u32.w()}}};
 
         vk = VkRenderingAttachmentInfoKHR{
           .sType              = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR,
@@ -6571,21 +6363,18 @@ void ICommandEncoder::begin_rendering(gpu::RenderingInfo const & info)
           .clearValue         = clear_value};
     }
 
-    MEMTRY(
-      depth_attachment.resize_uninit(info.depth_attachment.is_some() ? 1 : 0));
+    MEMTRY(depth_attachment.resize_uninit(info.depth_attachment.is_some() ? 1 : 0));
 
     for (auto [vk, attachment] : zip(depth_attachment, info.depth_attachment))
     {
-        auto view =
-          attachment.view == nullptr ? nullptr : ptr(attachment.view)->vk;
+        auto view = attachment.view == nullptr ? nullptr : ptr(attachment.view)->vk;
         auto resolve =
           attachment.resolve == nullptr ? nullptr : ptr(attachment.resolve)->vk;
 
         VkAccessFlags access = depth_stencil_attachment_access(attachment) |
                                RESOLVE_DEPTH_STENCIL_SRC_ACCESS;
-        auto layout = has_write_access(access) ?
-                        READ_WRITE_DEPTH_STENCIL_LAYOUT :
-                        READ_DEPTH_STENCIL_LAYOUT;
+        auto layout = has_write_access(access) ? READ_WRITE_DEPTH_STENCIL_LAYOUT :
+                                                 READ_DEPTH_STENCIL_LAYOUT;
 
         VkClearValue clear_value{
           .depthStencil{.depth   = attachment.clear.depth_stencil.depth,
@@ -6605,23 +6394,19 @@ void ICommandEncoder::begin_rendering(gpu::RenderingInfo const & info)
           .clearValue         = clear_value};
     }
 
-    MEMTRY(stencil_attachment.resize_uninit(
-      info.stencil_attachment.is_some() ? 1 : 0));
+    MEMTRY(stencil_attachment.resize_uninit(info.stencil_attachment.is_some() ? 1 : 0));
 
-    for (auto [vk, attachment] :
-         zip(stencil_attachment, info.stencil_attachment))
+    for (auto [vk, attachment] : zip(stencil_attachment, info.stencil_attachment))
     {
-        auto view =
-          attachment.view == nullptr ? nullptr : ptr(attachment.view)->vk;
+        auto view = attachment.view == nullptr ? nullptr : ptr(attachment.view)->vk;
         auto resolve =
           attachment.resolve == nullptr ? nullptr : ptr(attachment.resolve)->vk;
 
         VkAccessFlags access = depth_stencil_attachment_access(attachment) |
                                RESOLVE_DEPTH_STENCIL_SRC_ACCESS;
 
-        auto layout = has_write_access(access) ?
-                        READ_WRITE_DEPTH_STENCIL_LAYOUT :
-                        READ_DEPTH_STENCIL_LAYOUT;
+        auto layout = has_write_access(access) ? READ_WRITE_DEPTH_STENCIL_LAYOUT :
+                                                 READ_DEPTH_STENCIL_LAYOUT;
 
         VkClearValue clear_value{
           .depthStencil{.depth   = attachment.clear.depth_stencil.depth,
@@ -6660,8 +6445,7 @@ void ICommandEncoder::begin_rendering(gpu::RenderingInfo const & info)
     for (auto & attachment : info.color_attachments)
     {
         VkAccessFlags        access = color_attachment_access(attachment);
-        VkPipelineStageFlags stages =
-          VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        VkPipelineStageFlags stages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
         if (attachment.resolve_mode != gpu::ResolveModes::None)
         {
@@ -6685,13 +6469,12 @@ void ICommandEncoder::begin_rendering(gpu::RenderingInfo const & info)
     {
         VkAccessFlags access = depth_stencil_attachment_access(attachment) |
                                RESOLVE_DEPTH_STENCIL_SRC_ACCESS;
-        VkPipelineStageFlags stages =
-          VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
-          VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT | RESOLVE_STAGE;
-        VkImageLayout layout =
-          has_write_access(access) ?
-            VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL :
-            VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+        VkPipelineStageFlags stages = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+                                      VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT |
+                                      RESOLVE_STAGE;
+        VkImageLayout layout = has_write_access(access) ?
+                                 VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL :
+                                 VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
 
         if (attachment.resolve_mode != gpu::ResolveModes::None)
         {
@@ -6717,13 +6500,12 @@ void ICommandEncoder::begin_rendering(gpu::RenderingInfo const & info)
     {
         VkAccessFlags access = depth_stencil_attachment_access(attachment) |
                                RESOLVE_DEPTH_STENCIL_SRC_ACCESS;
-        VkImageLayout layout =
-          has_write_access(access) ?
-            VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL :
-            VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
-        VkPipelineStageFlags stages =
-          VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
-          VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT | RESOLVE_STAGE;
+        VkImageLayout        layout = has_write_access(access) ?
+                                        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL :
+                                        VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+        VkPipelineStageFlags stages = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+                                      VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT |
+                                      RESOLVE_STAGE;
 
         if (attachment.resolve_mode != gpu::ResolveModes::None)
         {
@@ -6771,27 +6553,22 @@ void ICommandEncoder::bind_compute_pipeline(gpu::ComputePipeline pipeline_)
 }
 
 void validate_pipeline_compatible(
-  GraphicsPipeline                     pipeline,
-  Span<gpu::RenderingAttachment const> color_attachments,
-  Option<gpu::RenderingAttachment>     depth_attachment,
-  Option<gpu::RenderingAttachment>     stencil_attachment)
+  GraphicsPipeline pipeline, Span<gpu::RenderingAttachment const> color_attachments,
+  Option<gpu::RenderingAttachment> depth_attachment,
+  Option<gpu::RenderingAttachment> stencil_attachment)
 {
     ASH_CHECK(pipeline->color_fmts.size() == color_attachments.size(), "");
-    ASH_CHECK(!(pipeline->depth_fmt.is_none() && depth_attachment.is_some()),
-              "");
-    ASH_CHECK(!(pipeline->stencil_fmt.is_none() && depth_attachment.is_some()),
-              "");
+    ASH_CHECK(!(pipeline->depth_fmt.is_none() && depth_attachment.is_some()), "");
+    ASH_CHECK(!(pipeline->stencil_fmt.is_none() && depth_attachment.is_some()), "");
 
-    for (auto [pipeline_fmt, attachment] :
-         zip(pipeline->color_fmts, color_attachments))
+    for (auto [pipeline_fmt, attachment] : zip(pipeline->color_fmts, color_attachments))
     {
         if (pipeline_fmt != gpu::Format::Undefined)
         {
             ASH_CHECK(attachment.view != nullptr, "");
             ASH_CHECK(pipeline_fmt == ptr(attachment.view)->format, "");
-            ASH_CHECK(pipeline->sample_count ==
-                        ptr(attachment.view)->image->sample_count,
-                      "");
+            ASH_CHECK(
+              pipeline->sample_count == ptr(attachment.view)->image->sample_count, "");
         }
     }
 
@@ -6812,8 +6589,7 @@ void ICommandEncoder::bind_graphics_pipeline(gpu::GraphicsPipeline pipeline_)
     ASH_CHECK(pass_ == Pass::Render, "");
     auto pipeline = ptr(pipeline_);
     validate_pipeline_compatible(pipeline, ctx_.color_attachments,
-                                 ctx_.depth_attachment,
-                                 ctx_.stencil_attachment);
+                                 ctx_.depth_attachment, ctx_.stencil_attachment);
 
     CMD(BindPipeline{.bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS,
                      .pipeline   = pipeline->vk});
@@ -6822,29 +6598,26 @@ void ICommandEncoder::bind_graphics_pipeline(gpu::GraphicsPipeline pipeline_)
 }
 
 void ICommandEncoder::bind_descriptor_sets(
-  Span<gpu::DescriptorSet const> descriptor_sets_,
-  Span<u32 const>                dynamic_offsets_)
+  Span<gpu::DescriptorSet const> descriptor_sets_, Span<u32 const> dynamic_offsets_)
 {
     PRELUDE();
     ASH_CHECK(pass_ == Pass::Render || pass_ == Pass::Compute, "");
     ASH_CHECK(descriptor_sets_.size() <=
                 dev_->phy_.vk_properties.limits.maxBoundDescriptorSets,
               "");
-    ASH_CHECK(
-      dynamic_offsets_.size() <=
-        sat_add(dev_->phy_.vk_descriptor_properties
-                  .maxDescriptorSetUpdateAfterBindUniformBuffersDynamic,
-                dev_->phy_.vk_descriptor_properties
-                  .maxDescriptorSetUpdateAfterBindStorageBuffersDynamic),
-      "");
+    ASH_CHECK(dynamic_offsets_.size() <=
+                sat_add(dev_->phy_.vk_descriptor_properties
+                          .maxDescriptorSetUpdateAfterBindUniformBuffersDynamic,
+                        dev_->phy_.vk_descriptor_properties
+                          .maxDescriptorSetUpdateAfterBindStorageBuffersDynamic),
+              "");
 
     for (auto offset : dynamic_offsets_)
     {
         ASH_CHECK(
           is_aligned<u64>(
-            max(
-              dev_->phy_.vk_properties.limits.minUniformBufferOffsetAlignment,
-              dev_->phy_.vk_properties.limits.minStorageBufferOffsetAlignment),
+            max(dev_->phy_.vk_properties.limits.minUniformBufferOffsetAlignment,
+                dev_->phy_.vk_properties.limits.minStorageBufferOffsetAlignment),
             offset),
           "");
     }
@@ -6854,15 +6627,13 @@ void ICommandEncoder::bind_descriptor_sets(
         case Pass::Render:
         {
             ASH_CHECK(ctx_.graphics_pipeline.is_some(), "");
-            ASH_CHECK(
-              ctx_.graphics_pipeline->num_sets == descriptor_sets_.size(), "");
+            ASH_CHECK(ctx_.graphics_pipeline->num_sets == descriptor_sets_.size(), "");
         }
         break;
         case Pass::Compute:
         {
             ASH_CHECK(ctx_.compute_pipeline.is_some(), "");
-            ASH_CHECK(
-              ctx_.compute_pipeline->num_sets == descriptor_sets_.size(), "");
+            ASH_CHECK(ctx_.compute_pipeline->num_sets == descriptor_sets_.size(), "");
         }
         break;
         default:
@@ -6894,10 +6665,8 @@ void ICommandEncoder::bind_descriptor_sets(
             break;
     }
 
-    CMD(BindDescriptorSets{.bind_point      = bind_point,
-                           .layout          = layout,
-                           .sets            = {},
-                           .dynamic_offsets = {}});
+    CMD(BindDescriptorSets{
+      .bind_point = bind_point, .layout = layout, .sets = {}, .dynamic_offsets = {}});
 
     Vec<VkDescriptorSet, 0> descriptor_sets{arena_};
 
@@ -6943,16 +6712,14 @@ void ICommandEncoder::push_constants(Span<u8 const> constants_)
         case Pass::Render:
         {
             ASH_CHECK(ctx_.graphics_pipeline.is_some(), "");
-            ASH_CHECK(constants_.size() ==
-                        ctx_.graphics_pipeline->push_constants_size,
+            ASH_CHECK(constants_.size() == ctx_.graphics_pipeline->push_constants_size,
                       "");
         }
         break;
         case Pass::Compute:
         {
             ASH_CHECK(ctx_.compute_pipeline.is_some(), "");
-            ASH_CHECK(constants_.size() ==
-                        ctx_.compute_pipeline->push_constants_size,
+            ASH_CHECK(constants_.size() == ctx_.compute_pipeline->push_constants_size,
                       "");
         }
         break;
@@ -7016,9 +6783,9 @@ void ICommandEncoder::dispatch_indirect(gpu::Buffer buffer_, u64 offset)
     auto * buffer = (Buffer) buffer_;
 
     ASH_CHECK(has_bits(buffer->usage, gpu::BufferUsage::IndirectBuffer), "");
-    ASH_CHECK(is_valid_buffer_access(
-                buffer->size, Slice64{offset, sizeof(gpu::DispatchCommand)}, 4,
-                alignof(gpu::DispatchCommand)),
+    ASH_CHECK(is_valid_buffer_access(buffer->size,
+                                     Slice64{offset, sizeof(gpu::DispatchCommand)}, 4,
+                                     alignof(gpu::DispatchCommand)),
               "");
 
     CMD(DispatchIndirect{.buffer = buffer->vk, .offset = offset});
@@ -7042,8 +6809,8 @@ void ICommandEncoder::set_graphics_state(gpu::GraphicsState const & state)
     ctx_.has_graphics_state = true;
 }
 
-void ICommandEncoder::bind_vertex_buffers(
-  Span<gpu::Buffer const> vertex_buffers_, Span<u64 const> offsets_)
+void ICommandEncoder::bind_vertex_buffers(Span<gpu::Buffer const> vertex_buffers_,
+                                          Span<u64 const>         offsets_)
 {
     PRELUDE();
     ASH_CHECK(pass_ == Pass::Render, "");
@@ -7052,8 +6819,7 @@ void ICommandEncoder::bind_vertex_buffers(
                 dev_->phy_.vk_properties.limits.maxVertexInputBindings,
               "");
     ASH_CHECK(ctx_.graphics_pipeline.is_some(), "");
-    ASH_CHECK(vertex_buffers_.size() ==
-                ctx_.graphics_pipeline->num_vertex_attributes,
+    ASH_CHECK(vertex_buffers_.size() == ctx_.graphics_pipeline->num_vertex_attributes,
               "");
     ASH_CHECK(offsets_.size() == vertex_buffers_.size(), "");
 
@@ -7061,8 +6827,7 @@ void ICommandEncoder::bind_vertex_buffers(
     {
         auto * buff = (Buffer) buff_;
         ASH_CHECK(buff_ != nullptr, "");
-        ASH_CHECK(is_valid_buffer_access(buff->size, Slice64{off, 1}, 1, 1),
-                  "");
+        ASH_CHECK(is_valid_buffer_access(buff->size, Slice64{off, 1}, 1, 1), "");
         ASH_CHECK(has_bits(buff->usage, gpu::BufferUsage::VertexBuffer), "");
     }
 
@@ -7111,9 +6876,8 @@ void ICommandEncoder::bind_index_buffer(gpu::Buffer index_buffer_, u64 offset,
     auto   index_size   = index_type_size(index_type);
 
     ASH_CHECK(has_bits(index_buffer->usage, gpu::BufferUsage::IndexBuffer), "");
-    ASH_CHECK(is_valid_buffer_access(index_buffer->size,
-                                     Slice64{offset, index_size}, index_size,
-                                     index_size),
+    ASH_CHECK(is_valid_buffer_access(index_buffer->size, Slice64{offset, index_size},
+                                     index_size, index_size),
               "");
 
     CMD(BindIndexBuffer{.buffer     = index_buffer->vk,
@@ -7134,11 +6898,9 @@ void ICommandEncoder::draw(Slice32 vertices, Slice32 instances)
     ASH_CHECK(pass_ == Pass::Render, "");
     ASH_CHECK(ctx_.graphics_pipeline.is_some(), "");
     ASH_CHECK(ctx_.has_graphics_state, "");
-    ASH_CHECK(ctx_.graphics_pipeline->num_vertex_attributes ==
-                ctx_.vertex_buffers.size(),
-              "");
-    ASH_CHECK(ctx_.graphics_pipeline->num_sets == ctx_.descriptor_sets.size(),
-              "");
+    ASH_CHECK(
+      ctx_.graphics_pipeline->num_vertex_attributes == ctx_.vertex_buffers.size(), "");
+    ASH_CHECK(ctx_.graphics_pipeline->num_sets == ctx_.descriptor_sets.size(), "");
 
     CMD(Draw{.vertices = vertices, .instances = instances});
 }
@@ -7150,11 +6912,9 @@ void ICommandEncoder::draw_indexed(Slice32 indices, Slice32 instances,
     ASH_CHECK(pass_ == Pass::Render, "");
     ASH_CHECK(ctx_.graphics_pipeline.is_some(), "");
     ASH_CHECK(ctx_.has_graphics_state, "");
-    ASH_CHECK(ctx_.graphics_pipeline->num_vertex_attributes ==
-                ctx_.vertex_buffers.size(),
-              "");
-    ASH_CHECK(ctx_.graphics_pipeline->num_sets == ctx_.descriptor_sets.size(),
-              "");
+    ASH_CHECK(
+      ctx_.graphics_pipeline->num_vertex_attributes == ctx_.vertex_buffers.size(), "");
+    ASH_CHECK(ctx_.graphics_pipeline->num_sets == ctx_.descriptor_sets.size(), "");
     ASH_CHECK(ctx_.index_buffer.is_some(), "");
 
     auto index_size = index_type_size(ctx_.index_type);
@@ -7165,32 +6925,28 @@ void ICommandEncoder::draw_indexed(Slice32 indices, Slice32 instances,
                 index_size, index_size),
               "");
 
-    CMD(DrawIndexed{.indices       = indices,
-                    .instances     = instances,
-                    .vertex_offset = vertex_offset});
+    CMD(DrawIndexed{
+      .indices = indices, .instances = instances, .vertex_offset = vertex_offset});
 }
 
-void ICommandEncoder::draw_indirect(gpu::Buffer buffer_, u64 offset,
-                                    u32 draw_count, u32 stride)
+void ICommandEncoder::draw_indirect(gpu::Buffer buffer_, u64 offset, u32 draw_count,
+                                    u32 stride)
 {
     PRELUDE();
     ASH_CHECK(pass_ == Pass::Render, "");
     ASH_CHECK(ctx_.graphics_pipeline.is_some(), "");
     ASH_CHECK(ctx_.has_graphics_state, "");
-    ASH_CHECK(ctx_.graphics_pipeline->num_vertex_attributes ==
-                ctx_.vertex_buffers.size(),
-              "");
-    ASH_CHECK(ctx_.graphics_pipeline->num_sets == ctx_.descriptor_sets.size(),
-              "");
+    ASH_CHECK(
+      ctx_.graphics_pipeline->num_vertex_attributes == ctx_.vertex_buffers.size(), "");
+    ASH_CHECK(ctx_.graphics_pipeline->num_sets == ctx_.descriptor_sets.size(), "");
 
     auto * buffer = (Buffer) buffer_;
 
     ASH_CHECK(has_bits(buffer->usage, gpu::BufferUsage::IndirectBuffer), "");
     ASH_CHECK(stride >= sizeof(gpu::DrawCommand), "");
-    ASH_CHECK(
-      is_valid_buffer_access(
-        buffer->size, Slice64{offset, (u64) draw_count * (u64) stride}, 4, 4),
-      "");
+    ASH_CHECK(is_valid_buffer_access(
+                buffer->size, Slice64{offset, (u64) draw_count * (u64) stride}, 4, 4),
+              "");
 
     CMD(DrawIndirect{.buffer     = buffer->vk,
                      .offset     = offset,
@@ -7208,20 +6964,17 @@ void ICommandEncoder::draw_indexed_indirect(gpu::Buffer buffer_, u64 offset,
     ASH_CHECK(pass_ == Pass::Render, "");
     ASH_CHECK(ctx_.graphics_pipeline.is_some(), "");
     ASH_CHECK(ctx_.has_graphics_state, "");
-    ASH_CHECK(ctx_.graphics_pipeline->num_vertex_attributes ==
-                ctx_.vertex_buffers.size(),
-              "");
-    ASH_CHECK(ctx_.graphics_pipeline->num_sets == ctx_.descriptor_sets.size(),
-              "");
+    ASH_CHECK(
+      ctx_.graphics_pipeline->num_vertex_attributes == ctx_.vertex_buffers.size(), "");
+    ASH_CHECK(ctx_.graphics_pipeline->num_sets == ctx_.descriptor_sets.size(), "");
     ASH_CHECK(ctx_.index_buffer.is_some(), "");
 
     auto * buffer = (Buffer) buffer_;
 
     ASH_CHECK(has_bits(buffer->usage, gpu::BufferUsage::IndirectBuffer), "");
-    ASH_CHECK(
-      is_valid_buffer_access(
-        buffer->size, Slice64{offset, (u64) draw_count * (u64) stride}, 4, 4),
-      "");
+    ASH_CHECK(is_valid_buffer_access(
+                buffer->size, Slice64{offset, (u64) draw_count * (u64) stride}, 4, 4),
+              "");
     ASH_CHECK(stride >= sizeof(gpu::DrawIndexedCommand), "");
 
     CMD(DrawIndexedIndirect{.buffer     = buffer->vk,
@@ -7238,9 +6991,8 @@ void ICommandEncoder::present(gpu::Swapchain swapchain_)
     ASH_CHECK(state_ == CommandBufferState::Recording, "");
 
     ASH_CHECK(swapchain_ != nullptr, "");
-    ASH_CHECK(
-      this->swapchain_.is_none(),
-      "Can only present one swapchain on a Command Encoder/Command Buffer");
+    ASH_CHECK(this->swapchain_.is_none(),
+              "Can only present one swapchain on a Command Encoder/Command Buffer");
 
     auto swapchain = (Swapchain) swapchain_;
     ASH_CHECK(!swapchain->is_out_of_date,
@@ -7264,11 +7016,10 @@ void ICommandBuffer::begin()
         resource_states_.rebuild(dev_->resource_states_);
     }
 
-    VkCommandBufferBeginInfo info{
-      .sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-      .pNext            = nullptr,
-      .flags            = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-      .pInheritanceInfo = nullptr};
+    VkCommandBufferBeginInfo info{.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+                                  .pNext = nullptr,
+                                  .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+                                  .pInheritanceInfo = nullptr};
 
     auto result = dev_->table_.BeginCommandBuffer(vk_, &info);
 
@@ -7354,22 +7105,20 @@ ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
 ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
                           cmd::CopyBuffer const & cmd)
 {
-    t.CmdCopyBuffer(vk, cmd.src, cmd.dst, size32(cmd.copies),
-                    cmd.copies.data());
+    t.CmdCopyBuffer(vk, cmd.src, cmd.dst, size32(cmd.copies), cmd.copies.data());
 }
 
 ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
                           cmd::UpdateBuffer const & cmd)
 {
-    t.CmdUpdateBuffer(vk, cmd.dst, cmd.dst_offset, size64(cmd.src),
-                      cmd.src.data());
+    t.CmdUpdateBuffer(vk, cmd.dst, cmd.dst_offset, size64(cmd.src), cmd.src.data());
 }
 
 ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
                           cmd::ClearColorImage const & cmd)
 {
-    t.CmdClearColorImage(vk, cmd.dst, cmd.dst_layout, &cmd.value,
-                         size32(cmd.ranges), cmd.ranges.data());
+    t.CmdClearColorImage(vk, cmd.dst, cmd.dst_layout, &cmd.value, size32(cmd.ranges),
+                         cmd.ranges.data());
 }
 
 ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
@@ -7389,8 +7138,8 @@ ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
 ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
                           cmd::CopyBufferToImage const & cmd)
 {
-    t.CmdCopyBufferToImage(vk, cmd.src, cmd.dst, cmd.dst_layout,
-                           size32(cmd.copies), cmd.copies.data());
+    t.CmdCopyBufferToImage(vk, cmd.src, cmd.dst, cmd.dst_layout, size32(cmd.copies),
+                           cmd.copies.data());
 }
 
 ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
@@ -7436,15 +7185,14 @@ ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
 ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
                           cmd::PushConstants const & cmd)
 {
-    t.CmdPushConstants(vk, cmd.layout, VK_SHADER_STAGE_ALL, 0,
-                       size32(cmd.constants), cmd.constants.data());
+    t.CmdPushConstants(vk, cmd.layout, VK_SHADER_STAGE_ALL, 0, size32(cmd.constants),
+                       cmd.constants.data());
 }
 
 ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
                           cmd::Dispatch const & cmd)
 {
-    t.CmdDispatch(vk, cmd.group_count.x(), cmd.group_count.y(),
-                  cmd.group_count.z());
+    t.CmdDispatch(vk, cmd.group_count.x(), cmd.group_count.y(), cmd.group_count.z());
 }
 
 ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
@@ -7459,8 +7207,7 @@ ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
     auto & s = cmd.state;
 
     VkRect2D vk_scissor{
-      .offset =
-        VkOffset2D{(i32) s.scissor.offset.x(), (i32) s.scissor.offset.y()},
+      .offset = VkOffset2D{(i32) s.scissor.offset.x(), (i32) s.scissor.offset.y()},
       .extent = VkExtent2D{s.scissor.extent.x(),       s.scissor.extent.y()      }
     };
     t.CmdSetScissor(vk, 0, 1, &vk_scissor);
@@ -7533,9 +7280,8 @@ ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
 ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
                           cmd::DrawIndexed const & cmd)
 {
-    t.CmdDrawIndexed(vk, cmd.indices.span, cmd.instances.span,
-                     cmd.indices.offset, cmd.vertex_offset,
-                     cmd.instances.offset);
+    t.CmdDrawIndexed(vk, cmd.indices.span, cmd.instances.span, cmd.indices.offset,
+                     cmd.vertex_offset, cmd.instances.offset);
 }
 
 ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
@@ -7547,12 +7293,11 @@ ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
 ASH_FORCE_INLINE void enc(DeviceTable const & t, VkCommandBuffer vk,
                           cmd::DrawIndexedIndirect const & cmd)
 {
-    t.CmdDrawIndexedIndirect(vk, cmd.buffer, cmd.offset, cmd.draw_count,
-                             cmd.stride);
+    t.CmdDrawIndexedIndirect(vk, cmd.buffer, cmd.offset, cmd.draw_count, cmd.stride);
 }
 
-inline cmd::Cmd * encode_n(DeviceTable const & t, VkCommandBuffer vk,
-                           cmd::Cmd * cmd_, usize n)
+inline cmd::Cmd * encode_n(DeviceTable const & t, VkCommandBuffer vk, cmd::Cmd * cmd_,
+                           usize n)
 {
 #define CMD_CASE(type)                   \
     case cmd::Type::type:                \
@@ -7617,21 +7362,21 @@ void issue_barriers(DeviceTable const & t, VkCommandBuffer cmd,
     for (auto [src_stage, dst_stage, memory_barrier, buffer_barrier] :
          barriers.mem_buffers_)
     {
-        t.CmdPipelineBarrier(cmd, src_stage, dst_stage, 0, 1, &memory_barrier,
-                             1, &buffer_barrier, 0, nullptr);
+        t.CmdPipelineBarrier(cmd, src_stage, dst_stage, 0, 1, &memory_barrier, 1,
+                             &buffer_barrier, 0, nullptr);
     }
 
     for (auto [src_stage, dst_stage, image_barrier] : barriers.images_)
     {
-        t.CmdPipelineBarrier(cmd, src_stage, dst_stage, 0, 0, nullptr, 0,
-                             nullptr, 1, &image_barrier);
+        t.CmdPipelineBarrier(cmd, src_stage, dst_stage, 0, 0, nullptr, 0, nullptr, 1,
+                             &image_barrier);
     }
 
     for (auto [src_stage, dst_stage, memory_barrier, image_barrier] :
          barriers.mem_images_)
     {
-        t.CmdPipelineBarrier(cmd, src_stage, dst_stage, 0, 1, &memory_barrier,
-                             0, nullptr, 1, &image_barrier);
+        t.CmdPipelineBarrier(cmd, src_stage, dst_stage, 0, 1, &memory_barrier, 0,
+                             nullptr, 1, &image_barrier);
     }
 }
 
@@ -7664,16 +7409,15 @@ void ICommandBuffer::record(gpu::CommandEncoder encoder_)
              encoder->tracker_.buffers_.view().slice(buffers))
         {
             resource_states_.access(
-              *buffer, MemAccess{.stages = stages, .access = access}, ipass,
-              barriers);
+              *buffer, MemAccess{.stages = stages, .access = access}, ipass, barriers);
         }
 
         for (auto [image, stages, access, layout] :
              encoder->tracker_.images_.view().slice(images))
         {
-            resource_states_.access(
-              *image, MemAccess{.stages = stages, .access = access}, layout,
-              ipass, barriers);
+            resource_states_.access(*image,
+                                    MemAccess{.stages = stages, .access = access},
+                                    layout, ipass, barriers);
         }
 
         for (auto [descriptor_set, stages] :

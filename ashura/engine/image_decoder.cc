@@ -15,8 +15,7 @@ extern "C"
 namespace ash
 {
 
-Result<DecodedImageInfo, SysErr> decode_webp(Span<u8 const> bytes,
-                                             Vec<u8> &      channels)
+Result<DecodedImageInfo, SysErr> decode_webp(Span<u8 const> bytes, Vec<u8> & channels)
 {
     WebPBitstreamFeatures features;
 
@@ -25,14 +24,12 @@ Result<DecodedImageInfo, SysErr> decode_webp(Span<u8 const> bytes,
         return Err{SysErr::DecodeFailed};
     }
 
-    u32 const pitch = features.width * (features.has_alpha == 0 ? 3U : 4U);
-    gpu::Format const fmt = features.has_alpha == 0 ?
-                              gpu::Format::R8G8B8_UNORM :
-                              gpu::Format::R8G8B8A8_UNORM;
-    u32x2             extent{(u32) features.width, (u32) features.height};
+    u32 const         pitch = features.width * (features.has_alpha == 0 ? 3U : 4U);
+    gpu::Format const fmt =
+      features.has_alpha == 0 ? gpu::Format::R8G8B8_UNORM : gpu::Format::R8G8B8A8_UNORM;
+    u32x2 extent{(u32) features.width, (u32) features.height};
 
-    u64 const buffer_size =
-      pixel_size_bytes(extent, features.has_alpha ? 3 : 4);
+    u64 const buffer_size = pixel_size_bytes(extent, features.has_alpha ? 3 : 4);
 
     if (!channels.resize_uninit(buffer_size))
     {
@@ -41,8 +38,8 @@ Result<DecodedImageInfo, SysErr> decode_webp(Span<u8 const> bytes,
 
     if (features.has_alpha != 0)
     {
-        if (WebPDecodeRGBAInto(bytes.data(), bytes.size(), channels.data(),
-                               buffer_size, pitch) == nullptr)
+        if (WebPDecodeRGBAInto(bytes.data(), bytes.size(), channels.data(), buffer_size,
+                               pitch) == nullptr)
         {
             channels.clear();
             return Err{SysErr::DecodeFailed};
@@ -50,8 +47,8 @@ Result<DecodedImageInfo, SysErr> decode_webp(Span<u8 const> bytes,
     }
     else
     {
-        if (WebPDecodeRGBInto(bytes.data(), bytes.size(), channels.data(),
-                              buffer_size, pitch) == nullptr)
+        if (WebPDecodeRGBInto(bytes.data(), bytes.size(), channels.data(), buffer_size,
+                              pitch) == nullptr)
         {
             channels.clear();
             return Err{SysErr::DecodeFailed};
@@ -71,8 +68,7 @@ inline void png_stream_reader(png_structp png_ptr, unsigned char * out,
     *input = input->slice(nbytes_to_read);
 }
 
-Result<DecodedImageInfo, SysErr> decode_png(Span<u8 const> bytes,
-                                            Vec<u8> &      channels)
+Result<DecodedImageInfo, SysErr> decode_png(Span<u8 const> bytes, Vec<u8> & channels)
 {
     // skip magic number
     bytes = bytes.slice(8);
@@ -119,10 +115,10 @@ Result<DecodedImageInfo, SysErr> decode_png(Span<u8 const> bytes,
     }
 
     u32         ncomponents = (color_type == PNG_COLOR_TYPE_RGB) ? 3 : 4;
-    gpu::Format fmt         = (ncomponents == 3) ? gpu::Format::R8G8B8_UNORM :
-                                                   gpu::Format::R8G8B8A8_UNORM;
-    u32         pitch       = width * ncomponents;
-    u64         buffer_size = (u64) height * pitch;
+    gpu::Format fmt =
+      (ncomponents == 3) ? gpu::Format::R8G8B8_UNORM : gpu::Format::R8G8B8A8_UNORM;
+    u32 pitch       = width * ncomponents;
+    u64 buffer_size = (u64) height * pitch;
 
     if (!channels.resize_uninit(buffer_size))
     {
@@ -143,8 +139,7 @@ Result<DecodedImageInfo, SysErr> decode_png(Span<u8 const> bytes,
     };
 }
 
-Result<DecodedImageInfo, SysErr> decode_jpg(Span<u8 const> bytes,
-                                            Vec<u8> &      channels)
+Result<DecodedImageInfo, SysErr> decode_jpg(Span<u8 const> bytes, Vec<u8> & channels)
 {
     jpeg_decompress_struct info;
     jpeg_error_mgr         error_mgr;
@@ -176,8 +171,8 @@ Result<DecodedImageInfo, SysErr> decode_jpg(Span<u8 const> bytes,
     u32               ncomponents = info.num_components;
     u32               pitch       = width * ncomponents;
     u64               buffer_size = (u64) height * pitch;
-    gpu::Format const fmt = (ncomponents == 3) ? gpu::Format::R8G8B8_UNORM :
-                                                 gpu::Format::R8G8B8A8_UNORM;
+    gpu::Format const fmt =
+      (ncomponents == 3) ? gpu::Format::R8G8B8_UNORM : gpu::Format::R8G8B8A8_UNORM;
 
     if (!channels.resize_uninit(buffer_size))
     {
@@ -200,14 +195,12 @@ Result<DecodedImageInfo, SysErr> decode_jpg(Span<u8 const> bytes,
     };
 }
 
-Result<DecodedImageInfo, SysErr> decode_image(Span<u8 const> bytes,
-                                              Vec<u8> &      channels)
+Result<DecodedImageInfo, SysErr> decode_image(Span<u8 const> bytes, Vec<u8> & channels)
 {
     tracing::ScopeTrace trace;
 
-    static constexpr u8 JPG_MAGIC[]   = {0xFF, 0xD8, 0xFF};
-    static constexpr u8 PNG_MAGIC[]   = {0x89, 0x50, 0x4E, 0x47,
-                                         0x0D, 0x0A, 0x1A, 0x0A};
+    static constexpr u8 JPG_MAGIC[] = {0xFF, 0xD8, 0xFF};
+    static constexpr u8 PNG_MAGIC[] = {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
     // RIFF-[file size: 4 bytes]-WEBP
     static constexpr u8 WEBP_MAGIC1[] = {'R', 'I', 'F', 'F'};
     static constexpr u8 WEBP_MAGIC2[] = {'W', 'E', 'B', 'P'};

@@ -36,8 +36,7 @@ struct VertexOutput
 };
 
 [[shader("vertex")]]
-VertexOutput vert(u32 instance : SV_VulkanInstanceID,
-                  u32 vertex : SV_VulkanVertexID)
+VertexOutput vert(u32 instance : SV_VulkanInstanceID, u32 vertex : SV_VulkanVertexID)
 {
     u32   idx        = indices[vertex];
     var   vtx        = vertices[idx];
@@ -53,7 +52,6 @@ f32x4 frag(VertexOutput in) :
   COLOR
 {
     var material = sets[in.instance].material;
-    var frag =
-      TriangleSetFragmentInfo(in.world_pos, in.screen_pos, in.uv, in.instance);
+    var frag = TriangleSetFragmentInfo(in.world_pos, in.screen_pos, in.uv, in.instance);
     return material.shade(frag, samplers, textures);
 }

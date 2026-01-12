@@ -138,8 +138,7 @@ bool eq(Span<T> a, Span<U> b)
 {
     return (a.size_bytes() == b.size_bytes()) &&
            (std::memcmp(reinterpret_cast<void const *>(a.data()),
-                        reinterpret_cast<void const *>(b.data()),
-                        a.size_bytes()) == 0);
+                        reinterpret_cast<void const *>(b.data()), a.size_bytes()) == 0);
 }
 
 template <typename T>
@@ -209,8 +208,7 @@ struct [[nodiscard]] CoreLayout
     constexpr CoreLayout append(CoreLayout const & ext) const
     {
         return CoreLayout{.alignment = max(alignment, ext.alignment),
-                          .size =
-                            align_offset_up(ext.alignment, size) + ext.size};
+                          .size      = align_offset_up(ext.alignment, size) + ext.size};
     }
 
     constexpr CoreLayout array(T n) const
@@ -226,8 +224,7 @@ struct [[nodiscard]] CoreLayout
 
     constexpr CoreLayout align_to(T align) const
     {
-        return CoreLayout{.alignment = align,
-                          .size      = align_offset_up(align, size)};
+        return CoreLayout{.alignment = align, .size = align_offset_up(align, size)};
     }
 
     constexpr CoreLayout lanes(T n) const
@@ -293,9 +290,8 @@ struct Flex
 
     Tuple<Span<T>...> unpack(void const * stack) const
     {
-        return index_apply<sizeof...(T)>([&]<usize... I>() {
-            return Tuple<Span<T>...>{unpack_at_<I>(stack)...};
-        });
+        return index_apply<sizeof...(T)>(
+          [&]<usize... I>() { return Tuple<Span<T>...>{unpack_at_<I>(stack)...}; });
     }
 };
 

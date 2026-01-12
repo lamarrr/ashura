@@ -565,8 +565,7 @@ struct TextRun
 
     constexpr Slice carets(Slice line_carets, Slice line_codepoints) const
     {
-        return Slice{line_carets.offset +
-                       (codepoints.offset - line_codepoints.offset),
+        return Slice{line_carets.offset + (codepoints.offset - line_codepoints.offset),
                      codepoints.span};
     }
 
@@ -912,8 +911,7 @@ struct TextLayout
     /// points to and its location.
     /// @param pos relative position in laid-out text to hit
     Tuple<isize, CaretAlignment> hit(TextBlock const &      block,
-                                     TextBlockStyle const & style,
-                                     f32x2                  pos) const;
+                                     TextBlockStyle const & style, f32x2 pos) const;
 
     /// @brief Render Text using pre-computed layout
     /// @param renderer the renderer to use for rendering the text's regions

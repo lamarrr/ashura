@@ -22,9 +22,8 @@
 namespace ash
 {
 
-Result<EngineCfg> EngineCfg::parse_json(Span<u8 const> json,
-                                        Allocator      allocator,
-                                        Allocator      scratch_allocator)
+Result<EngineCfg> EngineCfg::parse_json(Span<u8 const> json, Allocator allocator,
+                                        Allocator scratch_allocator)
 {
     EngineCfg out{.window{.title{allocator}},
                   .font_paths{allocator},
@@ -41,8 +40,8 @@ Result<EngineCfg> EngineCfg::parse_json(Span<u8 const> json,
 
     simdjson::ondemand::parser parser;
 
-    auto error = parser.iterate(json_copy.data(), json_copy.size_bytes(),
-                                json_copy.capacity());
+    auto error =
+      parser.iterate(json_copy.data(), json_copy.size_bytes(), json_copy.capacity());
 
     if (error.error() != simdjson::SUCCESS)
     {
@@ -124,21 +123,19 @@ Result<EngineCfg> EngineCfg::parse_json(Span<u8 const> json,
     out.window.full_screen = cfg["window.full_screen"].get_bool().value();
     out.window.borderless  = cfg["window.borderless"].get_bool().value();
     out.window.vsync       = cfg["window.vsync"].get_bool().value();
-    out.window.width  = (u32) clamp(cfg["window.width"].get_int64().value(),
-                                    (i64) 0, (i64) U32_MAX);
-    out.window.height = (u32) clamp(cfg["window.height"].get_int64().value(),
-                                    (i64) 0, (i64) U32_MAX);
+    out.window.width =
+      (u32) clamp(cfg["window.width"].get_int64().value(), (i64) 0, (i64) U32_MAX);
+    out.window.height =
+      (u32) clamp(cfg["window.height"].get_int64().value(), (i64) 0, (i64) U32_MAX);
 
-    out.font_height =
-      clamp((u32) cfg["fonts.height"].get_int64().value(), 16U, 256U);
+    out.font_height = clamp((u32) cfg["fonts.height"].get_int64().value(), 16U, 256U);
 
     std::string_view pipeline_cache_path =
       cfg["cache.pipeline.path"].get_string().value();
 
     out.pipeline_cache_path.append(pipeline_cache_path).unwrap();
 
-    std::string_view working_dir_path =
-      cfg["paths.working_dir"].get_string().value();
+    std::string_view working_dir_path = cfg["paths.working_dir"].get_string().value();
 
     out.working_dir_path.append(working_dir_path).unwrap();
 
@@ -156,8 +153,7 @@ static void system_event_listener(Engine engine, SystemEvent const & event)
       [](SystemEventType) {});
 }
 
-static void window_event_listener(IEngine::WindowEntry * win,
-                                  WindowEvent const &    event)
+static void window_event_listener(IEngine::WindowEntry * win, WindowEvent const & event)
 {
     auto & s = win->state_;
 
@@ -196,13 +192,11 @@ static void window_event_listener(IEngine::WindowEntry * win,
           switch (e.action)
           {
               case KeyAction::Press:
-                  s.mouse_.downs_ |=
-                    static_cast<MouseButtons>(1U << (u32) e.button);
+                  s.mouse_.downs_ |= static_cast<MouseButtons>(1U << (u32) e.button);
                   s.mouse_.any_down_ = true;
                   break;
               case KeyAction::Release:
-                  s.mouse_.ups_ |=
-                    static_cast<MouseButtons>(1U << (u32) e.button);
+                  s.mouse_.ups_ |= static_cast<MouseButtons>(1U << (u32) e.button);
                   s.mouse_.any_up_ = true;
                   break;
               default:
@@ -313,8 +307,7 @@ Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
     tracing::ScopeTrace _;
 
     Dyn<Logger> logger =
-      dyn<ILogger>(inplace, default_allocator, span<LogSink>({&stdio_sink}))
-        .unwrap();
+      dyn<ILogger>(inplace, default_allocator, span<LogSink>({&stdio_sink})).unwrap();
     hook_logger(logger);
 
     trace("Initializing Engine Core Systems"_str);
@@ -333,23 +326,19 @@ Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
       "AudioThread"_str,
       "VideoThread"_str,
     };
-    constexpr DedicatedThread                  gpu_thread = DedicatedThread{0};
-    [[maybe_unused]] constexpr DedicatedThread audio_thread =
-      DedicatedThread{1};
-    [[maybe_unused]] constexpr DedicatedThread video_thread =
-      DedicatedThread{2};
+    constexpr DedicatedThread                  gpu_thread   = DedicatedThread{0};
+    [[maybe_unused]] constexpr DedicatedThread audio_thread = DedicatedThread{1};
+    [[maybe_unused]] constexpr DedicatedThread video_thread = DedicatedThread{2};
 
     u32 const num_dedicated_threads =
       size(dedicated_thread_names);    // gpu/render, audio, video,
     u32 const hardware_concurrency = std::thread::hardware_concurrency();
     u32 const min_worker_threads   = 1;
-    u32 const total_concurrency =
-      max(num_dedicated_threads + min_worker_threads +
-            // main thread
-            1,
-          hardware_concurrency);
-    u32 const num_worker_threads =
-      total_concurrency - (num_dedicated_threads + 1);
+    u32 const total_concurrency    = max(num_dedicated_threads + min_worker_threads +
+                                           // main thread
+                                           1,
+                                         hardware_concurrency);
+    u32 const num_worker_threads   = total_concurrency - (num_dedicated_threads + 1);
 
     Vec<SchedulerThreadInfo> dedicated_thread_infos{allocator};
 
@@ -363,19 +352,18 @@ Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
 
     for (auto i : range(num_worker_threads))
     {
-        worker_thread_names
-          .push(sformat(allocator, "WorkerThread {}", i).unwrap())
+        worker_thread_names.push(sformat(allocator, "WorkerThread {}", i).unwrap())
           .unwrap();
         worker_thread_infos
           .push(SchedulerThreadInfo{.name = worker_thread_names.last()})
           .unwrap();
     }
 
-    Dyn<Scheduler> scheduler = IScheduler::create(
-      SchedulerInfo{.allocator         = allocator,
-                    .dedicated_threads = dedicated_thread_infos,
-                    .worker_threads    = worker_thread_infos,
-                    .main_thread_id    = std::this_thread::get_id()});
+    Dyn<Scheduler> scheduler =
+      IScheduler::create(SchedulerInfo{.allocator         = allocator,
+                                       .dedicated_threads = dedicated_thread_infos,
+                                       .worker_threads    = worker_thread_infos,
+                                       .main_thread_id = std::this_thread::get_id()});
 
     ash::sys.sched = scheduler;
 
@@ -408,21 +396,20 @@ Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
                   scheduler.get(), gpu_thread);
 
     Dyn<ImageSys> image_sys =
-      dyn<IImageSys>(inplace, allocator, allocator, gpu_sys.get(),
-                     file_sys.get(), scheduler.get())
+      dyn<IImageSys>(inplace, allocator, allocator, gpu_sys.get(), file_sys.get(),
+                     scheduler.get())
         .unwrap();
 
     ash::sys.image = image_sys;
 
-    Dyn<FontSys> font_sys = IFontSys::create(allocator, file_sys.get(),
-                                             image_sys.get(), scheduler.get());
+    Dyn<FontSys> font_sys =
+      IFontSys::create(allocator, file_sys.get(), image_sys.get(), scheduler.get());
 
     ash::sys.font = font_sys;
 
-    Dyn<ShaderSys> shader_sys =
-      dyn<IShaderSys>(inplace, allocator, gpu_sys.get(), file_sys.get(),
-                      scheduler.get())
-        .unwrap();
+    Dyn<ShaderSys> shader_sys = dyn<IShaderSys>(inplace, allocator, gpu_sys.get(),
+                                                file_sys.get(), scheduler.get())
+                                  .unwrap();
 
     auto shader_fut = shader_sys->init(allocator);
 
@@ -464,9 +451,8 @@ Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
     engine->buffering_    = cfg.gpu.buffering;
     engine->state_        = SystemState{};
     engine->paths_        = Paths{
-             .working_dir = vec::copy(allocator, cfg.working_dir_path.view()).unwrap(),
-             .pipeline_cache =
-        vec::copy(allocator, cfg.pipeline_cache_path.view()).unwrap()};
+             .working_dir    = vec::copy(allocator, cfg.working_dir_path.view()).unwrap(),
+             .pipeline_cache = vec::copy(allocator, cfg.pipeline_cache_path.view()).unwrap()};
     engine->callbacks_ = std::move(callbacks);
 
     hook_engine(engine);
@@ -482,8 +468,7 @@ Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
 Dyn<IEngine::WindowEntry *> IEngine::add_window_(EngineCfg::Window const & cfg,
                                                  WindowLoop                loop)
 {
-    auto entry =
-      dyn<WindowEntry>(inplace, allocator_, *this, allocator_).unwrap();
+    auto entry = dyn<WindowEntry>(inplace, allocator_, *this, allocator_).unwrap();
 
     auto window = &sys_.win->create_window(gpu_instance_, cfg.title).unwrap();
 
@@ -493,8 +478,7 @@ Dyn<IEngine::WindowEntry *> IEngine::add_window_(EngineCfg::Window const & cfg,
     ui::UserDataMap ui_data{allocator_};
 
     entry->view_sys_ =
-      dyn<IViewSys>(inplace, allocator_, allocator_, std::move(ui_data))
-        .unwrap();
+      dyn<IViewSys>(inplace, allocator_, allocator_, std::move(ui_data)).unwrap();
 
     entry->loop_ = std::move(loop);
     entry->present_mode_preference_ =
@@ -575,10 +559,9 @@ void IEngine::poll_inputs_(time_point prev_frame_end, time_point frame_start)
 
         if (mouse_window.ptr() == window_->win_)
         {
-            s.mouse_.focused_ = true;
-            s.mouse_.position_ =
-              mouse_pos - 0.5F * static_cast<f32x2>(s.extent_);
-            s.mouse_.states_ = mouse_btns;
+            s.mouse_.focused_  = true;
+            s.mouse_.position_ = mouse_pos - 0.5F * static_cast<f32x2>(s.extent_);
+            s.mouse_.states_   = mouse_btns;
         }
 
         if (kb_window.ptr() == window_->win_)
@@ -602,8 +585,8 @@ void IEngine::shutdown()
 
     gpu_device_->await_idle().unwrap();
 
-    window_->swapchain_.match(
-      [&](gpu::ISwapchain & sc) { gpu_device_->uninit(&sc); }, []() {});
+    window_->swapchain_.match([&](gpu::ISwapchain & sc) { gpu_device_->uninit(&sc); },
+                              []() {});
     sys_.win->uninit_window(window_->win_);
 
     sys_.pipeline->shutdown();
@@ -639,15 +622,13 @@ void IEngine::shutdown()
     trace("Engine Uninitialized"_str);
 }
 
-Option<gpu::SwapchainInfo>
-  IEngine::create_swapchain_info_(WindowEntry const & w)
+Option<gpu::SwapchainInfo> IEngine::create_swapchain_info_(WindowEntry const & w)
 {
     gpu::SurfaceCapabilities capabilities =
       gpu_device_->get_surface_capabilities(w.surface_).unwrap();
-    ASH_CHECK(
-      has_bits(capabilities.image_usage,
-               gpu::ImageUsage::TransferDst | gpu::ImageUsage::ColorAttachment),
-      "");
+    ASH_CHECK(has_bits(capabilities.image_usage,
+                       gpu::ImageUsage::TransferDst | gpu::ImageUsage::ColorAttachment),
+              "");
 
     Vec<gpu::SurfaceFormat> formats{allocator_};
     gpu_device_->get_surface_formats(w.surface_, formats).unwrap();
@@ -680,17 +661,15 @@ Option<gpu::SwapchainInfo>
 
     gpu::PresentMode preferred_present_modes[] = {
       w.present_mode_preference_, gpu::PresentMode::Immediate,
-      gpu::PresentMode::Mailbox, gpu::PresentMode::Fifo,
-      gpu::PresentMode::FifoRelaxed};
+      gpu::PresentMode::Mailbox, gpu::PresentMode::Fifo, gpu::PresentMode::FifoRelaxed};
 
     bool               found_format = false;
     gpu::SurfaceFormat format;
 
     for (gpu::ColorSpace cp : preferred_color_spaces)
     {
-        Span sel = find_if(formats.view(), [&](gpu::SurfaceFormat a) {
-            return a.color_space == cp;
-        });
+        Span sel = find_if(formats.view(),
+                           [&](gpu::SurfaceFormat a) { return a.color_space == cp; });
         if (!sel.is_empty())
         {
             found_format = true;
@@ -718,13 +697,12 @@ Option<gpu::SwapchainInfo>
 
     gpu::CompositeAlpha alpha             = gpu::CompositeAlpha::None;
     gpu::CompositeAlpha alpha_spec        = gpu::CompositeAlpha::Opaque;
-    gpu::CompositeAlpha preferred_alpha[] = {
-      alpha_spec,
-      gpu::CompositeAlpha::Opaque,
-      gpu::CompositeAlpha::Inherit,
-      gpu::CompositeAlpha::Inherit,
-      gpu::CompositeAlpha::PreMultiplied,
-      gpu::CompositeAlpha::PostMultiplied};
+    gpu::CompositeAlpha preferred_alpha[] = {alpha_spec,
+                                             gpu::CompositeAlpha::Opaque,
+                                             gpu::CompositeAlpha::Inherit,
+                                             gpu::CompositeAlpha::Inherit,
+                                             gpu::CompositeAlpha::PreMultiplied,
+                                             gpu::CompositeAlpha::PostMultiplied};
     for (gpu::CompositeAlpha a : preferred_alpha)
     {
         if (has_bits(capabilities.composite_alpha, a))
@@ -771,47 +749,41 @@ void IEngine::run()
 
         u32x2 required_framebuffer_extent = window_->state_.surface_extent_;
 
-        plan->set_target(
-          GpuFrameTargetInfo{.extent       = required_framebuffer_extent,
-                             .color_format = {},
-                             .depth_stencil_format = {}});
+        plan->set_target(GpuFrameTargetInfo{.extent       = required_framebuffer_extent,
+                                            .color_format = {},
+                                            .depth_stencil_format = {}});
 
         {
             if (window_->swapchain_.is_none())
             {
-                create_swapchain_info_(*window_).match(
-                  [&](gpu::SwapchainInfo info) {
-                      window_->swapchain_ =
-                        *gpu_device_->create_swapchain(info).unwrap();
-                  });
+                create_swapchain_info_(*window_).match([&](gpu::SwapchainInfo info) {
+                    window_->swapchain_ = *gpu_device_->create_swapchain(info).unwrap();
+                });
             }
             else
             {
                 // if swapchain extent is 0, defer creation until first resize event
-                if ((window_->state_.resized_ ||
-                     window_->state_.surface_resized_) &&
+                if ((window_->state_.resized_ || window_->state_.surface_resized_) &&
                     !(window_->state_.extent_.any_zero() ||
                       window_->state_.surface_extent_.any_zero()))
                 {
                     create_swapchain_info_(*window_).match(
                       [&](gpu::SwapchainInfo info) {
-                          plan->add_preframe_task(
-                            [dev       = plan->device(),
-                             swapchain = &window_->swapchain_.v(),
-                             info](GpuFrame) {
-                                dev->mark_swapchain_out_of_date(swapchain, info)
-                                  .unwrap();
-                            });
+                          plan->add_preframe_task([dev       = plan->device(),
+                                                   swapchain = &window_->swapchain_.v(),
+                                                   info](GpuFrame) {
+                              dev->mark_swapchain_out_of_date(swapchain, info).unwrap();
+                          });
                       });
                 }
             }
         }
 
         {
-            plan->add_preframe_task([swapchain = &window_->swapchain_.v(),
-                                     dev       = plan->device()](GpuFrame) {
-                dev->acquire_next(swapchain).unwrap();
-            });
+            plan->add_preframe_task(
+              [swapchain = &window_->swapchain_.v(), dev = plan->device()](GpuFrame) {
+                  dev->acquire_next(swapchain).unwrap();
+              });
         }
 
         {
@@ -831,9 +803,8 @@ void IEngine::run()
               w.state_.extent_.to<f32>(), w.state_.surface_extent_);
 
             auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
-            auto state =
-              w.view_sys_->tick(this, ui::InputScope{state_, w.state_},
-                                &w.canvas_, w.loop_, scratch);
+            auto state   = w.view_sys_->tick(this, ui::InputScope{state_, w.state_},
+                                             &w.canvas_, w.loop_, scratch);
 
             if (w.state_.extent_.all_nonzero() &&
                 w.state_.surface_extent_.all_nonzero())
@@ -855,8 +826,7 @@ void IEngine::run()
 
                     state.current_image.match([&](u32 i) {
                         auto image = frame->get_scratch_images()[0];
-                        enc->copy_image(image.color.image, state.images[i],
-                                        copies);
+                        enc->copy_image(image.color.image, state.images[i], copies);
                         enc->present(swapchain);
                     });
                 });

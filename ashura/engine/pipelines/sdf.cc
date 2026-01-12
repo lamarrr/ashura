@@ -18,9 +18,8 @@ Str SdfPipeline::label()
     return "SDF"_str;
 }
 
-gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
-                                      gpu::Shader shader, Allocator,
-                                      Allocator   scratch)
+gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label, gpu::Shader shader,
+                                      Allocator, Allocator scratch)
 {
     auto & gpu = *plan->sys();
 
@@ -28,8 +27,8 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
       gpu::RasterizationState{.depth_clamp_enable = false,
                               .polygon_mode       = gpu::PolygonMode::Fill,
                               .cull_mode          = gpu::CullMode::None,
-                              .front_face = gpu::FrontFace::CounterClockWise,
-                              .depth_bias_enable          = false,
+                              .front_face         = gpu::FrontFace::CounterClockWise,
+                              .depth_bias_enable  = false,
                               .depth_bias_constant_factor = 0,
                               .depth_bias_clamp           = 0,
                               .depth_bias_slope_factor    = 0,
@@ -74,19 +73,17 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
       sformat(scratch, "SDF Graphics Pipeline: {}"_str, label).unwrap();
 
     auto pipeline_info = gpu::GraphicsPipelineInfo{
-      .label = tagged_label,
-      .vertex_shader =
-        gpu::ShaderStageInfo{.shader                        = shader,
-                             .entry_point                   = "vert"_str,
-                             .specialization_constants      = {},
-                             .specialization_constants_data = {}},
-      .fragment_shader =
-        gpu::ShaderStageInfo{.shader                        = shader,
-                             .entry_point                   = "frag"_str,
-                             .specialization_constants      = {},
-                             .specialization_constants_data = {}},
+      .label                  = tagged_label,
+      .vertex_shader          = gpu::ShaderStageInfo{.shader                        = shader,
+                                                     .entry_point                   = "vert"_str,
+                                                     .specialization_constants      = {},
+                                                     .specialization_constants_data = {}},
+      .fragment_shader        = gpu::ShaderStageInfo{.shader                   = shader,
+                                                     .entry_point              = "frag"_str,
+                                                     .specialization_constants = {},
+                                                     .specialization_constants_data = {}},
       .color_formats          = span({gpu.color_format()}
-        ),
+                 ),
       .depth_format           = {},
       .stencil_format         = gpu.depth_stencil_format(),
       .vertex_input_bindings  = {},
@@ -103,30 +100,26 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
     return gpu.device()->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
-void SdfPipeline::acquire(GpuFramePlan plan, Allocator allocator,
-                          Allocator scratch)
+void SdfPipeline::acquire(GpuFramePlan plan, Allocator allocator, Allocator scratch)
 {
-    auto gradient_id =
-      add_variant(plan, "gradient"_str,
-                  sys.shader->get("defaults/sdf_gradient"_str).unwrap().shader,
-                  allocator, scratch);
+    auto gradient_id = add_variant(
+      plan, "gradient"_str,
+      sys.shader->get("defaults/sdf_gradient"_str).unwrap().shader, allocator, scratch);
     ASH_CHECK(gradient_id == GRADIENT, "");
-    auto noise_id =
-      add_variant(plan, "noise"_str,
-                  sys.shader->get("defaults/sdf_noise"_str).unwrap().shader,
-                  allocator, scratch);
-    ASH_CHECK(noise_id == NOISE, "");
-    auto mesh_gradient_id = add_variant(
-      plan, "mesh_gradient"_str,
-      sys.shader->get("defaults/sdf_mesh_gradient"_str).unwrap().shader,
+    auto noise_id = add_variant(
+      plan, "noise"_str, sys.shader->get("defaults/sdf_noise"_str).unwrap().shader,
       allocator, scratch);
+    ASH_CHECK(noise_id == NOISE, "");
+    auto mesh_gradient_id =
+      add_variant(plan, "mesh_gradient"_str,
+                  sys.shader->get("defaults/sdf_mesh_gradient"_str).unwrap().shader,
+                  allocator, scratch);
     ASH_CHECK(mesh_gradient_id == MESH_GRADIENT, "");
 }
 
 PipelineVariantId SdfPipeline::add_variant(GpuFramePlan plan, Str label,
-                                           gpu::Shader shader,
-                                           Allocator   allocator,
-                                           Allocator   scratch)
+                                           gpu::Shader shader, Allocator allocator,
+                                           Allocator scratch)
 {
     auto pipeline = create_pipeline(plan, label, shader, allocator, scratch);
     auto id       = variants_.push(Tuple{label, pipeline}).unwrap();
@@ -141,32 +134,29 @@ void SdfPipeline::remove_variant(GpuFramePlan plan, PipelineVariantId id)
       [d = plan->device(), p = pipeline.v1](GpuFrame) { d->uninit(p); });
 }
 
-void SdfPipeline::encode(gpu::CommandEncoder       e,
-                         SdfPipelineParams const & params)
+void SdfPipeline::encode(gpu::CommandEncoder e, SdfPipelineParams const & params)
 {
     InplaceVec<gpu::RenderingAttachment, 1> color;
 
     params.framebuffer.color_msaa.match(
       [&](ColorMsaaImage const & tex) {
           color
-            .push(gpu::RenderingAttachment{
-              .view         = tex.view,
-              .resolve      = params.framebuffer.color.view,
-              .resolve_mode = gpu::ResolveModes::Average,
-              .load_op      = gpu::LoadOp::Load,
-              .store_op     = gpu::StoreOp::Store,
-              .clear        = {}})
+            .push(gpu::RenderingAttachment{.view    = tex.view,
+                                           .resolve = params.framebuffer.color.view,
+                                           .resolve_mode = gpu::ResolveModes::Average,
+                                           .load_op      = gpu::LoadOp::Load,
+                                           .store_op     = gpu::StoreOp::Store,
+                                           .clear        = {}})
             .unwrap();
       },
       [&]() {
           color
-            .push(
-              gpu::RenderingAttachment{.view    = params.framebuffer.color.view,
-                                       .resolve = nullptr,
-                                       .resolve_mode = gpu::ResolveModes::None,
-                                       .load_op      = gpu::LoadOp::Load,
-                                       .store_op     = gpu::StoreOp::Store,
-                                       .clear        = {}})
+            .push(gpu::RenderingAttachment{.view    = params.framebuffer.color.view,
+                                           .resolve = nullptr,
+                                           .resolve_mode = gpu::ResolveModes::None,
+                                           .load_op      = gpu::LoadOp::Load,
+                                           .store_op     = gpu::StoreOp::Store,
+                                           .clear        = {}})
             .unwrap();
       });
 
@@ -179,12 +169,12 @@ void SdfPipeline::encode(gpu::CommandEncoder       e,
                                         .clear        = {}};
     });
 
-    auto info = gpu::RenderingInfo{
-      .render_area{.extent = params.framebuffer.extent().xy()},
-      .num_layers         = 1,
-      .color_attachments  = color,
-      .depth_attachment   = {},
-      .stencil_attachment = stencil};
+    auto info =
+      gpu::RenderingInfo{.render_area{.extent = params.framebuffer.extent().xy()},
+                         .num_layers         = 1,
+                         .color_attachments  = color,
+                         .depth_attachment   = {},
+                         .stencil_attachment = stencil};
 
     auto pipeline = variants_[params.variant].v0.v1;
 
@@ -219,8 +209,8 @@ void SdfPipeline::encode(gpu::CommandEncoder       e,
           .back_face_stencil =
             state.stencil.map([](auto s) { return s.back; }).unwrap_or()});
 
-        e->draw({0, 4}, Slice32::offsets(params.state_runs[s],
-                                         params.state_runs[s + 1]));
+        e->draw({0, 4},
+                Slice32::offsets(params.state_runs[s], params.state_runs[s + 1]));
     }
     e->end_rendering();
 }

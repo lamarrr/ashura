@@ -122,8 +122,7 @@ struct IsTriviallyRelocatable
 #if ASH_CFG(COMPILER, CLANG)
       __is_trivially_constructible(T, T &&) && __is_trivially_destructible(T);
 #else
-      std::is_trivially_move_constructible_v<T> &&
-      std::is_trivially_destructible_v<T>;
+      std::is_trivially_move_constructible_v<T> && std::is_trivially_destructible_v<T>;
 #endif
 };
 

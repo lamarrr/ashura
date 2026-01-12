@@ -4,8 +4,7 @@
 #include "ashura/std/mem.h"
 #include <cstring>
 
-#if (!ASH_CFG(OS, WINDOWS)) && \
-  (ASH_CFG(COMPILER, CLANG) || ASH_CFG(COMPILER, GNUC))
+#if (!ASH_CFG(OS, WINDOWS)) && (ASH_CFG(COMPILER, CLANG) || ASH_CFG(COMPILER, GNUC))
 #    define USE_STDC_ALIGNED_ALLOC 1
 #else
 #    define USE_STDC_ALIGNED_ALLOC 0
@@ -53,8 +52,7 @@ bool HeapAllocator::alloc(Layout layout, u8 *& mem)
     }
 
 #if USE_WIN32CRT_ALIGNED_ALLOC
-    if (u8 * m = (u8 *) _aligned_malloc(layout.size, layout.alignment);
-        m != nullptr)
+    if (u8 * m = (u8 *) _aligned_malloc(layout.size, layout.alignment); m != nullptr)
     {
         mem = m;
         return true;
@@ -64,8 +62,7 @@ bool HeapAllocator::alloc(Layout layout, u8 *& mem)
 #endif
 
 #if USE_STDC_ALIGNED_ALLOC
-    if (u8 * m = (u8 *) std::aligned_alloc(layout.alignment, layout.size);
-        m != nullptr)
+    if (u8 * m = (u8 *) std::aligned_alloc(layout.alignment, layout.size); m != nullptr)
     {
         mem = m;
         return true;
@@ -75,9 +72,9 @@ bool HeapAllocator::alloc(Layout layout, u8 *& mem)
 #endif
 
 #if !HAS_ALIGNED_ALLOC
-    (void) std::fprintf(
-      stderr, "over-aligned malloc of alignment %" PRIu64 " not supported\n",
-      (u64) layout.alignment);
+    (void) std::fprintf(stderr,
+                        "over-aligned malloc of alignment %" PRIu64 " not supported\n",
+                        (u64) layout.alignment);
     (void) std::fflush(stderr);
     mem = nullptr;
     return false;
@@ -104,8 +101,7 @@ bool HeapAllocator::zalloc(Layout layout, u8 *& mem)
     }
 
 #if USE_WIN32CRT_ALIGNED_ALLOC
-    if (u8 * m = (u8 *) _aligned_malloc(layout.size, layout.alignment);
-        m != nullptr)
+    if (u8 * m = (u8 *) _aligned_malloc(layout.size, layout.alignment); m != nullptr)
     {
         std::memset(m, 0, layout.size);
         mem = m;
@@ -116,8 +112,7 @@ bool HeapAllocator::zalloc(Layout layout, u8 *& mem)
 #endif
 
 #if USE_STDC_ALIGNED_ALLOC
-    if (u8 * m = (u8 *) std::aligned_alloc(layout.alignment, layout.size);
-        m != nullptr)
+    if (u8 * m = (u8 *) std::aligned_alloc(layout.alignment, layout.size); m != nullptr)
     {
         std::memset(m, 0, layout.size);
         mem = m;
@@ -128,10 +123,9 @@ bool HeapAllocator::zalloc(Layout layout, u8 *& mem)
 #endif
 
 #if !HAS_ALIGNED_ALLOC
-    (void) std::fprintf(stderr,
-                        "over-aligned zeroed-alloc of alignment %" PRIu64
-                        " not supported\n",
-                        (u64) alignment);
+    (void) std::fprintf(
+      stderr, "over-aligned zeroed-alloc of alignment %" PRIu64 " not supported\n",
+      (u64) alignment);
     (void) std::fflush(stderr);
     mem = nullptr;
     return false;
@@ -160,8 +154,7 @@ bool HeapAllocator::realloc(Layout layout, usize new_size, u8 *& mem)
     }
 
 #if USE_WIN32CRT_ALIGNED_ALLOC
-    if (u8 * m = (u8 *) _aligned_realloc(mem, new_size, layout.alignment);
-        m != nullptr)
+    if (u8 * m = (u8 *) _aligned_realloc(mem, new_size, layout.alignment); m != nullptr)
     {
         mem = m;
         return true;
@@ -171,8 +164,7 @@ bool HeapAllocator::realloc(Layout layout, usize new_size, u8 *& mem)
 
 #if USE_STDC_ALIGNED_ALLOC
     // stdc realloc doesn't guarantee preservation of alignment
-    if (u8 * m = (u8 *) std::aligned_alloc(layout.alignment, new_size);
-        m != nullptr)
+    if (u8 * m = (u8 *) std::aligned_alloc(layout.alignment, new_size); m != nullptr)
     {
         (void) std::memcpy(m, mem, layout.size);
         std::free(mem);
@@ -184,8 +176,7 @@ bool HeapAllocator::realloc(Layout layout, usize new_size, u8 *& mem)
 
 #if !HAS_ALIGNED_ALLOC
     std::fprintf(stderr,
-                 "over-aligned zeroed-alloc of alignment %" PRIu64
-                 " not supported\n",
+                 "over-aligned zeroed-alloc of alignment %" PRIu64 " not supported\n",
                  (u64) layout.alignment);
     (void) std::fflush(stderr);
     return false;
@@ -211,9 +202,9 @@ void HeapAllocator::dealloc(Layout layout, u8 * mem)
 #endif
 
 #if !HAS_ALIGNED_ALLOC
-    (void) std::fprintf(
-      stderr, "over-aligned malloc of alignment %" PRIu64 " not supported\n",
-      (u64) layout.alignment);
+    (void) std::fprintf(stderr,
+                        "over-aligned malloc of alignment %" PRIu64 " not supported\n",
+                        (u64) layout.alignment);
     (void) std::fflush(stderr);
 #endif
 }

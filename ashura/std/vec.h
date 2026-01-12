@@ -37,8 +37,7 @@ struct [[nodiscard]] Vec
     {
     }
 
-    constexpr Vec(Allocator allocator, Type * storage, usize capacity,
-                  usize size) :
+    constexpr Vec(Allocator allocator, Type * storage, usize capacity, usize size) :
       storage_{storage},
       size_{size},
       capacity_{capacity},
@@ -236,8 +235,8 @@ struct [[nodiscard]] Vec
 
         if constexpr (TriviallyRelocatable<Type>)
         {
-            if (!allocator_->pnrealloc(ALIGNMENT, capacity_, target_capacity,
-                                       storage_)) [[unlikely]]
+            if (!allocator_->pnrealloc(ALIGNMENT, capacity_, target_capacity, storage_))
+              [[unlikely]]
             {
                 return Err{};
             }
@@ -274,8 +273,8 @@ struct [[nodiscard]] Vec
 
         if constexpr (TriviallyRelocatable<Type>)
         {
-            if (!allocator_->pnrealloc(ALIGNMENT, capacity_, max_capacity,
-                                       storage_)) [[unlikely]]
+            if (!allocator_->pnrealloc(ALIGNMENT, capacity_, max_capacity, storage_))
+              [[unlikely]]
             {
                 return Err{};
             }
@@ -283,8 +282,7 @@ struct [[nodiscard]] Vec
         else
         {
             Type * new_storage;
-            if (!allocator_->pnalloc(ALIGNMENT, max_capacity, new_storage))
-              [[unlikely]]
+            if (!allocator_->pnalloc(ALIGNMENT, max_capacity, new_storage)) [[unlikely]]
             {
                 return Err{};
             }
@@ -339,8 +337,7 @@ struct [[nodiscard]] Vec
     constexpr void erase(Slice slice)
     {
         slice = slice(size_);
-        if constexpr (TriviallyMoveConstructible<Type> &&
-                      TriviallyDestructible<Type>)
+        if constexpr (TriviallyMoveConstructible<Type> && TriviallyDestructible<Type>)
         {
             mem::move(Span{data() + slice.end(), size_ - slice.end()},
                       data() + slice.begin());
@@ -400,12 +397,10 @@ struct [[nodiscard]] Vec
             return Err{};
         }
 
-        if constexpr (TriviallyMoveConstructible<Type> &&
-                      TriviallyDestructible<Type>)
+        if constexpr (TriviallyMoveConstructible<Type> && TriviallyDestructible<Type>)
         {
             // potentially overlapping
-            mem::move(Span{data() + first, size_ - first},
-                      data() + first + distance);
+            mem::move(Span{data() + first, size_ - first}, data() + first + distance);
         }
         else
         {
@@ -609,8 +604,7 @@ struct [[nodiscard]] Vec
         return insert(pos, static_cast<Args &&>(args)...);
     }
 
-    constexpr Result<> insert_span(WithinCapacity, usize pos,
-                                   Span<Type const> span)
+    constexpr Result<> insert_span(WithinCapacity, usize pos, Span<Type const> span)
     {
         if (size() + span.size() > capacity()) [[unlikely]]
         {
@@ -620,8 +614,7 @@ struct [[nodiscard]] Vec
         return insert_span(pos, span);
     }
 
-    constexpr Result<> insert_span_move(WithinCapacity, usize pos,
-                                        Span<Type> span)
+    constexpr Result<> insert_span_move(WithinCapacity, usize pos, Span<Type> span)
     {
         if (size() + span.size() > capacity()) [[unlikely]]
         {
@@ -705,8 +698,7 @@ template <typename Span, usize MinAlignment = SIMD_ALIGNMENT>
 requires (NonConst<typename Span::Type>)
 constexpr auto move(Allocator allocator, Span items)
 {
-    Result out =
-      Vec<typename Span::Type, MinAlignment>::make(items.size(), allocator);
+    Result out = Vec<typename Span::Type, MinAlignment>::make(items.size(), allocator);
 
     if (!out)
     {
@@ -733,8 +725,7 @@ struct [[nodiscard]] SmallVec
     static constexpr usize ALIGNMENT       = max(MinAlignment, alignof(Type));
     static constexpr usize INLINE_CAPACITY = InlineCapacity;
 
-    using InlineStorage =
-      InplaceStorage<ALIGNMENT, sizeof(T) * INLINE_CAPACITY>;
+    using InlineStorage = InplaceStorage<ALIGNMENT, sizeof(T) * INLINE_CAPACITY>;
 
     Type *                storage_;
     usize                 size_;
@@ -845,8 +836,7 @@ struct [[nodiscard]] SmallVec
 
     constexpr Type * inline_storage() const
     {
-        return assume_aligned_to<ALIGNMENT>(
-          reinterpret_cast<Type *>(inline_.storage_));
+        return assume_aligned_to<ALIGNMENT>(reinterpret_cast<Type *>(inline_.storage_));
     }
 
     static constexpr usize alignment()
@@ -1005,9 +995,8 @@ struct [[nodiscard]] SmallVec
         {
             if constexpr (TriviallyRelocatable<Type>)
             {
-                if (!allocator_->pnrealloc(ALIGNMENT, capacity_,
-                                           target_capacity, storage_))
-                  [[unlikely]]
+                if (!allocator_->pnrealloc(ALIGNMENT, capacity_, target_capacity,
+                                           storage_)) [[unlikely]]
                 {
                     return Err{};
                 }
@@ -1015,8 +1004,8 @@ struct [[nodiscard]] SmallVec
             else
             {
                 Type * new_storage;
-                if (!allocator_->pnalloc(ALIGNMENT, target_capacity,
-                                         new_storage)) [[unlikely]]
+                if (!allocator_->pnalloc(ALIGNMENT, target_capacity, new_storage))
+                  [[unlikely]]
                 {
                     return Err{};
                 }
@@ -1050,8 +1039,8 @@ struct [[nodiscard]] SmallVec
 
         if constexpr (TriviallyRelocatable<Type>)
         {
-            if (!allocator_->pnrealloc(ALIGNMENT, capacity_, max_capacity,
-                                       storage_)) [[unlikely]]
+            if (!allocator_->pnrealloc(ALIGNMENT, capacity_, max_capacity, storage_))
+              [[unlikely]]
             {
                 return Err{};
             }
@@ -1059,8 +1048,7 @@ struct [[nodiscard]] SmallVec
         else
         {
             Type * new_storage;
-            if (!allocator_->pnalloc(ALIGNMENT, max_capacity, new_storage))
-              [[unlikely]]
+            if (!allocator_->pnalloc(ALIGNMENT, max_capacity, new_storage)) [[unlikely]]
             {
                 return Err{};
             }
@@ -1115,8 +1103,7 @@ struct [[nodiscard]] SmallVec
     constexpr void erase(Slice slice)
     {
         slice = slice(size_);
-        if constexpr (TriviallyMoveConstructible<Type> &&
-                      TriviallyDestructible<Type>)
+        if constexpr (TriviallyMoveConstructible<Type> && TriviallyDestructible<Type>)
         {
             mem::move(Span{data() + slice.end(), size_ - slice.end()},
                       data() + slice.begin());
@@ -1179,8 +1166,7 @@ struct [[nodiscard]] SmallVec
         if constexpr (TriviallyRelocatable<Type>)
         {
             // potentially overlapping
-            mem::move(Span{data() + first, size_ - first},
-                      data() + first + distance);
+            mem::move(Span{data() + first, size_ - first}, data() + first + distance);
         }
         else
         {
@@ -1384,8 +1370,7 @@ struct [[nodiscard]] SmallVec
         return insert(pos, static_cast<Args &&>(args)...);
     }
 
-    constexpr Result<> insert_span(WithinCapacity, usize pos,
-                                   Span<Type const> span)
+    constexpr Result<> insert_span(WithinCapacity, usize pos, Span<Type const> span)
     {
         if (size() + span.size() > capacity()) [[unlikely]]
         {
@@ -1395,8 +1380,7 @@ struct [[nodiscard]] SmallVec
         return insert_span(pos, span);
     }
 
-    constexpr Result<> insert_span_move(WithinCapacity, usize pos,
-                                        Span<Type> span)
+    constexpr Result<> insert_span_move(WithinCapacity, usize pos, Span<Type> span)
     {
         if (size() + span.size() > capacity()) [[unlikely]]
         {
@@ -1570,8 +1554,7 @@ struct [[nodiscard]] InplaceVec
 
     constexpr Type * data() const
     {
-        return assume_aligned_to<ALIGNMENT>(
-          reinterpret_cast<Type *>(this->storage_));
+        return assume_aligned_to<ALIGNMENT>(reinterpret_cast<Type *>(this->storage_));
     }
 
     static constexpr usize alignment()
@@ -1665,8 +1648,7 @@ struct [[nodiscard]] InplaceVec
     constexpr void erase(Slice slice)
     {
         slice = slice(size_);
-        if constexpr (TriviallyMoveConstructible<Type> &&
-                      TriviallyDestructible<Type>)
+        if constexpr (TriviallyMoveConstructible<Type> && TriviallyDestructible<Type>)
         {
             mem::move(Span{data() + slice.end(), size_ - slice.end()},
                       data() + slice.begin());
@@ -1730,8 +1712,7 @@ struct [[nodiscard]] InplaceVec
         if constexpr (TriviallyRelocatable<Type>)
         {
             // potentially overlapping
-            mem::move(Span{data() + first, size_ - first},
-                      data() + first + distance);
+            mem::move(Span{data() + first, size_ - first}, data() + first + distance);
         }
         else
         {
@@ -1966,9 +1947,7 @@ struct [[nodiscard]] CoreBitVec
     Vec   repr_;
     usize size_;
 
-    explicit constexpr CoreBitVec(Allocator allocator) :
-      repr_{allocator},
-      size_{0}
+    explicit constexpr CoreBitVec(Allocator allocator) : repr_{allocator}, size_{0}
     {
     }
 
@@ -2024,8 +2003,7 @@ struct [[nodiscard]] CoreBitVec
         return old;
     }
 
-    static constexpr Result<CoreBitVec> make(usize     capacity,
-                                             Allocator allocator)
+    static constexpr Result<CoreBitVec> make(usize capacity, Allocator allocator)
     {
         CoreBitVec out{allocator};
 
@@ -2204,8 +2182,7 @@ struct [[nodiscard]] CoreBitVec
     constexpr void erase(Slice slice)
     {
         slice = slice(size_);
-        for (usize dst = slice.begin(), src = slice.end(); src != size_;
-             ++dst, ++src)
+        for (usize dst = slice.begin(), src = slice.end(); src != size_; ++dst, ++src)
         {
             set(dst, get(src));
         }
@@ -2342,9 +2319,7 @@ struct CoreSparseVec
         constexpr auto operator*() const
         {
             return apply(
-              [](auto &... iters) {
-                  return Tuple<decltype(*iters)...>{*iters...};
-              },
+              [](auto &... iters) { return Tuple<decltype(*iters)...>{*iters...}; },
               iters_);
         }
 
@@ -2471,8 +2446,7 @@ struct CoreSparseVec
 
     constexpr auto view() const
     {
-        return apply([](auto &... dense) { return View{ash::view(dense)...}; },
-                     dense);
+        return apply([](auto &... dense) { return View{ash::view(dense)...}; }, dense);
     }
 
     constexpr void clear()
@@ -2543,9 +2517,8 @@ struct CoreSparseVec
         Tuple<Args &&...> arg_refs{static_cast<Args &&>(args)...};
 
         index_apply<sizeof...(V)>([&]<Index... I>() {
-            (dense.template get<I>().set(index,
-                                         static_cast<index_pack<I, Args &&...>>(
-                                           arg_refs.template get<I>())),
+            (dense.template get<I>().set(index, static_cast<index_pack<I, Args &&...>>(
+                                                  arg_refs.template get<I>())),
              ...);
         });
     }
@@ -2591,8 +2564,7 @@ struct CoreSparseVec
 
         if (index != last)
         {
-            apply([&](auto &... dense) { (dense.swap(index, last), ...); },
-                  dense);
+            apply([&](auto &... dense) { (dense.swap(index, last), ...); }, dense);
         }
 
         apply([](auto &... dense) { (dense.pop(), ...); }, dense);
@@ -2707,8 +2679,7 @@ struct CoreSparseVec
 
         index_apply<sizeof...(V)>([&]<Index... I>() {
             (dense.template get<I>()
-               .push(static_cast<index_pack<I, Args &&...>>(
-                 arg_refs.template get<I>()))
+               .push(static_cast<index_pack<I, Args &&...>>(arg_refs.template get<I>()))
                .discard(),
              ...);
         });
@@ -2718,8 +2689,8 @@ struct CoreSparseVec
 };
 
 template <typename Id, typename... T>
-using SparseVec = CoreSparseVec<Id, Vec<UnderlyingType<Id>, SIMD_ALIGNMENT>,
-                                Vec<T, SIMD_ALIGNMENT>...>;
+using SparseVec =
+  CoreSparseVec<Id, Vec<UnderlyingType<Id>, SIMD_ALIGNMENT>, Vec<T, SIMD_ALIGNMENT>...>;
 
 template <typename T, usize MinAlignment>
 struct IsTriviallyRelocatable<Vec<T, MinAlignment>>
@@ -2740,8 +2711,7 @@ struct IsTriviallyRelocatable<InplaceVec<T, C, MinAlignment>>
 };
 
 template <usize MinAlignment>
-inline void format(fmt::Sink sink, fmt::Spec spec,
-                   Vec<char, MinAlignment> const & str)
+inline void format(fmt::Sink sink, fmt::Spec spec, Vec<char, MinAlignment> const & str)
 {
     format(sink, spec, str.view());
 }

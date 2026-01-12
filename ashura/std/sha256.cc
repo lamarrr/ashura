@@ -60,8 +60,7 @@ static inline void put_be32(void * ptr, u32 value)
 static inline u32 get_be32(const void * ptr)
 {
     const unsigned char * p = (const unsigned char *) ptr;
-    return (u32) p[0] << 24 | (u32) p[1] << 16 | (u32) p[2] << 8 |
-           (u32) p[3] << 0;
+    return (u32) p[0] << 24 | (u32) p[1] << 16 | (u32) p[2] << 8 | (u32) p[3] << 0;
 }
 
 void ISha256State::transform_(u8 const * buf)

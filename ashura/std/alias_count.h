@@ -39,9 +39,8 @@ struct AtomicAliasCount
         std::atomic_ref count{count_};
         usize           expected = 0;
         usize           desired  = 1;
-        while (!count.compare_exchange_weak(expected, desired,
-                                            std::memory_order_release,
-                                            std::memory_order_relaxed))
+        while (!count.compare_exchange_weak(
+          expected, desired, std::memory_order_release, std::memory_order_relaxed))
         {
             desired = sat_add(expected, 1ULL);
         }
@@ -60,9 +59,8 @@ struct AtomicAliasCount
         usize           expected = 0;
         usize           desired  = 0;
         std::atomic_ref count{count_};
-        while (!count.compare_exchange_weak(expected, desired,
-                                            std::memory_order_release,
-                                            std::memory_order_relaxed))
+        while (!count.compare_exchange_weak(
+          expected, desired, std::memory_order_release, std::memory_order_relaxed))
         {
             desired = sat_sub(expected, 1ULL);
         }

@@ -14,22 +14,20 @@ Str TriangleFillPipeline::label()
     return "TriangleFill"_str;
 }
 
-gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
-                                      gpu::Shader shader, Allocator,
-                                      Allocator   scratch)
+gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label, gpu::Shader shader,
+                                      Allocator, Allocator scratch)
 {
     auto & gpu = *plan->sys();
 
     auto tagged_label =
-      sformat(scratch, "TriangleFill Graphics Pipeline: {}"_str, label)
-        .unwrap();
+      sformat(scratch, "TriangleFill Graphics Pipeline: {}"_str, label).unwrap();
 
     auto raster_state =
       gpu::RasterizationState{.depth_clamp_enable = false,
                               .polygon_mode       = gpu::PolygonMode::Fill,
                               .cull_mode          = gpu::CullMode::None,
-                              .front_face = gpu::FrontFace::CounterClockWise,
-                              .depth_bias_enable          = false,
+                              .front_face         = gpu::FrontFace::CounterClockWise,
+                              .depth_bias_enable  = false,
                               .depth_bias_constant_factor = 0,
                               .depth_bias_clamp           = 0,
                               .depth_bias_slope_factor    = 0,
@@ -73,19 +71,17 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
     };
 
     auto pipeline_info = gpu::GraphicsPipelineInfo{
-      .label = tagged_label,
-      .vertex_shader =
-        gpu::ShaderStageInfo{.shader                        = shader,
-                             .entry_point                   = "vert"_str,
-                             .specialization_constants      = {},
-                             .specialization_constants_data = {}},
-      .fragment_shader =
-        gpu::ShaderStageInfo{.shader                        = shader,
-                             .entry_point                   = "frag"_str,
-                             .specialization_constants      = {},
-                             .specialization_constants_data = {}},
+      .label                  = tagged_label,
+      .vertex_shader          = gpu::ShaderStageInfo{.shader                        = shader,
+                                                     .entry_point                   = "vert"_str,
+                                                     .specialization_constants      = {},
+                                                     .specialization_constants_data = {}},
+      .fragment_shader        = gpu::ShaderStageInfo{.shader                   = shader,
+                                                     .entry_point              = "frag"_str,
+                                                     .specialization_constants = {},
+                                                     .specialization_constants_data = {}},
       .color_formats          = span({gpu.color_format()}
-        ),
+                 ),
       .depth_format           = {},
       .stencil_format         = gpu.depth_stencil_format(),
       .vertex_input_bindings  = {},
@@ -102,34 +98,31 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
     return gpu.device()->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
-TriangleFillPipeline::TriangleFillPipeline(Allocator allocator) :
-  pipelines_{allocator}
+TriangleFillPipeline::TriangleFillPipeline(Allocator allocator) : pipelines_{allocator}
 {
 }
 
 void TriangleFillPipeline::acquire(GpuFramePlan plan, Allocator allocator,
                                    Allocator scratch)
 {
-    auto id = add_variant(
-      plan, "base"_str,
-      sys.shader->get("defaults/triangle_fill_base"_str).unwrap().shader,
-      allocator, scratch);
+    auto id =
+      add_variant(plan, "base"_str,
+                  sys.shader->get("defaults/triangle_fill_base"_str).unwrap().shader,
+                  allocator, scratch);
     ASH_CHECK(id == PipelineVariantId::Base, "");
 }
 
-PipelineVariantId TriangleFillPipeline::add_variant(GpuFramePlan plan,
-                                                    Str          label,
-                                                    gpu::Shader  shader,
-                                                    Allocator    allocator,
-                                                    Allocator    scratch)
+PipelineVariantId TriangleFillPipeline::add_variant(GpuFramePlan plan, Str label,
+                                                    gpu::Shader shader,
+                                                    Allocator   allocator,
+                                                    Allocator   scratch)
 {
     auto pipeline = create_pipeline(plan, label, shader, allocator, scratch);
     auto id       = pipelines_.push(Tuple{label, pipeline}).unwrap();
     return (PipelineVariantId) id;
 }
 
-void TriangleFillPipeline::remove_variant(GpuFramePlan      plan,
-                                          PipelineVariantId id)
+void TriangleFillPipeline::remove_variant(GpuFramePlan plan, PipelineVariantId id)
 {
     auto pipeline = pipelines_[id];
     pipelines_.erase(id);
@@ -145,65 +138,61 @@ void TriangleFillPipeline::encode(gpu::CommandEncoder                e,
     params.framebuffer.color_msaa.match(
       [&](ColorMsaaImage const & tex) {
           color
-            .push(gpu::RenderingAttachment{
-              .view         = tex.view,
-              .resolve      = params.framebuffer.color.view,
-              .resolve_mode = gpu::ResolveModes::Average,
-              .load_op      = gpu::LoadOp::Load,
-              .store_op     = gpu::StoreOp::Store,
-              .clear        = {}})
+            .push(gpu::RenderingAttachment{.view    = tex.view,
+                                           .resolve = params.framebuffer.color.view,
+                                           .resolve_mode = gpu::ResolveModes::Average,
+                                           .load_op      = gpu::LoadOp::Load,
+                                           .store_op     = gpu::StoreOp::Store,
+                                           .clear        = {}})
             .unwrap();
       },
       [&]() {
           color
-            .push(
-              gpu::RenderingAttachment{.view    = params.framebuffer.color.view,
-                                       .resolve = nullptr,
-                                       .resolve_mode = gpu::ResolveModes::None,
-                                       .load_op      = gpu::LoadOp::Load,
-                                       .store_op     = gpu::StoreOp::Store,
-                                       .clear        = {}})
+            .push(gpu::RenderingAttachment{.view    = params.framebuffer.color.view,
+                                           .resolve = nullptr,
+                                           .resolve_mode = gpu::ResolveModes::None,
+                                           .load_op      = gpu::LoadOp::Load,
+                                           .store_op     = gpu::StoreOp::Store,
+                                           .clear        = {}})
             .unwrap();
       });
 
     auto stencil =
       params.framebuffer.depth_stencil.map([&](DepthStencilImage const & img) {
-          return gpu::RenderingAttachment{.view    = img.stencil_view,
-                                          .resolve = nullptr,
-                                          .resolve_mode =
-                                            gpu::ResolveModes::None,
-                                          .load_op  = gpu::LoadOp::Load,
-                                          .store_op = gpu::StoreOp::None,
-                                          .clear    = {}};
+          return gpu::RenderingAttachment{.view         = img.stencil_view,
+                                          .resolve      = nullptr,
+                                          .resolve_mode = gpu::ResolveModes::None,
+                                          .load_op      = gpu::LoadOp::Load,
+                                          .store_op     = gpu::StoreOp::None,
+                                          .clear        = {}};
       });
 
-    auto info = gpu::RenderingInfo{
-      .render_area{.extent = params.framebuffer.extent().xy()},
-      .num_layers         = 1,
-      .color_attachments  = color,
-      .depth_attachment   = {},
-      .stencil_attachment = stencil};
+    auto info =
+      gpu::RenderingInfo{.render_area{.extent = params.framebuffer.extent().xy()},
+                         .num_layers         = 1,
+                         .color_attachments  = color,
+                         .depth_attachment   = {},
+                         .stencil_attachment = stencil};
 
     e->begin_rendering(info);
 
     auto pipeline = pipelines_[params.variant].v0.v1;
 
     e->bind_graphics_pipeline(pipeline);
-    e->bind_descriptor_sets(
-      span({
-        params.samplers,                                   //
-        params.textures,                                   //
-        params.world_to_ndc.buffer.read_storage_buffer,    //
-        params.sets.buffer.read_storage_buffer,            //
-        params.vertices.buffer.read_storage_buffer,        //
-        params.indices.buffer.read_storage_buffer          //
-      }),
-      span({
-        params.world_to_ndc.slice.as_u32().offset,    //
-        params.sets.slice.as_u32().offset,            //
-        params.vertices.slice.as_u32().offset,        //
-        params.indices.slice.as_u32().offset          //
-      }));
+    e->bind_descriptor_sets(span({
+                              params.samplers,                                   //
+                              params.textures,                                   //
+                              params.world_to_ndc.buffer.read_storage_buffer,    //
+                              params.sets.buffer.read_storage_buffer,            //
+                              params.vertices.buffer.read_storage_buffer,        //
+                              params.indices.buffer.read_storage_buffer          //
+                            }),
+                            span({
+                              params.world_to_ndc.slice.as_u32().offset,    //
+                              params.sets.slice.as_u32().offset,            //
+                              params.vertices.slice.as_u32().offset,        //
+                              params.indices.slice.as_u32().offset          //
+                            }));
 
     ASH_CHECK(size32(params.states) > 0, "");
     ASH_CHECK(size32(params.state_runs) == (size32(params.states) + 1), "");
@@ -224,12 +213,11 @@ void TriangleFillPipeline::encode(gpu::CommandEncoder                e,
           .cull_mode  = state.cull_mode,
           .front_face = state.front_face});
 
-        for (auto i : range(Slice32::offsets(params.state_runs[s],
-                                             params.state_runs[s + 1])))
+        for (auto i :
+             range(Slice32::offsets(params.state_runs[s], params.state_runs[s + 1])))
         {
-            e->draw(
-              Slice32::offsets(params.index_runs[i], params.index_runs[i + 1]),
-              {i, 1});
+            e->draw(Slice32::offsets(params.index_runs[i], params.index_runs[i + 1]),
+                    {i, 1});
         }
     }
 

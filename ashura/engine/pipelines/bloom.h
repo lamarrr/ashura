@@ -30,8 +30,7 @@ struct BloomPipeline final : IPipeline
     virtual void release(GpuFramePlan plan, Allocator allocator,
                          Allocator scratch) override;
 
-    void encode(gpu::CommandEncoder         encoder,
-                BloomPipelineParams const & params);
+    void encode(gpu::CommandEncoder encoder, BloomPipelineParams const & params);
 };
 
 }    // namespace ash

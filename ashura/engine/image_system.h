@@ -89,9 +89,8 @@ struct IImageSys
     void shutdown();
 
     // Not MT-safe. Main-thread only.
-    Result<ImageInfo, SysErr>
-      create_image_(Str label, gpu::ImageInfo const & info,
-                    Span<gpu::ImageViewInfo const> view_infos);
+    Result<ImageInfo, SysErr> create_image_(Str label, gpu::ImageInfo const & info,
+                                            Span<gpu::ImageViewInfo const> view_infos);
 
     // Not MT-safe. Main-thread only.
     Result<ImageInfo, SysErr> upload_(Str label, gpu::ImageInfo const & info,
@@ -100,8 +99,7 @@ struct IImageSys
 
     Future<Result<ImageInfo, SysErr>>
       load_from_memory(Str label, gpu::ImageInfo const & info,
-                       Span<gpu::ImageViewInfo const> view_infos,
-                       RcBlob8                        channels);
+                       Span<gpu::ImageViewInfo const> view_infos, RcBlob8 channels);
 
     Future<Result<ImageInfo, SysErr>> load_from_path(Str label, Str path);
 

@@ -163,15 +163,13 @@ struct ILogger
         std::atomic_ref panic_count{*ash::panic_count};
         if (panic_count.fetch_add(1, std::memory_order::relaxed))
         {
-            (void) std::fputs("panicked while processing a panic. aborting...",
-                              stderr);
+            (void) std::fputs("panicked while processing a panic. aborting...", stderr);
             (void) std::fflush(stderr);
             std::abort();
         }
         if (!fatal(fstr, args...))
         {
-            (void) std::fputs("ran out of log buffer memory while panicking.",
-                              stderr);
+            (void) std::fputs("ran out of log buffer memory while panicking.", stderr);
         }
         flush();
         handle_panic();

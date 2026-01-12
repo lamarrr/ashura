@@ -101,11 +101,10 @@ constexpr Str to_str(Error e)
 typedef void (*Formatter)(Sink, Spec spec, void const * obj);
 
 template <typename T>
-inline constexpr Formatter formatter_of =
-  [](Sink sink, Spec spec, void const * p_obj) {
-      T const & obj = *reinterpret_cast<T const *>(p_obj);
-      format(sink, spec, obj);
-  };
+inline constexpr Formatter formatter_of = [](Sink sink, Spec spec, void const * p_obj) {
+    T const & obj = *reinterpret_cast<T const *>(p_obj);
+    format(sink, spec, obj);
+};
 
 struct FormatArg
 {
@@ -259,8 +258,8 @@ constexpr TokenSeekResult seek_token(Str source, char const *& iter,
     {
         auto const      token_begin = iter;
         TokenType const type        = next_token(iter, end);
-        return TokenSeekResult{
-          .type = type, .token{Span{token_begin, iter}.as_slice_of(source)}};
+        return TokenSeekResult{.type = type,
+                               .token{Span{token_begin, iter}.as_slice_of(source)}};
     }
     else
     {
@@ -469,8 +468,7 @@ constexpr Result parse_spec(Str source, Str str, Spec & spec)
 
         if (result.type == TokenType::Unrecognized)
         {
-            return Result{.error    = Error::UnexpectedToken,
-                          .position = result.token};
+            return Result{.error = Error::UnexpectedToken, .position = result.token};
         }
 
         ParseState const current_state = parser_state(state, result.type);
@@ -544,8 +542,7 @@ constexpr Slice substr(Span<T> str, Span<T> part)
     return Slice{static_cast<usize>(iter - begin), part_size};
 }
 
-constexpr Result push_spec(Str format, Str spec_src, Buffer<Op> & ops,
-                           usize & num_args)
+constexpr Result push_spec(Str format, Str spec_src, Buffer<Op> & ops, usize & num_args)
 {
     Spec spec;
     if (auto const result = parse_spec(format, spec_src, spec);
@@ -554,9 +551,8 @@ constexpr Result push_spec(Str format, Str spec_src, Buffer<Op> & ops,
         return result;
     }
 
-    if (!ops.push(Op{.type = OpType::Fmt,
-                     .spec = spec,
-                     .pos  = spec_src.as_slice_of(format)}))
+    if (!ops.push(
+          Op{.type = OpType::Fmt, .spec = spec, .pos = spec_src.as_slice_of(format)}))
     {
         return Result{.error = Error::OutOfMemory};
     }
@@ -576,8 +572,7 @@ constexpr char const * seek(char const * iter, char const * const end, Fn && fn)
     return iter;
 }
 
-constexpr char const * seek_eq(char const * iter, char const * const end,
-                               char c)
+constexpr char const * seek_eq(char const * iter, char const * const end, char c)
 {
     return seek(iter, end, [c](char x) { return x == c; });
 }
@@ -655,8 +650,7 @@ constexpr Result parse(Str format, Buffer<Op> & ops, usize & num_args)
 
                 Span const spec{spec_begin, spec_end};
 
-                if (auto const result =
-                      impl::push_spec(format, spec, ops, num_args);
+                if (auto const result = impl::push_spec(format, spec, ops, num_args);
                     result.error != Error::None)
                 {
                     return result;
@@ -684,17 +678,15 @@ constexpr Result parse(Str format, Buffer<Op> & ops, usize & num_args)
                 if (!impl::is_token(escaped))
                 {
                     return Result{
-                      .error = Error::InvalidEscape,
-                      .position =
-                        Span{expr_begin, escape_end}
+                      .error    = Error::InvalidEscape,
+                      .position = Span{expr_begin, escape_end}
                         .as_slice_of(format)
                     };
                 }
 
                 if (!ops.push(
                       Op{.type = OpType::Str,
-                         .pos{Span{escape_begin, escape_end}.as_slice_of(
-                           format)}}))
+                         .pos{Span{escape_begin, escape_end}.as_slice_of(format)}}))
                 {
                     return Result{.error = Error::OutOfMemory};
                 }

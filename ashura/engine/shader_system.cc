@@ -87,14 +87,13 @@ AwaitFuturesVec IShaderSys::init(Allocator allocator)
     for (auto [label, spirv] : shaders)
     {
         load_futs
-          .push(
-            scheduler_
-              ->run(allocator_, WorkerThread::Any,
-                    [label, spirv, this]() mutable -> Result<ShaderId, SysErr> {
-                        return load_from_memory(label,
-                                                spirv.reinterpret<u32 const>());
-                    })
-              .unwrap())
+          .push(scheduler_
+                  ->run(allocator_, WorkerThread::Any,
+                        [label, spirv, this]() mutable -> Result<ShaderId, SysErr> {
+                            return load_from_memory(label,
+                                                    spirv.reinterpret<u32 const>());
+                        })
+                  .unwrap())
           .unwrap();
     }
 
@@ -110,7 +109,7 @@ void IShaderSys::shutdown()
     }
 }
 
-Result<ShaderId, SysErr> IShaderSys::load_from_memory(Str label_span,
+Result<ShaderId, SysErr> IShaderSys::load_from_memory(Str             label_span,
                                                       Span<u32 const> spirv)
 {
     tracing::ScopeTrace trace;
@@ -125,15 +124,13 @@ Result<ShaderId, SysErr> IShaderSys::load_from_memory(Str label_span,
     {
         WriteGuard guard{rw_lock_};
         ShaderId   id = ShaderId{
-          shaders_.push(Shader{.label = std::move(label), .shader = object})
-            .unwrap()};
+          shaders_.push(Shader{.label = std::move(label), .shader = object}).unwrap()};
 
         return Ok{id};
     }
 }
 
-Future<Result<ShaderId, SysErr>> IShaderSys::load_from_path(Str label_span,
-                                                            Str path)
+Future<Result<ShaderId, SysErr>> IShaderSys::load_from_path(Str label_span, Str path)
 {
     StrVec label{allocator_};
     label.append(label_span).unwrap();
@@ -147,8 +144,7 @@ Future<Result<ShaderId, SysErr>> IShaderSys::load_from_path(Str label_span,
               [&, this](Vec<u8> & spirv) -> R {
                   static_assert(spirv.alignment() >= alignof(u32));
                   static_assert(std::endian::native == std::endian::little);
-                  return load_from_memory(label,
-                                          spirv.view().reinterpret<u32>());
+                  return load_from_memory(label, spirv.view().reinterpret<u32>());
               },
               [](SysErr err) -> R { return Err{err}; });
         },

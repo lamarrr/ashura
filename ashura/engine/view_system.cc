@@ -96,9 +96,8 @@ ui::Events IViewSys::drain_events_(Tree &, ui::View & view, u16 idx)
     {
         // should never happen
         ASH_CHECK(next_id_ != U64_MAX, "");
-        view.id_ = ui::ViewId{next_id_++};
-        event.bits_ =
-          ui::Events::Bits::Type{event.bits_ | ui::Events::Bits::Mount};
+        view.id_    = ui::ViewId{next_id_++};
+        event.bits_ = ui::Events::Bits::Type{event.bits_ | ui::Events::Bits::Mount};
     }
 
     return event;
@@ -123,9 +122,8 @@ void IViewSys::build_children_(Tree & tree, ui::View & view, u16 idx, u16 depth,
     ui::ViewState s =
       view.tick(prev_frame_scope_, drain_events_(tree, view, idx), &build);
     view.state_ = ui::ViewInternalState{
-      .tab_index   = static_cast<i32>(s.tab_index == ui::TabIndex::Auto ?
-                                        tab_index :
-                                        static_cast<i32>(s.tab_index)),
+      .tab_index = static_cast<i32>(
+        s.tab_index == ui::TabIndex::Auto ? tab_index : static_cast<i32>(s.tab_index)),
       .viewport    = viewport,
       .hidden      = s.hidden,
       .pointable   = s.pointable,
@@ -152,18 +150,16 @@ void IViewSys::build_children_(Tree & tree, ui::View & view, u16 idx, u16 depth,
     for (auto c = children.begin(); c < children.end(); c++)
     {
         tab_index++;    // depth-first
-        build_children_(tree, tree.nodes.views[c], c, depth + 1,
-                        children_viewport, tab_index, request_queue);
+        build_children_(tree, tree.nodes.views[c], c, depth + 1, children_viewport,
+                        tab_index, request_queue);
     }
 }
 
-void IViewSys::build_(Tree & tree, RootView & root,
-                      RequestQueue & request_queue)
+void IViewSys::build_(Tree & tree, RootView & root, RequestQueue & request_queue)
 {
     push_view_(tree, root, 0, 0, RootView::PARENT);
     i32 tab_index = 0;
-    build_children_(tree, root, 0, 0, RootView::VIEWPORT, tab_index,
-                    request_queue);
+    build_children_(tree, root, 0, 0, RootView::VIEWPORT, tab_index, request_queue);
 }
 
 void IViewSys::build_states_(Tree & tree)
@@ -263,8 +259,8 @@ void IViewSys::layout_(Tree & tree, f32x2 viewport_extent)
     for (auto [i, children] : enumerate(tree.nodes.children))
     {
         // viewports don't propagate fixed-position centers to children
-        auto fc = tree.props.is_viewport[i] ? f32x2::zero() :
-                                              tree.props.fixed_centers[i];
+        auto fc =
+          tree.props.is_viewport[i] ? f32x2::zero() : tree.props.fixed_centers[i];
 
         for (auto c = children.begin(); c < children.end(); c++)
         {
@@ -323,8 +319,7 @@ void IViewSys::layout_(Tree & tree, f32x2 viewport_extent)
         {
             CRect clip{.center = tree.props.canvas_centers[i],
                        .extent = tree.props.canvas_extents[i]};
-            tree.props.clips[i] =
-              clip.intersection(tree.props.clips[parent_viewport]);
+            tree.props.clips[i] = clip.intersection(tree.props.clips[parent_viewport]);
         }
         else
         {
@@ -334,8 +329,8 @@ void IViewSys::layout_(Tree & tree, f32x2 viewport_extent)
 }
 
 /// @brief Compares the z-order of `a` and `b`
-static constexpr Order z_cmp(i32 a_layer, i32 a_z_index, u16 a_depth,
-                             i32 b_layer, i32 b_z_index, u16 b_depth)
+static constexpr Order z_cmp(i32 a_layer, i32 a_z_index, u16 a_depth, i32 b_layer,
+                             i32 b_z_index, u16 b_depth)
 {
     // cmp stacking context/layer first
     auto ord = cmp(a_layer, b_layer);
@@ -388,9 +383,9 @@ void IViewSys::stack_(Tree & tree)
 
     // sort layers
     indirect_sort(tree.props.z_ord.view(), [&](auto a, auto b) {
-        return z_cmp(tree.props.layers[a], tree.props.z_idx[a],
-                     tree.nodes.depth[a], tree.props.layers[b],
-                     tree.props.z_idx[b], tree.nodes.depth[b]) == Order::Less;
+        return z_cmp(tree.props.layers[a], tree.props.z_idx[a], tree.nodes.depth[a],
+                     tree.props.layers[b], tree.props.z_idx[b],
+                     tree.nodes.depth[b]) == Order::Less;
     });
 }
 
@@ -412,9 +407,8 @@ void IViewSys::visibility_(Tree & tree)
         {
             auto & clip = tree.props.clips[tree.props.viewports[i]];
 
-            bool hidden =
-              !clip.overlaps(CRect{.center = tree.props.canvas_centers[i],
-                                   .extent = tree.props.canvas_extents[i]});
+            bool hidden = !clip.overlaps(CRect{.center = tree.props.canvas_centers[i],
+                                               .extent = tree.props.canvas_extents[i]});
 
             tree.props.hidden.set(i, hidden);
         }
@@ -467,8 +461,7 @@ void IViewSys::dispatch_focus_(Tree & tree, FocusRequest const & request,
     if ((request.tgt != old && request.active) ||
         (request.tgt == old && !was_active && request.active))
     {
-        events.push(Event{.dst = request.tgt, .type = ui::Events::FocusIn})
-          .unwrap();
+        events.push(Event{.dst = request.tgt, .type = ui::Events::FocusIn}).unwrap();
     }
 
     if (request.active && request.grab_focus)
@@ -484,8 +477,7 @@ void IViewSys::dispatch_focus_(Tree & tree, FocusRequest const & request,
                 .type = ui::Events::Scroll,
                 .scroll =
                   ui::ScrollInfo{.center = tree.props.fixed_centers[it],
-                                 .zoom =
-                                   tree.props.viewport_zooms[it_viewport]}
+                                 .zoom   = tree.props.viewport_zooms[it_viewport]}
             })
               .unwrap();
 
@@ -502,9 +494,8 @@ void IViewSys::dispatch_focus_(Tree & tree, FocusRequest const & request,
 
 ui::HitInfo IViewSys::get_hit_info_(Tree & tree, u16 view, f32x2 position) const
 {
-    auto viewport = tree.props.viewports[view];
-    auto viewport_position =
-      transform(tree.props.canvas_inv_xfm[viewport], position);
+    auto viewport          = tree.props.viewports[view];
+    auto viewport_position = transform(tree.props.canvas_inv_xfm[viewport], position);
 
     CRect canvas_region{.center = tree.props.canvas_centers[view],
                         .extent = tree.props.canvas_extents[view]};
@@ -515,8 +506,7 @@ ui::HitInfo IViewSys::get_hit_info_(Tree & tree, u16 view, f32x2 position) const
     return ui::HitInfo{
       .viewport_hit = viewport_position,
       .canvas_hit   = position,
-      .viewport_region{.center = fixed_center,
-                       .extent = tree.props.extents[view]},
+      .viewport_region{.center = fixed_center, .extent = tree.props.extents[view]},
       .canvas_region    = canvas_region,
       .canvas_transform = tree.props.canvas_xfm[viewport]
     };
@@ -567,10 +557,9 @@ u16 IViewSys::navigate_focus_(Tree & tree, u16 from_idx, bool forward) const
     return from_idx;
 }
 
-IViewSys::HitState IViewSys::none_seq_(Tree &                 tree,
-                                       ui::InputScope const & input,
-                                       Vec<Event> &           events,
-                                       RequestQueue &         request_queue)
+IViewSys::HitState IViewSys::none_seq_(Tree & tree, ui::InputScope const & input,
+                                       Vec<Event> &   events,
+                                       RequestQueue & request_queue)
 {
     if (!input.mouse().focused())
     {
@@ -621,10 +610,9 @@ Option<u16> hit_test(IViewSys::Tree & tree, f32x2 position)
         auto i = tree.props.z_ord[z];
 
         // find first non-hidden view that overlaps the hit position
-        if (!tree.props.hidden[i] &&
-            CRect{.center = tree.props.canvas_centers[i],
-                  .extent = tree.props.canvas_extents[i]}
-              .contains(position)) [[unlikely]]
+        if (!tree.props.hidden[i] && CRect{.center = tree.props.canvas_centers[i],
+                                           .extent = tree.props.canvas_extents[i]}
+                                       .contains(position)) [[unlikely]]
         {
             return i;
         }
@@ -641,17 +629,14 @@ Option<u16> bubble_hit(IViewSys::Tree & tree, f32x2 position, Match && match)
     });
 }
 
-IViewSys::HitState IViewSys::drag_start_seq_(Tree &                 tree,
-                                             ui::InputScope const & input,
-                                             Option<u16>            src,
-                                             Vec<Event> &           events)
+IViewSys::HitState IViewSys::drag_start_seq_(Tree & tree, ui::InputScope const & input,
+                                             Option<u16> src, Vec<Event> & events)
 {
     auto diff = [&](Option<u16> tgt, Option<ui::HitInfo> hit) {
         tgt.match([&](auto i) {
             events.push(Event{.dst = i, .type = ui::Events::DragIn, .hit = hit})
               .unwrap();
-            events
-              .push(Event{.dst = i, .type = ui::Events::DragOver, .hit = hit})
+            events.push(Event{.dst = i, .type = ui::Events::DragOver, .hit = hit})
               .unwrap();
         });
     };
@@ -666,18 +651,16 @@ IViewSys::HitState IViewSys::drag_start_seq_(Tree &                 tree,
     }
 
     auto tgt = input.mouse().position().and_then([&](auto p) {
-        return bubble_hit(tree, p,
-                          [&](auto i) { return tree.props.droppable[i]; });
+        return bubble_hit(tree, p, [&](auto i) { return tree.props.droppable[i]; });
     });
 
     if (!input.mouse().held(MouseButton::Primary))
     {
         src.match([&](auto i) {
             events
-              .push(Event{
-                .dst  = i,
-                .type = ui::Events::DragEnd,
-                .hit  = get_hit_info_(tree, i, input.mouse().position().v())})
+              .push(Event{.dst  = i,
+                          .type = ui::Events::DragEnd,
+                          .hit  = get_hit_info_(tree, i, input.mouse().position().v())})
               .unwrap();
         });
 
@@ -699,10 +682,9 @@ IViewSys::HitState IViewSys::drag_start_seq_(Tree &                 tree,
 
     src.match([&](auto i) {
         events
-          .push(
-            Event{.dst  = i,
-                  .type = ui::Events::DragUpdate,
-                  .hit  = get_hit_info_(tree, i, input.mouse().position().v())})
+          .push(Event{.dst  = i,
+                      .type = ui::Events::DragUpdate,
+                      .hit  = get_hit_info_(tree, i, input.mouse().position().v())})
           .unwrap();
     });
 
@@ -714,29 +696,22 @@ IViewSys::HitState IViewSys::drag_start_seq_(Tree &                 tree,
     return DragState{.seq = DragState::Update, .src = src, .tgt = tgt};
 }
 
-IViewSys::HitState IViewSys::drag_update_seq_(Tree &                 tree,
-                                              ui::InputScope const & input,
-                                              Option<u16>            src,
-                                              Option<u16>            prev_tgt,
-                                              Vec<Event> &           events)
+IViewSys::HitState IViewSys::drag_update_seq_(Tree & tree, ui::InputScope const & input,
+                                              Option<u16> src, Option<u16> prev_tgt,
+                                              Vec<Event> & events)
 {
     auto diff = [&](Option<u16> tgt, Option<ui::HitInfo> hit) {
         tgt.match([&](auto i) {
             if (prev_tgt == i)
             {
-                events
-                  .push(
-                    Event{.dst = i, .type = ui::Events::DragOver, .hit = hit})
+                events.push(Event{.dst = i, .type = ui::Events::DragOver, .hit = hit})
                   .unwrap();
             }
             else
             {
-                events
-                  .push(Event{.dst = i, .type = ui::Events::DragIn, .hit = hit})
+                events.push(Event{.dst = i, .type = ui::Events::DragIn, .hit = hit})
                   .unwrap();
-                events
-                  .push(
-                    Event{.dst = i, .type = ui::Events::DragOver, .hit = hit})
+                events.push(Event{.dst = i, .type = ui::Events::DragOver, .hit = hit})
                   .unwrap();
             }
         });
@@ -744,8 +719,7 @@ IViewSys::HitState IViewSys::drag_update_seq_(Tree &                 tree,
         prev_tgt.match([&](auto i) {
             if (i != tgt)
             {
-                events.push(Event{.dst = i, .type = ui::Events::DragOut})
-                  .unwrap();
+                events.push(Event{.dst = i, .type = ui::Events::DragOut}).unwrap();
             }
         });
     };
@@ -759,9 +733,8 @@ IViewSys::HitState IViewSys::drag_update_seq_(Tree &                 tree,
     auto tgt = bubble_hit(tree, input.mouse().position().v(),
                           [&](auto i) { return tree.props.droppable[i]; });
 
-    auto hit = tgt.map([&](auto i) {
-        return get_hit_info_(tree, i, input.mouse().position().v());
-    });
+    auto hit = tgt.map(
+      [&](auto i) { return get_hit_info_(tree, i, input.mouse().position().v()); });
 
     if (!input.mouse().held(MouseButton::Primary))
     {
@@ -769,16 +742,14 @@ IViewSys::HitState IViewSys::drag_update_seq_(Tree &                 tree,
 
         src.match([&](auto i) {
             events
-              .push(Event{
-                .dst  = i,
-                .type = ui::Events::DragEnd,
-                .hit  = get_hit_info_(tree, i, input.mouse().position().v())})
+              .push(Event{.dst  = i,
+                          .type = ui::Events::DragEnd,
+                          .hit  = get_hit_info_(tree, i, input.mouse().position().v())})
               .unwrap();
         });
 
         tgt.match([&](auto i) {
-            events.push(Event{.dst = i, .type = ui::Events::Drop, .hit = hit})
-              .unwrap();
+            events.push(Event{.dst = i, .type = ui::Events::Drop, .hit = hit}).unwrap();
         });
 
         return none;
@@ -786,10 +757,9 @@ IViewSys::HitState IViewSys::drag_update_seq_(Tree &                 tree,
 
     src.match([&](auto i) {
         events
-          .push(
-            Event{.dst  = i,
-                  .type = ui::Events::DragUpdate,
-                  .hit  = get_hit_info_(tree, i, input.mouse().position().v())})
+          .push(Event{.dst  = i,
+                      .type = ui::Events::DragUpdate,
+                      .hit  = get_hit_info_(tree, i, input.mouse().position().v())})
           .unwrap();
     });
 
@@ -798,33 +768,25 @@ IViewSys::HitState IViewSys::drag_update_seq_(Tree &                 tree,
     return DragState{.seq = DragState::Update, .src = src, .tgt = tgt};
 }
 
-IViewSys::HitState IViewSys::point_seq_(Tree &                 tree,
-                                        ui::InputScope const & input,
-                                        Option<u16>            prev_tgt,
-                                        Vec<Event> &           events,
-                                        RequestQueue &         request_queue)
+IViewSys::HitState IViewSys::point_seq_(Tree & tree, ui::InputScope const & input,
+                                        Option<u16> prev_tgt, Vec<Event> & events,
+                                        RequestQueue & request_queue)
 {
     // [ ] handle external drop
     auto diff = [&](Option<u16> tgt, Option<ui::HitInfo> hit) {
         tgt.match([&](auto i) {
             if (i != prev_tgt)
             {
-                events
-                  .push(
-                    Event{.dst = i, .type = ui::Events::PointerIn, .hit = hit})
+                events.push(Event{.dst = i, .type = ui::Events::PointerIn, .hit = hit})
                   .unwrap();
             }
 
-            events
-              .push(
-                Event{.dst = i, .type = ui::Events::PointerOver, .hit = hit})
+            events.push(Event{.dst = i, .type = ui::Events::PointerOver, .hit = hit})
               .unwrap();
 
             if (input.mouse().any_up())
             {
-                events
-                  .push(
-                    Event{.dst = i, .type = ui::Events::PointerUp, .hit = hit})
+                events.push(Event{.dst = i, .type = ui::Events::PointerUp, .hit = hit})
                   .unwrap();
             }
         });
@@ -832,8 +794,7 @@ IViewSys::HitState IViewSys::point_seq_(Tree &                 tree,
         prev_tgt.match([&](auto i) {
             if (i != tgt)
             {
-                events.push(Event{.dst = i, .type = ui::Events::PointerOut})
-                  .unwrap();
+                events.push(Event{.dst = i, .type = ui::Events::PointerOut}).unwrap();
             }
         });
     };
@@ -849,9 +810,8 @@ IViewSys::HitState IViewSys::point_seq_(Tree &                 tree,
         auto tgt = bubble_hit(tree, input.mouse().position().v(),
                               [&](auto i) { return tree.props.scrollable[i]; });
 
-        auto hit = tgt.map([&](auto i) {
-            return get_hit_info_(tree, i, input.mouse().position().v());
-        });
+        auto hit = tgt.map(
+          [&](auto i) { return get_hit_info_(tree, i, input.mouse().position().v()); });
 
         if (tgt.is_some())
         {
@@ -864,10 +824,10 @@ IViewSys::HitState IViewSys::point_seq_(Tree &                 tree,
                 .type = ui::Events::Scroll,
                 .hit  = hit,
                 .scroll =
-                  ui::ScrollInfo{
-                                 .center = tree.props.viewport_centers[i] +
-                              -1 * input.window().scroll_delta() *
-                                input.mouse().wheel_translation().v().to<f32>(),
+                  ui::ScrollInfo{.center =
+                                   tree.props.viewport_centers[i] +
+                                   -1 * input.window().scroll_delta() *
+                                     input.mouse().wheel_translation().v().to<f32>(),
                                  .zoom = tree.props.viewport_zooms[i]}
             })
               .unwrap();
@@ -883,9 +843,8 @@ IViewSys::HitState IViewSys::point_seq_(Tree &                 tree,
             return tree.props.draggable[i] || tree.props.clickable[i];
         });
 
-        auto hit = tgt.map([&](auto i) {
-            return get_hit_info_(tree, i, input.mouse().position().v());
-        });
+        auto hit = tgt.map(
+          [&](auto i) { return get_hit_info_(tree, i, input.mouse().position().v()); });
 
         if (tgt.is_some())
         {
@@ -900,23 +859,17 @@ IViewSys::HitState IViewSys::point_seq_(Tree &                 tree,
 
             if (draggable)
             {
-                events
-                  .push(
-                    Event{.dst = i, .type = ui::Events::DragStart, .hit = hit})
+                events.push(Event{.dst = i, .type = ui::Events::DragStart, .hit = hit})
                   .unwrap();
-                events
-                  .push(
-                    Event{.dst = i, .type = ui::Events::DragUpdate, .hit = hit})
+                events.push(Event{.dst = i, .type = ui::Events::DragUpdate, .hit = hit})
                   .unwrap();
-                return DragState{
-                  .seq = DragState::Start, .src = i, .tgt = none};
+                return DragState{.seq = DragState::Start, .src = i, .tgt = none};
             }
 
             if (input.mouse().any_down())
             {
                 events
-                  .push(Event{
-                    .dst = i, .type = ui::Events::PointerDown, .hit = hit})
+                  .push(Event{.dst = i, .type = ui::Events::PointerDown, .hit = hit})
                   .unwrap();
             }
 
@@ -927,9 +880,8 @@ IViewSys::HitState IViewSys::point_seq_(Tree &                 tree,
     auto tgt = bubble_hit(tree, input.mouse().position().v(),
                           [&](auto i) { return tree.props.pointable[i]; });
 
-    auto hit = tgt.map([&](auto i) {
-        return get_hit_info_(tree, i, input.mouse().position().v());
-    });
+    auto hit = tgt.map(
+      [&](auto i) { return get_hit_info_(tree, i, input.mouse().position().v()); });
     diff(tgt, hit);
 
     return PointState{.tgt = tgt};
@@ -950,17 +902,14 @@ void IViewSys::hit_seq_(Tree & tree, ui::InputScope const & input,
       [](None) -> HitState { return none; },
       [&](auto & h) -> HitState {
           return DragState{.seq = h.seq,
-                           .src = h.src.and_then([&](auto id) {
-                               return hot_ids_.try_get(id).unref();
-                           }),
-                           .tgt = h.tgt.and_then([&](auto id) {
-                               return hot_ids_.try_get(id).unref();
-                           })};
+                           .src = h.src.and_then(
+                             [&](auto id) { return hot_ids_.try_get(id).unref(); }),
+                           .tgt = h.tgt.and_then(
+                             [&](auto id) { return hot_ids_.try_get(id).unref(); })};
       },
       [&](auto & h) -> HitState {
-          return PointState{.tgt = h.tgt.and_then([&](auto id) {
-              return hot_ids_.try_get(id).unref();
-          })};
+          return PointState{.tgt = h.tgt.and_then(
+                              [&](auto id) { return hot_ids_.try_get(id).unref(); })};
       });
 
     hit_state = hit_state.match(
@@ -994,14 +943,12 @@ void IViewSys::hit_seq_(Tree & tree, ui::InputScope const & input,
           return CrossFrameDragState{
             .seq = h.seq,
             .src = h.src.map([&](auto i) { return tree.nodes.views[i]->id(); }),
-            .tgt =
-              h.tgt.map([&](auto i) { return tree.nodes.views[i]->id(); })};
+            .tgt = h.tgt.map([&](auto i) { return tree.nodes.views[i]->id(); })};
       },
       [&](PointState const & h) -> CrossFrameHitState {
           h.tgt.match([&](auto i) { tree.nodes.views[i]->hot_ = true; });
-          return CrossFramePointState{.tgt = h.tgt.map([&](auto i) {
-              return tree.nodes.views[i]->id();
-          })};
+          return CrossFramePointState{
+            .tgt = h.tgt.map([&](auto i) { return tree.nodes.views[i]->id(); })};
       });
 }
 
@@ -1012,26 +959,24 @@ void IViewSys::focus_seq_(Tree & tree, ui::InputScope const & input,
     // view might be gone when we begin this frame so we can focus on the root
     // view if it has disappeared
     auto                focus_active = cross_frame_focus_state_.active;
-    auto                focus_tgt =
-      hot_ids_.try_get(cross_frame_focus_state_.tgt).unref().unwrap_or();
+    auto focus_tgt = hot_ids_.try_get(cross_frame_focus_state_.tgt).unref().unwrap_or();
 
     tree.nodes.views[focus_tgt]->hot_ = true;
 
-    bool tabbed    = input.key().down(KeyCode::Tab);
-    bool alternate = input.key().held(KeyCode::LeftShift) ||
-                     input.key().held(KeyCode::RightShift);
-    bool accepts_tab = tree.props.input[focus_tgt].enabled &&
-                       tree.props.input[focus_tgt].tab_input;
+    bool tabbed = input.key().down(KeyCode::Tab);
+    bool alternate =
+      input.key().held(KeyCode::LeftShift) || input.key().held(KeyCode::RightShift);
+    bool accepts_tab =
+      tree.props.input[focus_tgt].enabled && tree.props.input[focus_tgt].tab_input;
 
-    auto focus_action =
-      (tabbed && !accepts_tab) ?
-        (alternate ? FocusAction::Backward : FocusAction::Forward) :
-        FocusAction::None;
+    auto focus_action = (tabbed && !accepts_tab) ?
+                          (alternate ? FocusAction::Backward : FocusAction::Forward) :
+                          FocusAction::None;
 
     if (focus_action != FocusAction::None)
     {
-        auto next = navigate_focus_(tree, focus_tgt,
-                                    focus_action == FocusAction::Forward);
+        auto next =
+          navigate_focus_(tree, focus_tgt, focus_action == FocusAction::Forward);
 
         request_queue.focus =
           FocusRequest{.tgt = next, .active = true, .grab_focus = true};
@@ -1039,19 +984,16 @@ void IViewSys::focus_seq_(Tree & tree, ui::InputScope const & input,
 
     if (focus_active)
     {
-        events.push(Event{.dst = focus_tgt, .type = ui::Events::FocusOver})
-          .unwrap();
+        events.push(Event{.dst = focus_tgt, .type = ui::Events::FocusOver}).unwrap();
 
         if (input.key().any_down())
         {
-            events.push(Event{.dst = focus_tgt, .type = ui::Events::KeyDown})
-              .unwrap();
+            events.push(Event{.dst = focus_tgt, .type = ui::Events::KeyDown}).unwrap();
         }
 
         if (input.key().any_up())
         {
-            events.push(Event{.dst = focus_tgt, .type = ui::Events::KeyUp})
-              .unwrap();
+            events.push(Event{.dst = focus_tgt, .type = ui::Events::KeyUp}).unwrap();
         }
 
         if (input.key().input())
@@ -1061,13 +1003,11 @@ void IViewSys::focus_seq_(Tree & tree, ui::InputScope const & input,
         }
     }
 
-    request_queue.focus.match(
-      [&](auto r) { dispatch_focus_(tree, r, events); });
+    request_queue.focus.match([&](auto r) { dispatch_focus_(tree, r, events); });
 }
 
 void IViewSys::compose_event_(Tree &, ui::ViewId id, ui::Events::Type event,
-                              Option<ui::HitInfo>    hit,
-                              Option<ui::ScrollInfo> scroll)
+                              Option<ui::HitInfo> hit, Option<ui::ScrollInfo> scroll)
 {
     auto [_, v] = event_queue_.push(id, ui::Events{}, nullptr, false).v();
 
@@ -1086,8 +1026,7 @@ void IViewSys::compose_event_(Tree &, ui::ViewId id, ui::Events::Type event,
 
 Tuple<Option<ui::FocusRect>, Option<TextInputInfo>, Cursor>
   IViewSys::prepare_events_(Tree & tree, ui::InputScope const & input,
-                            RequestQueue & request_queue,
-                            Allocator      scratch_allocator)
+                            RequestQueue & request_queue, Allocator scratch_allocator)
 {
     tracing::ScopeTrace trace;
 
@@ -1134,10 +1073,9 @@ Tuple<Option<ui::FocusRect>, Option<TextInputInfo>, Cursor>
     return {focus_rect, input_info, cursor};
 }
 
-ViewSysState IViewSys::tick(Engine engine, ui::InputScope const & input,
-                            Canvas                                    canvas,
+ViewSysState IViewSys::tick(Engine engine, ui::InputScope const & input, Canvas canvas,
                             Fn<ui::View &(Engine, ui::Scope const &)> loop,
-                            Allocator scratch_allocator)
+                            Allocator                                 scratch_allocator)
 {
     tracing::ScopeTrace trace;
 
@@ -1188,9 +1126,8 @@ ViewSysState IViewSys::tick(Engine engine, ui::InputScope const & input,
 
     bool should_close = was_closing && !has_close_defer_request;
 
-    return ViewSysState{.should_continue = !should_close,
-                        .cursor          = cursor,
-                        .input_info      = input_info};
+    return ViewSysState{
+      .should_continue = !should_close, .cursor = cursor, .input_info = input_info};
 }
 
 }    // namespace ash

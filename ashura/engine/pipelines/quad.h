@@ -48,9 +48,8 @@ struct QuadPipeline final : IPipeline
     virtual void release(GpuFramePlan plan, Allocator allocator,
                          Allocator scratch) override;
 
-    PipelineVariantId add_variant(GpuFramePlan plan, Str label,
-                                  gpu::Shader shader, Allocator allocator,
-                                  Allocator scratch);
+    PipelineVariantId add_variant(GpuFramePlan plan, Str label, gpu::Shader shader,
+                                  Allocator allocator, Allocator scratch);
 
     void remove_variant(GpuFramePlan plan, PipelineVariantId id);
 

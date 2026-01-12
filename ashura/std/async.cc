@@ -31,10 +31,11 @@ namespace ash
 
 struct SyncLib
 {
-    typedef BOOL WINAPI (*PFn_WaitOnAddress)(
-      _In_reads_bytes_(AddressSize) volatile VOID * Address,
-      _In_reads_bytes_(AddressSize) PVOID           CompareAddress,
-      _In_ SIZE_T AddressSize, _In_opt_ DWORD dwMilliseconds);
+    typedef BOOL
+      WINAPI (*PFn_WaitOnAddress)(_In_reads_bytes_(AddressSize) volatile VOID * Address,
+                                  _In_reads_bytes_(AddressSize) PVOID CompareAddress,
+                                  _In_ SIZE_T                         AddressSize,
+                                  _In_opt_ DWORD                      dwMilliseconds);
 
     typedef VOID WINAPI (*PFn_WakeByAddressAll)(_In_ PVOID Address);
 
@@ -45,11 +46,9 @@ struct SyncLib
     void load()
     {
         lib = LoadLibraryW(L"API-MS-Win-Core-Synch-l1-2-0.dll");
-        ASH_CHECK(lib != nullptr,
-                  "Failed to load API-MS-Win-Core-Synch-l1-2-0.dll");
+        ASH_CHECK(lib != nullptr, "Failed to load API-MS-Win-Core-Synch-l1-2-0.dll");
 
-        WaitOnAddress =
-          (PFn_WaitOnAddress) GetProcAddress(lib, "WaitOnAddress");
+        WaitOnAddress = (PFn_WaitOnAddress) GetProcAddress(lib, "WaitOnAddress");
         ASH_CHECK(WaitOnAddress != nullptr,
                   "Failed to get address of WaitOnAddress from "
                   "API-MS-Win-Core-Synch-l1-2-0.dll");
@@ -135,8 +134,7 @@ void IWaitToken::os_wait(u32 old_state, std::memory_order order)
 
     do
     {
-        __ulock_wait(UL_COMPARE_AND_WAIT, (u32 *) &state__, (u64) old_state,
-                     U32_MAX);
+        __ulock_wait(UL_COMPARE_AND_WAIT, (u32 *) &state__, (u64) old_state, U32_MAX);
     } while (state.load(order) == old_state);
 
 #    else
@@ -146,8 +144,7 @@ void IWaitToken::os_wait(u32 old_state, std::memory_order order)
 
     do
     {
-        futex((i32 *) &state__, FUTEX_WAIT_PRIVATE, (i32) old_state, nullptr,
-              nullptr);
+        futex((i32 *) &state__, FUTEX_WAIT_PRIVATE, (i32) old_state, nullptr, nullptr);
     } while (state.load(order) == old_state);
 
 #        else
@@ -231,8 +228,7 @@ struct Task
 inline constexpr usize TASK_ARENA_SIZE     = 32_KB;
 inline constexpr usize MAX_TASK_FRAME_SIZE = 8_KB;
 
-static_assert(TASK_ARENA_SIZE != 0,
-              "Task arena size must be a non-zero power of 2");
+static_assert(TASK_ARENA_SIZE != 0, "Task arena size must be a non-zero power of 2");
 
 static_assert(is_pow2((u64) TASK_ARENA_SIZE),
               "Task arena size must be a non-zero power of 2");
@@ -336,8 +332,7 @@ struct TaskAllocator
 
     void dealloc_arena(TaskArena * arena)
     {
-        source->dealloc(arena->flex(arena->arena_layout).layout(),
-                        (u8 *) arena);
+        source->dealloc(arena->flex(arena->arena_layout).layout(), (u8 *) arena);
     }
 
     bool request_arena(TaskArena *& out)
@@ -352,8 +347,7 @@ struct TaskAllocator
         return alloc_arena(out);
     }
 
-    static bool alloc_task(TaskArena & arena, TaskInfo const & info,
-                           Task *& out)
+    static bool alloc_task(TaskArena & arena, TaskInfo const & info, Task *& out)
     {
         auto const   flex   = Task::flex(info.frame_layout);
         Layout const layout = flex.layout();
@@ -533,8 +527,7 @@ struct ASH_DLL_EXPORT SchedulerImpl final : IScheduler
 
     std::thread::id main_thread_id_;
 
-    explicit SchedulerImpl(Allocator       allocator,
-                           std::thread::id main_thread_id) :
+    explicit SchedulerImpl(Allocator allocator, std::thread::id main_thread_id) :
       allocator_{allocator},
       dedicated_threads_{allocator},
       worker_threads_{allocator},
@@ -689,8 +682,8 @@ struct ASH_DLL_EXPORT SchedulerImpl final : IScheduler
         drain_wait_token->os_notify();
     }
 
-    static void main_thread_loop(TaskAllocator & a, TaskQueue & q,
-                                 nanoseconds duration, nanoseconds poll_max)
+    static void main_thread_loop(TaskAllocator & a, TaskQueue & q, nanoseconds duration,
+                                 nanoseconds poll_max)
     {
         time_point const begin      = steady_clock::now();
         time_point       poll_start = begin;
@@ -778,18 +771,15 @@ struct ASH_DLL_EXPORT SchedulerImpl final : IScheduler
               worker_queue_.push_task(info);
           },
           [&](DedicatedThread t) {
-              ASH_CHECK((u32) t < num_dedicated(),
-                        "Invalid dedicated thread id");
+              ASH_CHECK((u32) t < num_dedicated(), "Invalid dedicated thread id");
               dedicated_threads_[(u32) t]->queue.push_task(info);
           },
           [&](MainThread) { main_queue_.push_task(info); });
     }
 
-    virtual void run_main_loop(nanoseconds duration,
-                               nanoseconds poll_max) override
+    virtual void run_main_loop(nanoseconds duration, nanoseconds poll_max) override
     {
-        main_thread_loop(main_queue_.allocator, main_queue_, duration,
-                         poll_max);
+        main_thread_loop(main_queue_.allocator, main_queue_, duration, poll_max);
     }
 
     // [ ] incorrect if threads are shutdown individually
@@ -797,45 +787,37 @@ struct ASH_DLL_EXPORT SchedulerImpl final : IScheduler
     {
         thread.match(
           [&](WorkerThread) {
-              ASH_CHECK(false,
-                        "Worker threads cannot be shutdown individually");
+              ASH_CHECK(false, "Worker threads cannot be shutdown individually");
           },
           [&](DedicatedThread t) {
-              ASH_CHECK((u32) t < num_dedicated(),
-                        "Invalid dedicated thread id");
+              ASH_CHECK((u32) t < num_dedicated(), "Invalid dedicated thread id");
               auto &          token = dedicated_threads_[(u32) t]->stop_token;
               std::atomic_ref token_ref{token};
               token_ref.store(true, std::memory_order_relaxed);
           },
-          [&](MainThread) {
-              ASH_CHECK(false, "Main thread cannot be shutdown");
-          });
+          [&](MainThread) { ASH_CHECK(false, "Main thread cannot be shutdown"); });
     }
 
     virtual void await_thread_shutdown(Thread thread) override
     {
         thread.match(
           [&](WorkerThread) {
-              ASH_CHECK(false,
-                        "Worker threads cannot be shutdown individually");
+              ASH_CHECK(false, "Worker threads cannot be shutdown individually");
           },
           [&](DedicatedThread t) {
-              ASH_CHECK((u32) t < num_dedicated(),
-                        "Invalid dedicated thread id");
+              ASH_CHECK((u32) t < num_dedicated(), "Invalid dedicated thread id");
               auto & tok = dedicated_threads_[(u32) t]->shutdown_token;
               tok.os_wait(0U, std::memory_order_acquire);
           },
-          [&](MainThread) {
-              ASH_CHECK(false, "Main thread cannot be shutdown");
-          });
+          [&](MainThread) { ASH_CHECK(false, "Main thread cannot be shutdown"); });
     }
 };
 
 Dyn<Scheduler> IScheduler::create(SchedulerInfo const & info)
 {
-    auto impl = dyn<SchedulerImpl>(inplace, info.allocator, info.allocator,
-                                   info.main_thread_id)
-                  .unwrap();
+    auto impl =
+      dyn<SchedulerImpl>(inplace, info.allocator, info.allocator, info.main_thread_id)
+        .unwrap();
 
     for (auto thread_info : info.dedicated_threads)
     {
@@ -843,30 +825,29 @@ Dyn<Scheduler> IScheduler::create(SchedulerInfo const & info)
                                       ThreadType::Dedicated)
                         .unwrap();
         auto thread_name = vec::copy(info.allocator, thread_info.name).unwrap();
-        thread->thread   = std::thread{
-          [t = thread.get(), thread_name = std::move(thread_name)] mutable {
+        thread->thread =
+          std::thread{[t = thread.get(), thread_name = std::move(thread_name)] mutable {
               set_thread_name(thread_name);
               thread_name.reset();
               SchedulerImpl::thread_loop(t->queue.allocator, t->queue,
-                                           &t->shutdown_token, t->stop_token);
+                                         &t->shutdown_token, t->stop_token);
           }};
         impl->dedicated_threads_.push(std::move(thread)).unwrap();
     }
 
     for (auto thread_info : info.worker_threads)
     {
-        auto thread = dyn<TaskThread>(inplace, info.allocator, info.allocator,
-                                      ThreadType::Worker)
-                        .unwrap();
+        auto thread =
+          dyn<TaskThread>(inplace, info.allocator, info.allocator, ThreadType::Worker)
+            .unwrap();
         auto thread_name = vec::copy(info.allocator, thread_info.name).unwrap();
-        thread->thread =
-          std::thread{[t = thread.get(), q = &impl->worker_queue_,
-                       thread_name = std::move(thread_name)] mutable {
-              set_thread_name(thread_name);
-              thread_name.reset();
-              SchedulerImpl::thread_loop(q->allocator, *q, &t->shutdown_token,
+        thread->thread   = std::thread{[t = thread.get(), q = &impl->worker_queue_,
+                                      thread_name = std::move(thread_name)] mutable {
+            set_thread_name(thread_name);
+            thread_name.reset();
+            SchedulerImpl::thread_loop(q->allocator, *q, &t->shutdown_token,
                                          t->stop_token);
-          }};
+        }};
         impl->worker_threads_.push(std::move(thread)).unwrap();
     }
 

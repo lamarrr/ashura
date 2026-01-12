@@ -125,8 +125,7 @@ constexpr int rect_height_compare(void const * a, void const * b)
         return -1;
     if (p->extent.y() < q->extent.y())
         return 1;
-    return (p->extent.x() > q->extent.x()) ? -1 :
-                                             (p->extent.x() < q->extent.x());
+    return (p->extent.x() > q->extent.x()) ? -1 : (p->extent.x() < q->extent.x());
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -499,8 +498,7 @@ inline bool pack_rects(Context & ctx, Rect * rects, i32 num_rects)
         }
         else
         {
-            FindResult find_result =
-              skyline_pack_rectangle(ctx, rects[i].extent);
+            FindResult find_result = skyline_pack_rectangle(ctx, rects[i].extent);
             if (find_result.prev_link)
             {
                 rects[i].pos = find_result.pos;

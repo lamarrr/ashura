@@ -52,9 +52,8 @@ struct EngineCfg
 
     Vec<char> pipeline_cache_path;
 
-    static Result<EngineCfg> parse_json(Span<u8 const> json,
-                                        Allocator      allocator,
-                                        Allocator      scratch_allocator);
+    static Result<EngineCfg> parse_json(Span<u8 const> json, Allocator allocator,
+                                        Allocator scratch_allocator);
 
     static Result<EngineCfg> load_json(Str path, Allocator allocator);
 };
@@ -189,11 +188,9 @@ struct IEngine
     static Dyn<Engine> create(Allocator allocator, EngineCfg const & cfg,
                               Callbacks callbacks, WindowLoop loop);
 
-    Dyn<WindowEntry *> add_window_(EngineCfg::Window const & cfg,
-                                   WindowLoop                loop);
+    Dyn<WindowEntry *> add_window_(EngineCfg::Window const & cfg, WindowLoop loop);
 
-    Option<gpu::SwapchainInfo>
-      create_swapchain_info_(WindowEntry const & win_entry);
+    Option<gpu::SwapchainInfo> create_swapchain_info_(WindowEntry const & win_entry);
 
     void poll_inputs_(time_point prev_frame_end, time_point frame_start);
 

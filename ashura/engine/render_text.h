@@ -33,8 +33,7 @@ struct [[nodiscard]] TextRunsStyle
     SmallVec<TextStyle, 1, 0> styles_;
     SmallVec<FontStyle, 1, 0> fonts_;
 
-    TextRunsStyle(SmallVec<usize, 4, 0>     run_indices,
-                  SmallVec<TextStyle, 1, 0> styles,
+    TextRunsStyle(SmallVec<usize, 4, 0> run_indices, SmallVec<TextStyle, 1, 0> styles,
                   SmallVec<FontStyle, 1, 0> fonts) :
       run_indices_{std::move(run_indices)},
       styles_{std::move(styles)},
@@ -57,8 +56,7 @@ struct [[nodiscard]] TextRunsStyle
     /// to
     /// @param styles styles for each run
     /// @param fonts fonts for each run
-    static TextRunsStyle make_sized(Allocator             allocator,
-                                    Span<usize const>     run_sizes,
+    static TextRunsStyle make_sized(Allocator allocator, Span<usize const> run_sizes,
                                     Span<TextStyle const> styles,
                                     Span<FontStyle const> fonts);
 
@@ -169,8 +167,7 @@ struct [[nodiscard]] RenderText
 
     Str32 get_text() const;
 
-    RenderText & text(Rc<Str32> utf32, TextStyle const & style,
-                      FontStyle const & font);
+    RenderText & text(Rc<Str32> utf32, TextStyle const & style, FontStyle const & font);
 
     RenderText & text(Rc<Str32> utf32);
 
@@ -179,8 +176,7 @@ struct [[nodiscard]] RenderText
     RenderText & text_copy(Str32 utf32, TextStyle const & style,
                            FontStyle const & font);
 
-    RenderText & text_copy(Str8 utf8, TextStyle const & style,
-                           FontStyle const & font);
+    RenderText & text_copy(Str8 utf8, TextStyle const & style, FontStyle const & font);
 
     RenderText & text_copy(Str8 utf8);
 
@@ -258,12 +254,11 @@ struct [[nodiscard]] EditHistoryBuffer
 
     constexpr EditHistoryBuffer(EditHistoryBuffer const &)             = delete;
     constexpr EditHistoryBuffer & operator=(EditHistoryBuffer const &) = delete;
-    constexpr EditHistoryBuffer(EditHistoryBuffer &&)             = default;
-    constexpr EditHistoryBuffer & operator=(EditHistoryBuffer &&) = default;
-    constexpr ~EditHistoryBuffer()                                = default;
+    constexpr EditHistoryBuffer(EditHistoryBuffer &&)                  = default;
+    constexpr EditHistoryBuffer & operator=(EditHistoryBuffer &&)      = default;
+    constexpr ~EditHistoryBuffer()                                     = default;
 
-    static EditHistoryBuffer create(Allocator allocator,
-                                    usize     records_capacity);
+    static EditHistoryBuffer create(Allocator allocator, usize records_capacity);
 
     /// @brief Apply changes of next record
     /// @param str  piece table to apply the redo changes to
@@ -373,8 +368,8 @@ struct [[nodiscard]] EditText
         Future<Vec<c32>> output;
     };
 
-    using Edit = Enum<InsertAction, EraseAction, UndoAction, RedoAction,
-                      RelayoutAction, CopyAction>;
+    using Edit = Enum<InsertAction, EraseAction, UndoAction, RedoAction, RelayoutAction,
+                      CopyAction>;
 
     static constexpr usize DEFAULT_RECORDS_SIZE = 2'048;
 
@@ -401,8 +396,7 @@ struct [[nodiscard]] EditText
 
     u64 action_id_;
 
-    constexpr EditText(Allocator allocator, Rc<State *> state,
-                       Renderer renderer) :
+    constexpr EditText(Allocator allocator, Rc<State *> state, Renderer renderer) :
       allocator_{allocator},
       state_{std::move(state)},
       pending_result_{none},
@@ -491,8 +485,7 @@ struct [[nodiscard]] EditText
 
     void select_all();
 
-    void hit(f32x2 center, f32 aligned_width, f32x2 pos,
-             f32x4x4 const & transform);
+    void hit(f32x2 center, f32 aligned_width, f32x2 pos, f32x4x4 const & transform);
 
     void hit_select(f32x2 center, f32 aligned_width, f32x2 pos,
                     f32x4x4 const & transform);

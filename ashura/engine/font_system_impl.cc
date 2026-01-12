@@ -18,12 +18,12 @@ extern "C"
 namespace ash
 {
 
-Dyn<FontSys> IFontSys::create(Allocator allocator, FileSys file_sys,
-                              ImageSys image_sys, Scheduler scheduler)
+Dyn<FontSys> IFontSys::create(Allocator allocator, FileSys file_sys, ImageSys image_sys,
+                              Scheduler scheduler)
 {
-    return cast<FontSys>(dyn<FontSysImpl>(inplace, allocator, allocator,
-                                          file_sys, image_sys, scheduler)
-                           .unwrap());
+    return cast<FontSys>(
+      dyn<FontSysImpl>(inplace, allocator, allocator, file_sys, image_sys, scheduler)
+        .unwrap());
 }
 
 FontImpl::~FontImpl()
@@ -69,9 +69,8 @@ AwaitFuturesVec FontSysImpl::init()
     static constexpr u32 FONT_RASTER_HEIGHT = 64U;
     static constexpr u32 FONT_FACE          = 0U;
 
-    auto fut =
-      load_from_memory("Default"_str, static_rc(span(ROBOTO_FONT_DATA)),
-                       FONT_RASTER_HEIGHT, FONT_FACE);
+    auto fut = load_from_memory("Default"_str, static_rc(span(ROBOTO_FONT_DATA)),
+                                FONT_RASTER_HEIGHT, FONT_FACE);
 
     Vec<AnyFuture> await_futures{allocator_};
     await_futures.push(std::move(fut)).unwrap();
@@ -87,8 +86,8 @@ void FontSysImpl::shutdown()
     }
 }
 
-Result<Dyn<Font>, SysErr> FontSysImpl::decode_(Str            label_ref,
-                                               Span<u8 const> encoded, u32 face)
+Result<Dyn<Font>, SysErr> FontSysImpl::decode_(Str label_ref, Span<u8 const> encoded,
+                                               u32 face)
 {
     tracing::ScopeTrace trace;
     Vec<char>           font_data{allocator_};
@@ -97,9 +96,8 @@ Result<Dyn<Font>, SysErr> FontSysImpl::decode_(Str            label_ref,
         return Err{SysErr::OutOfMemory};
     }
 
-    hb_blob_t * hb_blob =
-      hb_blob_create(font_data.data(), font_data.size(),
-                     HB_MEMORY_MODE_READONLY, nullptr, nullptr);
+    hb_blob_t * hb_blob = hb_blob_create(font_data.data(), font_data.size(),
+                                         HB_MEMORY_MODE_READONLY, nullptr, nullptr);
 
     if (hb_blob == nullptr)
     {
@@ -165,16 +163,14 @@ Result<Dyn<Font>, SysErr> FontSysImpl::decode_(Str            label_ref,
 
     FT_Face ft_face;
 
-    if (FT_Error err =
-          FT_New_Memory_Face(ft_lib, (FT_Byte const *) font_data.data(),
-                             (FT_Long) font_data.size(), 0, &ft_face);
+    if (FT_Error err = FT_New_Memory_Face(ft_lib, (FT_Byte const *) font_data.data(),
+                                          (FT_Long) font_data.size(), 0, &ft_face);
         err != 0)
     {
         return Err{SysErr::DecodeFailed};
     }
 
-    if (FT_Error err = FT_Set_Char_Size(ft_face, AU_UNIT, AU_UNIT, 72, 72);
-        err != 0)
+    if (FT_Error err = FT_Set_Char_Size(ft_face, AU_UNIT, AU_UNIT, 72, 72); err != 0)
     {
         return Err{SysErr::DecodeFailed};
     }
@@ -238,10 +234,9 @@ Result<Dyn<Font>, SysErr> FontSysImpl::decode_(Str            label_ref,
 
         // bin offsets are determined after binning and during rect packing
         metric = GlyphMetrics{
-          .bearing{(i32) s->metrics.horiBearingX,
-                   (i32) -s->metrics.horiBearingY                        },
+          .bearing{(i32) s->metrics.horiBearingX, (i32) -s->metrics.horiBearingY},
           .advance = (i32) s->metrics.horiAdvance,
-          .extent{(i32) s->metrics.width,        (i32) s->metrics.height}
+          .extent{(i32) s->metrics.width,        (i32) s->metrics.height       }
         };
     }
 
@@ -273,15 +268,13 @@ Result<Dyn<Font>, SysErr> FontSysImpl::decode_(Str            label_ref,
     return Ok{cast<ash::Font>(std::move(font.v()))};
 }
 
-Result<CpuFontAtlas, SysErr> FontSysImpl::rasterize_(Font font_,
-                                                     u32  font_height)
+Result<CpuFontAtlas, SysErr> FontSysImpl::rasterize_(Font font_, u32 font_height)
 {
     tracing::ScopeTrace  trace;
     FontImpl &           font             = (FontImpl &) *font_;
     static constexpr u32 MIN_ATLAS_EXTENT = 512;
     static_assert(MIN_ATLAS_EXTENT > 0, "Font atlas extent must be non-zero");
-    static_assert(MIN_ATLAS_EXTENT >= 128,
-                  "Font atlas extent must be at least 128px");
+    static_assert(MIN_ATLAS_EXTENT >= 128, "Font atlas extent must be at least 128px");
     static_assert(MIN_ATLAS_EXTENT % 64 == 0,
                   "Font atlas extent should be a multiple of 64");
     static_assert(MIN_ATLAS_EXTENT <= 1'024,
@@ -296,8 +289,7 @@ Result<CpuFontAtlas, SysErr> FontSysImpl::rasterize_(Font font_,
         return Err{SysErr::OutOfMemory};
     }
 
-    if (FT_Error err =
-          FT_Set_Pixel_Sizes(font.ft_face, font_height, font_height);
+    if (FT_Error err = FT_Set_Pixel_Sizes(font.ft_face, font_height, font_height);
         err != 0)
     {
         return Err{SysErr::DecodeFailed};
@@ -309,14 +301,13 @@ Result<CpuFontAtlas, SysErr> FontSysImpl::rasterize_(Font font_,
 
     for (auto [i, g] : enumerate<u32>(atlas.glyphs))
     {
-        if (FT_Error err = FT_Load_Glyph(font.ft_face, i, FT_LOAD_DEFAULT);
-            err != 0)
+        if (FT_Error err = FT_Load_Glyph(font.ft_face, i, FT_LOAD_DEFAULT); err != 0)
         {
             continue;
         }
 
-        g.area.extent = u32x2{font.ft_face->glyph->bitmap.width,
-                              font.ft_face->glyph->bitmap.rows};
+        g.area.extent =
+          u32x2{font.ft_face->glyph->bitmap.width, font.ft_face->glyph->bitmap.rows};
 
         max_glyph_extent = max_glyph_extent.max(g.area.extent);
     }
@@ -336,8 +327,7 @@ Result<CpuFontAtlas, SysErr> FontSysImpl::rasterize_(Font font_,
             return Err{SysErr::OutOfMemory};
         }
 
-        for (auto [i, gl, ag, rect] :
-             enumerate<u32>(font.glyphs, atlas.glyphs, rects))
+        for (auto [i, gl, ag, rect] : enumerate<u32>(font.glyphs, atlas.glyphs, rects))
         {
             // added padding to avoid texture spilling due to accumulated
             // floating-point uv interpolation errors
@@ -364,8 +354,7 @@ Result<CpuFontAtlas, SysErr> FontSysImpl::rasterize_(Font font_,
         {
             // tries to pack all the glyph rects into the provided extent
             rect_pack::Context ctx;
-            rect_pack::init(ctx, atlas_extent.to<i32>(), nodes.data(),
-                            (i32) num_nodes);
+            rect_pack::init(ctx, atlas_extent.to<i32>(), nodes.data(), (i32) num_nodes);
             rect_pack::pack_rects(ctx, unpacked.data(), (i32) size32(unpacked));
 
             auto [just_packed, still_unpacked] = partition(
@@ -397,8 +386,7 @@ Result<CpuFontAtlas, SysErr> FontSysImpl::rasterize_(Font font_,
                 g.area.offset = (r.pos + GLYPH_PADDING).to<u32>();
             }
 
-            auto center =
-              g.area.offset.to<f32>() + 0.5F * g.area.extent.to<f32>();
+            auto center = g.area.offset.to<f32>() + 0.5F * g.area.extent.to<f32>();
             auto extent = g.area.extent.to<f32>();
 
             g.uv.center = norm_to_axis(center * inv_atlas_extent);
@@ -419,9 +407,8 @@ Result<CpuFontAtlas, SysErr> FontSysImpl::rasterize_(Font font_,
 
     for (auto [i, ag] : enumerate<u32>(atlas.glyphs))
     {
-        if (FT_Error err =
-              FT_Load_Glyph(font.ft_face, i,
-                            FT_LOAD_DEFAULT | FT_LOAD_COLOR | FT_LOAD_RENDER);
+        if (FT_Error err = FT_Load_Glyph(
+              font.ft_face, i, FT_LOAD_DEFAULT | FT_LOAD_COLOR | FT_LOAD_RENDER);
             err != 0)
         {
             continue;
@@ -443,10 +430,9 @@ Result<CpuFontAtlas, SysErr> FontSysImpl::rasterize_(Font font_,
                   .stride = (u32) slot->bitmap.pitch
                 };
 
-                copy_alpha_image_to_BGRA(src,
-                                         atlas_span.layer(ag.layer).slice(
-                                           ag.area.offset, ag.area.extent),
-                                         (u8) 0xFFU, (u8) 0xFFU, (u8) 0xFFU);
+                copy_alpha_image_to_BGRA(
+                  src, atlas_span.layer(ag.layer).slice(ag.area.offset, ag.area.extent),
+                  (u8) 0xFFU, (u8) 0xFFU, (u8) 0xFFU);
 
                 ag.has_color = false;
             }
@@ -460,15 +446,14 @@ Result<CpuFontAtlas, SysErr> FontSysImpl::rasterize_(Font font_,
                   .stride = (u32) slot->bitmap.pitch / 4
                 };
 
-                copy_image(src, atlas_span.layer(ag.layer).slice(
-                                  ag.area.offset, ag.area.extent));
+                copy_image(src, atlas_span.layer(ag.layer).slice(ag.area.offset,
+                                                                 ag.area.extent));
 
                 ag.has_color = true;
             }
             break;
             default:
-                ASH_CHECK(false, "Unrecognized pixel mode {}",
-                          slot->bitmap.pixel_mode);
+                ASH_CHECK(false, "Unrecognized pixel mode {}", slot->bitmap.pixel_mode);
         }
     }
 
@@ -480,8 +465,7 @@ Result<CpuFontAtlas, SysErr> FontSysImpl::rasterize_(Font font_,
 }
 
 Future<Result<GpuFontAtlas, SysErr>>
-  FontSysImpl::upload_atlas_to_gpu_(Str                      label_span,
-                                    Rc<CpuFontAtlas const *> atlas)
+  FontSysImpl::upload_atlas_to_gpu_(Str label_span, Rc<CpuFontAtlas const *> atlas)
 {
     ASH_CHECK(atlas->num_layers > 0, "");
     ASH_CHECK(atlas->extent.x() > 0, "");
@@ -513,8 +497,7 @@ Future<Result<GpuFontAtlas, SysErr>>
       gpu::ImageInfo{.label  = label,
                      .type   = gpu::ImageType::Type2D,
                      .format = format,
-                     .usage  = gpu::ImageUsage::Sampled |
-                              gpu::ImageUsage::TransferDst |
+                     .usage  = gpu::ImageUsage::Sampled | gpu::ImageUsage::TransferDst |
                               gpu::ImageUsage::TransferSrc,
                      .aspects      = gpu::ImageAspects::Color,
                      .extent       = atlas->extent.append(1),
@@ -530,8 +513,7 @@ Future<Result<GpuFontAtlas, SysErr>>
       ->then(
         allocator_, WorkerThread::Any,
         [allocator = allocator_, font_height = atlas->font_height,
-         glyphs =
-           std::move(gpu_glyphs)](Result<ImageInfo, SysErr> & err) mutable {
+         glyphs = std::move(gpu_glyphs)](Result<ImageInfo, SysErr> & err) mutable {
             using R = Result<GpuFontAtlas, SysErr>;
             return err.match(
               [&](ImageInfo const & image) -> R {
@@ -552,8 +534,7 @@ Future<Result<GpuFontAtlas, SysErr>>
 
 Future<Result<FontId, SysErr>> FontSysImpl::load_from_memory(Str     label_span,
                                                              RcBlob8 encoded,
-                                                             u32 font_height,
-                                                             u32 face)
+                                                             u32 font_height, u32 face)
 {
     StrVec label{allocator_};
     label.append(label_span).unwrap();
@@ -588,20 +569,18 @@ Future<Result<FontId, SysErr>> FontSysImpl::load_from_memory(Str     label_span,
       scheduler_
         ->then(
           allocator_, WorkerThread::Any,
-          [this,
-           decode_fut = decode_fut.alias()](Result<CpuFontAtlas, SysErr> & r) {
+          [this, decode_fut = decode_fut.alias()](Result<CpuFontAtlas, SysErr> & r) {
               using R = Result<Future<Result<GpuFontAtlas, SysErr>>, SysErr>;
               return r.match(
                 [&](CpuFontAtlas & cpu_atlas) -> R {
                     auto rc_atlas =
-                      rc<CpuFontAtlas>(allocator_, std::move(cpu_atlas))
-                        .unwrap();
+                      rc<CpuFontAtlas>(allocator_, std::move(cpu_atlas)).unwrap();
                     auto & font       = *decode_fut.get().v();
                     auto   label      = font.info().label.view();
                     auto   upload_fut = upload_atlas_to_gpu_(
-                      label, transmute(rc_atlas.alias(),
-                                         static_cast<CpuFontAtlas const *>(
-                                         rc_atlas.get())));
+                      label,
+                      transmute(rc_atlas.alias(),
+                                  static_cast<CpuFontAtlas const *>(rc_atlas.get())));
                     return Ok{std::move(upload_fut)};
                 },
                 [](SysErr err) -> R { return Err{err}; });
@@ -613,30 +592,28 @@ Future<Result<FontId, SysErr>> FontSysImpl::load_from_memory(Str     label_span,
       scheduler_->flatten(allocator_, WorkerThread::Any, std::move(upload_fut))
         .unwrap();
 
-    auto ret_fut = scheduler_
-                     ->then(
-                       allocator_, WorkerThread::Any,
-                       [decode_fut = decode_fut.alias(),
-                        this](Result<GpuFontAtlas, SysErr> & r) {
-                           using R = Result<FontId, SysErr>;
+    auto ret_fut =
+      scheduler_
+        ->then(
+          allocator_, WorkerThread::Any,
+          [decode_fut = decode_fut.alias(), this](Result<GpuFontAtlas, SysErr> & r) {
+              using R = Result<FontId, SysErr>;
 
-                           return r.match(
-                             [&](GpuFontAtlas & gpu_atlas) -> R {
-                                 return Ok{add_font_(decode_fut.get().unwrap(),
-                                                     std::move(gpu_atlas))};
-                             },
-                             [](SysErr err) -> R { return Err{err}; });
-                       },
-                       std::move(flattened_upload_fut))
-                     .unwrap();
+              return r.match(
+                [&](GpuFontAtlas & gpu_atlas) -> R {
+                    return Ok{
+                      add_font_(decode_fut.get().unwrap(), std::move(gpu_atlas))};
+                },
+                [](SysErr err) -> R { return Err{err}; });
+          },
+          std::move(flattened_upload_fut))
+        .unwrap();
 
     return ret_fut;
 }
 
-Future<Result<FontId, SysErr>> FontSysImpl::load_from_path(Str label_span,
-                                                           Str path,
-                                                           u32 font_height,
-                                                           u32 face)
+Future<Result<FontId, SysErr>> FontSysImpl::load_from_path(Str label_span, Str path,
+                                                           u32 font_height, u32 face)
 {
     Future file_load_fut = file_sys_->load_file(allocator_, path);
     StrVec label{allocator_};
@@ -652,19 +629,17 @@ Future<Result<FontId, SysErr>> FontSysImpl::load_from_path(Str label_span,
               return r.match(
                 [&](Vec<u8> & data) -> R {
                     auto blob_span = data.view().as_const();
-                    auto blob =
-                      rc<Vec<u8>>(allocator_, std::move(data)).unwrap();
-                    auto blob8 = transmute(std::move(blob), blob_span);
-                    return Ok{load_from_memory(label, std::move(blob8),
-                                               font_height, face)};
+                    auto blob      = rc<Vec<u8>>(allocator_, std::move(data)).unwrap();
+                    auto blob8     = transmute(std::move(blob), blob_span);
+                    return Ok{
+                      load_from_memory(label, std::move(blob8), font_height, face)};
                 },
                 [&](SysErr err) -> R { return Err{err}; });
           },
           file_load_fut.alias())
         .unwrap();
 
-    return scheduler_
-      ->flatten(allocator_, WorkerThread::Any, std::move(load_fut))
+    return scheduler_->flatten(allocator_, WorkerThread::Any, std::move(load_fut))
       .unwrap();
 }
 
@@ -734,11 +709,10 @@ FontId FontSysImpl::add_font_(Dyn<Font> font, GpuFontAtlas gpu_atlas)
 /// with invalid codepoints replaced before calling this.
 /// @param script OpenType (ISO15924) Script
 /// Tag. See: https://unicode.org/reports/tr24/#Relation_To_ISO15924
-static inline Tuple<Span<hb_glyph_info_t const>,
-                    Span<hb_glyph_position_t const>>
-  shape_run(hb_font_t * font, hb_buffer_t * buffer, Str32 line,
-            Slice codepoints, hb_script_t script, hb_direction_t direction,
-            hb_language_t language, bool use_kerning, bool use_ligatures)
+static inline Tuple<Span<hb_glyph_info_t const>, Span<hb_glyph_position_t const>>
+  shape_run(hb_font_t * font, hb_buffer_t * buffer, Str32 line, Slice codepoints,
+            hb_script_t script, hb_direction_t direction, hb_language_t language,
+            bool use_kerning, bool use_ligatures)
 {
     // tags are opentype feature tags
     hb_feature_t const shaping_features[] = {
@@ -761,16 +735,15 @@ static inline Tuple<Span<hb_glyph_info_t const>,
 
     hb_buffer_clear_contents(buffer);
     // invalid character replacement
-    hb_buffer_set_replacement_codepoint(
-      buffer, HB_BUFFER_REPLACEMENT_CODEPOINT_DEFAULT);
+    hb_buffer_set_replacement_codepoint(buffer,
+                                        HB_BUFFER_REPLACEMENT_CODEPOINT_DEFAULT);
     hb_buffer_set_script(buffer, script);
     hb_buffer_set_direction(buffer, direction);
     // OpenType BCP-47 language tag specifying locale-sensitive shaping operations
     // as defined in the font
     hb_buffer_set_language(buffer, language);
-    hb_buffer_add_codepoints(buffer, (u32 const *) line.data(),
-                             (i32) line.size(), (u32) codepoints.offset,
-                             (i32) codepoints.span);
+    hb_buffer_add_codepoints(buffer, (u32 const *) line.data(), (i32) line.size(),
+                             (u32) codepoints.offset, (i32) codepoints.span);
     hb_shape(font, buffer, shaping_features, (u32) size(shaping_features));
 
     u32                         num_pos;
@@ -779,8 +752,7 @@ static inline Tuple<Span<hb_glyph_info_t const>,
     ASH_CHECK(!(glyph_pos == nullptr && num_pos > 0), "");
 
     u32                     num_info;
-    hb_glyph_info_t const * glyph_info =
-      hb_buffer_get_glyph_infos(buffer, &num_info);
+    hb_glyph_info_t const * glyph_info = hb_buffer_get_glyph_infos(buffer, &num_info);
     ASH_CHECK(!(glyph_info == nullptr && num_info > 0), "");
 
     ASH_CHECK(num_pos == num_info, "");
@@ -848,8 +820,7 @@ static inline u8 paragraph_levels(SBAllocatorRef allocator, Str32 text,
     auto text_size = text.size();
     auto paragraph = SBAlgorithmCreateParagraph(
       allocator, algorithm, 0, text_size,
-      (base == TextDirection::LeftToRight) ? SBLevelDefaultLTR :
-                                             SBLevelDefaultRTL);
+      (base == TextDirection::LeftToRight) ? SBLevelDefaultLTR : SBLevelDefaultRTL);
     ASH_CHECK(paragraph != nullptr, "");
     defer paragraph_{[&] { SBParagraphRelease(allocator, paragraph); }};
 
@@ -889,9 +860,8 @@ struct RunProps
     u32         wrap_level = 0;
 };
 
-static inline void insert_run(TextLayout & l, FontStyle const & s,
-                              Slice codepoints, usize base_cluster,
-                              RunProps const &                props,
+static inline void insert_run(TextLayout & l, FontStyle const & s, Slice codepoints,
+                              usize base_cluster, RunProps const & props,
                               FontMetrics const &             font_metrics,
                               Span<hb_glyph_info_t const>     infos,
                               Span<hb_glyph_position_t const> positions)
@@ -985,12 +955,10 @@ struct TextLayoutBufferImpl
     {
     }
 
-    constexpr TextLayoutBufferImpl(TextLayoutBufferImpl const &) = delete;
-    constexpr TextLayoutBufferImpl &
-      operator=(TextLayoutBufferImpl const &)               = delete;
-    constexpr TextLayoutBufferImpl(TextLayoutBufferImpl &&) = delete;
-    constexpr TextLayoutBufferImpl &
-      operator=(TextLayoutBufferImpl &&) = delete;
+    constexpr TextLayoutBufferImpl(TextLayoutBufferImpl const &)             = delete;
+    constexpr TextLayoutBufferImpl & operator=(TextLayoutBufferImpl const &) = delete;
+    constexpr TextLayoutBufferImpl(TextLayoutBufferImpl &&)                  = delete;
+    constexpr TextLayoutBufferImpl & operator=(TextLayoutBufferImpl &&)      = delete;
 
     void clear()
     {
@@ -1053,8 +1021,7 @@ TextLayoutBufferImpl & FontSysImpl::get_thread_layout_buffer()
 {
     static thread_local LayoutBufferHook thread_layout_buffer{[] {
         hb_buffer_t * hb_buffer = hb_buffer_create();
-        ASH_CHECK(hb_buffer != nullptr &&
-                    hb_buffer_allocation_successful(hb_buffer),
+        ASH_CHECK(hb_buffer != nullptr && hb_buffer_allocation_successful(hb_buffer),
                   "");
         return hb_buffer;
     }()};
@@ -1062,9 +1029,8 @@ TextLayoutBufferImpl & FontSysImpl::get_thread_layout_buffer()
     return thread_layout_buffer.buffer;
 }
 
-void layout_paragraph(Paragraph & paragraph, f32 max_width,
-                      TextBlock const & block, TextLayout & layout,
-                      usize & caret_iter, f32x2 & extent)
+void layout_paragraph(Paragraph & paragraph, f32 max_width, TextBlock const & block,
+                      TextLayout & layout, usize & caret_iter, f32x2 & extent)
 {
     auto  lines_begin = layout.lines.size();
     usize irun        = paragraph.runs.begin();
@@ -1079,8 +1045,7 @@ void layout_paragraph(Paragraph & paragraph, f32 max_width,
         auto & style             = block.fonts[first_run.style];
         auto   advance =
           first_run_metrics.advance +
-          (first_run.is_spacing() ? 0 :
-                                    (block.font_scale * style.word_spacing));
+          (first_run.is_spacing() ? 0 : (block.font_scale * style.word_spacing));
 
         f32 width   = advance;
         f32 ascent  = first_run_metrics.ascent;
@@ -1095,8 +1060,8 @@ void layout_paragraph(Paragraph & paragraph, f32 max_width,
             auto   m = r.metrics.resolve(f);
             auto   l = max(f * r.line_height, m.height());
             auto & s = block.fonts[r.style];
-            auto   a = m.advance +
-                     (r.is_spacing() ? 0 : (block.font_scale * s.word_spacing));
+            auto   a =
+              m.advance + (r.is_spacing() ? 0 : (block.font_scale * s.word_spacing));
 
             if (block.wrap && r.wrap_level != first_run.wrap_level &&
                 (width + a) > max_width)
@@ -1111,21 +1076,21 @@ void layout_paragraph(Paragraph & paragraph, f32 max_width,
             irun++;
         }
 
-        auto & last_run   = layout.runs[irun - 1];
-        auto   codepoints = Slice::offsets(first_run.codepoints.offset,
-                                           last_run.codepoints.end());
-        auto   runs       = Slice::offsets(first, irun);
-        auto   num_carets = codepoints.span + 1;
-        auto   carets     = Slice{caret_iter, num_carets};
-        auto   line       = Line{
-                  .codepoints = codepoints,
-                  .carets     = carets,
-                  .runs       = runs,
-                  .metrics{.width   = width,
-                           .height  = line_height,
-                           .ascent  = ascent,
-                           .descent = descent,
-                           .level   = base_level}
+        auto & last_run = layout.runs[irun - 1];
+        auto   codepoints =
+          Slice::offsets(first_run.codepoints.offset, last_run.codepoints.end());
+        auto runs       = Slice::offsets(first, irun);
+        auto num_carets = codepoints.span + 1;
+        auto carets     = Slice{caret_iter, num_carets};
+        auto line       = Line{
+                .codepoints = codepoints,
+                .carets     = carets,
+                .runs       = runs,
+                .metrics{.width   = width,
+                         .height  = line_height,
+                         .ascent  = ascent,
+                         .descent = descent,
+                         .level   = base_level}
         };
 
         layout.lines.push(line).unwrap();
@@ -1151,8 +1116,7 @@ void FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
     auto       text      = block.text;
     auto const text_size = block.text.size();
     ASH_CHECK(block.run_indices.size() == (block.fonts.size() + 1), "");
-    ASH_CHECK(!block.run_indices.is_empty(),
-              "No run styling provided for text");
+    ASH_CHECK(!block.run_indices.is_empty(), "No run styling provided for text");
     ASH_CHECK(block.run_indices.last() >= text_size,
               "Text runs need to span the entire text");
 
@@ -1162,8 +1126,7 @@ void FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
                      void ** out_ptr) -> SBBoolean {
           auto allocator = (IAllocator *) user_data;
           auto layout    = Layout{.alignment = alignment, .size = size};
-          return allocator->alloc(layout, *((u8 **) out_ptr)) ? SBTrue :
-                                                                 SBFalse;
+          return allocator->alloc(layout, *((u8 **) out_ptr)) ? SBTrue : SBFalse;
       },
       .deallocate =
         [](void * user_data, void * mem, usize size, usize alignment) {
@@ -1173,16 +1136,16 @@ void FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
         }};
     SBAllocatorRef sb_allocator = &sb_allocator_impl;
 
-    auto language = block.language.is_empty() ?
-                      hb_language_get_default() :
-                      hb_language_from_string(block.language.data(),
-                                              (i32) block.language.size());
+    auto language =
+      block.language.is_empty() ?
+        hb_language_get_default() :
+        hb_language_from_string(block.language.data(), (i32) block.language.size());
 
-    TextLayoutBufferImpl & buffer = get_thread_layout_buffer();
-    auto level_runs               = Vec<usize>::make(1'024, scratch).unwrap();
-    auto levels                   = Vec<u8>::make(1'024, scratch).unwrap();
-    auto script_runs              = Vec<usize>::make(1'024, scratch).unwrap();
-    auto scripts = Vec<TextScript>::make(1'024, scratch).unwrap();
+    TextLayoutBufferImpl & buffer      = get_thread_layout_buffer();
+    auto                   level_runs  = Vec<usize>::make(1'024, scratch).unwrap();
+    auto                   levels      = Vec<u8>::make(1'024, scratch).unwrap();
+    auto                   script_runs = Vec<usize>::make(1'024, scratch).unwrap();
+    auto                   scripts     = Vec<TextScript>::make(1'024, scratch).unwrap();
 
     layout.clear();
 
@@ -1222,23 +1185,18 @@ void FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
           SBCodepointSequence{.stringEncoding = SBStringEncodingUTF32,
                               .stringBuffer   = (void *) paragraph_text.data(),
                               .stringLength   = paragraph_text.size()};
-        SBAlgorithmRef sb_algorithm =
-          SBAlgorithmCreate(sb_allocator, &sb_codepoints);
+        SBAlgorithmRef sb_algorithm = SBAlgorithmCreate(sb_allocator, &sb_codepoints);
         ASH_CHECK(sb_algorithm != nullptr, "");
-        defer sb_algorithm_{
-          [&] { SBAlgorithmRelease(sb_allocator, sb_algorithm); }};
+        defer sb_algorithm_{[&] { SBAlgorithmRelease(sb_allocator, sb_algorithm); }};
 
-        auto paragraph_level = paragraph_levels(
-          sb_allocator, paragraph_text, sb_algorithm, block.direction, levels);
-        paragraph_script_runs(sb_allocator, paragraph_text, script_runs,
-                              scripts);
+        auto paragraph_level = paragraph_levels(sb_allocator, paragraph_text,
+                                                sb_algorithm, block.direction, levels);
+        paragraph_script_runs(sb_allocator, paragraph_text, script_runs, scripts);
 
-        auto run_iter = 0uz;
-        auto scripts_iter =
-          RunItemView{script_runs.view(), scripts.view()}.begin();
-        auto levels_iter =
-          RunItemView{level_runs.view(), levels.view()}.begin();
-        auto wrap_level = u32{0};
+        auto run_iter     = 0uz;
+        auto scripts_iter = RunItemView{script_runs.view(), scripts.view()}.begin();
+        auto levels_iter  = RunItemView{level_runs.view(), levels.view()}.begin();
+        auto wrap_level   = u32{0};
 
         // do-while is used to ensure at least one run is processed even if the
         // paragraph is empty (empty paragraphs)
@@ -1249,9 +1207,9 @@ void FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
 
             auto run_props =
               (run_begin < paragraph_size) ?
-                RunProps{.type   = classify_run_type(paragraph_text[run_begin]),
-                         .style  = static_cast<u32>(style_iter.run()),
-                         .script = (*scripts_iter).v0,
+                RunProps{.type       = classify_run_type(paragraph_text[run_begin]),
+                         .style      = static_cast<u32>(style_iter.run()),
+                         .script     = (*scripts_iter).v0,
                          .base_level = paragraph_level,
                          .level      = (*levels_iter).v0,
                          .wrap_level = wrap_level} :
@@ -1292,34 +1250,33 @@ void FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
             auto & font_style = block.fonts[run_props.style];
             auto & font       = get_impl(font_style.font);
 
-            auto run = Slice::offsets(run_begin, run_end);
-            auto [infos, positions] =
-              shape_run(font.hb_font, buffer.hb_buffer_, paragraph_text, run,
-                        hb_script_from_iso15924_tag(SBScriptGetUnicodeTag(
-                          SBScript{(u8) run_props.script})),
-                        ((paragraph_level & 0x1) == 0) ? HB_DIRECTION_LTR :
-                                                         HB_DIRECTION_RTL,
-                        language, block.use_kerning, block.use_ligatures);
+            auto run                = Slice::offsets(run_begin, run_end);
+            auto [infos, positions] = shape_run(
+              font.hb_font, buffer.hb_buffer_, paragraph_text, run,
+              hb_script_from_iso15924_tag(
+                SBScriptGetUnicodeTag(SBScript{(u8) run_props.script})),
+              ((paragraph_level & 0x1) == 0) ? HB_DIRECTION_LTR : HB_DIRECTION_RTL,
+              language, block.use_kerning, block.use_ligatures);
 
-            auto block_run = Slice::offsets(paragraph_begin + run_begin,
-                                            paragraph_begin + run_end);
+            auto block_run =
+              Slice::offsets(paragraph_begin + run_begin, paragraph_begin + run_end);
 
-            insert_run(layout, font_style, block_run, paragraph_begin,
-                       run_props, font.metrics, infos, positions);
+            insert_run(layout, font_style, block_run, paragraph_begin, run_props,
+                       font.metrics, infos, positions);
 
         } while (run_iter < paragraph_size);
 
         auto paragraph_runs_end = layout.runs.size();
 
         layout.paragraphs
-          .push(Paragraph{
-            .runs = Slice::offsets(paragraph_runs_begin, paragraph_runs_end),
-            .codepoints = Slice::offsets(paragraph_begin, paragraph_end),
-            .delimeters = paragraph_delims})
+          .push(
+            Paragraph{.runs = Slice::offsets(paragraph_runs_begin, paragraph_runs_end),
+                      .codepoints = Slice::offsets(paragraph_begin, paragraph_end),
+                      .delimeters = paragraph_delims})
           .unwrap();
 
-        layout_paragraph(layout.paragraphs.last(), max_width, block, layout,
-                         caret_iter, extent);
+        layout_paragraph(layout.paragraphs.last(), max_width, block, layout, caret_iter,
+                         extent);
 
         p = paragraph_delims.end();
     } while (p < text_size);

@@ -79,8 +79,7 @@ Str32 cull_paragraphs(Str32 text, Slice paragraphs)
 
     auto last_paragraph_end = text_paragraph_iter;
 
-    return text.slice(
-      Slice::offsets(first_paragraph_begin, last_paragraph_end));
+    return text.slice(Slice::offsets(first_paragraph_begin, last_paragraph_end));
 }
 
 Str8 cull_paragraphs(Str8 text, Slice paragraphs)
@@ -110,8 +109,7 @@ Str8 cull_paragraphs(Str8 text, Slice paragraphs)
 
     auto last_paragraph_end = text_paragraph_iter;
 
-    return text.slice(
-      Slice::offsets(first_paragraph_begin, last_paragraph_end));
+    return text.slice(Slice::offsets(first_paragraph_begin, last_paragraph_end));
 }
 
 void TextLayout::clear()
@@ -141,8 +139,8 @@ isize TextLayout::to_caret(usize codepoint, bool before) const
         return num_carets - 1;
     }
 
-    auto l = binary_find(
-      lines.view(), [&](Line & l) { return l.codepoints.end() > codepoint; });
+    auto l = binary_find(lines.view(),
+                         [&](Line & l) { return l.codepoints.end() > codepoint; });
 
     ASH_CHECK(!l.is_empty(), "");
 
@@ -150,8 +148,7 @@ isize TextLayout::to_caret(usize codepoint, bool before) const
 
     if (line.codepoints.contains(codepoint))
     {
-        auto left_caret =
-          line.carets.offset + (codepoint - line.codepoints.offset);
+        auto left_caret = line.carets.offset + (codepoint - line.codepoints.offset);
         if (before)
         {
             return left_caret;
@@ -215,11 +212,11 @@ Slice TextLayout::get_caret_selection(Slice carets) const
 
     carets = carets(num_carets);
 
-    auto line0 = binary_find(
-      lines.view(), [&](Line & l) { return l.carets.end() > carets.begin(); });
+    auto line0 = binary_find(lines.view(),
+                             [&](Line & l) { return l.carets.end() > carets.begin(); });
 
-    auto line1 = binary_find(
-      lines.view(), [&](Line & l) { return l.carets.end() >= carets.end(); });
+    auto line1 = binary_find(lines.view(),
+                             [&](Line & l) { return l.carets.end() >= carets.end(); });
 
     auto line0_begin = carets.begin() - line0[0].carets.begin();
     auto line1_end   = carets.end() - line1[0].carets.begin();
@@ -258,8 +255,8 @@ CaretCodepoint TextLayout::get_caret_codepoint(usize caret) const
     ASH_CHECK(laid_out, "");
     ASH_CHECK(caret <= num_carets, "");
 
-    auto l = binary_find(lines.view(),
-                         [&](Line & l) { return l.carets.end() > caret; });
+    auto l =
+      binary_find(lines.view(), [&](Line & l) { return l.carets.end() > caret; });
 
     l = l.is_empty() ? lines.view().slice(lines.size() - 1, 1) : l;
 
@@ -337,8 +334,7 @@ CaretPlacement TextLayout::get_caret_placement(usize caret) const
 
     return match.match(
       [&](GlyphMatch & m) {
-          return CaretPlacement{
-            .line = c.line, .glyph = m.glyph, .after = c.after};
+          return CaretPlacement{.line = c.line, .glyph = m.glyph, .after = c.after};
       },
       [&]() {
           // special-case: might not contain any codepoints (1 caret) or
@@ -386,16 +382,15 @@ Tuple<isize, CaretAlignment> TextLayout::hit(TextBlock const &      block,
     if (ln < 0)
     {
         return {
-          0, CaretAlignment{.x = CaretXAlignment::Start,
-                            .y = CaretYAlignment::First}
+          0, CaretAlignment{.x = CaretXAlignment::Start, .y = CaretYAlignment::First}
         };
     }
 
     if (ln >= (isize) lines.size())
     {
         return {
-          (isize) num_carets, CaretAlignment{.x = CaretXAlignment::Start,
-                                             .y = CaretYAlignment::Bottom}
+          (isize) num_carets,
+          CaretAlignment{.x = CaretXAlignment::Start, .y = CaretYAlignment::Bottom}
         };
     }
 
@@ -421,8 +416,7 @@ Tuple<isize, CaretAlignment> TextLayout::hit(TextBlock const &      block,
             case TextDirection::RightToLeft:
                 return {
                   (isize) line.carets.last(),
-                  CaretAlignment{.x = CaretXAlignment::End,
-                                 .y = CaretYAlignment{ln}}
+                  CaretAlignment{.x = CaretXAlignment::End, .y = CaretYAlignment{ln}}
                 };
 
             default:
@@ -436,10 +430,9 @@ Tuple<isize, CaretAlignment> TextLayout::hit(TextBlock const &      block,
         f32    font_height = block.font_scale * run.font_height;
         auto   metrics     = run.metrics.resolve(font_height);
         auto   direction   = run.direction();
-        bool   intersects =
-          pos.x() >= cursor && pos.x() <= (cursor + metrics.advance);
-        f32  glyph_cursor = cursor;
-        auto run_width =
+        bool   intersects  = pos.x() >= cursor && pos.x() <= (cursor + metrics.advance);
+        f32    glyph_cursor = cursor;
+        auto   run_width =
           metrics.advance +
           (run.is_spacing() ? 0 : (block.font_scale * font_style.word_spacing));
 
@@ -481,14 +474,12 @@ Tuple<isize, CaretAlignment> TextLayout::hit(TextBlock const &      block,
                     }
                 }
 
-                isize caret =
-                  line.carets.offset + (codepoint - line.codepoints.offset);
+                isize caret = line.carets.offset + (codepoint - line.codepoints.offset);
 
                 return {
-                  caret,
-                  CaretAlignment{
-                                 .x = CaretXAlignment{caret - (isize) line.carets.offset},
-                                 .y = CaretYAlignment{ln}}
+                  caret, CaretAlignment{
+                                        .x = CaretXAlignment{caret - (isize) line.carets.offset},
+                                        .y = CaretYAlignment{ln}}
                 };
             }
 
@@ -505,15 +496,13 @@ Tuple<isize, CaretAlignment> TextLayout::hit(TextBlock const &      block,
         case TextDirection::LeftToRight:
             return {
               (isize) line.carets.last(),
-              CaretAlignment{.x = CaretXAlignment::End,
-                             .y = CaretYAlignment{ln}}
+              CaretAlignment{.x = CaretXAlignment::End, .y = CaretYAlignment{ln}}
             };
 
         case TextDirection::RightToLeft:
             return {
               (isize) line.carets.first(),
-              CaretAlignment{.x = CaretXAlignment::Start,
-                             .y = CaretYAlignment{ln}}
+              CaretAlignment{.x = CaretXAlignment::Start, .y = CaretYAlignment{ln}}
             };
 
         default:
@@ -533,8 +522,8 @@ struct HighlightTestResult
     usize   index = 0;
 };
 
-constexpr Option<HighlightTestResult>
-  highlight_test(Span<Slice const> highlights, Slice carets)
+constexpr Option<HighlightTestResult> highlight_test(Span<Slice const> highlights,
+                                                     Slice             carets)
 {
     Option<HighlightTestResult> span;
 
@@ -545,8 +534,8 @@ constexpr Option<HighlightTestResult>
             return HighlightTestResult{HitSpan::Full, i};
         }
 
-        if (!highlight.is_empty() && (carets.contains(highlight.first()) ||
-                                      carets.contains(highlight.last())))
+        if (!highlight.is_empty() &&
+            (carets.contains(highlight.first()) || carets.contains(highlight.last())))
         {
             span = HighlightTestResult{HitSpan::Partial, i};
         }
@@ -617,11 +606,11 @@ void TextLayout::render(TextRenderer renderer, TextRenderInfo const & info,
     for (auto [iln, ln] : enumerate(this->lines))
     {
         auto ln_bottom = ln_top + ln.metrics.height;
-        auto baseline = ln_bottom - (ln.metrics.leading() + ln.metrics.descent);
+        auto baseline  = ln_bottom - (ln.metrics.leading() + ln.metrics.descent);
         auto direction = ln.metrics.direction();
         // flip the alignment axis direction if it is an RTL line
-        auto alignment = info.style.alignment *
-                         ((direction == TextDirection::LeftToRight) ? 1 : -1);
+        auto alignment =
+          info.style.alignment * ((direction == TextDirection::LeftToRight) ? 1 : -1);
         f32x2 ln_extent{ln.metrics.width, ln.metrics.height};
         f32x2 ln_center{space_align(block_width, ln_extent.x(), alignment),
                         ln_top + 0.5F * ln_extent.y()};
@@ -633,8 +622,7 @@ void TextLayout::render(TextRenderer renderer, TextRenderInfo const & info,
 
         if (!info.clip.overlaps(
               CRect{.center = info.center, .extent = ln_rect.extent}.transform(
-                transform3d_to_2d(info.transform) *
-                translate2d(ln_rect.center))))
+                transform3d_to_2d(info.transform) * translate2d(ln_rect.center))))
         {
             goto next_line;
         }
@@ -645,12 +633,11 @@ void TextLayout::render(TextRenderer renderer, TextRenderInfo const & info,
 
             auto ln_highlight_span = highlight_test(info.highlights, ln.carets);
 
-            if (ln_highlight_span.is_some() &&
-                ln_highlight_span->span == HitSpan::Full)
+            if (ln_highlight_span.is_some() && ln_highlight_span->span == HitSpan::Full)
             {
                 f32x2 extent{
-                  min(max(ln_rect.extent.x(), info.block.font_scale *
-                                                info.style.min_highlight_width),
+                  min(max(ln_rect.extent.x(),
+                          info.block.font_scale * info.style.min_highlight_width),
                       block_width),
                   ln_rect.extent.y()};
                 f32x2 center{space_align(block_width, extent.x(), alignment),
@@ -675,9 +662,8 @@ void TextLayout::render(TextRenderer renderer, TextRenderInfo const & info,
                 if (p.glyph.is_none() && p.line == iln)
                 {
                     f32x2 center{cursor, ln_top + 0.5F * ln.metrics.height};
-                    f32x2 extent{
-                      info.caret_styles[ln_caret_test->index].thickness,
-                      ln.metrics.height};
+                    f32x2 extent{info.caret_styles[ln_caret_test->index].thickness,
+                                 ln.metrics.height};
 
                     carets
                       .push(P::Caret{
@@ -699,11 +685,10 @@ void TextLayout::render(TextRenderer renderer, TextRenderInfo const & info,
                 auto   font        = sys.font->get(font_style.font);
                 auto   font_height = info.block.font_scale * run.font_height;
                 auto   metrics     = run.metrics.resolve(font_height);
-                auto   run_width =
-                  metrics.advance +
-                  (run.is_spacing() ?
-                     0 :
-                     (info.block.font_scale * font_style.word_spacing));
+                auto   run_width   = metrics.advance +
+                                 (run.is_spacing() ?
+                                    0 :
+                                    (info.block.font_scale * font_style.word_spacing));
                 auto direction = run.direction();
 
                 auto glyph_cursor = cursor;
@@ -753,18 +738,16 @@ void TextLayout::render(TextRenderer renderer, TextRenderInfo const & info,
 
                 if (ln_caret_test.is_some())
                 {
-                    run_caret_test = caret_test(
-                      info.carets, run.carets(ln.carets, ln.codepoints));
+                    run_caret_test =
+                      caret_test(info.carets, run.carets(ln.carets, ln.codepoints));
                 }
 
                 if (run_style.strikethrough_thickness != 0)
                 {
-                    f32x2 extent{run_width,
-                                 info.block.font_scale *
-                                   run_style.strikethrough_thickness};
+                    f32x2 extent{run_width, info.block.font_scale *
+                                              run_style.strikethrough_thickness};
                     f32x2 center =
-                      f32x2{cursor, baseline - metrics.ascent * 0.5F} +
-                      extent * 0.5F;
+                      f32x2{cursor, baseline - metrics.ascent * 0.5F} + extent * 0.5F;
 
                     strikethroughs
                       .push(P::Strikethrough{
@@ -779,8 +762,8 @@ void TextLayout::render(TextRenderer renderer, TextRenderInfo const & info,
 
                 if (run_style.underline_thickness != 0)
                 {
-                    f32x2 extent{run_width, info.block.font_scale *
-                                              run_style.underline_thickness};
+                    f32x2 extent{run_width,
+                                 info.block.font_scale * run_style.underline_thickness};
                     f32x2 center =
                       f32x2{cursor, baseline + info.block.font_scale *
                                                  run_style.underline_offset} +
@@ -797,29 +780,25 @@ void TextLayout::render(TextRenderer renderer, TextRenderInfo const & info,
                       .unwrap();
                 }
 
-                for (auto [i, sh] :
-                     enumerate(this->glyphs.view().slice(run.glyphs)))
+                for (auto [i, sh] : enumerate(this->glyphs.view().slice(run.glyphs)))
                 {
                     auto                 iglyph = run.glyphs.offset + i;
                     GlyphMetrics const & m      = font.glyphs[sh.glyph];
-                    f32x2 extent = au_to_px(m.extent, font_height);
-                    f32x2 center = f32x2{glyph_cursor, baseline} +
+                    f32x2                extent = au_to_px(m.extent, font_height);
+                    f32x2                center = f32x2{glyph_cursor, baseline} +
                                    au_to_px(m.bearing, font_height) +
-                                   au_to_px(sh.offset, font_height) +
-                                   0.5F * extent;
+                                   au_to_px(sh.offset, font_height) + 0.5F * extent;
                     auto advance = au_to_px(sh.advance, font_height);
 
                     // before and after carets
-                    auto glyph_carets = Slice{
-                      ln.carets.offset + (sh.cluster - ln.codepoints.offset),
-                      1};
+                    auto glyph_carets =
+                      Slice{ln.carets.offset + (sh.cluster - ln.codepoints.offset), 1};
 
                     if (run_style.has_shadow())
                     {
                         f32x2 shadow_extent = extent * run_style.shadow_scale;
                         f32x2 shadow_center =
-                          center +
-                          info.block.font_scale * run_style.shadow_offset;
+                          center + info.block.font_scale * run_style.shadow_offset;
 
                         glyph_shadows
                           .push(P::GlyphShadow{
@@ -855,14 +834,12 @@ void TextLayout::render(TextRenderer renderer, TextRenderInfo const & info,
                               caret_test(info.carets, glyph_carets);
                             glyph_caret_test.is_some())
                         {
-                            auto & p =
-                              caret_placements[glyph_caret_test->index];
+                            auto & p = caret_placements[glyph_caret_test->index];
 
                             if (p.glyph == iglyph)
                             {
-                                auto & s =
-                                  info.caret_styles[glyph_caret_test->index];
-                                auto c = info.carets[glyph_caret_test->index];
+                                auto & s = info.caret_styles[glyph_caret_test->index];
+                                auto   c = info.carets[glyph_caret_test->index];
 
                                 auto glyph_left  = glyph_cursor;
                                 auto glyph_right = glyph_cursor + advance;
@@ -906,8 +883,7 @@ void TextLayout::render(TextRenderer renderer, TextRenderInfo const & info,
                         if (glyph_highlight_span.is_some())
                         {
                             f32x2 extent{advance, metrics.height()};
-                            f32x2 center =
-                              f32x2{glyph_cursor, ln_top} + 0.5F * extent;
+                            f32x2 center = f32x2{glyph_cursor, ln_top} + 0.5F * extent;
 
                             highlights
                               .push(P::Highlight{

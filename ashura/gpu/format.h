@@ -1587,26 +1587,24 @@ constexpr InplaceVec<NumericFormat, 4> component_numeric_format(Format format)
         case Format::R4G4_UNORM_PACK8:
             return {NumericFormat::UNORM, NumericFormat::UNORM};
         case Format::R4G4B4A4_UNORM_PACK16:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::B4G4R4A4_UNORM_PACK16:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::R5G6B5_UNORM_PACK16:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
         case Format::B5G6R5_UNORM_PACK16:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
         case Format::R5G5B5A1_UNORM_PACK16:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::B5G5R5A1_UNORM_PACK16:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::A1R5G5B5_UNORM_PACK16:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::R8_UNORM:
             return {NumericFormat::UNORM};
         case Format::R8_SNORM:
@@ -1636,11 +1634,9 @@ constexpr InplaceVec<NumericFormat, 4> component_numeric_format(Format format)
         case Format::R8G8_SRGB:
             return {NumericFormat::SRGB, NumericFormat::SRGB};
         case Format::R8G8B8_UNORM:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
         case Format::R8G8B8_SNORM:
-            return {NumericFormat::SNORM, NumericFormat::SNORM,
-                    NumericFormat::SNORM};
+            return {NumericFormat::SNORM, NumericFormat::SNORM, NumericFormat::SNORM};
         case Format::R8G8B8_USCALED:
             return {NumericFormat::USCALED, NumericFormat::USCALED,
                     NumericFormat::USCALED};
@@ -1648,20 +1644,15 @@ constexpr InplaceVec<NumericFormat, 4> component_numeric_format(Format format)
             return {NumericFormat::SSCALED, NumericFormat::SSCALED,
                     NumericFormat::SSCALED};
         case Format::R8G8B8_UINT:
-            return {NumericFormat::UINT, NumericFormat::UINT,
-                    NumericFormat::UINT};
+            return {NumericFormat::UINT, NumericFormat::UINT, NumericFormat::UINT};
         case Format::R8G8B8_SINT:
-            return {NumericFormat::SINT, NumericFormat::SINT,
-                    NumericFormat::SINT};
+            return {NumericFormat::SINT, NumericFormat::SINT, NumericFormat::SINT};
         case Format::R8G8B8_SRGB:
-            return {NumericFormat::SRGB, NumericFormat::SRGB,
-                    NumericFormat::SRGB};
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB};
         case Format::B8G8R8_UNORM:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
         case Format::B8G8R8_SNORM:
-            return {NumericFormat::SNORM, NumericFormat::SNORM,
-                    NumericFormat::SNORM};
+            return {NumericFormat::SNORM, NumericFormat::SNORM, NumericFormat::SNORM};
         case Format::B8G8R8_USCALED:
             return {NumericFormat::USCALED, NumericFormat::USCALED,
                     NumericFormat::USCALED};
@@ -1669,20 +1660,17 @@ constexpr InplaceVec<NumericFormat, 4> component_numeric_format(Format format)
             return {NumericFormat::SSCALED, NumericFormat::SSCALED,
                     NumericFormat::SSCALED};
         case Format::B8G8R8_UINT:
-            return {NumericFormat::UINT, NumericFormat::UINT,
-                    NumericFormat::UINT};
+            return {NumericFormat::UINT, NumericFormat::UINT, NumericFormat::UINT};
         case Format::B8G8R8_SINT:
-            return {NumericFormat::SINT, NumericFormat::SINT,
-                    NumericFormat::SINT};
+            return {NumericFormat::SINT, NumericFormat::SINT, NumericFormat::SINT};
         case Format::B8G8R8_SRGB:
-            return {NumericFormat::SRGB, NumericFormat::SRGB,
-                    NumericFormat::SRGB};
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB};
         case Format::R8G8B8A8_UNORM:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::R8G8B8A8_SNORM:
-            return {NumericFormat::SNORM, NumericFormat::SNORM,
-                    NumericFormat::SNORM, NumericFormat::SNORM};
+            return {NumericFormat::SNORM, NumericFormat::SNORM, NumericFormat::SNORM,
+                    NumericFormat::SNORM};
         case Format::R8G8B8A8_USCALED:
             return {NumericFormat::USCALED, NumericFormat::USCALED,
                     NumericFormat::USCALED, NumericFormat::USCALED};
@@ -1690,20 +1678,20 @@ constexpr InplaceVec<NumericFormat, 4> component_numeric_format(Format format)
             return {NumericFormat::SSCALED, NumericFormat::SSCALED,
                     NumericFormat::SSCALED, NumericFormat::SSCALED};
         case Format::R8G8B8A8_UINT:
-            return {NumericFormat::UINT, NumericFormat::UINT,
-                    NumericFormat::UINT, NumericFormat::UINT};
+            return {NumericFormat::UINT, NumericFormat::UINT, NumericFormat::UINT,
+                    NumericFormat::UINT};
         case Format::R8G8B8A8_SINT:
-            return {NumericFormat::SINT, NumericFormat::SINT,
-                    NumericFormat::SINT, NumericFormat::SINT};
+            return {NumericFormat::SINT, NumericFormat::SINT, NumericFormat::SINT,
+                    NumericFormat::SINT};
         case Format::R8G8B8A8_SRGB:
-            return {NumericFormat::SRGB, NumericFormat::SRGB,
-                    NumericFormat::SRGB, NumericFormat::UNORM};
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
         case Format::B8G8R8A8_UNORM:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::B8G8R8A8_SNORM:
-            return {NumericFormat::SNORM, NumericFormat::SNORM,
-                    NumericFormat::SNORM, NumericFormat::SNORM};
+            return {NumericFormat::SNORM, NumericFormat::SNORM, NumericFormat::SNORM,
+                    NumericFormat::SNORM};
         case Format::B8G8R8A8_USCALED:
             return {NumericFormat::USCALED, NumericFormat::USCALED,
                     NumericFormat::USCALED, NumericFormat::USCALED};
@@ -1711,20 +1699,20 @@ constexpr InplaceVec<NumericFormat, 4> component_numeric_format(Format format)
             return {NumericFormat::SSCALED, NumericFormat::SSCALED,
                     NumericFormat::SSCALED, NumericFormat::SSCALED};
         case Format::B8G8R8A8_UINT:
-            return {NumericFormat::UINT, NumericFormat::UINT,
-                    NumericFormat::UINT, NumericFormat::UINT};
+            return {NumericFormat::UINT, NumericFormat::UINT, NumericFormat::UINT,
+                    NumericFormat::UINT};
         case Format::B8G8R8A8_SINT:
-            return {NumericFormat::SINT, NumericFormat::SINT,
-                    NumericFormat::SINT, NumericFormat::SINT};
+            return {NumericFormat::SINT, NumericFormat::SINT, NumericFormat::SINT,
+                    NumericFormat::SINT};
         case Format::B8G8R8A8_SRGB:
-            return {NumericFormat::SRGB, NumericFormat::SRGB,
-                    NumericFormat::SRGB, NumericFormat::UNORM};
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
         case Format::A8B8G8R8_UNORM_PACK32:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::A8B8G8R8_SNORM_PACK32:
-            return {NumericFormat::SNORM, NumericFormat::SNORM,
-                    NumericFormat::SNORM, NumericFormat::SNORM};
+            return {NumericFormat::SNORM, NumericFormat::SNORM, NumericFormat::SNORM,
+                    NumericFormat::SNORM};
         case Format::A8B8G8R8_USCALED_PACK32:
             return {NumericFormat::USCALED, NumericFormat::USCALED,
                     NumericFormat::USCALED, NumericFormat::USCALED};
@@ -1732,20 +1720,20 @@ constexpr InplaceVec<NumericFormat, 4> component_numeric_format(Format format)
             return {NumericFormat::SSCALED, NumericFormat::SSCALED,
                     NumericFormat::SSCALED, NumericFormat::SSCALED};
         case Format::A8B8G8R8_UINT_PACK32:
-            return {NumericFormat::UINT, NumericFormat::UINT,
-                    NumericFormat::UINT, NumericFormat::UINT};
+            return {NumericFormat::UINT, NumericFormat::UINT, NumericFormat::UINT,
+                    NumericFormat::UINT};
         case Format::A8B8G8R8_SINT_PACK32:
-            return {NumericFormat::SINT, NumericFormat::SINT,
-                    NumericFormat::SINT, NumericFormat::SINT};
+            return {NumericFormat::SINT, NumericFormat::SINT, NumericFormat::SINT,
+                    NumericFormat::SINT};
         case Format::A8B8G8R8_SRGB_PACK32:
-            return {NumericFormat::UNORM, NumericFormat::SRGB,
-                    NumericFormat::SRGB, NumericFormat::SRGB};
+            return {NumericFormat::UNORM, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::SRGB};
         case Format::A2R10G10B10_UNORM_PACK32:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::A2R10G10B10_SNORM_PACK32:
-            return {NumericFormat::SNORM, NumericFormat::SNORM,
-                    NumericFormat::SNORM, NumericFormat::SNORM};
+            return {NumericFormat::SNORM, NumericFormat::SNORM, NumericFormat::SNORM,
+                    NumericFormat::SNORM};
         case Format::A2R10G10B10_USCALED_PACK32:
             return {NumericFormat::USCALED, NumericFormat::USCALED,
                     NumericFormat::USCALED, NumericFormat::USCALED};
@@ -1753,17 +1741,17 @@ constexpr InplaceVec<NumericFormat, 4> component_numeric_format(Format format)
             return {NumericFormat::SSCALED, NumericFormat::SSCALED,
                     NumericFormat::SSCALED, NumericFormat::SSCALED};
         case Format::A2R10G10B10_UINT_PACK32:
-            return {NumericFormat::UINT, NumericFormat::UINT,
-                    NumericFormat::UINT, NumericFormat::UINT};
+            return {NumericFormat::UINT, NumericFormat::UINT, NumericFormat::UINT,
+                    NumericFormat::UINT};
         case Format::A2R10G10B10_SINT_PACK32:
-            return {NumericFormat::SINT, NumericFormat::SINT,
-                    NumericFormat::SINT, NumericFormat::SINT};
+            return {NumericFormat::SINT, NumericFormat::SINT, NumericFormat::SINT,
+                    NumericFormat::SINT};
         case Format::A2B10G10R10_UNORM_PACK32:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::A2B10G10R10_SNORM_PACK32:
-            return {NumericFormat::SNORM, NumericFormat::SNORM,
-                    NumericFormat::SNORM, NumericFormat::SNORM};
+            return {NumericFormat::SNORM, NumericFormat::SNORM, NumericFormat::SNORM,
+                    NumericFormat::SNORM};
         case Format::A2B10G10R10_USCALED_PACK32:
             return {NumericFormat::USCALED, NumericFormat::USCALED,
                     NumericFormat::USCALED, NumericFormat::USCALED};
@@ -1771,11 +1759,11 @@ constexpr InplaceVec<NumericFormat, 4> component_numeric_format(Format format)
             return {NumericFormat::SSCALED, NumericFormat::SSCALED,
                     NumericFormat::SSCALED, NumericFormat::SSCALED};
         case Format::A2B10G10R10_UINT_PACK32:
-            return {NumericFormat::UINT, NumericFormat::UINT,
-                    NumericFormat::UINT, NumericFormat::UINT};
+            return {NumericFormat::UINT, NumericFormat::UINT, NumericFormat::UINT,
+                    NumericFormat::UINT};
         case Format::A2B10G10R10_SINT_PACK32:
-            return {NumericFormat::SINT, NumericFormat::SINT,
-                    NumericFormat::SINT, NumericFormat::SINT};
+            return {NumericFormat::SINT, NumericFormat::SINT, NumericFormat::SINT,
+                    NumericFormat::SINT};
         case Format::R16_UNORM:
             return {NumericFormat::UNORM};
         case Format::R16_SNORM:
@@ -1805,11 +1793,9 @@ constexpr InplaceVec<NumericFormat, 4> component_numeric_format(Format format)
         case Format::R16G16_SFLOAT:
             return {NumericFormat::SFLOAT, NumericFormat::SFLOAT};
         case Format::R16G16B16_UNORM:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
         case Format::R16G16B16_SNORM:
-            return {NumericFormat::SNORM, NumericFormat::SNORM,
-                    NumericFormat::SNORM};
+            return {NumericFormat::SNORM, NumericFormat::SNORM, NumericFormat::SNORM};
         case Format::R16G16B16_USCALED:
             return {NumericFormat::USCALED, NumericFormat::USCALED,
                     NumericFormat::USCALED};
@@ -1817,20 +1803,18 @@ constexpr InplaceVec<NumericFormat, 4> component_numeric_format(Format format)
             return {NumericFormat::SSCALED, NumericFormat::SSCALED,
                     NumericFormat::SSCALED};
         case Format::R16G16B16_UINT:
-            return {NumericFormat::UINT, NumericFormat::UINT,
-                    NumericFormat::UINT};
+            return {NumericFormat::UINT, NumericFormat::UINT, NumericFormat::UINT};
         case Format::R16G16B16_SINT:
-            return {NumericFormat::SINT, NumericFormat::SINT,
-                    NumericFormat::SINT};
+            return {NumericFormat::SINT, NumericFormat::SINT, NumericFormat::SINT};
         case Format::R16G16B16_SFLOAT:
             return {NumericFormat::SFLOAT, NumericFormat::SFLOAT,
                     NumericFormat::SFLOAT};
         case Format::R16G16B16A16_UNORM:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::R16G16B16A16_SNORM:
-            return {NumericFormat::SNORM, NumericFormat::SNORM,
-                    NumericFormat::SNORM, NumericFormat::SNORM};
+            return {NumericFormat::SNORM, NumericFormat::SNORM, NumericFormat::SNORM,
+                    NumericFormat::SNORM};
         case Format::R16G16B16A16_USCALED:
             return {NumericFormat::USCALED, NumericFormat::USCALED,
                     NumericFormat::USCALED, NumericFormat::USCALED};
@@ -1838,14 +1822,14 @@ constexpr InplaceVec<NumericFormat, 4> component_numeric_format(Format format)
             return {NumericFormat::SSCALED, NumericFormat::SSCALED,
                     NumericFormat::SSCALED, NumericFormat::SSCALED};
         case Format::R16G16B16A16_UINT:
-            return {NumericFormat::UINT, NumericFormat::UINT,
-                    NumericFormat::UINT, NumericFormat::UINT};
+            return {NumericFormat::UINT, NumericFormat::UINT, NumericFormat::UINT,
+                    NumericFormat::UINT};
         case Format::R16G16B16A16_SINT:
-            return {NumericFormat::SINT, NumericFormat::SINT,
-                    NumericFormat::SINT, NumericFormat::SINT};
+            return {NumericFormat::SINT, NumericFormat::SINT, NumericFormat::SINT,
+                    NumericFormat::SINT};
         case Format::R16G16B16A16_SFLOAT:
-            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT,
-                    NumericFormat::SFLOAT, NumericFormat::SFLOAT};
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
         case Format::R32_UINT:
             return {NumericFormat::UINT};
         case Format::R32_SINT:
@@ -1859,23 +1843,21 @@ constexpr InplaceVec<NumericFormat, 4> component_numeric_format(Format format)
         case Format::R32G32_SFLOAT:
             return {NumericFormat::SFLOAT, NumericFormat::SFLOAT};
         case Format::R32G32B32_UINT:
-            return {NumericFormat::UINT, NumericFormat::UINT,
-                    NumericFormat::UINT};
+            return {NumericFormat::UINT, NumericFormat::UINT, NumericFormat::UINT};
         case Format::R32G32B32_SINT:
-            return {NumericFormat::SINT, NumericFormat::SINT,
-                    NumericFormat::SINT};
+            return {NumericFormat::SINT, NumericFormat::SINT, NumericFormat::SINT};
         case Format::R32G32B32_SFLOAT:
             return {NumericFormat::SFLOAT, NumericFormat::SFLOAT,
                     NumericFormat::SFLOAT};
         case Format::R32G32B32A32_UINT:
-            return {NumericFormat::UINT, NumericFormat::UINT,
-                    NumericFormat::UINT, NumericFormat::UINT};
+            return {NumericFormat::UINT, NumericFormat::UINT, NumericFormat::UINT,
+                    NumericFormat::UINT};
         case Format::R32G32B32A32_SINT:
-            return {NumericFormat::SINT, NumericFormat::SINT,
-                    NumericFormat::SINT, NumericFormat::SINT};
+            return {NumericFormat::SINT, NumericFormat::SINT, NumericFormat::SINT,
+                    NumericFormat::SINT};
         case Format::R32G32B32A32_SFLOAT:
-            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT,
-                    NumericFormat::SFLOAT, NumericFormat::SFLOAT};
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
         case Format::R64_UINT:
             return {NumericFormat::UINT};
         case Format::R64_SINT:
@@ -1889,23 +1871,21 @@ constexpr InplaceVec<NumericFormat, 4> component_numeric_format(Format format)
         case Format::R64G64_SFLOAT:
             return {NumericFormat::SFLOAT, NumericFormat::SFLOAT};
         case Format::R64G64B64_UINT:
-            return {NumericFormat::UINT, NumericFormat::UINT,
-                    NumericFormat::UINT};
+            return {NumericFormat::UINT, NumericFormat::UINT, NumericFormat::UINT};
         case Format::R64G64B64_SINT:
-            return {NumericFormat::SINT, NumericFormat::SINT,
-                    NumericFormat::SINT};
+            return {NumericFormat::SINT, NumericFormat::SINT, NumericFormat::SINT};
         case Format::R64G64B64_SFLOAT:
             return {NumericFormat::SFLOAT, NumericFormat::SFLOAT,
                     NumericFormat::SFLOAT};
         case Format::R64G64B64A64_UINT:
-            return {NumericFormat::UINT, NumericFormat::UINT,
-                    NumericFormat::UINT, NumericFormat::UINT};
+            return {NumericFormat::UINT, NumericFormat::UINT, NumericFormat::UINT,
+                    NumericFormat::UINT};
         case Format::R64G64B64A64_SINT:
-            return {NumericFormat::SINT, NumericFormat::SINT,
-                    NumericFormat::SINT, NumericFormat::SINT};
+            return {NumericFormat::SINT, NumericFormat::SINT, NumericFormat::SINT,
+                    NumericFormat::SINT};
         case Format::R64G64B64A64_SFLOAT:
-            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT,
-                    NumericFormat::SFLOAT, NumericFormat::SFLOAT};
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
         case Format::B10G11R11_UFLOAT_PACK32:
             return {NumericFormat::UFLOAT, NumericFormat::UFLOAT,
                     NumericFormat::UFLOAT};
@@ -1927,29 +1907,27 @@ constexpr InplaceVec<NumericFormat, 4> component_numeric_format(Format format)
         case Format::D32_SFLOAT_S8_UINT:
             return {NumericFormat::SFLOAT, NumericFormat::UINT};
         case Format::BC1_RGB_UNORM_BLOCK:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
         case Format::BC1_RGB_SRGB_BLOCK:
-            return {NumericFormat::SRGB, NumericFormat::SRGB,
-                    NumericFormat::SRGB};
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB};
         case Format::BC1_RGBA_UNORM_BLOCK:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::BC1_RGBA_SRGB_BLOCK:
-            return {NumericFormat::SRGB, NumericFormat::SRGB,
-                    NumericFormat::SRGB, NumericFormat::UNORM};
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
         case Format::BC2_UNORM_BLOCK:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::BC2_SRGB_BLOCK:
-            return {NumericFormat::SRGB, NumericFormat::SRGB,
-                    NumericFormat::SRGB, NumericFormat::UNORM};
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
         case Format::BC3_UNORM_BLOCK:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::BC3_SRGB_BLOCK:
-            return {NumericFormat::SRGB, NumericFormat::SRGB,
-                    NumericFormat::SRGB, NumericFormat::UNORM};
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
         case Format::BC4_UNORM_BLOCK:
             return {NumericFormat::UNORM};
         case Format::BC4_SNORM_BLOCK:
@@ -1965,29 +1943,27 @@ constexpr InplaceVec<NumericFormat, 4> component_numeric_format(Format format)
             return {NumericFormat::SFLOAT, NumericFormat::SFLOAT,
                     NumericFormat::SFLOAT};
         case Format::BC7_UNORM_BLOCK:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
-        case Format::BC7_SRGB_BLOCK:
-            return {NumericFormat::SRGB, NumericFormat::SRGB,
-                    NumericFormat::SRGB, NumericFormat::UNORM};
-        case Format::ETC2_R8G8B8_UNORM_BLOCK:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
                     NumericFormat::UNORM};
+        case Format::BC7_SRGB_BLOCK:
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
+        case Format::ETC2_R8G8B8_UNORM_BLOCK:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
         case Format::ETC2_R8G8B8_SRGB_BLOCK:
-            return {NumericFormat::SRGB, NumericFormat::SRGB,
-                    NumericFormat::SRGB};
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB};
         case Format::ETC2_R8G8B8A1_UNORM_BLOCK:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::ETC2_R8G8B8A1_SRGB_BLOCK:
-            return {NumericFormat::SRGB, NumericFormat::SRGB,
-                    NumericFormat::SRGB, NumericFormat::UNORM};
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
         case Format::ETC2_R8G8B8A8_UNORM_BLOCK:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::ETC2_R8G8B8A8_SRGB_BLOCK:
-            return {NumericFormat::SRGB, NumericFormat::SRGB,
-                    NumericFormat::SRGB, NumericFormat::UNORM};
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
         case Format::EAC_R11_UNORM_BLOCK:
             return {NumericFormat::UNORM};
         case Format::EAC_R11_SNORM_BLOCK:
@@ -1997,276 +1973,252 @@ constexpr InplaceVec<NumericFormat, 4> component_numeric_format(Format format)
         case Format::EAC_R11G11_SNORM_BLOCK:
             return {NumericFormat::SNORM, NumericFormat::SNORM};
         case Format::ASTC_4x4_UNORM_BLOCK:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::ASTC_4x4_SRGB_BLOCK:
-            return {NumericFormat::SRGB, NumericFormat::SRGB,
-                    NumericFormat::SRGB, NumericFormat::UNORM};
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
         case Format::ASTC_5x4_UNORM_BLOCK:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::ASTC_5x4_SRGB_BLOCK:
-            return {NumericFormat::SRGB, NumericFormat::SRGB,
-                    NumericFormat::SRGB, NumericFormat::UNORM};
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
         case Format::ASTC_5x5_UNORM_BLOCK:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::ASTC_5x5_SRGB_BLOCK:
-            return {NumericFormat::SRGB, NumericFormat::SRGB,
-                    NumericFormat::SRGB, NumericFormat::UNORM};
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
         case Format::ASTC_6x5_UNORM_BLOCK:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::ASTC_6x5_SRGB_BLOCK:
-            return {NumericFormat::SRGB, NumericFormat::SRGB,
-                    NumericFormat::SRGB, NumericFormat::UNORM};
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
         case Format::ASTC_6x6_UNORM_BLOCK:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::ASTC_6x6_SRGB_BLOCK:
-            return {NumericFormat::SRGB, NumericFormat::SRGB,
-                    NumericFormat::SRGB, NumericFormat::UNORM};
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
         case Format::ASTC_8x5_UNORM_BLOCK:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::ASTC_8x5_SRGB_BLOCK:
-            return {NumericFormat::SRGB, NumericFormat::SRGB,
-                    NumericFormat::SRGB, NumericFormat::UNORM};
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
         case Format::ASTC_8x6_UNORM_BLOCK:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::ASTC_8x6_SRGB_BLOCK:
-            return {NumericFormat::SRGB, NumericFormat::SRGB,
-                    NumericFormat::SRGB, NumericFormat::UNORM};
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
         case Format::ASTC_8x8_UNORM_BLOCK:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::ASTC_8x8_SRGB_BLOCK:
-            return {NumericFormat::SRGB, NumericFormat::SRGB,
-                    NumericFormat::SRGB, NumericFormat::UNORM};
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
         case Format::ASTC_10x5_UNORM_BLOCK:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::ASTC_10x5_SRGB_BLOCK:
-            return {NumericFormat::SRGB, NumericFormat::SRGB,
-                    NumericFormat::SRGB, NumericFormat::UNORM};
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
         case Format::ASTC_10x6_UNORM_BLOCK:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::ASTC_10x6_SRGB_BLOCK:
-            return {NumericFormat::SRGB, NumericFormat::SRGB,
-                    NumericFormat::SRGB, NumericFormat::UNORM};
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
         case Format::ASTC_10x8_UNORM_BLOCK:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::ASTC_10x8_SRGB_BLOCK:
-            return {NumericFormat::SRGB, NumericFormat::SRGB,
-                    NumericFormat::SRGB, NumericFormat::UNORM};
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
         case Format::ASTC_10x10_UNORM_BLOCK:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::ASTC_10x10_SRGB_BLOCK:
-            return {NumericFormat::SRGB, NumericFormat::SRGB,
-                    NumericFormat::SRGB, NumericFormat::UNORM};
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
         case Format::ASTC_12x10_UNORM_BLOCK:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::ASTC_12x10_SRGB_BLOCK:
-            return {NumericFormat::SRGB, NumericFormat::SRGB,
-                    NumericFormat::SRGB, NumericFormat::UNORM};
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
         case Format::ASTC_12x12_UNORM_BLOCK:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::ASTC_12x12_SRGB_BLOCK:
-            return {NumericFormat::SRGB, NumericFormat::SRGB,
-                    NumericFormat::SRGB, NumericFormat::UNORM};
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
         case Format::G8B8G8R8_422_UNORM:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::B8G8R8G8_422_UNORM:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::G8_B8_R8_3PLANE_420_UNORM:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
         case Format::G8_B8R8_2PLANE_420_UNORM:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
         case Format::G8_B8_R8_3PLANE_422_UNORM:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
         case Format::G8_B8R8_2PLANE_422_UNORM:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
         case Format::G8_B8_R8_3PLANE_444_UNORM:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
         case Format::R10X6_UNORM_PACK16:
             return {NumericFormat::UNORM};
         case Format::R10X6G10X6_UNORM_2PACK16:
             return {NumericFormat::UNORM, NumericFormat::UNORM};
         case Format::R10X6G10X6B10X6A10X6_UNORM_4PACK16:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::G10X6B10X6G10X6R10X6_422_UNORM_4PACK16:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::B10X6G10X6R10X6G10X6_422_UNORM_4PACK16:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::G10X6_B10X6_R10X6_3PLANE_420_UNORM_3PACK16:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
         case Format::G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
         case Format::G10X6_B10X6_R10X6_3PLANE_422_UNORM_3PACK16:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
         case Format::G10X6_B10X6R10X6_2PLANE_422_UNORM_3PACK16:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
         case Format::G10X6_B10X6_R10X6_3PLANE_444_UNORM_3PACK16:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
         case Format::R12X4_UNORM_PACK16:
             return {NumericFormat::UNORM};
         case Format::R12X4G12X4_UNORM_2PACK16:
             return {NumericFormat::UNORM, NumericFormat::UNORM};
         case Format::R12X4G12X4B12X4A12X4_UNORM_4PACK16:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::G12X4B12X4G12X4R12X4_422_UNORM_4PACK16:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::B12X4G12X4R12X4G12X4_422_UNORM_4PACK16:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::G12X4_B12X4_R12X4_3PLANE_420_UNORM_3PACK16:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
         case Format::G12X4_B12X4R12X4_2PLANE_420_UNORM_3PACK16:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
         case Format::G12X4_B12X4_R12X4_3PLANE_422_UNORM_3PACK16:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
         case Format::G12X4_B12X4R12X4_2PLANE_422_UNORM_3PACK16:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
         case Format::G12X4_B12X4_R12X4_3PLANE_444_UNORM_3PACK16:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
         case Format::G16B16G16R16_422_UNORM:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::B16G16R16G16_422_UNORM:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::G16_B16_R16_3PLANE_420_UNORM:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
         case Format::G16_B16R16_2PLANE_420_UNORM:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
         case Format::G16_B16_R16_3PLANE_422_UNORM:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
         case Format::G16_B16R16_2PLANE_422_UNORM:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
         case Format::G16_B16_R16_3PLANE_444_UNORM:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
         case Format::G8_B8R8_2PLANE_444_UNORM:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
         case Format::G10X6_B10X6R10X6_2PLANE_444_UNORM_3PACK16:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
         case Format::G12X4_B12X4R12X4_2PLANE_444_UNORM_3PACK16:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
         case Format::G16_B16R16_2PLANE_444_UNORM:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
         case Format::A4R4G4B4_UNORM_PACK16:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::A4B4G4R4_UNORM_PACK16:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::ASTC_4x4_SFLOAT_BLOCK:
-            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT,
-                    NumericFormat::SFLOAT, NumericFormat::SFLOAT};
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
         case Format::ASTC_5x4_SFLOAT_BLOCK:
-            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT,
-                    NumericFormat::SFLOAT, NumericFormat::SFLOAT};
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
         case Format::ASTC_5x5_SFLOAT_BLOCK:
-            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT,
-                    NumericFormat::SFLOAT, NumericFormat::SFLOAT};
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
         case Format::ASTC_6x5_SFLOAT_BLOCK:
-            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT,
-                    NumericFormat::SFLOAT, NumericFormat::SFLOAT};
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
         case Format::ASTC_6x6_SFLOAT_BLOCK:
-            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT,
-                    NumericFormat::SFLOAT, NumericFormat::SFLOAT};
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
         case Format::ASTC_8x5_SFLOAT_BLOCK:
-            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT,
-                    NumericFormat::SFLOAT, NumericFormat::SFLOAT};
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
         case Format::ASTC_8x6_SFLOAT_BLOCK:
-            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT,
-                    NumericFormat::SFLOAT, NumericFormat::SFLOAT};
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
         case Format::ASTC_8x8_SFLOAT_BLOCK:
-            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT,
-                    NumericFormat::SFLOAT, NumericFormat::SFLOAT};
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
         case Format::ASTC_10x5_SFLOAT_BLOCK:
-            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT,
-                    NumericFormat::SFLOAT, NumericFormat::SFLOAT};
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
         case Format::ASTC_10x6_SFLOAT_BLOCK:
-            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT,
-                    NumericFormat::SFLOAT, NumericFormat::SFLOAT};
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
         case Format::ASTC_10x8_SFLOAT_BLOCK:
-            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT,
-                    NumericFormat::SFLOAT, NumericFormat::SFLOAT};
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
         case Format::ASTC_10x10_SFLOAT_BLOCK:
-            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT,
-                    NumericFormat::SFLOAT, NumericFormat::SFLOAT};
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
         case Format::ASTC_12x10_SFLOAT_BLOCK:
-            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT,
-                    NumericFormat::SFLOAT, NumericFormat::SFLOAT};
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
         case Format::ASTC_12x12_SFLOAT_BLOCK:
-            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT,
-                    NumericFormat::SFLOAT, NumericFormat::SFLOAT};
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
         case Format::A1B5G5R5_UNORM_PACK16:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::A8_UNORM:
             return {NumericFormat::UNORM};
         case Format::PVRTC1_2BPP_UNORM_BLOCK_IMG:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::PVRTC1_4BPP_UNORM_BLOCK_IMG:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::PVRTC2_2BPP_UNORM_BLOCK_IMG:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::PVRTC2_4BPP_UNORM_BLOCK_IMG:
-            return {NumericFormat::UNORM, NumericFormat::UNORM,
-                    NumericFormat::UNORM, NumericFormat::UNORM};
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
         case Format::PVRTC1_2BPP_SRGB_BLOCK_IMG:
-            return {NumericFormat::SRGB, NumericFormat::SRGB,
-                    NumericFormat::SRGB, NumericFormat::UNORM};
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
         case Format::PVRTC1_4BPP_SRGB_BLOCK_IMG:
-            return {NumericFormat::SRGB, NumericFormat::SRGB,
-                    NumericFormat::SRGB, NumericFormat::UNORM};
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
         case Format::PVRTC2_2BPP_SRGB_BLOCK_IMG:
-            return {NumericFormat::SRGB, NumericFormat::SRGB,
-                    NumericFormat::SRGB, NumericFormat::UNORM};
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
         case Format::PVRTC2_4BPP_SRGB_BLOCK_IMG:
-            return {NumericFormat::SRGB, NumericFormat::SRGB,
-                    NumericFormat::SRGB, NumericFormat::UNORM};
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
         default:
             return {};
     }

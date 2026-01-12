@@ -310,8 +310,7 @@ inline Result<> path_join(Str base, Str ext, Vec<char> & out)
     return Ok{};
 }
 
-Result<Void, IoErr> read_file(Str path, Vec<u8> & buff,
-                              Allocator scratch_allocator);
+Result<Void, IoErr> read_file(Str path, Vec<u8> & buff, Allocator scratch_allocator);
 
 Result<Void, IoErr> write_to_file(Str path, Span<u8 const> buff, bool append,
                                   Allocator scratch_allocator);

@@ -56,8 +56,7 @@ StructuredBuffer<ITEM_TYPE> items;
     var   item     = items[in.instance];
     var   material = item.material;
     f32x2 bbox_pos = in.bbox_rel_pos * 2 * item.half_bbox_extent;
-    var   frag =
-      SdfFragmentInfo(in.world_pos, in.screen_pos, in.uv, in.bbox_rel_pos);
+    var   frag = SdfFragmentInfo(in.world_pos, in.screen_pos, in.uv, in.bbox_rel_pos);
 
     f32 edge_signed_dist = 0;
 
@@ -65,14 +64,13 @@ StructuredBuffer<ITEM_TYPE> items;
     {
         case SdfShapeType::RRect:
         {
-            edge_signed_dist =
-              sdf::rrect(bbox_pos, item.half_extent, item.radii);
+            edge_signed_dist = sdf::rrect(bbox_pos, item.half_extent, item.radii);
         }
         break;
         case SdfShapeType::Squircle:
         {
-            edge_signed_dist = sdf::squircle(bbox_pos, item.half_extent,
-                                             item.radii.x, item.radii.y);
+            edge_signed_dist =
+              sdf::squircle(bbox_pos, item.half_extent, item.radii.x, item.radii.y);
         }
         break;
         case SdfShapeType::SDFMap:
@@ -107,13 +105,12 @@ StructuredBuffer<ITEM_TYPE> items;
         }
         case SdfShadeType::Feathered:
         {
-            f32 edge_mask = sdf::antialiased_mask(edge_signed_dist);
-            f32 feather_signed_dist =
-              1 - smoothstep(0, item.feather, edge_signed_dist);
-            f32 feather_alpha = edge_mask * feather_signed_dist;
+            f32 edge_mask           = sdf::antialiased_mask(edge_signed_dist);
+            f32 feather_signed_dist = 1 - smoothstep(0, item.feather, edge_signed_dist);
+            f32 feather_alpha       = edge_mask * feather_signed_dist;
             return material.feather(frag, edge_signed_dist, edge_mask,
-                                    feather_signed_dist, feather_alpha,
-                                    samplers, textures);
+                                    feather_signed_dist, feather_alpha, samplers,
+                                    textures);
         }
         case SdfShadeType::Stroked:
         {
@@ -122,9 +119,8 @@ StructuredBuffer<ITEM_TYPE> items;
             f32 ring_signed_dist =
               sdf::ring_signed_distance(edge_signed_dist, item.feather);
             f32 ring_mask = edge_mask * sdf::antialiased_mask(ring_signed_dist);
-            return material.stroke(frag, edge_signed_dist, edge_mask,
-                                   ring_signed_dist, ring_mask, samplers,
-                                   textures);
+            return material.stroke(frag, edge_signed_dist, edge_mask, ring_signed_dist,
+                                   ring_mask, samplers, textures);
         }
         default:
             return f32x4(0);

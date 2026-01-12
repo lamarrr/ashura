@@ -193,25 +193,24 @@ enum class SdfMixOp : u32
 /// https://github.com/KhronosGroup/glTF-Sample-Renderer/blob/63b7c128266cfd86bbd3f25caf8b3db3fe854015/source/Renderer/shaders/textures.glsl#L1
 struct PbrCoreMaterial
 {
-    alignas(16) f32x4 albedo;              // {1, 1, 1, 1}
-    alignas(16) f32x4 emission;            // {0, 0, 0, 0}
-    alignas(4) f32 metallic;               // 0
-    alignas(4) f32 roughness;              // 0
-    alignas(4) f32 normal;                 // 0
-    alignas(4) f32 occlusion;              // 0
-    alignas(4) f32 ior;                    // 1.5F
-    alignas(4) f32 clearcoat;              // 0
-    alignas(4) f32 clearcoat_roughness;    // 0
-    alignas(4) f32 clearcoat_normal;       // 0
-    alignas(4)
-      SamplerIndex sampler;    // SamplerIndex::LinearEdgeClampBlackFloat
-    alignas(4) TextureIndex albedo_map;                 // TextureIndex::White
-    alignas(4) TextureIndex metallic_map;               // TextureIndex::White
-    alignas(4) TextureIndex roughness_map;              // TextureIndex::White
-    alignas(4) TextureIndex normal_map;                 // TextureIndex::White
-    alignas(4) TextureIndex occlusion_map;              // TextureIndex::White
-    alignas(4) TextureIndex emission_map;               // TextureIndex::White
-    alignas(4) TextureIndex clearcoat_map;              // TextureIndex::White
+    alignas(16) f32x4 albedo;                 // {1, 1, 1, 1}
+    alignas(16) f32x4 emission;               // {0, 0, 0, 0}
+    alignas(4) f32 metallic;                  // 0
+    alignas(4) f32 roughness;                 // 0
+    alignas(4) f32 normal;                    // 0
+    alignas(4) f32 occlusion;                 // 0
+    alignas(4) f32 ior;                       // 1.5F
+    alignas(4) f32 clearcoat;                 // 0
+    alignas(4) f32 clearcoat_roughness;       // 0
+    alignas(4) f32 clearcoat_normal;          // 0
+    alignas(4) SamplerIndex sampler;          // SamplerIndex::LinearEdgeClampBlackFloat
+    alignas(4) TextureIndex albedo_map;       // TextureIndex::White
+    alignas(4) TextureIndex metallic_map;     // TextureIndex::White
+    alignas(4) TextureIndex roughness_map;    // TextureIndex::White
+    alignas(4) TextureIndex normal_map;       // TextureIndex::White
+    alignas(4) TextureIndex occlusion_map;    // TextureIndex::White
+    alignas(4) TextureIndex emission_map;     // TextureIndex::White
+    alignas(4) TextureIndex clearcoat_map;    // TextureIndex::White
     alignas(4) TextureIndex clearcoat_roughness_map;    // TextureIndex::White
     alignas(4) TextureIndex clearcoat_normal_map;       // TextureIndex::White
 };

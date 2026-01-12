@@ -21,19 +21,18 @@ interface SdfMaterial
                 SamplerState samplers[], Texture2D textures[]);
 
     f32x4 soften(SdfFragmentInfo info, f32 edge_signed_distance, f32 edge_mask,
-                 f32 soften_signed_dist, f32 soften_alpha,
-                 SamplerState samplers[], Texture2D textures[]);
+                 f32 soften_signed_dist, f32 soften_alpha, SamplerState samplers[],
+                 Texture2D textures[]);
 
     f32x4 feather(SdfFragmentInfo info, f32 edge_signed_distance, f32 edge_mask,
-                  f32 feather_signed_dist, f32 feather_alpha,
-                  SamplerState samplers[], Texture2D textures[]);
+                  f32 feather_signed_dist, f32 feather_alpha, SamplerState samplers[],
+                  Texture2D textures[]);
 
     f32x4 stroke(SdfFragmentInfo info, f32 edge_signed_distance, f32 edge_mask,
                  f32 ring_signed_dist, f32 ring_mask, SamplerState samplers[],
                  Texture2D textures[]);
 
-    f32 sdf(SdfFragmentInfo info, SamplerState samplers[],
-            Texture2D textures[]);
+    f32 sdf(SdfFragmentInfo info, SamplerState samplers[], Texture2D textures[]);
 }
 
 struct SdfGradientMaterial : SdfMaterial
@@ -47,8 +46,7 @@ struct SdfGradientMaterial : SdfMaterial
     SamplerIndex sdf_sampler;
     TextureIndex sdf_map;
 
-    f32x4 shade(SdfFragmentInfo info, SamplerState samplers[],
-                Texture2D textures[])
+    f32x4 shade(SdfFragmentInfo info, SamplerState samplers[], Texture2D textures[])
     {
         f32x2 norm_uv   = info.uv + 0.5;
         var   smp       = samplers[NonUniformResourceIndex(this.sampler)];
@@ -68,8 +66,8 @@ struct SdfGradientMaterial : SdfMaterial
     }
 
     f32x4 soften(SdfFragmentInfo info, f32 edge_signed_distance, f32 edge_mask,
-                 f32 soften_signed_dist, f32 soften_alpha,
-                 SamplerState samplers[], Texture2D textures[])
+                 f32 soften_signed_dist, f32 soften_alpha, SamplerState samplers[],
+                 Texture2D textures[])
     {
         var color = shade(info, samplers, textures);
         color.w *= soften_alpha;
@@ -77,8 +75,8 @@ struct SdfGradientMaterial : SdfMaterial
     }
 
     f32x4 feather(SdfFragmentInfo info, f32 edge_signed_distance, f32 edge_mask,
-                  f32 feather_signed_dist, f32 feather_alpha,
-                  SamplerState samplers[], Texture2D textures[])
+                  f32 feather_signed_dist, f32 feather_alpha, SamplerState samplers[],
+                  Texture2D textures[])
     {
         var color = shade(info, samplers, textures);
         color.w *= feather_alpha;
@@ -110,8 +108,7 @@ struct SdfNoiseMaterial : SdfMaterial
     SamplerIndex sdf_sampler;
     TextureIndex sdf_map;
 
-    f32x4 shade(SdfFragmentInfo info, SamplerState samplers[],
-                Texture2D textures[])
+    f32x4 shade(SdfFragmentInfo info, SamplerState samplers[], Texture2D textures[])
     {
         f32x4 n = noise2D(info.screen_pos.xy) * this.intensity;
         return n;
@@ -126,8 +123,8 @@ struct SdfNoiseMaterial : SdfMaterial
     }
 
     f32x4 soften(SdfFragmentInfo info, f32 edge_signed_distance, f32 edge_mask,
-                 f32 soften_signed_dist, f32 soften_alpha,
-                 SamplerState samplers[], Texture2D textures[])
+                 f32 soften_signed_dist, f32 soften_alpha, SamplerState samplers[],
+                 Texture2D textures[])
     {
         var color = shade(info, samplers, textures);
         color *= soften_alpha;
@@ -135,8 +132,8 @@ struct SdfNoiseMaterial : SdfMaterial
     }
 
     f32x4 feather(SdfFragmentInfo info, f32 edge_signed_distance, f32 edge_mask,
-                  f32 feather_signed_dist, f32 feather_alpha,
-                  SamplerState samplers[], Texture2D textures[])
+                  f32 feather_signed_dist, f32 feather_alpha, SamplerState samplers[],
+                  Texture2D textures[])
     {
         var color = shade(info, samplers, textures);
         color *= feather_alpha;
@@ -191,8 +188,7 @@ struct SdfMeshGradientMaterial : SdfMaterial
         return t;
     }
 
-    f32x4 shade(SdfFragmentInfo info, SamplerState samplers[],
-                Texture2D textures[])
+    f32x4 shade(SdfFragmentInfo info, SamplerState samplers[], Texture2D textures[])
     {
         f32x2 t        = distort(info.bbox_rel_pos);
         t.x            = smoothstep(min.x, max.x, t.x);
@@ -212,8 +208,8 @@ struct SdfMeshGradientMaterial : SdfMaterial
     }
 
     f32x4 soften(SdfFragmentInfo info, f32 edge_signed_distance, f32 edge_mask,
-                 f32 soften_signed_dist, f32 soften_alpha,
-                 SamplerState samplers[], Texture2D textures[])
+                 f32 soften_signed_dist, f32 soften_alpha, SamplerState samplers[],
+                 Texture2D textures[])
     {
         var color = shade(info, samplers, textures);
         color *= soften_alpha;
@@ -221,8 +217,8 @@ struct SdfMeshGradientMaterial : SdfMaterial
     }
 
     f32x4 feather(SdfFragmentInfo info, f32 edge_signed_distance, f32 edge_mask,
-                  f32 feather_signed_dist, f32 feather_alpha,
-                  SamplerState samplers[], Texture2D textures[])
+                  f32 feather_signed_dist, f32 feather_alpha, SamplerState samplers[],
+                  Texture2D textures[])
     {
         var color = shade(info, samplers, textures);
         color *= feather_alpha;

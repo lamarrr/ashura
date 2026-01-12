@@ -128,9 +128,9 @@ struct ScopeTrace
         .variant  = variant,
         .location = loc,
         .label    = label,
-        .data     = I64Range{.begin = static_cast<nanoseconds>(
-                                    steady_clock::now().time_since_epoch())
-                                    .count(),
+        .data     = I64Range{
+                             .begin =
+            static_cast<nanoseconds>(steady_clock::now().time_since_epoch()).count(),
                              .end = 0}
     }
     {
@@ -144,8 +144,7 @@ struct ScopeTrace
     ~ScopeTrace()
     {
         record_.data.end =
-          static_cast<nanoseconds>(steady_clock::now().time_since_epoch())
-            .count();
+          static_cast<nanoseconds>(steady_clock::now().time_since_epoch()).count();
         get_scope_trace_sink().trace(record_);
     }
 };

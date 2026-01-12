@@ -28,34 +28,32 @@ void SdfEncoder::submit(GpuFramePlan plan)
     auto i_world_to_ndc = plan->push_gpu(span({world_to_ndc_}));
     auto i_items        = plan->push_gpu(items);
 
-    plan->add_pass(
-      [attachments = this->attachments_, texture_set = this->texture_set_,
-       i_states, i_state_runs, i_world_to_ndc, i_items,
-       variant = this->variant_](GpuFrame frame, gpu::CommandEncoder enc) {
-          auto states       = frame->get<State>(i_states);
-          auto state_runs   = frame->get<u32>(i_state_runs);
-          auto world_to_ndc = frame->get(i_world_to_ndc);
-          auto items        = frame->get(i_items);
-          auto images       = frame->get_scratch_images();
+    plan->add_pass([attachments = this->attachments_, texture_set = this->texture_set_,
+                    i_states, i_state_runs, i_world_to_ndc, i_items,
+                    variant = this->variant_](GpuFrame frame, gpu::CommandEncoder enc) {
+        auto states       = frame->get<State>(i_states);
+        auto state_runs   = frame->get<u32>(i_state_runs);
+        auto world_to_ndc = frame->get(i_world_to_ndc);
+        auto items        = frame->get(i_items);
+        auto images       = frame->get_scratch_images();
 
-          auto framebuffer =
-            Framebuffer{.color         = images[attachments.color].color,
-                        .color_msaa    = none,
-                        .depth_stencil = attachments.depth_stencil.map(
-                          [&](auto s) { return images[s].depth_stencil; })};
+        auto framebuffer =
+          Framebuffer{.color         = images[attachments.color].color,
+                      .color_msaa    = none,
+                      .depth_stencil = attachments.depth_stencil.map(
+                        [&](auto s) { return images[s].depth_stencil; })};
 
-          auto params =
-            SdfPipelineParams{.framebuffer  = framebuffer,
-                              .samplers     = sys.gpu->descriptors_.samplers,
-                              .textures     = frame->get(texture_set),
-                              .world_to_ndc = world_to_ndc,
-                              .items        = items,
-                              .states       = states,
-                              .state_runs   = state_runs,
-                              .variant      = variant};
+        auto params = SdfPipelineParams{.framebuffer  = framebuffer,
+                                        .samplers     = sys.gpu->descriptors_.samplers,
+                                        .textures     = frame->get(texture_set),
+                                        .world_to_ndc = world_to_ndc,
+                                        .items        = items,
+                                        .states       = states,
+                                        .state_runs   = state_runs,
+                                        .variant      = variant};
 
-          sys.pipeline->sdf().encode(enc, params);
-      });
+        sys.pipeline->sdf().encode(enc, params);
+    });
 }
 
 void QuadEncoder::submit(GpuFramePlan plan)
@@ -71,33 +69,32 @@ void QuadEncoder::submit(GpuFramePlan plan)
     auto i_world_to_ndc = plan->push_gpu(span({world_to_ndc_}));
     auto i_quads        = plan->push_gpu(quads);
 
-    plan->add_pass(
-      [attachments = this->attachments_, texture_set = this->texture_set_,
-       i_states, i_state_runs, i_world_to_ndc, i_quads,
-       variant = this->variant_](GpuFrame frame, gpu::CommandEncoder enc) {
-          auto states       = frame->get<State>(i_states);
-          auto state_runs   = frame->get<u32>(i_state_runs);
-          auto world_to_ndc = frame->get(i_world_to_ndc);
-          auto quads        = frame->get(i_quads);
-          auto images       = frame->get_scratch_images();
+    plan->add_pass([attachments = this->attachments_, texture_set = this->texture_set_,
+                    i_states, i_state_runs, i_world_to_ndc, i_quads,
+                    variant = this->variant_](GpuFrame frame, gpu::CommandEncoder enc) {
+        auto states       = frame->get<State>(i_states);
+        auto state_runs   = frame->get<u32>(i_state_runs);
+        auto world_to_ndc = frame->get(i_world_to_ndc);
+        auto quads        = frame->get(i_quads);
+        auto images       = frame->get_scratch_images();
 
-          auto framebuffer =
-            Framebuffer{.color         = images[attachments.color].color,
-                        .color_msaa    = none,
-                        .depth_stencil = attachments.depth_stencil.map(
-                          [&](auto s) { return images[s].depth_stencil; })};
+        auto framebuffer =
+          Framebuffer{.color         = images[attachments.color].color,
+                      .color_msaa    = none,
+                      .depth_stencil = attachments.depth_stencil.map(
+                        [&](auto s) { return images[s].depth_stencil; })};
 
-          auto params = QuadPipelineParams{.framebuffer = framebuffer,
-                                           .samplers    = sys.gpu->samplers(),
-                                           .textures = frame->get(texture_set),
-                                           .world_to_ndc = world_to_ndc,
-                                           .quads        = quads,
-                                           .states       = states,
-                                           .state_runs   = state_runs,
-                                           .variant      = variant};
+        auto params = QuadPipelineParams{.framebuffer  = framebuffer,
+                                         .samplers     = sys.gpu->samplers(),
+                                         .textures     = frame->get(texture_set),
+                                         .world_to_ndc = world_to_ndc,
+                                         .quads        = quads,
+                                         .states       = states,
+                                         .state_runs   = state_runs,
+                                         .variant      = variant};
 
-          sys.pipeline->quad().encode(enc, params);
-      });
+        sys.pipeline->quad().encode(enc, params);
+    });
 }
 
 void TriangleFillEncoder::submit(GpuFramePlan plan)
@@ -119,41 +116,39 @@ void TriangleFillEncoder::submit(GpuFramePlan plan)
     auto i_vertices     = plan->push_gpu(vertices);
     auto i_indices      = plan->push_gpu(indices);
 
-    plan->add_pass(
-      [attachments = this->attachments_, stencil_op = stencil_op_,
-       texture_set = this->texture_set_, i_index_runs, i_states, i_state_runs,
-       i_world_to_ndc, i_sets, i_vertices, i_indices,
-       variant = this->variant_](GpuFrame frame, gpu::CommandEncoder enc) {
-          auto world_to_ndc = frame->get(i_world_to_ndc);
-          auto sets         = frame->get(i_sets);
-          auto vertices     = frame->get(i_vertices);
-          auto indices      = frame->get(i_indices);
-          auto index_runs   = frame->get<u32>(i_index_runs);
-          auto states       = frame->get<State>(i_states);
-          auto state_runs   = frame->get<u32>(i_state_runs);
-          auto images       = frame->get_scratch_images();
+    plan->add_pass([attachments = this->attachments_, stencil_op = stencil_op_,
+                    texture_set = this->texture_set_, i_index_runs, i_states,
+                    i_state_runs, i_world_to_ndc, i_sets, i_vertices, i_indices,
+                    variant = this->variant_](GpuFrame frame, gpu::CommandEncoder enc) {
+        auto world_to_ndc = frame->get(i_world_to_ndc);
+        auto sets         = frame->get(i_sets);
+        auto vertices     = frame->get(i_vertices);
+        auto indices      = frame->get(i_indices);
+        auto index_runs   = frame->get<u32>(i_index_runs);
+        auto states       = frame->get<State>(i_states);
+        auto state_runs   = frame->get<u32>(i_state_runs);
+        auto images       = frame->get_scratch_images();
 
-          auto framebuffer =
-            Framebuffer{.color         = images[attachments.color].color,
-                        .color_msaa    = none,
-                        .depth_stencil = attachments.depth_stencil.map(
-                          [&](auto s) { return images[s].depth_stencil; })};
+        auto framebuffer =
+          Framebuffer{.color         = images[attachments.color].color,
+                      .color_msaa    = none,
+                      .depth_stencil = attachments.depth_stencil.map(
+                        [&](auto s) { return images[s].depth_stencil; })};
 
-          auto params =
-            TriangleFillPipelineParams{.framebuffer  = framebuffer,
-                                       .samplers     = sys.gpu->samplers(),
-                                       .textures     = frame->get(texture_set),
-                                       .world_to_ndc = world_to_ndc,
-                                       .sets         = sets,
-                                       .vertices     = vertices,
-                                       .indices      = indices,
-                                       .index_runs   = index_runs,
-                                       .states       = states,
-                                       .state_runs   = state_runs,
-                                       .variant      = variant};
+        auto params = TriangleFillPipelineParams{.framebuffer = framebuffer,
+                                                 .samplers    = sys.gpu->samplers(),
+                                                 .textures    = frame->get(texture_set),
+                                                 .world_to_ndc = world_to_ndc,
+                                                 .sets         = sets,
+                                                 .vertices     = vertices,
+                                                 .indices      = indices,
+                                                 .index_runs   = index_runs,
+                                                 .states       = states,
+                                                 .state_runs   = state_runs,
+                                                 .variant      = variant};
 
-          sys.pipeline->triangle_fill().encode(enc, params);
-      });
+        sys.pipeline->triangle_fill().encode(enc, params);
+    });
 }
 
 void FillStencilEncoder::submit(GpuFramePlan plan)
@@ -176,8 +171,7 @@ void FillStencilEncoder::submit(GpuFramePlan plan)
     auto i_state_runs = plan->push_cpu(state_runs);
 
     plan->add_pass([attachments = this->attachments_, i_world_to_ndc,
-                    i_world_transforms, i_vertices, i_indices, i_index_runs,
-                    i_states,
+                    i_world_transforms, i_vertices, i_indices, i_index_runs, i_states,
                     i_state_runs](GpuFrame frame, gpu::CommandEncoder enc) {
         auto world_to_ndc     = frame->get(i_world_to_ndc);
         auto world_transforms = frame->get(i_world_transforms);
@@ -188,14 +182,13 @@ void FillStencilEncoder::submit(GpuFramePlan plan)
         auto state_runs       = frame->get<u32>(i_state_runs);
         auto images           = frame->get_scratch_images();
 
-        auto image = images[attachments.depth_stencil].depth_stencil;
-        auto stencil =
-          gpu::RenderingAttachment{.view         = image.stencil_view,
-                                   .resolve      = nullptr,
-                                   .resolve_mode = gpu::ResolveModes::None,
-                                   .load_op      = gpu::LoadOp::Clear,
-                                   .store_op     = gpu::StoreOp::Store,
-                                   .clear        = {}};
+        auto image   = images[attachments.depth_stencil].depth_stencil;
+        auto stencil = gpu::RenderingAttachment{.view         = image.stencil_view,
+                                                .resolve      = nullptr,
+                                                .resolve_mode = gpu::ResolveModes::None,
+                                                .load_op      = gpu::LoadOp::Clear,
+                                                .store_op     = gpu::StoreOp::Store,
+                                                .clear        = {}};
 
         auto params = FillStencilPipelineParams{
           .stencil_attachment = stencil,
@@ -243,14 +236,13 @@ void BezierStencilEncoder::submit(GpuFramePlan plan)
         auto indices      = frame->get(i_indices);
         auto images       = frame->get_scratch_images();
 
-        auto image = images[attachments.depth_stencil].depth_stencil;
-        auto stencil =
-          gpu::RenderingAttachment{.view         = image.stencil_view,
-                                   .resolve      = nullptr,
-                                   .resolve_mode = gpu::ResolveModes::None,
-                                   .load_op      = gpu::LoadOp::Clear,
-                                   .store_op     = gpu::StoreOp::Store,
-                                   .clear        = {}};
+        auto image   = images[attachments.depth_stencil].depth_stencil;
+        auto stencil = gpu::RenderingAttachment{.view         = image.stencil_view,
+                                                .resolve      = nullptr,
+                                                .resolve_mode = gpu::ResolveModes::None,
+                                                .load_op      = gpu::LoadOp::Clear,
+                                                .store_op     = gpu::StoreOp::Store,
+                                                .clear        = {}};
 
         auto params = BezierStencilPipelineParams{
           .stencil_attachment = stencil,
@@ -305,11 +297,10 @@ void VectorPathEncoder::submit(GpuFramePlan plan)
     auto i_fill_states         = plan->push_cpu(fill_states);
     auto i_fill_state_runs     = plan->push_cpu(fill_state_runs);
 
-    plan->add_pass([attachments = this->attachments_,
-                    texture_set = this->texture_set_, variant = this->variant_,
-                    i_index_runs, i_coverage_states, i_coverage_state_runs,
-                    i_fill_states, i_fill_state_runs, i_world_to_ndc,
-                    i_vertices, i_indices, i_coverage_items,
+    plan->add_pass([attachments = this->attachments_, texture_set = this->texture_set_,
+                    variant = this->variant_, i_index_runs, i_coverage_states,
+                    i_coverage_state_runs, i_fill_states, i_fill_state_runs,
+                    i_world_to_ndc, i_vertices, i_indices, i_coverage_items,
                     i_fill_items](GpuFrame frame, gpu::CommandEncoder enc) {
         auto world_to_ndc        = frame->get(i_world_to_ndc);
         auto vertices            = frame->get(i_vertices);
@@ -323,12 +314,9 @@ void VectorPathEncoder::submit(GpuFramePlan plan)
         auto fill_state_runs     = frame->get<u32>(i_fill_state_runs);
         auto images              = frame->get_scratch_images();
 
-        auto scratch_stencil =
-          images[attachments.scratch_depth_stencil].depth_stencil;
-        auto scratch_alpha_masks_buffer =
-          images[attachments.scratch_alpha_mask].texel;
-        auto scratch_fill_ids_buffer =
-          images[attachments.scratch_fill_id].texel;
+        auto scratch_stencil = images[attachments.scratch_depth_stencil].depth_stencil;
+        auto scratch_alpha_masks_buffer = images[attachments.scratch_alpha_mask].texel;
+        auto scratch_fill_ids_buffer    = images[attachments.scratch_fill_id].texel;
 
         auto scratch_alpha_masks =
           scratch_alpha_masks_buffer.interpret(gpu::Format::R32_SFLOAT);
@@ -341,24 +329,22 @@ void VectorPathEncoder::submit(GpuFramePlan plan)
               gpu::DepthStencil{
                 .stencil = 0
             },
-              span({gpu::ImageSubresourceRange{
-                .aspects      = gpu::ImageAspects::Stencil,
-                .mip_levels   = Slice32::all(),
-                .array_layers = Slice32::all()}}));
+              span({gpu::ImageSubresourceRange{.aspects    = gpu::ImageAspects::Stencil,
+                                               .mip_levels = Slice32::all(),
+                                               .array_layers = Slice32::all()}}));
 
             // clear to 0.0F
-            enc->fill_buffer(scratch_alpha_masks_buffer.buffer, Slice64::all(),
-                             0);
+            enc->fill_buffer(scratch_alpha_masks_buffer.buffer, Slice64::all(), 0);
 
             // clear to paint ID 0
             enc->fill_buffer(scratch_fill_ids_buffer.buffer, Slice64::all(), 0);
         }
 
         auto cfg = shader::VectorPathCfg{
-          .tile_count       = scratch_alpha_masks_buffer.tile_count,
-          .tile_texel_count = scratch_alpha_masks_buffer.tile_texel_count,
-          .tile_extent_log2 = log2(scratch_alpha_masks_buffer.tile_texel_count),
-          .sample_count     = scratch_alpha_masks_buffer.sample_count,
+          .tile_count        = scratch_alpha_masks_buffer.tile_count,
+          .tile_texel_count  = scratch_alpha_masks_buffer.tile_texel_count,
+          .tile_extent_log2  = log2(scratch_alpha_masks_buffer.tile_texel_count),
+          .sample_count      = scratch_alpha_masks_buffer.sample_count,
           .sample_count_log2 = log2(scratch_alpha_masks_buffer.sample_count)};
 
         {
@@ -382,10 +368,9 @@ void VectorPathEncoder::submit(GpuFramePlan plan)
             // [ ] use &-op of the stencil attachment and the scratch stencil bits if
             // there's a stencil attachment
 
-            auto framebuffer =
-              Framebuffer{.color         = images[attachments.color].color,
-                          .color_msaa    = none,
-                          .depth_stencil = scratch_stencil};
+            auto framebuffer = Framebuffer{.color = images[attachments.color].color,
+                                           .color_msaa    = none,
+                                           .depth_stencil = scratch_stencil};
 
             auto fill_params = VectorPathFillPipelineParams{
               .framebuffer      = framebuffer,
@@ -410,42 +395,41 @@ void PbrEncoder::submit(GpuFramePlan plan)
     auto i_item   = plan->push_gpu(item_.view());
     auto i_lights = plan->push_gpu(lights_.view());
 
-    plan->add_pass(
-      [attachments = this->attachments_, stencil_op = stencil_op_,
-       scissor = this->scissor_, polygon_mode = this->polygon_mode_,
-       viewport = this->viewport_, texture_set = this->texture_set_,
-       vertices = this->vertices_, indices = this->indices_,
-       num_indices = this->num_indices_, i_item, i_lights,
-       cull_mode = this->cull_mode_, front_face = this->front_face_,
-       variant = this->variant_](GpuFrame frame, gpu::CommandEncoder enc) {
-          auto items  = frame->get(i_item);
-          auto lights = frame->get(i_lights);
-          auto images = frame->get_scratch_images();
+    plan->add_pass([attachments = this->attachments_, stencil_op = stencil_op_,
+                    scissor = this->scissor_, polygon_mode = this->polygon_mode_,
+                    viewport = this->viewport_, texture_set = this->texture_set_,
+                    vertices = this->vertices_, indices = this->indices_,
+                    num_indices = this->num_indices_, i_item, i_lights,
+                    cull_mode = this->cull_mode_, front_face = this->front_face_,
+                    variant = this->variant_](GpuFrame frame, gpu::CommandEncoder enc) {
+        auto items  = frame->get(i_item);
+        auto lights = frame->get(i_lights);
+        auto images = frame->get_scratch_images();
 
-          auto framebuffer =
-            Framebuffer{.color         = images[attachments.color].color,
-                        .color_msaa    = none,
-                        .depth_stencil = attachments.depth_stencil.map(
-                          [&](auto s) { return images[s].depth_stencil; })};
+        auto framebuffer =
+          Framebuffer{.color         = images[attachments.color].color,
+                      .color_msaa    = none,
+                      .depth_stencil = attachments.depth_stencil.map(
+                        [&](auto s) { return images[s].depth_stencil; })};
 
-          auto params = PBRPipelineParams{.framebuffer  = framebuffer,
-                                          .stencil      = stencil_op,
-                                          .scissor      = scissor,
-                                          .viewport     = viewport,
-                                          .polygon_mode = polygon_mode,
-                                          .samplers     = sys.gpu->samplers(),
-                                          .textures = frame->get(texture_set),
-                                          .vertices = vertices,
-                                          .indices  = indices,
-                                          .items    = items,
-                                          .lights   = lights,
-                                          .num_indices = num_indices,
-                                          .cull_mode   = cull_mode,
-                                          .front_face  = front_face,
-                                          .variant     = variant};
+        auto params = PBRPipelineParams{.framebuffer  = framebuffer,
+                                        .stencil      = stencil_op,
+                                        .scissor      = scissor,
+                                        .viewport     = viewport,
+                                        .polygon_mode = polygon_mode,
+                                        .samplers     = sys.gpu->samplers(),
+                                        .textures     = frame->get(texture_set),
+                                        .vertices     = vertices,
+                                        .indices      = indices,
+                                        .items        = items,
+                                        .lights       = lights,
+                                        .num_indices  = num_indices,
+                                        .cull_mode    = cull_mode,
+                                        .front_face   = front_face,
+                                        .variant      = variant};
 
-          sys.pipeline->pbr().encode(enc, params);
-      });
+        sys.pipeline->pbr().encode(enc, params);
+    });
 }
 
 }    // namespace ash

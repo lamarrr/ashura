@@ -117,9 +117,9 @@ inline constexpr isize ISIZE_MAX = PTRDIFF_MAX;
 inline constexpr c32 UTF32_MIN = 0x0000'0000;
 inline constexpr c32 UTF32_MAX = 0x0010'FFFF;
 
-inline constexpr f16 F16_MIN          = -65504.0F;    // -2^16 * (1 - 2^-10)
+inline constexpr f16 F16_MIN          = -65504.0F;            // -2^16 * (1 - 2^-10)
 inline constexpr f16 F16_MIN_POSITIVE = 0.00006103515625F;    // 2^-10
-inline constexpr f16 F16_MAX          = 65504.0F;    // 2^16 * (1 - 2^-10)
+inline constexpr f16 F16_MAX          = 65504.0F;             // 2^16 * (1 - 2^-10)
 inline constexpr f16 F16_EPS          = 0.00006103515625F;
 inline constexpr f16 F16_INF          = INFINITY;
 
@@ -809,8 +809,7 @@ struct [[nodiscard]] CoreSlice
 
     static constexpr CoreSlice elements(S first, S last)
     {
-        return CoreSlice{.offset = first,
-                         .span   = static_cast<S>(last - first + 1)};
+        return CoreSlice{.offset = first, .span = static_cast<S>(last - first + 1)};
     }
 
     static constexpr CoreSlice slice(S offset, S span)
@@ -845,8 +844,7 @@ struct [[nodiscard]] CoreSlice
 
     constexpr CoreSlice operator()(S size) const
     {
-        return CoreSlice::offsets(min(offset, size),
-                                  min(sat_add(offset, span), size));
+        return CoreSlice::offsets(min(offset, size), min(sat_add(offset, span), size));
     }
 
     constexpr CoreSlice operator()() const
@@ -903,8 +901,7 @@ struct [[nodiscard]] CoreSlice
 
     constexpr CoreSlice<usize> as_usize() const
     {
-        return CoreSlice<usize>{static_cast<usize>(offset),
-                                static_cast<usize>(span)};
+        return CoreSlice<usize>{static_cast<usize>(offset), static_cast<usize>(span)};
     }
 };
 
@@ -1350,8 +1347,7 @@ struct [[nodiscard]] Span
     }
 
     template <typename... Args>
-    constexpr void set(usize index, Args &&... args) const
-      requires (NonConst<T>)
+    constexpr void set(usize index, Args &&... args) const requires (NonConst<T>)
     {
         data()[index] = T{static_cast<Args &&>(args)...};
     }
@@ -1368,8 +1364,7 @@ struct [[nodiscard]] Span
 
     constexpr auto as_u8() const requires (Const<T>)
     {
-        return Span<u8 const>{reinterpret_cast<u8 const *>(data()),
-                              size_bytes()};
+        return Span<u8 const>{reinterpret_cast<u8 const *>(data()), size_bytes()};
     }
 
     constexpr auto as_char() const requires (NonConst<T>)
@@ -1379,8 +1374,7 @@ struct [[nodiscard]] Span
 
     constexpr auto as_char() const requires (Const<T>)
     {
-        return Span<char const>{reinterpret_cast<char const *>(data()),
-                                size_bytes()};
+        return Span<char const>{reinterpret_cast<char const *>(data()), size_bytes()};
     }
 
     constexpr auto as_c8() const requires (NonConst<T>)
@@ -1390,8 +1384,7 @@ struct [[nodiscard]] Span
 
     constexpr auto as_c8() const requires (Const<T>)
     {
-        return Span<c8 const>{reinterpret_cast<c8 const *>(data()),
-                              size_bytes()};
+        return Span<c8 const>{reinterpret_cast<c8 const *>(data()), size_bytes()};
     }
 
     constexpr Slice as_slice_of(Span<T const> parent) const
@@ -1720,8 +1713,7 @@ struct BitSpan
     {
     }
 
-    constexpr BitSpan(Span<R> storage, usize size) :
-      BitSpan{storage.data(), size}
+    constexpr BitSpan(Span<R> storage, usize size) : BitSpan{storage.data(), size}
     {
     }
 
@@ -1852,8 +1844,7 @@ template <typename T>
 BitSpan(T *, usize) -> BitSpan<T>;
 
 template <SpanContainer C>
-BitSpan(C & container)
-  -> BitSpan<std::remove_pointer_t<decltype(data(container))>>;
+BitSpan(C & container) -> BitSpan<std::remove_pointer_t<decltype(data(container))>>;
 
 template <SpanContainer C>
 BitSpan(C & container, usize)
@@ -2434,8 +2425,7 @@ struct Fn<R(Args...)>
     /// outlive the Fn
     template <typename F>
     requires ((!Convertible<F, R (*)(Args...)>) && CallableOf<F, R, Args...>)
-    Fn(F * functor) :
-      Fn{(void *) (functor), &FunctorThunk<F, R(Args...)>::thunk}
+    Fn(F * functor) : Fn{(void *) (functor), &FunctorThunk<F, R(Args...)>::thunk}
     {
     }
 
@@ -2528,8 +2518,8 @@ constexpr Span<Char> cstr(Char * c_str)
 struct SourceLocation
 {
     static constexpr SourceLocation current(
-#if ASH_HAS_BUILTIN(FILE) || (defined(__cpp_lib_source_location) && \
-                              __cpp_lib_source_location >= 201'907L)
+#if ASH_HAS_BUILTIN(FILE) || \
+  (defined(__cpp_lib_source_location) && __cpp_lib_source_location >= 201'907L)
       Str file = cstr(__builtin_FILE()),
 #elif defined(__FILE__)
       Str file = cstr(__FILE__),
@@ -2537,15 +2527,15 @@ struct SourceLocation
       Str file = cstr("unknown"),
 #endif
 
-#if ASH_HAS_BUILTIN(FUNCTION) || (defined(__cpp_lib_source_location) && \
-                                  __cpp_lib_source_location >= 201'907L)
+#if ASH_HAS_BUILTIN(FUNCTION) || \
+  (defined(__cpp_lib_source_location) && __cpp_lib_source_location >= 201'907L)
       Str function = cstr(__builtin_FUNCTION()),
 #else
       Str function = cstr("unknown"),
 #endif
 
-#if ASH_HAS_BUILTIN(LINE) || (defined(__cpp_lib_source_location) && \
-                              __cpp_lib_source_location >= 201'907L)
+#if ASH_HAS_BUILTIN(LINE) || \
+  (defined(__cpp_lib_source_location) && __cpp_lib_source_location >= 201'907L)
       u32 line = __builtin_LINE(),
 #elif defined(__LINE__)
       u32 line = __LINE__,
@@ -2553,8 +2543,8 @@ struct SourceLocation
       u32 line = 0,
 #endif
 
-#if ASH_HAS_BUILTIN(COLUMN) || (defined(__cpp_lib_source_location) && \
-                                __cpp_lib_source_location >= 201'907L)
+#if ASH_HAS_BUILTIN(COLUMN) || \
+  (defined(__cpp_lib_source_location) && __cpp_lib_source_location >= 201'907L)
       u32 column = __builtin_COLUMN()
 #else
       u32 column = 0

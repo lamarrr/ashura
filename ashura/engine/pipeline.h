@@ -19,11 +19,9 @@ struct IPipeline
 {
     virtual Str label() = 0;
 
-    virtual void acquire(GpuFramePlan plan, Allocator allocator,
-                         Allocator scratch) = 0;
+    virtual void acquire(GpuFramePlan plan, Allocator allocator, Allocator scratch) = 0;
 
-    virtual void release(GpuFramePlan plan, Allocator allocator,
-                         Allocator scratch) = 0;
+    virtual void release(GpuFramePlan plan, Allocator allocator, Allocator scratch) = 0;
 
     virtual ~IPipeline() = default;
 };

@@ -172,7 +172,7 @@ f32 rrect(f32x2 pos, f32x2 half_extent, f32x4 radii)
 f32 squircle(f32x2 pos, f32x2 half_extent, f32 degree, f32 radius)
 {
     f32x2 norm_pos = pos / half_extent;
-    f32   q = pow(abs(norm_pos.x), degree) + pow(abs(norm_pos.y), degree);
+    f32   q        = pow(abs(norm_pos.x), degree) + pow(abs(norm_pos.y), degree);
     return pow(q, 1.0 / degree) * radius - radius;
 }
 
@@ -229,12 +229,10 @@ f32 box_frame(f32x3 p, f32x3 b, f32 e)
 {
     p       = abs(p) - b;
     f32x3 q = abs(p + e) - e;
-    return min(min(length(max(f32x3(p.x, q.y, q.z), 0.0)) +
-                     min(max(p.x, max(q.y, q.z)), 0.0),
-                   length(max(f32x3(q.x, p.y, q.z), 0.0)) +
-                     min(max(q.x, max(p.y, q.z)), 0.0)),
-               length(max(f32x3(q.x, q.y, p.z), 0.0)) +
-                 min(max(q.x, max(q.y, p.z)), 0.0));
+    return min(
+      min(length(max(f32x3(p.x, q.y, q.z), 0.0)) + min(max(p.x, max(q.y, q.z)), 0.0),
+          length(max(f32x3(q.x, p.y, q.z), 0.0)) + min(max(q.x, max(p.y, q.z)), 0.0)),
+      length(max(f32x3(q.x, q.y, p.z), 0.0)) + min(max(q.x, max(q.y, p.z)), 0.0));
 }
 
 f32 torus(f32x3 p, f32x2 t)
@@ -263,8 +261,7 @@ f32 pyramid(f32x3 p, f32 h)
     f32 t = clamp((q.y - 0.5 * p.z) / (m2 + 0.25), 0.0, 1.0);
 
     f32 a = m2 * (q.x + s) * (q.x + s) + q.y * q.y;
-    f32 b =
-      m2 * (q.x + 0.5 * t) * (q.x + 0.5 * t) + (q.y - m2 * t) * (q.y - m2 * t);
+    f32 b = m2 * (q.x + 0.5 * t) * (q.x + 0.5 * t) + (q.y - m2 * t) * (q.y - m2 * t);
 
     f32 d2 = min(q.y, -q.x * m2 - q.y * 0.5) > 0.0 ? 0.0 : min(a, b);
 
@@ -283,15 +280,14 @@ f32 quad(f32x3 p, f32x3 a, f32x3 b, f32x3 c, f32x3 d)
     f32x3 pd  = p - d;
     f32x3 nor = cross(ba, ad);
 
-    return sqrt(
-      (sign(dot(cross(ba, nor), pa)) + sign(dot(cross(cb, nor), pb)) +
-         sign(dot(cross(dc, nor), pc)) + sign(dot(cross(ad, nor), pd)) <
-       3.0) ?
-        min(min(min(dot2(ba * clamp(dot(ba, pa) / dot2(ba), 0.0, 1.0) - pa),
-                    dot2(cb * clamp(dot(cb, pb) / dot2(cb), 0.0, 1.0) - pb)),
-                dot2(dc * clamp(dot(dc, pc) / dot2(dc), 0.0, 1.0) - pc)),
-            dot2(ad * clamp(dot(ad, pd) / dot2(ad), 0.0, 1.0) - pd)) :
-        dot(nor, pa) * dot(nor, pa) / dot2(nor));
+    return sqrt((sign(dot(cross(ba, nor), pa)) + sign(dot(cross(cb, nor), pb)) +
+                   sign(dot(cross(dc, nor), pc)) + sign(dot(cross(ad, nor), pd)) <
+                 3.0) ?
+                  min(min(min(dot2(ba * clamp(dot(ba, pa) / dot2(ba), 0.0, 1.0) - pa),
+                              dot2(cb * clamp(dot(cb, pb) / dot2(cb), 0.0, 1.0) - pb)),
+                          dot2(dc * clamp(dot(dc, pc) / dot2(dc), 0.0, 1.0) - pc)),
+                      dot2(ad * clamp(dot(ad, pd) / dot2(ad), 0.0, 1.0) - pd)) :
+                  dot(nor, pa) * dot(nor, pa) / dot2(nor));
 }
 
 f32 antialiased_mask(f32 edge_signed_dist)

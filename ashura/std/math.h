@@ -166,8 +166,7 @@ constexpr f32 invsqrt(f32 x)
 {
     // (enable only on IEEE 754)
     static_assert(std::numeric_limits<f32>::is_iec559);
-    f32 const y =
-      std::bit_cast<f32>(0x5F37'59DF - (std::bit_cast<u32>(x) >> 1));
+    f32 const y = std::bit_cast<f32>(0x5F37'59DF - (std::bit_cast<u32>(x) >> 1));
     return y * (1.5F - (x * 0.5F * y * y));
 }
 
@@ -215,8 +214,7 @@ inline T log_interp(T const & low, T const & high, T const & t)
 /// @param half_life time to complete half of the whole operation
 ///
 template <typename T>
-inline T damplerp(T const & low, T const & high, T const & dt,
-                  T const & half_life)
+inline T damplerp(T const & low, T const & high, T const & dt, T const & half_life)
 {
     return lerp(low, high, 1 - exp2(-half_life * dt));
 }
@@ -278,8 +276,7 @@ template <typename T>
 constexpr T catmull_rom(T const & p0, T const & p1, T const & p2, T const & p3,
                         T const & t)
 {
-    return 0.5F * ((2 * p1) + (-p0 + p2) * t +
-                   (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t +
+    return 0.5F * ((2 * p1) + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t +
                    (-p0 + 3 * p1 - 3 * p2 + p3) * t * t * t);
 }
 
@@ -292,9 +289,9 @@ inline f32 elastic(f32 amplitude, f32 period, f32 t)
 {
     constexpr f32 TWO_PI = 2.0F * PI;
     f32 const     s      = (period * (1 / TWO_PI)) * std::asin(1 / amplitude);
-    f32 const     factor = amplitude * std::pow(2.0F, -10.0F * t) *
-                         std::sin((t - s) * (TWO_PI / period)) +
-                       1.0F;
+    f32 const     factor =
+      amplitude * std::pow(2.0F, -10.0F * t) * std::sin((t - s) * (TWO_PI / period)) +
+      1.0F;
     return factor;
 }
 
@@ -349,20 +346,17 @@ inline f32 spring(f32 mass, f32 stiffness, f32 damping, f32 t)
     // Underdamped
     if (damping_ratio < 1.0F)
     {
-        f32 const omega_d =
-          omega0 * std::sqrt(1.0F - damping_ratio * damping_ratio);
-        return 1.0F -
-               std::exp(-damping_ratio * omega0 * t) *
-                 (std::cos(omega_d * t) +
-                  (damping_ratio * omega0 / omega_d) * std::sin(omega_d * t));
+        f32 const omega_d = omega0 * std::sqrt(1.0F - damping_ratio * damping_ratio);
+        return 1.0F - std::exp(-damping_ratio * omega0 * t) *
+                        (std::cos(omega_d * t) +
+                         (damping_ratio * omega0 / omega_d) * std::sin(omega_d * t));
     }
 
     // Overdamped or critically damped
     f32 const alpha = -damping_ratio * omega0;
     f32 const beta  = omega0 * std::sqrt(damping_ratio * damping_ratio - 1.0F);
-    return 1.0F -
-           (std::exp(alpha * t) *
-            (std::cosh(beta * t) + (alpha / beta) * std::sinh(beta * t)));
+    return 1.0F - (std::exp(alpha * t) *
+                   (std::cosh(beta * t) + (alpha / beta) * std::sinh(beta * t)));
 }
 
 constexpr f32 step(f32 a, f32 t)
@@ -1740,15 +1734,13 @@ struct mat
 };
 
 template <typename T, usize R, usize C>
-constexpr mat<T, R, C> operator+(typename mat<T, R, C>::Type a,
-                                 mat<T, R, C> const &        b)
+constexpr mat<T, R, C> operator+(typename mat<T, R, C>::Type a, mat<T, R, C> const & b)
 {
     return b + a;
 }
 
 template <typename T, usize R, usize C>
-constexpr mat<T, R, C> operator-(typename mat<T, R, C>::Type a,
-                                 mat<T, R, C> const &        b)
+constexpr mat<T, R, C> operator-(typename mat<T, R, C>::Type a, mat<T, R, C> const & b)
 {
     mat<T, R, C> r;
 #pragma unroll
@@ -1763,15 +1755,13 @@ constexpr mat<T, R, C> operator-(typename mat<T, R, C>::Type a,
 }
 
 template <typename T, usize R, usize C>
-constexpr mat<T, R, C> operator*(typename mat<T, R, C>::Type a,
-                                 mat<T, R, C> const &        b)
+constexpr mat<T, R, C> operator*(typename mat<T, R, C>::Type a, mat<T, R, C> const & b)
 {
     return b * a;
 }
 
 template <typename T, usize R, usize C>
-constexpr mat<T, R, C> operator/(typename mat<T, R, C>::Type a,
-                                 mat<T, R, C> const &        b)
+constexpr mat<T, R, C> operator/(typename mat<T, R, C>::Type a, mat<T, R, C> const & b)
 {
     mat<T, R, C> r;
 #pragma unroll
@@ -2158,10 +2148,9 @@ constexpr f32 determinant(f32x4x4 const & a)
              (a[0].y() * a[1].z() * a[3].w() + a[0].z() * a[1].w() * a[3].y() +
               a[0].w() * a[1].y() * a[3].z() - a[0].w() * a[1].z() * a[3].y() -
               a[0].z() * a[1].y() * a[3].w() - a[0].y() * a[1].w() * a[3].z()) -
-           a[3].x() *
-             (a[0].y() * a[1].z() * a[2].w() + a[0].z() * a[1].w() * a[2].y() +
-              a[0].w() * a[1].y() * a[2].z() - a[0].w() * a[1].z() * a[2].y() -
-              a[0].z() * a[1].y() * a[2].w() - a[0].y() * a[1].w() * a[2].z());
+           a[3].x() * (a[0].y() * a[1].z() * a[2].w() + a[0].z() * a[1].w() * a[2].y() +
+                       a[0].w() * a[1].y() * a[2].z() - a[0].w() * a[1].z() * a[2].y() -
+                       a[0].z() * a[1].y() * a[2].w() - a[0].y() * a[1].w() * a[2].z());
 }
 
 constexpr f32x2x2 adjoint(f32x2x2 const & a)
@@ -2192,56 +2181,48 @@ constexpr f32x4x4 adjoint(f32x4x4 const & a)
     r[0].x() = a[1].y() * a[2].z() * a[3].w() + a[1].z() * a[2].w() * a[3].y() +
                a[1].w() * a[2].y() * a[3].z() - a[1].w() * a[2].z() * a[3].y() -
                a[1].z() * a[2].y() * a[3].w() - a[1].y() * a[2].w() * a[3].z();
-    r[0].y() = -a[0].y() * a[2].z() * a[3].w() -
-               a[0].z() * a[2].w() * a[3].y() - a[0].w() * a[2].y() * a[3].z() +
-               a[0].w() * a[2].z() * a[3].y() + a[0].z() * a[2].y() * a[3].w() +
-               a[0].y() * a[2].w() * a[3].z();
+    r[0].y() = -a[0].y() * a[2].z() * a[3].w() - a[0].z() * a[2].w() * a[3].y() -
+               a[0].w() * a[2].y() * a[3].z() + a[0].w() * a[2].z() * a[3].y() +
+               a[0].z() * a[2].y() * a[3].w() + a[0].y() * a[2].w() * a[3].z();
     r[0].z() = a[0].y() * a[1].z() * a[3].w() + a[0].z() * a[1].w() * a[3].y() +
                a[0].w() * a[1].y() * a[3].z() - a[0].w() * a[1].z() * a[3].y() -
                a[0].z() * a[1].y() * a[3].w() - a[0].y() * a[1].w() * a[3].z();
-    r[0].w() = -a[0].y() * a[1].z() * a[2].w() -
-               a[0].z() * a[1].w() * a[2].y() - a[0].w() * a[1].y() * a[2].z() +
-               a[0].w() * a[1].z() * a[2].y() + a[0].z() * a[1].y() * a[2].w() +
-               a[0].y() * a[1].w() * a[2].z();
-    r[1].x() = -a[1].x() * a[2].z() * a[3].w() -
-               a[1].z() * a[2].w() * a[3].x() - a[1].w() * a[2].x() * a[3].z() +
-               a[1].w() * a[2].z() * a[3].x() + a[1].z() * a[2].x() * a[3].w() +
-               a[1].x() * a[2].w() * a[3].z();
+    r[0].w() = -a[0].y() * a[1].z() * a[2].w() - a[0].z() * a[1].w() * a[2].y() -
+               a[0].w() * a[1].y() * a[2].z() + a[0].w() * a[1].z() * a[2].y() +
+               a[0].z() * a[1].y() * a[2].w() + a[0].y() * a[1].w() * a[2].z();
+    r[1].x() = -a[1].x() * a[2].z() * a[3].w() - a[1].z() * a[2].w() * a[3].x() -
+               a[1].w() * a[2].x() * a[3].z() + a[1].w() * a[2].z() * a[3].x() +
+               a[1].z() * a[2].x() * a[3].w() + a[1].x() * a[2].w() * a[3].z();
     r[1].y() = a[0].x() * a[2].z() * a[3].w() + a[0].z() * a[2].w() * a[3].x() +
                a[0].w() * a[2].x() * a[3].z() - a[0].w() * a[2].z() * a[3].x() -
                a[0].z() * a[2].x() * a[3].w() - a[0].x() * a[2].w() * a[3].z();
-    r[1].z() = -a[0].x() * a[1].z() * a[3].w() -
-               a[0].z() * a[1].w() * a[3].x() - a[0].w() * a[1].x() * a[3].z() +
-               a[0].w() * a[1].z() * a[3].x() + a[0].z() * a[1].x() * a[3].w() +
-               a[0].x() * a[1].w() * a[3].z();
+    r[1].z() = -a[0].x() * a[1].z() * a[3].w() - a[0].z() * a[1].w() * a[3].x() -
+               a[0].w() * a[1].x() * a[3].z() + a[0].w() * a[1].z() * a[3].x() +
+               a[0].z() * a[1].x() * a[3].w() + a[0].x() * a[1].w() * a[3].z();
     r[1].w() = a[0].x() * a[1].z() * a[2].w() + a[0].z() * a[1].w() * a[2].x() +
                a[0].w() * a[1].x() * a[2].z() - a[0].w() * a[1].z() * a[2].x() -
                a[0].z() * a[1].x() * a[2].w() - a[0].x() * a[1].w() * a[2].z();
     r[2].x() = a[1].x() * a[2].y() * a[3].w() + a[1].y() * a[2].w() * a[3].x() +
                a[1].w() * a[2].x() * a[3].y() - a[1].w() * a[2].y() * a[3].x() -
                a[1].y() * a[2].x() * a[3].w() - a[1].x() * a[2].w() * a[3].y();
-    r[2].y() = -a[0].x() * a[2].y() * a[3].w() -
-               a[0].y() * a[2].w() * a[3].x() - a[0].w() * a[2].x() * a[3].y() +
-               a[0].w() * a[2].y() * a[3].x() + a[0].y() * a[2].x() * a[3].w() +
-               a[0].x() * a[2].w() * a[3].y();
+    r[2].y() = -a[0].x() * a[2].y() * a[3].w() - a[0].y() * a[2].w() * a[3].x() -
+               a[0].w() * a[2].x() * a[3].y() + a[0].w() * a[2].y() * a[3].x() +
+               a[0].y() * a[2].x() * a[3].w() + a[0].x() * a[2].w() * a[3].y();
     r[2].z() = a[0].x() * a[1].y() * a[3].w() + a[0].y() * a[1].w() * a[3].x() +
                a[0].w() * a[1].x() * a[3].y() - a[0].w() * a[1].y() * a[3].x() -
                a[0].y() * a[1].x() * a[3].w() - a[0].x() * a[1].w() * a[3].y();
-    r[2].w() = -a[0].x() * a[1].y() * a[2].w() -
-               a[0].y() * a[1].w() * a[2].x() - a[0].w() * a[1].x() * a[2].y() +
-               a[0].w() * a[1].y() * a[2].x() + a[0].y() * a[1].x() * a[2].w() +
-               a[0].x() * a[1].w() * a[2].y();
-    r[3].x() = -a[1].x() * a[2].y() * a[3].z() -
-               a[1].y() * a[2].z() * a[3].x() - a[1].z() * a[2].x() * a[3].y() +
-               a[1].z() * a[2].y() * a[3].x() + a[1].y() * a[2].x() * a[3].z() +
-               a[1].x() * a[2].z() * a[3].y();
+    r[2].w() = -a[0].x() * a[1].y() * a[2].w() - a[0].y() * a[1].w() * a[2].x() -
+               a[0].w() * a[1].x() * a[2].y() + a[0].w() * a[1].y() * a[2].x() +
+               a[0].y() * a[1].x() * a[2].w() + a[0].x() * a[1].w() * a[2].y();
+    r[3].x() = -a[1].x() * a[2].y() * a[3].z() - a[1].y() * a[2].z() * a[3].x() -
+               a[1].z() * a[2].x() * a[3].y() + a[1].z() * a[2].y() * a[3].x() +
+               a[1].y() * a[2].x() * a[3].z() + a[1].x() * a[2].z() * a[3].y();
     r[3].y() = a[0].x() * a[2].y() * a[3].z() + a[0].y() * a[2].z() * a[3].x() +
                a[0].z() * a[2].x() * a[3].y() - a[0].z() * a[2].y() * a[3].x() -
                a[0].y() * a[2].x() * a[3].z() - a[0].x() * a[2].z() * a[3].y();
-    r[3].z() = -a[0].x() * a[1].y() * a[3].z() -
-               a[0].y() * a[1].z() * a[3].x() - a[0].z() * a[1].x() * a[3].y() +
-               a[0].z() * a[1].y() * a[3].x() + a[0].y() * a[1].x() * a[3].z() +
-               a[0].x() * a[1].z() * a[3].y();
+    r[3].z() = -a[0].x() * a[1].y() * a[3].z() - a[0].y() * a[1].z() * a[3].x() -
+               a[0].z() * a[1].x() * a[3].y() + a[0].z() * a[1].y() * a[3].x() +
+               a[0].y() * a[1].x() * a[3].z() + a[0].x() * a[1].z() * a[3].y();
     r[3].w() = a[0].x() * a[1].y() * a[2].z() + a[0].y() * a[1].z() * a[2].x() +
                a[0].z() * a[1].x() * a[2].y() - a[0].z() * a[1].y() * a[2].x() -
                a[0].y() * a[1].x() * a[2].z() - a[0].x() * a[1].z() * a[2].y();
@@ -2515,12 +2496,12 @@ constexpr bool overlaps(f32x2 a_begin, f32x2 a_end, f32x2 b_begin, f32x2 b_end)
 
 constexpr bool contains_point(f32x2 begin, f32x2 end, f32x2 point)
 {
-    return begin.x() <= point.x() && begin.y() <= point.y() &&
-           end.x() >= point.x() && end.y() >= point.y();
+    return begin.x() <= point.x() && begin.y() <= point.y() && end.x() >= point.x() &&
+           end.y() >= point.y();
 }
 
-constexpr Tuple<f32x2, f32x2> intersection(f32x2 a_begin, f32x2 a_end,
-                                           f32x2 b_begin, f32x2 b_end)
+constexpr Tuple<f32x2, f32x2> intersection(f32x2 a_begin, f32x2 a_end, f32x2 b_begin,
+                                           f32x2 b_end)
 {
     if (!overlaps(a_begin, a_end, b_begin, b_end))
     {
@@ -2644,14 +2625,12 @@ struct CRect
 
     constexpr auto tr() const
     {
-        return f32x2{center.x() + 0.5F * extent.x(),
-                     center.y() - 0.5F * extent.y()};
+        return f32x2{center.x() + 0.5F * extent.x(), center.y() - 0.5F * extent.y()};
     }
 
     constexpr auto bl() const
     {
-        return f32x2{center.x() - 0.5F * extent.x(),
-                     center.y() + 0.5F * extent.y()};
+        return f32x2{center.x() - 0.5F * extent.x(), center.y() + 0.5F * extent.y()};
     }
 
     constexpr auto br() const
@@ -2700,15 +2679,13 @@ struct CRect
     constexpr auto transform(affinef32x3 const & t)
     {
         return CRect::bounding(ash::transform(t, tl()), ash::transform(t, tr()),
-                               ash::transform(t, bl()),
-                               ash::transform(t, br()));
+                               ash::transform(t, bl()), ash::transform(t, br()));
     }
 
     constexpr auto transform(f32x3x3 const & t)
     {
         return CRect::bounding(ash::transform(t, tl()), ash::transform(t, tr()),
-                               ash::transform(t, bl()),
-                               ash::transform(t, br()));
+                               ash::transform(t, bl()), ash::transform(t, br()));
     }
 };
 
@@ -2841,8 +2818,7 @@ struct Box
     constexpr bool contains(f32x3 point) const
     {
         return offset.x() <= point.x() && offset.y() <= point.y() &&
-               offset.z() <= point.z() &&
-               (offset.x() + extent.x()) >= point.x() &&
+               offset.z() <= point.z() && (offset.x() + extent.x()) >= point.x() &&
                (offset.y() + extent.y()) >= point.y() &&
                (offset.z() + extent.z()) >= point.z();
         return true;
@@ -3024,8 +3000,7 @@ constexpr f32x4x4 look_at(f32x3 eye, f32x3 center, f32x3 up)
 /// -w <= y <= w
 ///  0 <= z <= w
 ///
-constexpr bool is_outside_frustum(f32x4x4 const & mvp, f32x3 offset,
-                                  f32x3 extent)
+constexpr bool is_outside_frustum(f32x4x4 const & mvp, f32x3 offset, f32x3 extent)
 {
     constexpr u32 NUM_CORNERS          = 8;
     f32x4 const   corners[NUM_CORNERS] = {
@@ -3118,15 +3093,13 @@ constexpr Tuple<u32x2, u32x2> tiled_offset(u32x2 offset, u32x2 tile_extent_log2,
     return {tile, tile_offset};
 }
 
-constexpr u64 tiled_flat_offset(u32x2 offset, u32x2 tile_extent_log2,
-                                u32x2 tile_extent, u32x2 num_tiles)
+constexpr u64 tiled_flat_offset(u32x2 offset, u32x2 tile_extent_log2, u32x2 tile_extent,
+                                u32x2 num_tiles)
 {
-    auto [tile, tile_offset] =
-      tiled_offset(offset, tile_extent_log2, tile_extent);
-    auto flat_tile        = tile.y() * num_tiles.x() + tile.x();
-    auto flat_tile_offset = tile_offset.y() * tile_extent.y() + tile_offset.x();
-    auto flat_offset =
-      tile_extent.product<u64>() * flat_tile + flat_tile_offset;
+    auto [tile, tile_offset] = tiled_offset(offset, tile_extent_log2, tile_extent);
+    auto flat_tile           = tile.y() * num_tiles.x() + tile.x();
+    auto flat_tile_offset    = tile_offset.y() * tile_extent.y() + tile_offset.x();
+    auto flat_offset = tile_extent.product<u64>() * flat_tile + flat_tile_offset;
     return flat_offset;
 }
 

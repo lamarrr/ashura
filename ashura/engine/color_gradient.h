@@ -15,11 +15,7 @@ struct ColorGradient
 
     constexpr ColorGradient() = default;
 
-    constexpr ColorGradient(f32x4 c) :
-      top_{c},
-      bottom_{c},
-      rotor_{1, 0},
-      center_{0}
+    constexpr ColorGradient(f32x4 c) : top_{c}, bottom_{c}, rotor_{1, 0}, center_{0}
     {
     }
 
