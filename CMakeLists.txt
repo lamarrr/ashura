@@ -385,8 +385,8 @@ endif()
 # ASHURA GPU
 
 if(NOT ASH_EXCLUDE_GPU)
-    add_library(ashura_gpu STATIC ashura/gpu/gpu.cc ashura/gpu/vma_def.cc
-                                  ashura/gpu/vulkan.cc)
+    add_library(ashura_gpu STATIC ashura/gpu/format.cc ashura/gpu/gpu.cc
+                                  ashura/gpu/vma_def.cc ashura/gpu/vulkan.cc)
     target_link_libraries(
         ashura_gpu
         PUBLIC ashura_std

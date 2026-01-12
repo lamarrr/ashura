@@ -698,7 +698,7 @@ u8 block_size(Format format)
 
 /// @brief The number of bits in this component, if not compressed, otherwise
 /// empty.
-constexpr InplaceVec<u8, 4> component_bits(Format format)
+constexpr InplaceVec<u8, 4, 0> component_bits(Format format)
 {
     switch (format)
     {
@@ -1580,7 +1580,7 @@ enum class NumericFormat : u8
 };
 
 // The numeric format of the component
-constexpr InplaceVec<NumericFormat, 4> component_numeric_format(Format format)
+constexpr InplaceVec<NumericFormat, 4, 0> component_numeric_format(Format format)
 {
     switch (format)
     {
