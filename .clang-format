@@ -73,7 +73,7 @@ IncludeBlocks: Preserve
 IncludeIsMainRegex: "(Test)?$"
 IndentCaseLabels: true
 IndentPPDirectives: AfterHash
-IndentWidth: 2
+IndentWidth: 4
 IndentWrappedFunctionNames: true
 InsertNewlineAtEOF: true
 IntegerLiteralSeparator:

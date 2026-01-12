@@ -29,80 +29,84 @@ namespace ash
 ///
 struct AtomicAliasCount
 {
-  /// @brief Number of other aliases. range: [0, MAX]
-  usize count_{0};
+    /// @brief Number of other aliases. range: [0, MAX]
+    usize count_{0};
 
-  /// @brief Called before sharing an object
-  /// @returns returns the old alias count
-  usize alias()
-  {
-    std::atomic_ref count{count_};
-    usize           expected = 0;
-    usize           desired  = 1;
-    while (!count.compare_exchange_weak(
-      expected, desired, std::memory_order_release, std::memory_order_relaxed))
+    /// @brief Called before sharing an object
+    /// @returns returns the old alias count
+    usize alias()
     {
-      desired = sat_add(expected, 1ULL);
+        std::atomic_ref count{count_};
+        usize           expected = 0;
+        usize           desired  = 1;
+        while (!count.compare_exchange_weak(expected, desired,
+                                            std::memory_order_release,
+                                            std::memory_order_relaxed))
+        {
+            desired = sat_add(expected, 1ULL);
+        }
+        return expected;
     }
-    return expected;
-  }
 
-  /// @brief Called when done with an object.
-  /// @brief Returns the old alias count. If 0 then the resource is ready to be released.
-  ///
-  /// WARNING: if accompanied by a destructive reclamation procedure and
-  /// `unalias` is called again after it has already returned 0, it will lead
-  /// to a double-release (i.e. double-free).
-  [[nodiscard]] usize unalias()
-  {
-    usize           expected = 0;
-    usize           desired  = 0;
-    std::atomic_ref count{count_};
-    while (!count.compare_exchange_weak(
-      expected, desired, std::memory_order_release, std::memory_order_relaxed))
+    /// @brief Called when done with an object.
+    /// @brief Returns the old alias count. If 0 then the resource is ready to be
+    /// released.
+    ///
+    /// WARNING: if accompanied by a destructive reclamation procedure and
+    /// `unalias` is called again after it has already returned 0, it will lead
+    /// to a double-release (i.e. double-free).
+    [[nodiscard]] usize unalias()
     {
-      desired = sat_sub(expected, 1ULL);
+        usize           expected = 0;
+        usize           desired  = 0;
+        std::atomic_ref count{count_};
+        while (!count.compare_exchange_weak(expected, desired,
+                                            std::memory_order_release,
+                                            std::memory_order_relaxed))
+        {
+            desired = sat_sub(expected, 1ULL);
+        }
+        return expected;
     }
-    return expected;
-  }
 
-  [[nodiscard]] usize count()
-  {
-    std::atomic_ref count{count_};
-    return count.load(std::memory_order_relaxed);
-  }
+    [[nodiscard]] usize count()
+    {
+        std::atomic_ref count{count_};
+        return count.load(std::memory_order_relaxed);
+    }
 };
 
 struct AliasCount
 {
-  /// @brief Number of other aliases.
-  usize count_{0};
+    /// @brief Number of other aliases.
+    usize count_{0};
 
-  /// @brief Called before sharing an object
-  /// @returns returns the old alias count
-  usize alias()
-  {
-    auto previous = sat_add(count_, 1ULL);
-    return previous;
-  }
+    /// @brief Called before sharing an object
+    /// @returns returns the old alias count
+    usize alias()
+    {
+        auto previous = sat_add(count_, 1ULL);
+        return previous;
+    }
 
-  /// @brief Called when done with an object.
-  /// @brief Returns the old alias count. If 0 then the resource is ready to be released.
-  ///
-  /// WARNING: if accompanied by a destructive reclamation procedure and
-  /// `unalias` is called again after it has already returned 0, it will lead
-  /// to a double-release (i.e. double-free).
-  [[nodiscard]] usize unalias()
-  {
-    auto old = count_;
-    count_   = sat_sub(count_, 1ULL);
-    return old;
-  }
+    /// @brief Called when done with an object.
+    /// @brief Returns the old alias count. If 0 then the resource is ready to be
+    /// released.
+    ///
+    /// WARNING: if accompanied by a destructive reclamation procedure and
+    /// `unalias` is called again after it has already returned 0, it will lead
+    /// to a double-release (i.e. double-free).
+    [[nodiscard]] usize unalias()
+    {
+        auto old = count_;
+        count_   = sat_sub(count_, 1ULL);
+        return old;
+    }
 
-  [[nodiscard]] usize count()
-  {
-    return count_;
-  }
+    [[nodiscard]] usize count()
+    {
+        return count_;
+    }
 };
 
 }    // namespace ash

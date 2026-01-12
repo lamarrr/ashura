@@ -10,7 +10,7 @@ BloomPipeline::BloomPipeline(Allocator)
 
 Str BloomPipeline::label()
 {
-  return "Bloom"_str;
+    return "Bloom"_str;
 }
 
 void BloomPipeline::acquire(GpuFramePlan, Allocator, Allocator)
@@ -23,11 +23,11 @@ void BloomPipeline::release(GpuFramePlan, Allocator, Allocator)
 
 void BloomPipeline::encode(gpu::CommandEncoder, BloomPipelineParams const &)
 {
-  /// E' = Blur(E)
-  /// D' = Blur(D) + E'
-  /// C' = Blur(C) + D'
-  /// B' = Blur(B) + C'
-  /// A' = Blur(A) + B'
+    /// E' = Blur(E)
+    /// D' = Blur(D) + E'
+    /// C' = Blur(C) + D'
+    /// B' = Blur(B) + C'
+    /// A' = Blur(A) + B'
 }
 
 }    // namespace ash

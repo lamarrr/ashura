@@ -10,41 +10,41 @@ namespace ash
 
 struct BlurPipelineParams
 {
-  Framebuffer             framebuffer;
-  Option<PipelineStencil> stencil;
-  RectU                   scissor;
-  gpu::Viewport           viewport;
-  gpu::DescriptorSet      samplers;
-  gpu::DescriptorSet      textures;
-  GpuBufferSpan           blurs;
-  Slice32                 instances;
-  bool                    upsample;
+    Framebuffer             framebuffer;
+    Option<PipelineStencil> stencil;
+    RectU                   scissor;
+    gpu::Viewport           viewport;
+    gpu::DescriptorSet      samplers;
+    gpu::DescriptorSet      textures;
+    GpuBufferSpan           blurs;
+    Slice32                 instances;
+    bool                    upsample;
 };
 
 struct BlurPipeline final : IPipeline
 {
-  gpu::GraphicsPipeline downsample_pipeline_ = nullptr;
+    gpu::GraphicsPipeline downsample_pipeline_ = nullptr;
 
-  gpu::GraphicsPipeline upsample_pipeline_ = nullptr;
+    gpu::GraphicsPipeline upsample_pipeline_ = nullptr;
 
-  BlurPipeline(Allocator);
+    BlurPipeline(Allocator);
 
-  BlurPipeline(BlurPipeline const &)             = delete;
-  BlurPipeline(BlurPipeline &&)                  = delete;
-  BlurPipeline & operator=(BlurPipeline const &) = delete;
-  BlurPipeline & operator=(BlurPipeline &&)      = delete;
+    BlurPipeline(BlurPipeline const &)             = delete;
+    BlurPipeline(BlurPipeline &&)                  = delete;
+    BlurPipeline & operator=(BlurPipeline const &) = delete;
+    BlurPipeline & operator=(BlurPipeline &&)      = delete;
 
-  virtual ~BlurPipeline() override = default;
+    virtual ~BlurPipeline() override = default;
 
-  virtual Str label() override;
+    virtual Str label() override;
 
-  virtual void acquire(GpuFramePlan plan, Allocator allocator,
-                       Allocator scratch) override;
+    virtual void acquire(GpuFramePlan plan, Allocator allocator,
+                         Allocator scratch) override;
 
-  virtual void release(GpuFramePlan plan, Allocator allocator,
-                       Allocator scratch) override;
+    virtual void release(GpuFramePlan plan, Allocator allocator,
+                         Allocator scratch) override;
 
-  void encode(gpu::CommandEncoder encoder, BlurPipelineParams const & params);
+    void encode(gpu::CommandEncoder encoder, BlurPipelineParams const & params);
 };
 
 }    // namespace ash

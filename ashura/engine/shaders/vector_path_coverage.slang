@@ -30,9 +30,9 @@ RWBuffer<u32> fill_ids[];
 
 struct VertexOutput
 {
-  [[vk::location(0)]] f32x4               screen_pos : SV_Position;
-  [[vk::location(1)]] f32                 alpha_mask : ALPHA_MASK;
-  [[vk::location(2)]] nointerpolation u32 fill_id    : FILL_ID;
+    [[vk::location(0)]] f32x4               screen_pos : SV_Position;
+    [[vk::location(1)]] f32                 alpha_mask : ALPHA_MASK;
+    [[vk::location(2)]] nointerpolation u32 fill_id    : FILL_ID;
 };
 
 // paint id 0: No painting
@@ -46,27 +46,30 @@ struct VertexOutput
 // feather triangles will have alpha mask 0-1 interpolated
 //
 //
-// To draw overlapping paths: clear the stencil buffer and then continue with previous attachments
+// To draw overlapping paths: clear the stencil buffer and then continue with
+// previous attachments
 //
 //
 [[shader("vertex")]]
-VertexOutput vert(u32 instance : SV_InstanceID, u32 vertex : SV_VertexID)
+VertexOutput vert(u32 instance : SV_VulkanInstanceID,
+                  u32 vertex : SV_VulkanVertexID)
 {
-  u32   idx        = indices[vertex];
-  var   vtx        = vertices[idx];
-  var   item       = items[instance];
-  f32x4 world_pos  = mul(item.world_transform, f32x4(vtx.position, 0.0, 1.0));
-  f32x4 screen_pos = mul(world_to_ndc, world_pos);
-  f32x4 output     = f32x4(screen_pos.xy, 0, 1.0);
-  return VertexOutput(output, vtx.alpha_mask, vtx.fill_id);
+    u32   idx        = indices[vertex];
+    var   vtx        = vertices[idx];
+    var   item       = items[instance];
+    f32x4 world_pos  = mul(item.world_transform, f32x4(vtx.position, 0.0, 1.0));
+    f32x4 screen_pos = mul(world_to_ndc, world_pos);
+    f32x4 output     = f32x4(screen_pos.xy, 0, 1.0);
+    return VertexOutput(output, vtx.alpha_mask, vtx.fill_id);
 }
 
 [[shader("fragment")]]
 void frag(VertexOutput in)
 {
-  var pixel       = u32x2(in.screen_pos.xy);
-  u32 texel_index = tiled_flat_offset(pixel, cfg.tile_extent_log2,
-                                      cfg.tile_texel_count, cfg.tile_count);
-  InterlockedExchange(alpha_masks[0][texel_index], in.alpha_mask);
-  InterlockedExchange(fill_ids[0][texel_index], in.fill_id);
+    // [ ] incorrect coord
+    var pixel       = u32x2(in.screen_pos.xy);
+    u32 texel_index = tiled_flat_offset(pixel, cfg.tile_extent_log2,
+                                        cfg.tile_texel_count, cfg.tile_count);
+    InterlockedExchange(alpha_masks[0][texel_index], in.alpha_mask);
+    InterlockedExchange(fill_ids[0][texel_index], in.fill_id);
 }

@@ -9,7 +9,7 @@ namespace ash
 template <typename T>
 struct RemoveConst
 {
-  using Type = T;
+    using Type = T;
 };
 
 template <typename T>
@@ -23,7 +23,7 @@ using remove_const = typename RemoveConst<T>::Type;
 template <typename T>
 struct RemoveConstVolatile
 {
-  using Type = T;
+    using Type = T;
 };
 
 template <typename T>
@@ -42,7 +42,7 @@ using remove_const_volatile = typename RemoveConstVolatile<T>::Type;
 template <typename T>
 struct RemoveRef
 {
-  using Type = T;
+    using Type = T;
 };
 
 template <typename T>
@@ -64,13 +64,13 @@ using decay = std::decay_t<T>;
 template <typename T, typename U>
 struct is_same_impl
 {
-  static constexpr bool value = false;
+    static constexpr bool value = false;
 };
 
 template <typename T>
 struct is_same_impl<T, T>
 {
-  static constexpr bool value = true;
+    static constexpr bool value = true;
 };
 
 template <typename T, typename U>
@@ -83,19 +83,19 @@ concept Same =
 
 template <typename From, typename To>
 concept Convertible = requires (From && from) {
-  { static_cast<To>(static_cast<From &&>(from)) };
+    { static_cast<To>(static_cast<From &&>(from)) };
 };
 
 template <typename T>
 struct is_const_impl
 {
-  static constexpr bool value = false;
+    static constexpr bool value = false;
 };
 
 template <typename T>
 struct is_const_impl<T const>
 {
-  static constexpr bool value = true;
+    static constexpr bool value = true;
 };
 
 template <typename T>
@@ -118,12 +118,12 @@ concept NonConst =
 template <typename T>
 struct IsTriviallyRelocatable
 {
-  static constexpr bool value =
+    static constexpr bool value =
 #if ASH_CFG(COMPILER, CLANG)
-    __is_trivially_constructible(T, T &&) && __is_trivially_destructible(T);
+      __is_trivially_constructible(T, T &&) && __is_trivially_destructible(T);
 #else
-    std::is_trivially_move_constructible_v<T> &&
-    std::is_trivially_destructible_v<T>;
+      std::is_trivially_move_constructible_v<T> &&
+      std::is_trivially_destructible_v<T>;
 #endif
 };
 
@@ -224,7 +224,7 @@ concept Enumeration =
 
 template <typename F, typename... Args>
 concept Callable = requires (F && f, Args &&... args) {
-  { static_cast<F &&>(f)(static_cast<Args &&>(args)...) };
+    { static_cast<F &&>(f)(static_cast<Args &&>(args)...) };
 };
 
 template <typename F, typename... Args>
@@ -232,7 +232,7 @@ using CallResult = decltype(std::declval<F>()((std::declval<Args>())...));
 
 template <typename Fn, typename... Args>
 concept Predicate = requires (Fn fn, Args... args) {
-  { fn(static_cast<Args>(args)...) && true };
+    { fn(static_cast<Args>(args)...) && true };
 };
 
 template <typename T>

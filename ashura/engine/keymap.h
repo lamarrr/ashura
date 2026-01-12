@@ -9,14 +9,14 @@ namespace ash
 
 struct KeyMap
 {
-  struct Entry
-  {
-    Slice32 and_events = {};
-    Slice32 or_events  = {};
-    u64     action     = 0;
-  };
+    struct Entry
+    {
+        Slice32 and_events = {};
+        Slice32 or_events  = {};
+        u64     action     = 0;
+    };
 
-  Vec<u32> events_;
+    Vec<u32> events_;
 };
 
 }    // namespace ash

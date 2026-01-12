@@ -10,53 +10,53 @@ namespace ash
 
 struct QuadPipelineParams
 {
-  struct State
-  {
-    Option<PipelineStencil> stencil;
-    RectU                   scissor;
-    gpu::Viewport           viewport;
-  };
+    struct State
+    {
+        Option<PipelineStencil> stencil;
+        RectU                   scissor;
+        gpu::Viewport           viewport;
+    };
 
-  Framebuffer        framebuffer;
-  gpu::DescriptorSet samplers;
-  gpu::DescriptorSet textures;
-  GpuBufferSpan      world_to_ndc;
-  GpuBufferSpan      quads;
-  Span<State const>  states;
-  Span<u32 const>    state_runs;
-  PipelineVariantId  variant;
+    Framebuffer        framebuffer;
+    gpu::DescriptorSet samplers;
+    gpu::DescriptorSet textures;
+    GpuBufferSpan      world_to_ndc;
+    GpuBufferSpan      quads;
+    Span<State const>  states;
+    Span<u32 const>    state_runs;
+    PipelineVariantId  variant;
 };
 
 struct QuadPipeline final : IPipeline
 {
-  SparseVec<PipelineVariantId, Tuple<Str, gpu::GraphicsPipeline>> variants_;
+    SparseVec<PipelineVariantId, Tuple<Str, gpu::GraphicsPipeline>> variants_;
 
-  QuadPipeline(Allocator);
+    QuadPipeline(Allocator);
 
-  QuadPipeline(QuadPipeline const &)             = delete;
-  QuadPipeline(QuadPipeline &&)                  = delete;
-  QuadPipeline & operator=(QuadPipeline const &) = delete;
-  QuadPipeline & operator=(QuadPipeline &&)      = delete;
+    QuadPipeline(QuadPipeline const &)             = delete;
+    QuadPipeline(QuadPipeline &&)                  = delete;
+    QuadPipeline & operator=(QuadPipeline const &) = delete;
+    QuadPipeline & operator=(QuadPipeline &&)      = delete;
 
-  virtual ~QuadPipeline() override = default;
+    virtual ~QuadPipeline() override = default;
 
-  virtual Str label() override;
+    virtual Str label() override;
 
-  virtual void acquire(GpuFramePlan plan, Allocator allocator,
-                       Allocator scratch) override;
+    virtual void acquire(GpuFramePlan plan, Allocator allocator,
+                         Allocator scratch) override;
 
-  virtual void release(GpuFramePlan plan, Allocator allocator,
-                       Allocator scratch) override;
+    virtual void release(GpuFramePlan plan, Allocator allocator,
+                         Allocator scratch) override;
 
-  PipelineVariantId add_variant(GpuFramePlan plan, Str label,
-                                gpu::Shader shader, Allocator allocator,
-                                Allocator scratch);
+    PipelineVariantId add_variant(GpuFramePlan plan, Str label,
+                                  gpu::Shader shader, Allocator allocator,
+                                  Allocator scratch);
 
-  void remove_variant(GpuFramePlan plan, PipelineVariantId id);
+    void remove_variant(GpuFramePlan plan, PipelineVariantId id);
 
-  PipelineVariantId get_variant_id(Str label);
+    PipelineVariantId get_variant_id(Str label);
 
-  void encode(gpu::CommandEncoder encoder, QuadPipelineParams const & params);
+    void encode(gpu::CommandEncoder encoder, QuadPipelineParams const & params);
 };
 
 }    // namespace ash

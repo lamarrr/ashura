@@ -10,59 +10,59 @@ namespace ash
 
 struct TriangleFillPipelineParams
 {
-  struct State
-  {
-    gpu::CullMode           cull_mode  : 2;
-    gpu::FrontFace          front_face : 1;
-    RectU                   scissor;
-    gpu::Viewport           viewport;
-    Option<PipelineStencil> stencil;
-  };
+    struct State
+    {
+        gpu::CullMode           cull_mode  : 2;
+        gpu::FrontFace          front_face : 1;
+        RectU                   scissor;
+        gpu::Viewport           viewport;
+        Option<PipelineStencil> stencil;
+    };
 
-  Framebuffer        framebuffer;
-  gpu::DescriptorSet samplers;
-  gpu::DescriptorSet textures;
-  GpuBufferSpan      world_to_ndc;
-  GpuBufferSpan      sets;
-  GpuBufferSpan      vertices;
-  GpuBufferSpan      indices;
-  Span<u32 const>    index_runs;
-  Span<State const>  states;
-  Span<u32 const>    state_runs;
-  PipelineVariantId  variant;
+    Framebuffer        framebuffer;
+    gpu::DescriptorSet samplers;
+    gpu::DescriptorSet textures;
+    GpuBufferSpan      world_to_ndc;
+    GpuBufferSpan      sets;
+    GpuBufferSpan      vertices;
+    GpuBufferSpan      indices;
+    Span<u32 const>    index_runs;
+    Span<State const>  states;
+    Span<u32 const>    state_runs;
+    PipelineVariantId  variant;
 };
 
 struct TriangleFillPipeline final : IPipeline
 {
-  SparseVec<PipelineVariantId, Tuple<Str, gpu::GraphicsPipeline>> pipelines_;
+    SparseVec<PipelineVariantId, Tuple<Str, gpu::GraphicsPipeline>> pipelines_;
 
-  TriangleFillPipeline(Allocator);
+    TriangleFillPipeline(Allocator);
 
-  TriangleFillPipeline(TriangleFillPipeline const &)             = delete;
-  TriangleFillPipeline(TriangleFillPipeline &&)                  = delete;
-  TriangleFillPipeline & operator=(TriangleFillPipeline const &) = delete;
-  TriangleFillPipeline & operator=(TriangleFillPipeline &&)      = delete;
+    TriangleFillPipeline(TriangleFillPipeline const &)             = delete;
+    TriangleFillPipeline(TriangleFillPipeline &&)                  = delete;
+    TriangleFillPipeline & operator=(TriangleFillPipeline const &) = delete;
+    TriangleFillPipeline & operator=(TriangleFillPipeline &&)      = delete;
 
-  virtual ~TriangleFillPipeline() override = default;
+    virtual ~TriangleFillPipeline() override = default;
 
-  virtual Str label() override;
+    virtual Str label() override;
 
-  virtual void acquire(GpuFramePlan plan, Allocator allocator,
-                       Allocator scratch) override;
+    virtual void acquire(GpuFramePlan plan, Allocator allocator,
+                         Allocator scratch) override;
 
-  virtual void release(GpuFramePlan plan, Allocator allocator,
-                       Allocator scratch) override;
+    virtual void release(GpuFramePlan plan, Allocator allocator,
+                         Allocator scratch) override;
 
-  PipelineVariantId add_variant(GpuFramePlan plan, Str label,
-                                gpu::Shader shader, Allocator allocator,
-                                Allocator scratch);
+    PipelineVariantId add_variant(GpuFramePlan plan, Str label,
+                                  gpu::Shader shader, Allocator allocator,
+                                  Allocator scratch);
 
-  void remove_variant(GpuFramePlan plan, PipelineVariantId id);
+    void remove_variant(GpuFramePlan plan, PipelineVariantId id);
 
-  PipelineVariantId get_variant_id(Str label);
+    PipelineVariantId get_variant_id(Str label);
 
-  void encode(gpu::CommandEncoder                encoder,
-              TriangleFillPipelineParams const & params);
+    void encode(gpu::CommandEncoder                encoder,
+                TriangleFillPipelineParams const & params);
 };
 
 }    // namespace ash

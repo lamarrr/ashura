@@ -12,8 +12,8 @@ namespace ash
 
 struct DecodedImageInfo
 {
-  u32x2       extent{1, 1};
-  gpu::Format format = gpu::Format::Undefined;
+    u32x2       extent{1, 1};
+    gpu::Format format = gpu::Format::Undefined;
 };
 
 Result<DecodedImageInfo, SysErr> decode_webp(Span<u8 const> bytes,

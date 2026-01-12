@@ -2,5 +2,4 @@
 
 namespace ash
 {
-
 }    // namespace ash

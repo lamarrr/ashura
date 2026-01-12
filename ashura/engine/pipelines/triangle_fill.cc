@@ -11,93 +11,95 @@ namespace ash
 
 Str TriangleFillPipeline::label()
 {
-  return "TriangleFill"_str;
+    return "TriangleFill"_str;
 }
 
 gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
                                       gpu::Shader shader, Allocator,
                                       Allocator   scratch)
 {
-  auto & gpu = *plan->sys();
+    auto & gpu = *plan->sys();
 
-  auto tagged_label =
-    sformat(scratch, "TriangleFill Graphics Pipeline: {}"_str, label).unwrap();
+    auto tagged_label =
+      sformat(scratch, "TriangleFill Graphics Pipeline: {}"_str, label)
+        .unwrap();
 
-  auto raster_state =
-    gpu::RasterizationState{.depth_clamp_enable = false,
-                            .polygon_mode       = gpu::PolygonMode::Fill,
-                            .cull_mode          = gpu::CullMode::None,
-                            .front_face = gpu::FrontFace::CounterClockWise,
-                            .depth_bias_enable          = false,
-                            .depth_bias_constant_factor = 0,
-                            .depth_bias_clamp           = 0,
-                            .depth_bias_slope_factor    = 0,
-                            .sample_count               = gpu.sample_count()};
+    auto raster_state =
+      gpu::RasterizationState{.depth_clamp_enable = false,
+                              .polygon_mode       = gpu::PolygonMode::Fill,
+                              .cull_mode          = gpu::CullMode::None,
+                              .front_face = gpu::FrontFace::CounterClockWise,
+                              .depth_bias_enable          = false,
+                              .depth_bias_constant_factor = 0,
+                              .depth_bias_clamp           = 0,
+                              .depth_bias_slope_factor    = 0,
+                              .sample_count               = gpu.sample_count()};
 
-  auto depth_stencil_state =
-    gpu::DepthStencilState{.depth_test_enable        = false,
-                           .depth_write_enable       = false,
-                           .depth_compare_op         = gpu::CompareOp::Never,
-                           .depth_bounds_test_enable = false,
-                           .stencil_test_enable      = false,
-                           .front_stencil            = {},
-                           .back_stencil             = {},
-                           .min_depth_bounds         = 0,
-                           .max_depth_bounds         = 0};
+    auto depth_stencil_state =
+      gpu::DepthStencilState{.depth_test_enable        = false,
+                             .depth_write_enable       = false,
+                             .depth_compare_op         = gpu::CompareOp::Never,
+                             .depth_bounds_test_enable = false,
+                             .stencil_test_enable      = false,
+                             .front_stencil            = {},
+                             .back_stencil             = {},
+                             .min_depth_bounds         = 0,
+                             .max_depth_bounds         = 0};
 
-  gpu::ColorBlendAttachmentState attachment_states[] = {
-    {.blend_enable           = true,
-     .src_color_blend_factor = gpu::BlendFactor::SrcAlpha,
-     .dst_color_blend_factor = gpu::BlendFactor::OneMinusSrcAlpha,
-     .color_blend_op         = gpu::BlendOp::Add,
-     .src_alpha_blend_factor = gpu::BlendFactor::One,
-     .dst_alpha_blend_factor = gpu::BlendFactor::Zero,
-     .alpha_blend_op         = gpu::BlendOp::Add,
-     .color_write_mask       = gpu::ColorComponents::All}
-  };
+    gpu::ColorBlendAttachmentState attachment_states[] = {
+      {.blend_enable           = true,
+       .src_color_blend_factor = gpu::BlendFactor::SrcAlpha,
+       .dst_color_blend_factor = gpu::BlendFactor::OneMinusSrcAlpha,
+       .color_blend_op         = gpu::BlendOp::Add,
+       .src_alpha_blend_factor = gpu::BlendFactor::One,
+       .dst_alpha_blend_factor = gpu::BlendFactor::Zero,
+       .alpha_blend_op         = gpu::BlendOp::Add,
+       .color_write_mask       = gpu::ColorComponents::All}
+    };
 
-  auto color_blend_state = gpu::ColorBlendState{
-    .attachments = attachment_states, .blend_constant = {1, 1, 1, 1}
-  };
+    auto color_blend_state = gpu::ColorBlendState{
+      .attachments = attachment_states, .blend_constant = {1, 1, 1, 1}
+    };
 
-  auto const & layout = gpu.descriptors_layout();
+    auto const & layout = gpu.descriptors_layout();
 
-  gpu::DescriptorSetLayout set_layouts[] = {
-    layout.samplers,               // 0: samplers
-    layout.sampled_textures,       // 1: textures
-    layout.read_storage_buffer,    // 2: world_to_ndc
-    layout.read_storage_buffer,    // 3: sets
-    layout.read_storage_buffer,    // 4: vertices
-    layout.read_storage_buffer     // 5: indices
-  };
+    gpu::DescriptorSetLayout set_layouts[] = {
+      layout.samplers,               // 0: samplers
+      layout.sampled_textures,       // 1: textures
+      layout.read_storage_buffer,    // 2: world_to_ndc
+      layout.read_storage_buffer,    // 3: sets
+      layout.read_storage_buffer,    // 4: vertices
+      layout.read_storage_buffer     // 5: indices
+    };
 
-  auto pipeline_info = gpu::GraphicsPipelineInfo{
-    .label         = tagged_label,
-    .vertex_shader = gpu::ShaderStageInfo{.shader      = shader,
-                                          .entry_point = "vert"_str,
-                                          .specialization_constants      = {},
-                                          .specialization_constants_data = {}},
-    .fragment_shader =
-      gpu::ShaderStageInfo{.shader                        = shader,
-                                          .entry_point                   = "frag"_str,
-                                          .specialization_constants      = {},
-                                          .specialization_constants_data = {}},
-    .color_formats          = span({gpu.color_format()}
-      ),
-    .depth_format           = {},
-    .stencil_format         = gpu.depth_stencil_format(),
-    .vertex_input_bindings  = {},
-    .vertex_attributes      = {},
-    .push_constants_size    = 0,
-    .descriptor_set_layouts = set_layouts,
-    .primitive_topology     = gpu::PrimitiveTopology::TriangleList,
-    .rasterization_state    = raster_state,
-    .depth_stencil_state    = depth_stencil_state,
-    .color_blend_state      = color_blend_state,
-    .cache                  = gpu.pipeline_cache()
-  };
+    auto pipeline_info = gpu::GraphicsPipelineInfo{
+      .label = tagged_label,
+      .vertex_shader =
+        gpu::ShaderStageInfo{.shader                        = shader,
+                             .entry_point                   = "vert"_str,
+                             .specialization_constants      = {},
+                             .specialization_constants_data = {}},
+      .fragment_shader =
+        gpu::ShaderStageInfo{.shader                        = shader,
+                             .entry_point                   = "frag"_str,
+                             .specialization_constants      = {},
+                             .specialization_constants_data = {}},
+      .color_formats          = span({gpu.color_format()}
+        ),
+      .depth_format           = {},
+      .stencil_format         = gpu.depth_stencil_format(),
+      .vertex_input_bindings  = {},
+      .vertex_attributes      = {},
+      .push_constants_size    = 0,
+      .descriptor_set_layouts = set_layouts,
+      .primitive_topology     = gpu::PrimitiveTopology::TriangleList,
+      .rasterization_state    = raster_state,
+      .depth_stencil_state    = depth_stencil_state,
+      .color_blend_state      = color_blend_state,
+      .cache                  = gpu.pipeline_cache()
+    };
 
-  return gpu.device()->create_graphics_pipeline(pipeline_info).unwrap();
+    return gpu.device()->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
 TriangleFillPipeline::TriangleFillPipeline(Allocator allocator) :
@@ -108,11 +110,11 @@ TriangleFillPipeline::TriangleFillPipeline(Allocator allocator) :
 void TriangleFillPipeline::acquire(GpuFramePlan plan, Allocator allocator,
                                    Allocator scratch)
 {
-  auto id = add_variant(
-    plan, "base"_str,
-    sys.shader->get("defaults/triangle_fill_base"_str).unwrap().shader,
-    allocator, scratch);
-  ASH_CHECK(id == PipelineVariantId::Base, "");
+    auto id = add_variant(
+      plan, "base"_str,
+      sys.shader->get("defaults/triangle_fill_base"_str).unwrap().shader,
+      allocator, scratch);
+    ASH_CHECK(id == PipelineVariantId::Base, "");
 }
 
 PipelineVariantId TriangleFillPipeline::add_variant(GpuFramePlan plan,
@@ -121,123 +123,126 @@ PipelineVariantId TriangleFillPipeline::add_variant(GpuFramePlan plan,
                                                     Allocator    allocator,
                                                     Allocator    scratch)
 {
-  auto pipeline = create_pipeline(plan, label, shader, allocator, scratch);
-  auto id       = pipelines_.push(Tuple{label, pipeline}).unwrap();
-  return (PipelineVariantId) id;
+    auto pipeline = create_pipeline(plan, label, shader, allocator, scratch);
+    auto id       = pipelines_.push(Tuple{label, pipeline}).unwrap();
+    return (PipelineVariantId) id;
 }
 
 void TriangleFillPipeline::remove_variant(GpuFramePlan      plan,
                                           PipelineVariantId id)
 {
-  auto pipeline = pipelines_[id];
-  pipelines_.erase(id);
-  plan->add_preframe_task(
-    [p = pipeline.v0, d = plan->device()](GpuFrame) { d->uninit(p.v1); });
+    auto pipeline = pipelines_[id];
+    pipelines_.erase(id);
+    plan->add_preframe_task(
+      [p = pipeline.v0, d = plan->device()](GpuFrame) { d->uninit(p.v1); });
 }
 
 void TriangleFillPipeline::encode(gpu::CommandEncoder                e,
                                   TriangleFillPipelineParams const & params)
 {
-  InplaceVec<gpu::RenderingAttachment, 1> color;
+    InplaceVec<gpu::RenderingAttachment, 1> color;
 
-  params.framebuffer.color_msaa.match(
-    [&](ColorMsaaImage const & tex) {
-      color
-        .push(
-          gpu::RenderingAttachment{.view    = tex.view,
-                                   .resolve = params.framebuffer.color.view,
-                                   .resolve_mode = gpu::ResolveModes::Average,
-                                   .load_op      = gpu::LoadOp::Load,
-                                   .store_op     = gpu::StoreOp::Store,
-                                   .clear        = {}})
-        .unwrap();
-    },
-    [&]() {
-      color
-        .push(gpu::RenderingAttachment{.view    = params.framebuffer.color.view,
+    params.framebuffer.color_msaa.match(
+      [&](ColorMsaaImage const & tex) {
+          color
+            .push(gpu::RenderingAttachment{
+              .view         = tex.view,
+              .resolve      = params.framebuffer.color.view,
+              .resolve_mode = gpu::ResolveModes::Average,
+              .load_op      = gpu::LoadOp::Load,
+              .store_op     = gpu::StoreOp::Store,
+              .clear        = {}})
+            .unwrap();
+      },
+      [&]() {
+          color
+            .push(
+              gpu::RenderingAttachment{.view    = params.framebuffer.color.view,
                                        .resolve = nullptr,
                                        .resolve_mode = gpu::ResolveModes::None,
                                        .load_op      = gpu::LoadOp::Load,
                                        .store_op     = gpu::StoreOp::Store,
                                        .clear        = {}})
-        .unwrap();
-    });
+            .unwrap();
+      });
 
-  auto stencil =
-    params.framebuffer.depth_stencil.map([&](DepthStencilImage const & img) {
-      return gpu::RenderingAttachment{.view         = img.stencil_view,
-                                      .resolve      = nullptr,
-                                      .resolve_mode = gpu::ResolveModes::None,
-                                      .load_op      = gpu::LoadOp::Load,
-                                      .store_op     = gpu::StoreOp::None,
-                                      .clear        = {}};
-    });
+    auto stencil =
+      params.framebuffer.depth_stencil.map([&](DepthStencilImage const & img) {
+          return gpu::RenderingAttachment{.view    = img.stencil_view,
+                                          .resolve = nullptr,
+                                          .resolve_mode =
+                                            gpu::ResolveModes::None,
+                                          .load_op  = gpu::LoadOp::Load,
+                                          .store_op = gpu::StoreOp::None,
+                                          .clear    = {}};
+      });
 
-  auto info =
-    gpu::RenderingInfo{.render_area{.extent = params.framebuffer.extent().xy()},
-                       .num_layers         = 1,
-                       .color_attachments  = color,
-                       .depth_attachment   = {},
-                       .stencil_attachment = stencil};
+    auto info = gpu::RenderingInfo{
+      .render_area{.extent = params.framebuffer.extent().xy()},
+      .num_layers         = 1,
+      .color_attachments  = color,
+      .depth_attachment   = {},
+      .stencil_attachment = stencil};
 
-  e->begin_rendering(info);
+    e->begin_rendering(info);
 
-  auto pipeline = pipelines_[params.variant].v0.v1;
+    auto pipeline = pipelines_[params.variant].v0.v1;
 
-  e->bind_graphics_pipeline(pipeline);
-  e->bind_descriptor_sets(
-    span({
-      params.samplers,                                   //
-      params.textures,                                   //
-      params.world_to_ndc.buffer.read_storage_buffer,    //
-      params.sets.buffer.read_storage_buffer,            //
-      params.vertices.buffer.read_storage_buffer,        //
-      params.indices.buffer.read_storage_buffer          //
-    }),
-    span({
-      params.world_to_ndc.slice.as_u32().offset,    //
-      params.sets.slice.as_u32().offset,            //
-      params.vertices.slice.as_u32().offset,        //
-      params.indices.slice.as_u32().offset          //
-    }));
+    e->bind_graphics_pipeline(pipeline);
+    e->bind_descriptor_sets(
+      span({
+        params.samplers,                                   //
+        params.textures,                                   //
+        params.world_to_ndc.buffer.read_storage_buffer,    //
+        params.sets.buffer.read_storage_buffer,            //
+        params.vertices.buffer.read_storage_buffer,        //
+        params.indices.buffer.read_storage_buffer          //
+      }),
+      span({
+        params.world_to_ndc.slice.as_u32().offset,    //
+        params.sets.slice.as_u32().offset,            //
+        params.vertices.slice.as_u32().offset,        //
+        params.indices.slice.as_u32().offset          //
+      }));
 
-  ASH_CHECK(size32(params.states) > 0, "");
-  ASH_CHECK(size32(params.state_runs) == (size32(params.states) + 1), "");
-  ASH_CHECK(size32(params.index_runs) > 1, "");
-  auto num_states = size32(params.states);
+    ASH_CHECK(size32(params.states) > 0, "");
+    ASH_CHECK(size32(params.state_runs) == (size32(params.states) + 1), "");
+    ASH_CHECK(size32(params.index_runs) > 1, "");
+    auto num_states = size32(params.states);
 
-  for (auto s : range(num_states))
-  {
-    auto & state = params.states[s];
-    e->set_graphics_state(gpu::GraphicsState{
-      .scissor             = state.scissor,
-      .viewport            = state.viewport,
-      .stencil_test_enable = state.stencil.is_some(),
-      .front_face_stencil =
-        state.stencil.map([](auto s) { return s.front; }).unwrap_or(),
-      .back_face_stencil =
-        state.stencil.map([](auto s) { return s.back; }).unwrap_or(),
-      .cull_mode  = state.cull_mode,
-      .front_face = state.front_face});
-
-    for (auto i : range(
-           Slice32::offsets(params.state_runs[s], params.state_runs[s + 1])))
+    for (auto s : range(num_states))
     {
-      e->draw(Slice32::offsets(params.index_runs[i], params.index_runs[i + 1]),
-              {i, 1});
-    }
-  }
+        auto & state = params.states[s];
+        e->set_graphics_state(gpu::GraphicsState{
+          .scissor             = state.scissor,
+          .viewport            = state.viewport,
+          .stencil_test_enable = state.stencil.is_some(),
+          .front_face_stencil =
+            state.stencil.map([](auto s) { return s.front; }).unwrap_or(),
+          .back_face_stencil =
+            state.stencil.map([](auto s) { return s.back; }).unwrap_or(),
+          .cull_mode  = state.cull_mode,
+          .front_face = state.front_face});
 
-  e->end_rendering();
+        for (auto i : range(Slice32::offsets(params.state_runs[s],
+                                             params.state_runs[s + 1])))
+        {
+            e->draw(
+              Slice32::offsets(params.index_runs[i], params.index_runs[i + 1]),
+              {i, 1});
+        }
+    }
+
+    e->end_rendering();
 }
 
 void TriangleFillPipeline::release(GpuFramePlan plan, Allocator, Allocator)
 {
-  for (auto [v] : pipelines_)
-  {
-    plan->add_preframe_task(
-      [p = v.v1, d = plan->device()](GpuFrame) { d->uninit(p); });
-  }
+    for (auto [v] : pipelines_)
+    {
+        plan->add_preframe_task(
+          [p = v.v1, d = plan->device()](GpuFrame) { d->uninit(p); });
+    }
 }
 
 }    // namespace ash

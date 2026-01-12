@@ -14,9 +14,9 @@ namespace dlist
 template <typename Node, Node * Node::* PREV, Node * Node::* NEXT>
 constexpr Node * clear_links(Node * node)
 {
-  node->*NEXT = nullptr;
-  node->*PREV = nullptr;
-  return node;
+    node->*NEXT = nullptr;
+    node->*PREV = nullptr;
+    return node;
 }
 
 /// @brief Unlink Node `head` from the List, producing an isolated node
@@ -25,9 +25,9 @@ constexpr Node * clear_links(Node * node)
 template <typename Node, Node * Node::* PREV, Node * Node::* NEXT>
 constexpr void unlink(Node * at)
 {
-  // detach from siblings
-  at->*NEXT->*PREV = at->*PREV;
-  at->*PREV->*NEXT = at->*NEXT;
+    // detach from siblings
+    at->*NEXT->*PREV = at->*PREV;
+    at->*PREV->*NEXT = at->*NEXT;
 }
 
 /// @brief Remove from the front of the list, producing an isolated node
@@ -36,9 +36,9 @@ constexpr void unlink(Node * at)
 template <typename Node, Node * Node::* PREV, Node * Node::* NEXT>
 [[nodiscard]] constexpr Node * unlink_front(Node * head)
 {
-  auto * out = head->*NEXT;
-  unlink<Node, PREV, NEXT>(out);
-  return out;
+    auto * out = head->*NEXT;
+    unlink<Node, PREV, NEXT>(out);
+    return out;
 }
 
 /// @brief Remove from the back of the list, producing an isolated node
@@ -47,15 +47,15 @@ template <typename Node, Node * Node::* PREV, Node * Node::* NEXT>
 template <typename Node, Node * Node::* PREV, Node * Node::* NEXT>
 [[nodiscard]] constexpr Node * unlink_back(Node * head)
 {
-  auto * out = head->*PREV;
-  unlink<Node, PREV, NEXT>(out);
-  return out;
+    auto * out = head->*PREV;
+    unlink<Node, PREV, NEXT>(out);
+    return out;
 }
 
 template <typename Node, Node * Node::* PREV, Node * Node::* NEXT>
 constexpr bool is_empty(Node * ASH_RESTRICT head)
 {
-  return head->*NEXT == head;
+    return head->*NEXT == head;
 }
 
 /// @brief Attach Node `node` to the end of List `head`
@@ -66,10 +66,10 @@ constexpr bool is_empty(Node * ASH_RESTRICT head)
 template <typename Node, Node * Node::* PREV, Node * Node::* NEXT>
 constexpr void push_back(Node * ASH_RESTRICT head, Node * ASH_RESTRICT node)
 {
-  node->*PREV        = head->*PREV;
-  node->*NEXT        = head;
-  head->*PREV->*NEXT = node;
-  head->*PREV        = node;
+    node->*PREV        = head->*PREV;
+    node->*NEXT        = head;
+    head->*PREV->*NEXT = node;
+    head->*PREV        = node;
 }
 
 /// @brief Attach List `ext` to the front of List `head`
@@ -80,41 +80,41 @@ constexpr void push_back(Node * ASH_RESTRICT head, Node * ASH_RESTRICT node)
 template <typename Node, Node * Node::* PREV, Node * Node::* NEXT>
 constexpr void push_front(Node * ASH_RESTRICT head, Node * ASH_RESTRICT node)
 {
-  node->*NEXT        = head->*NEXT;
-  node->*PREV        = head;
-  head->*NEXT->*PREV = node;
-  head->*NEXT        = node;
+    node->*NEXT        = head->*NEXT;
+    node->*PREV        = head;
+    head->*NEXT->*PREV = node;
+    head->*NEXT        = node;
 }
 
 template <typename Node, Node * Node::* PREV, Node * Node::* NEXT>
 constexpr Node * pop_back(Node * ASH_RESTRICT head)
 {
-  if (is_empty<Node, PREV, NEXT>(head)) [[unlikely]]
-  {
-    return nullptr;
-  }
+    if (is_empty<Node, PREV, NEXT>(head)) [[unlikely]]
+    {
+        return nullptr;
+    }
 
-  auto * out = unlink_back<Node, PREV, NEXT>(head);
-  return clear_links<Node, PREV, NEXT>(out);
+    auto * out = unlink_back<Node, PREV, NEXT>(head);
+    return clear_links<Node, PREV, NEXT>(out);
 }
 
 template <typename Node, Node * Node::* PREV, Node * Node::* NEXT>
 constexpr Node * pop_front(Node * ASH_RESTRICT head)
 {
-  if (is_empty<Node, PREV, NEXT>(head)) [[unlikely]]
-  {
-    return nullptr;
-  }
+    if (is_empty<Node, PREV, NEXT>(head)) [[unlikely]]
+    {
+        return nullptr;
+    }
 
-  auto * out = unlink_front<Node, PREV, NEXT>(head);
-  return clear_links<Node, PREV, NEXT>(out);
+    auto * out = unlink_front<Node, PREV, NEXT>(head);
+    return clear_links<Node, PREV, NEXT>(out);
 }
 
 template <typename Node, Node * Node::* PREV, Node * Node::* NEXT>
 constexpr void pop_at(Node * ASH_RESTRICT node)
 {
-  unlink<Node, PREV, NEXT>(node);
-  clear_links<Node, PREV, NEXT>(node);
+    unlink<Node, PREV, NEXT>(node);
+    clear_links<Node, PREV, NEXT>(node);
 }
 
 }    // namespace dlist
@@ -123,111 +123,111 @@ constexpr void pop_at(Node * ASH_RESTRICT node)
 template <typename N, N * N::* prev = &N::prev, N * N::* next = &N::next>
 struct ListIter
 {
-  typedef N Node;
+    typedef N Node;
 
-  static constexpr Node * Node::* PREV = prev;
+    static constexpr Node * Node::* PREV = prev;
 
-  static constexpr Node * Node::* NEXT = next;
+    static constexpr Node * Node::* NEXT = next;
 
-  Node * iter_ = nullptr;
-  Node * head_ = nullptr;
+    Node * iter_ = nullptr;
+    Node * head_ = nullptr;
 
-  constexpr Node & operator*() const
-  {
-    return *iter_;
-  }
+    constexpr Node & operator*() const
+    {
+        return *iter_;
+    }
 
-  constexpr ListIter & operator++()
-  {
-    iter_ = iter_->*NEXT;
-    return *this;
-  }
+    constexpr ListIter & operator++()
+    {
+        iter_ = iter_->*NEXT;
+        return *this;
+    }
 
-  constexpr bool operator!=(IterEnd) const
-  {
-    return iter_ != head_;
-  }
+    constexpr bool operator!=(IterEnd) const
+    {
+        return iter_ != head_;
+    }
 
-  constexpr bool operator==(IterEnd) const
-  {
-    return !this->operator!=(iter_end);
-  }
+    constexpr bool operator==(IterEnd) const
+    {
+        return !this->operator!=(iter_end);
+    }
 };
 
 template <typename N, N * N::* prev = &N::prev, N * N::* next = &N::next>
 struct RevListIter
 {
-  typedef N Node;
+    typedef N Node;
 
-  static constexpr Node * Node::* PREV = prev;
+    static constexpr Node * Node::* PREV = prev;
 
-  static constexpr Node * Node::* NEXT = next;
+    static constexpr Node * Node::* NEXT = next;
 
-  Node * iter_ = nullptr;
-  Node * head_ = nullptr;
+    Node * iter_ = nullptr;
+    Node * head_ = nullptr;
 
-  constexpr Node & operator*() const
-  {
-    return *iter_;
-  }
+    constexpr Node & operator*() const
+    {
+        return *iter_;
+    }
 
-  constexpr RevListIter & operator++()
-  {
-    iter_ = iter_->*PREV;
-    return *this;
-  }
+    constexpr RevListIter & operator++()
+    {
+        iter_ = iter_->*PREV;
+        return *this;
+    }
 
-  constexpr bool operator!=(IterEnd) const
-  {
-    return iter_ != head_;
-  }
+    constexpr bool operator!=(IterEnd) const
+    {
+        return iter_ != head_;
+    }
 
-  constexpr bool operator==(IterEnd) const
-  {
-    return !this->operator!=(iter_end);
-  }
+    constexpr bool operator==(IterEnd) const
+    {
+        return !this->operator!=(iter_end);
+    }
 };
 
 template <typename N, N * N::* prev = &N::prev, N * N::* next = &N::next>
 struct RevListView
 {
-  typedef N Node;
+    typedef N Node;
 
-  static constexpr Node * Node::* PREV = prev;
+    static constexpr Node * Node::* PREV = prev;
 
-  static constexpr Node * Node::* NEXT = next;
+    static constexpr Node * Node::* NEXT = next;
 
-  Node * head_;
+    Node * head_;
 
-  explicit constexpr RevListView(Node * head) : head_{head}
-  {
-  }
+    explicit constexpr RevListView(Node * head) : head_{head}
+    {
+    }
 
-  constexpr bool is_empty() const
-  {
-    return (head_->*NEXT == head_);
-  }
+    constexpr bool is_empty() const
+    {
+        return (head_->*NEXT == head_);
+    }
 
-  void clear()
-  {
-    head_->*NEXT = head_;
-    head_->*PREV = head_;
-  }
+    void clear()
+    {
+        head_->*NEXT = head_;
+        head_->*PREV = head_;
+    }
 
-  [[nodiscard]] constexpr Node * head() const
-  {
-    return head_;
-  }
+    [[nodiscard]] constexpr Node * head() const
+    {
+        return head_;
+    }
 
-  constexpr auto begin() const
-  {
-    return RevListIter{.iter_ = head_->*PREV, .head_ = head_};
-  }
+    constexpr auto begin() const
+    {
+        return RevListIter{.iter_ = head_->*PREV, .head_ = head_};
+    }
 
-  constexpr auto end() const
-  {
-    return iter_end;
-  }
+    constexpr auto end() const
+    {
+        return iter_end;
+    }
 };
 
 /// @brief A non-owning intrusive doubly circularly linked list. This is backed
@@ -238,194 +238,194 @@ struct RevListView
 template <typename N, N * N::* prev = &N::prev, N * N::* next = &N::next>
 struct [[nodiscard]] ListView
 {
-  typedef N Node;
+    typedef N Node;
 
-  static constexpr Node * Node::* PREV = prev;
+    static constexpr Node * Node::* PREV = prev;
 
-  static constexpr Node * Node::* NEXT = next;
+    static constexpr Node * Node::* NEXT = next;
 
-  Node * head_;
+    Node * head_;
 
-  explicit constexpr ListView(Node * head) : head_{head}
-  {
-  }
+    explicit constexpr ListView(Node * head) : head_{head}
+    {
+    }
 
-  constexpr bool is_empty() const
-  {
-    return (head_->*NEXT == head_);
-  }
+    constexpr bool is_empty() const
+    {
+        return (head_->*NEXT == head_);
+    }
 
-  void clear()
-  {
-    head_->*NEXT = head_;
-    head_->*PREV = head_;
-  }
+    void clear()
+    {
+        head_->*NEXT = head_;
+        head_->*PREV = head_;
+    }
 
-  [[nodiscard]] constexpr Node * head() const
-  {
-    return head_;
-  }
+    [[nodiscard]] constexpr Node * head() const
+    {
+        return head_;
+    }
 
-  [[nodiscard]] constexpr Node * pop_front()
-  {
-    return intr::dlist::pop_front<Node, PREV, NEXT>(head_);
-  }
+    [[nodiscard]] constexpr Node * pop_front()
+    {
+        return intr::dlist::pop_front<Node, PREV, NEXT>(head_);
+    }
 
-  [[nodiscard]] constexpr Node * pop_back()
-  {
-    return intr::dlist::pop_back<Node, PREV, NEXT>(head_);
-  }
+    [[nodiscard]] constexpr Node * pop_back()
+    {
+        return intr::dlist::pop_back<Node, PREV, NEXT>(head_);
+    }
 
-  static constexpr void pop_at(Node * node)
-  {
-    intr::dlist::pop_at<Node, PREV, NEXT>(node);
-  }
+    static constexpr void pop_at(Node * node)
+    {
+        intr::dlist::pop_at<Node, PREV, NEXT>(node);
+    }
 
-  /// @param node non-null node to push
-  constexpr void push_front(Node * ASH_RESTRICT node)
-  {
-    intr::dlist::push_front<Node, PREV, NEXT>(head_, node);
-  }
+    /// @param node non-null node to push
+    constexpr void push_front(Node * ASH_RESTRICT node)
+    {
+        intr::dlist::push_front<Node, PREV, NEXT>(head_, node);
+    }
 
-  /// @param node non-null node to push
-  constexpr void push_back(Node * ASH_RESTRICT node)
-  {
-    intr::dlist::push_back<Node, PREV, NEXT>(head_, node);
-  }
+    /// @param node non-null node to push
+    constexpr void push_back(Node * ASH_RESTRICT node)
+    {
+        intr::dlist::push_back<Node, PREV, NEXT>(head_, node);
+    }
 
-  constexpr auto rev() const
-  {
-    return RevListView{.head_ = head_};
-  }
+    constexpr auto rev() const
+    {
+        return RevListView{.head_ = head_};
+    }
 
-  constexpr auto begin() const
-  {
-    return ListIter{.iter_ = head_->*NEXT, .head_ = head_};
-  }
+    constexpr auto begin() const
+    {
+        return ListIter{.iter_ = head_->*NEXT, .head_ = head_};
+    }
 
-  constexpr auto end() const
-  {
-    return iter_end;
-  }
+    constexpr auto end() const
+    {
+        return iter_end;
+    }
 
-  constexpr auto rbegin() const
-  {
-    return rev().begin();
-  }
+    constexpr auto rbegin() const
+    {
+        return rev().begin();
+    }
 
-  constexpr auto rend() const
-  {
-    return rev().end();
-  }
+    constexpr auto rend() const
+    {
+        return rev().end();
+    }
 };
 
 template <typename N, N * N::* prev = &N::prev, N * N::* next = &N::next>
 struct List
 {
-  typedef N Node;
+    typedef N Node;
 
-  static constexpr Node * Node::* PREV = prev;
+    static constexpr Node * Node::* PREV = prev;
 
-  static constexpr Node * Node::* NEXT = next;
+    static constexpr Node * Node::* NEXT = next;
 
-  using Iter    = ListIter<N, PREV, NEXT>;
-  using RevIter = RevListIter<N, PREV, NEXT>;
-  using View    = ListView<N, PREV, NEXT>;
-  using RevView = RevListView<N, PREV, NEXT>;
+    using Iter    = ListIter<N, PREV, NEXT>;
+    using RevIter = RevListIter<N, PREV, NEXT>;
+    using View    = ListView<N, PREV, NEXT>;
+    using RevView = RevListView<N, PREV, NEXT>;
 
-  union
-  {
-    N    head_;
-    char inactive_;
-  };
+    union
+    {
+        N    head_;
+        char inactive_;
+    };
 
-  constexpr List() : inactive_{0}
-  {
-    head_.*PREV = &head_;
-    head_.*NEXT = &head_;
-  }
+    constexpr List() : inactive_{0}
+    {
+        head_.*PREV = &head_;
+        head_.*NEXT = &head_;
+    }
 
-  constexpr List(List const &)             = delete;
-  constexpr List(List &&)                  = delete;
-  constexpr List & operator=(List const &) = delete;
-  constexpr List & operator=(List &&)      = delete;
+    constexpr List(List const &)             = delete;
+    constexpr List(List &&)                  = delete;
+    constexpr List & operator=(List const &) = delete;
+    constexpr List & operator=(List &&)      = delete;
 
-  constexpr ~List()
-  {
-  }
+    constexpr ~List()
+    {
+    }
 
-  constexpr bool is_empty() const
-  {
-    return (head_.*NEXT == &head_);
-  }
+    constexpr bool is_empty() const
+    {
+        return (head_.*NEXT == &head_);
+    }
 
-  void clear()
-  {
-    head_.*NEXT = &head_;
-    head_.*PREV = &head_;
-  }
+    void clear()
+    {
+        head_.*NEXT = &head_;
+        head_.*PREV = &head_;
+    }
 
-  [[nodiscard]] constexpr auto head()
-  {
-    return &head_;
-  }
+    [[nodiscard]] constexpr auto head()
+    {
+        return &head_;
+    }
 
-  [[nodiscard]] constexpr Node * pop_front()
-  {
-    return intr::dlist::pop_front<Node, PREV, NEXT>(&head_);
-  }
+    [[nodiscard]] constexpr Node * pop_front()
+    {
+        return intr::dlist::pop_front<Node, PREV, NEXT>(&head_);
+    }
 
-  [[nodiscard]] constexpr Node * pop_back()
-  {
-    return intr::dlist::pop_back<Node, PREV, NEXT>(&head_);
-  }
+    [[nodiscard]] constexpr Node * pop_back()
+    {
+        return intr::dlist::pop_back<Node, PREV, NEXT>(&head_);
+    }
 
-  static constexpr void pop_at(Node * node)
-  {
-    intr::dlist::pop_at<Node, PREV, NEXT>(node);
-  }
+    static constexpr void pop_at(Node * node)
+    {
+        intr::dlist::pop_at<Node, PREV, NEXT>(node);
+    }
 
-  /// @param node non-null node to push
-  constexpr void push_front(Node * ASH_RESTRICT node)
-  {
-    intr::dlist::push_front<Node, PREV, NEXT>(&head_, node);
-  }
+    /// @param node non-null node to push
+    constexpr void push_front(Node * ASH_RESTRICT node)
+    {
+        intr::dlist::push_front<Node, PREV, NEXT>(&head_, node);
+    }
 
-  /// @param node non-null node to push
-  constexpr void push_back(Node * ASH_RESTRICT node)
-  {
-    intr::dlist::push_back<Node, PREV, NEXT>(&head_, node);
-  }
+    /// @param node non-null node to push
+    constexpr void push_back(Node * ASH_RESTRICT node)
+    {
+        intr::dlist::push_back<Node, PREV, NEXT>(&head_, node);
+    }
 
-  constexpr auto view()
-  {
-    return View{&head_};
-  }
+    constexpr auto view()
+    {
+        return View{&head_};
+    }
 
-  constexpr auto rev_view()
-  {
-    return RevView{&head_};
-  }
+    constexpr auto rev_view()
+    {
+        return RevView{&head_};
+    }
 
-  constexpr auto begin()
-  {
-    return Iter{.iter_ = head_.*NEXT, .head_ = &head_};
-  }
+    constexpr auto begin()
+    {
+        return Iter{.iter_ = head_.*NEXT, .head_ = &head_};
+    }
 
-  constexpr auto end()
-  {
-    return iter_end;
-  }
+    constexpr auto end()
+    {
+        return iter_end;
+    }
 
-  constexpr auto rbegin()
-  {
-    return RevIter{.iter_ = head_.*PREV, .head_ = &head_};
-  }
+    constexpr auto rbegin()
+    {
+        return RevIter{.iter_ = head_.*PREV, .head_ = &head_};
+    }
 
-  constexpr auto rend()
-  {
-    return iter_end;
-  }
+    constexpr auto rend()
+    {
+        return iter_end;
+    }
 };
 
 }    // namespace ash

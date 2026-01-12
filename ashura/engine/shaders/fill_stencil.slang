@@ -6,7 +6,7 @@
 
 struct VertexOutput
 {
-  [[vk::location(0)]] f32x4 pos : SV_Position;
+    [[vk::location(0)]] f32x4 pos : SV_Position;
 };
 
 [[vk::binding(0, 0)]]
@@ -24,10 +24,10 @@ StructuredBuffer<u32> indices;
 [[shader("vertex")]] VertexOutput vert(u32 instance : SV_VulkanInstanceID,
                                        u32 vertex : SV_VulkanVertexID)
 {
-  var idx             = indices[vertex];
-  var rel_pos         = vertices[idx];
-  var world_transform = world_transforms[instance];
-  var world_pos       = mul(world_transform, f32x4(rel_pos, 0.0, 1.0));
-  var screen_pos      = mul(world_to_ndc, world_pos);
-  return VertexOutput(screen_pos);
+    var idx             = indices[vertex];
+    var rel_pos         = vertices[idx];
+    var world_transform = world_transforms[instance];
+    var world_pos       = mul(world_transform, f32x4(rel_pos, 0.0, 1.0));
+    var screen_pos      = mul(world_to_ndc, world_pos);
+    return VertexOutput(screen_pos);
 }

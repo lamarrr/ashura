@@ -1,7 +1,6 @@
 // #include "ashura/engine/animation.h"
 #include "ashura/engine/animation.h"
 #include "ashura/engine/engine.h"
-#include "ashura/engine/views.h"
 
 struct Animated;
 
@@ -9,9 +8,26 @@ struct App
 {
 };
 
+/*
 int main()
 {
   using namespace ash;
+
+ static constexpr u8 json_config[] = { #embed "ashura/config.json" };
+
+  auto cfg =
+    EngineCfg::parse_json(json_config, default_allocator, default_allocator)
+      .unwrap();
+
+  //
+  // trace("Initializing Engine, config_path: {} and working dir: {} "_str,
+  // config_path, working_dir);
+  // trace("Loading Engine config file"_str);
+  // Vec<u8> json{allocator};
+  // read_file(config_path, json).unwrap("Error opening config file"_str);
+  //
+  // EngineCfg cfg = EngineCfg::parse(allocator, json).unwrap();
+  //
 
   Dyn<Engine *> engine = Engine::create(
     default_allocator,
@@ -107,23 +123,70 @@ int main()
   ui::Plot        plot;
   ui::ProgressBar progress;
 
-  list.generator(
-    [](Allocator allocator, usize i) -> Option<Dyn<ui::View *>> {
-      if (i >= 20)
-      {
-        return none;
-      }
+  /*
+void IEngine::engage_(EngineCfg const & cfg)
+{
+  Vec<AnyFuture> futures{allocator};
 
-      auto text = dyn<ui::Text>(inplace, allocator, U"Item"_str).unwrap();
+  Vec<char> resolved_path{allocator};
 
-      return cast<ui::View *>(std::move(text));
-    });
+  for (auto & [label, path] : cfg.shaders)
+  {
+    resolved_path.clear();
+    path_join(working_dir, path, resolved_path).unwrap();
+    trace("Loading shader: {} from : {}"_str, label, resolved_path);
+    futures.push(shader_sys.load_from_path(std::move(label), resolved_path))
+      .unwrap();
+  }
+
+  for (auto & [label, path] : cfg.fonts)
+  {
+    resolved_path.clear();
+    path_join(working_dir, path, resolved_path).unwrap();
+    trace("Loading font: {} from: {}"_str, label, resolved_path);
+    futures
+      .push(font_sys->load_from_path(std::move(label), resolved_path,
+                                     cfg.font_height, 0))
+      .unwrap();
+  }
+
+  for (auto & [label, path] : cfg.images)
+  {
+    resolved_path.clear();
+    path_join(working_dir, path, resolved_path).unwrap();
+    trace("Loading image: {}  from: {}"_str, label, resolved_path);
+    futures.push(image_sys.load_from_path(std::move(label), resolved_path))
+      .unwrap();
+  }
+
+  trace("Waiting for resources"_str);
+  while (!await_futures(futures, 0ns))
+  {
+    gpu_sys.frame(nullptr);
+    scheduler->run_main_loop(1ms, 1ms);
+  }
+
+  trace("All resources loaded"_str);
+
+  renderer.acquire();
+}
+
+  list.generator([](Allocator allocator, usize i) -> Option<Dyn<ui::View *>> {
+    if (i >= 20)
+    {
+      return none;
+    }
+
+    auto text = dyn<ui::Text>(inplace, allocator, U"Item"_str).unwrap();
+
+    return cast<ui::View *>(std::move(text));
+  });
 
   auto animation = StaggeredAnimation<f32>::make(4, 8, RippleStagger{});
 
   animation.timelines().v0.frame(500, 1'920, 150ms, easing::out());
 
-  auto loop = [&](ui::Ctx const & ctx) {
+  auto loop = [&](ui::Scope const& scope) {
     animation.tick(ctx.timedelta);
     flex.frame(ui::Frame{}.abs({animation.animate(0).v0, 500}));
   };
@@ -134,3 +197,6 @@ int main()
 
   engine->run(scroll, &loop);
 }
+*/
+
+int main(){}

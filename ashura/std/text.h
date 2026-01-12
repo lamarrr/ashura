@@ -15,189 +15,192 @@ namespace ash
 /// utf8-validation
 [[nodiscard]] constexpr usize count_utf8_codepoints(Str8 text)
 {
-  c8 const * in    = text.data();
-  c8 const * end   = text.pend();
-  usize      count = 0;
-  while (in != end)
-  {
-    if ((*in & 0xc0) != 0x80)
+    c8 const * in    = text.data();
+    c8 const * end   = text.pend();
+    usize      count = 0;
+    while (in != end)
     {
-      count++;
+        if ((*in & 0xc0) != 0x80)
+        {
+            count++;
+        }
+        in++;
     }
-    in++;
-  }
-  return count;
+    return count;
 }
 
 template <typename Iter>
 [[nodiscard]] constexpr Tuple<c32, usize> seek_utf8_codepoint(Iter & iter)
 {
-  c32 const c0 = static_cast<c32>(*iter);
-  iter++;
+    c32 const c0 = static_cast<c32>(*iter);
+    iter++;
 
-  if ((c0 & 0xF8) == 0xF0)
-  {
-    c32 const c1 = static_cast<c32>(*iter);
-    iter++;
-    c32 const c2 = static_cast<c32>(*iter);
-    iter++;
-    c32 const c3 = static_cast<c32>(*iter);
-    iter++;
-    return {((c0 & 0x07) << 18) | ((c1 & 0x3F) << 12) | ((c2 & 0x3F) << 6) | c3,
-            4};
-  }
-  else if ((c0 & 0xF0) == 0xE0)
-  {
-    c32 const c1 = static_cast<c32>(*iter);
-    iter++;
-    c32 const c2 = static_cast<c32>(*iter);
-    iter++;
-    return {((c0 & 0x0F) << 12) | ((c1 & 0x3F) << 6) | (c2 & 0X3F), 3};
-  }
-  else if ((c0 & 0xE0) == 0xC0)
-  {
-    c32 const c1 = static_cast<c32>(*iter);
-    iter++;
-    return {((c0 & 0x1F) << 6) | (c1 & 0x3F), 2};
-  }
-  else
-  {
-    return {c0, 1};
-  }
+    if ((c0 & 0xF8) == 0xF0)
+    {
+        c32 const c1 = static_cast<c32>(*iter);
+        iter++;
+        c32 const c2 = static_cast<c32>(*iter);
+        iter++;
+        c32 const c3 = static_cast<c32>(*iter);
+        iter++;
+        return {((c0 & 0x07) << 18) | ((c1 & 0x3F) << 12) | ((c2 & 0x3F) << 6) |
+                  c3,
+                4};
+    }
+    else if ((c0 & 0xF0) == 0xE0)
+    {
+        c32 const c1 = static_cast<c32>(*iter);
+        iter++;
+        c32 const c2 = static_cast<c32>(*iter);
+        iter++;
+        return {((c0 & 0x0F) << 12) | ((c1 & 0x3F) << 6) | (c2 & 0X3F), 3};
+    }
+    else if ((c0 & 0xE0) == 0xC0)
+    {
+        c32 const c1 = static_cast<c32>(*iter);
+        iter++;
+        return {((c0 & 0x1F) << 6) | (c1 & 0x3F), 2};
+    }
+    else
+    {
+        return {c0, 1};
+    }
 }
 
 constexpr u8 codepoint_width(c32 c)
 {
-  if (c <= 0x7F)
-  {
-    return 1;
-  }
-  else if (c <= 0x7FF)
-  {
-    return 2;
-  }
-  else if (c <= 0xFFFF)
-  {
-    return 3;
-  }
-  else if (c <= 0x10'FFFF)
-  {
-    return 4;
-  }
-  return 0;
+    if (c <= 0x7F)
+    {
+        return 1;
+    }
+    else if (c <= 0x7FF)
+    {
+        return 2;
+    }
+    else if (c <= 0xFFFF)
+    {
+        return 3;
+    }
+    else if (c <= 0x10'FFFF)
+    {
+        return 4;
+    }
+    return 0;
 }
 
 /// @brief `decoded.size()` must be at least `encoded.size()`
 [[nodiscard]] constexpr usize utf8_decode(Str8 text, MutStr32 decoded)
 {
-  c8 const * in  = text.data();
-  c8 const * end = text.pend();
-  c32 *      out = decoded.data();
+    c8 const * in  = text.data();
+    c8 const * end = text.pend();
+    c32 *      out = decoded.data();
 
-  while (in != end)
-  {
-    *out = seek_utf8_codepoint(in).v0;
-    out++;
-  }
+    while (in != end)
+    {
+        *out = seek_utf8_codepoint(in).v0;
+        out++;
+    }
 
-  return out - decoded.pbegin();
+    return out - decoded.pbegin();
 }
 
 /// @brief `encoded.size()` must be at least `text.size() * 4`
 [[nodiscard]] constexpr usize utf8_encode(Str32 text, MutStr8 encoded)
 {
-  c8 *        out = encoded.data();
-  c32 const * in  = text.data();
-  c32 const * end = text.pend();
+    c8 *        out = encoded.data();
+    c32 const * in  = text.data();
+    c32 const * end = text.pend();
 
-  while (in != end)
-  {
-    c32 const c = *in;
+    while (in != end)
+    {
+        c32 const c = *in;
 
-    if (c <= 0x7F)
-    {
-      out[0] = static_cast<c8>(c);
-      out += 1;
-    }
-    else if (c <= 0x7FF)
-    {
-      out[0] = static_cast<c8>(0xC0 | (c >> 6));
-      out[1] = static_cast<c8>(0x80 | (c & 0x3F));
-      out += 2;
-    }
-    else if (c <= 0xFFFF)
-    {
-      out[0] = static_cast<c8>(0xE0 | (c >> 12));
-      out[1] = static_cast<c8>(0x80 | ((c >> 6) & 0x3F));
-      out[2] = static_cast<c8>(0x80 | (c & 0x3F));
-      out += 3;
-    }
-    else if (c <= 0x10'FFFF)
-    {
-      out[0] = static_cast<c8>(0xF0 | (c >> 18));
-      out[1] = static_cast<c8>(0x80 | ((c >> 12) & 0x3F));
-      out[2] = static_cast<c8>(0x80 | ((c >> 6) & 0x3F));
-      out[3] = static_cast<c8>(0x80 | (c & 0x3F));
-      out += 4;
+        if (c <= 0x7F)
+        {
+            out[0] = static_cast<c8>(c);
+            out += 1;
+        }
+        else if (c <= 0x7FF)
+        {
+            out[0] = static_cast<c8>(0xC0 | (c >> 6));
+            out[1] = static_cast<c8>(0x80 | (c & 0x3F));
+            out += 2;
+        }
+        else if (c <= 0xFFFF)
+        {
+            out[0] = static_cast<c8>(0xE0 | (c >> 12));
+            out[1] = static_cast<c8>(0x80 | ((c >> 6) & 0x3F));
+            out[2] = static_cast<c8>(0x80 | (c & 0x3F));
+            out += 3;
+        }
+        else if (c <= 0x10'FFFF)
+        {
+            out[0] = static_cast<c8>(0xF0 | (c >> 18));
+            out[1] = static_cast<c8>(0x80 | ((c >> 12) & 0x3F));
+            out[2] = static_cast<c8>(0x80 | ((c >> 6) & 0x3F));
+            out[3] = static_cast<c8>(0x80 | (c & 0x3F));
+            out += 4;
+        }
+
+        in++;
     }
 
-    in++;
-  }
-
-  return out - encoded.pbegin();
+    return out - encoded.pbegin();
 }
 
 /// @brief Converts UTF-8 text from @p encoded to UTF-32 and appends into @p
 /// `decoded`
 inline Result<> utf8_decode(Str8 text, Vec<c32> & decoded)
 {
-  usize const first     = decoded.size();
-  usize const max_count = text.size();
-  if (!decoded.extend_uninit(max_count))
-  {
-    return Err{};
-  }
-  usize const count = utf8_decode(text, decoded.view().slice(first, max_count));
-  decoded.resize_uninit(first + count).unwrap();
-  return Ok{};
+    usize const first     = decoded.size();
+    usize const max_count = text.size();
+    if (!decoded.extend_uninit(max_count))
+    {
+        return Err{};
+    }
+    usize const count =
+      utf8_decode(text, decoded.view().slice(first, max_count));
+    decoded.resize_uninit(first + count).unwrap();
+    return Ok{};
 }
 
 /// @brief Converts UTF-32 text from @p decoded to UTF-8 and appends into @p
 /// `encoded`
 [[nodiscard]] inline Result<> utf8_encode(Str32 text, Vec<c8> & encoded)
 {
-  usize const first     = encoded.size();
-  usize const max_count = text.size() * 4;
-  if (!encoded.extend_uninit(max_count))
-  {
-    return Err{};
-  }
-  usize const count = utf8_encode(text, encoded.view().slice(first, max_count));
-  encoded.resize_uninit(first + count).unwrap();
-  return Ok{};
+    usize const first     = encoded.size();
+    usize const max_count = text.size() * 4;
+    if (!encoded.extend_uninit(max_count))
+    {
+        return Err{};
+    }
+    usize const count =
+      utf8_encode(text, encoded.view().slice(first, max_count));
+    encoded.resize_uninit(first + count).unwrap();
+    return Ok{};
 }
 
 constexpr void replace_invalid_codepoints(Str32 input, MutStr32 output,
                                           c32 replacement)
 {
-  c32 const * in  = input.pbegin();
-  c32 const * end = input.pend();
-  c32 *       out = output.pbegin();
+    c32 const * in  = input.pbegin();
+    c32 const * end = input.pend();
+    c32 *       out = output.pbegin();
 
-  while (in != end)
-  {
-    auto cp = *in;
-    if (cp >= UTF32_MIN && cp <= UTF32_MAX) [[likely]]
+    while (in != end)
     {
-      *out = cp;
+        auto cp = *in;
+        if (cp >= UTF32_MIN && cp <= UTF32_MAX) [[likely]]
+        {
+            *out = cp;
+        }
+        else
+        {
+            *out = replacement;
+        }
+        in++;
+        out++;
     }
-    else
-    {
-      *out = replacement;
-    }
-    in++;
-    out++;
-  }
 }
 
 /// Unicode Ranges
@@ -223,95 +226,95 @@ inline constexpr Tuple<c32, c32> KATAKANA{0x30A0, 0x30FF};
 template <IterOf<c8> CodeUnitIter>
 struct Utf8DecodeIter
 {
-  typedef c32          Type;
-  typedef CodeUnitIter Iter;
+    typedef c32          Type;
+    typedef CodeUnitIter Iter;
 
-  Iter iter_;
+    Iter iter_;
 
-  constexpr c32 operator*() const
-  {
-    auto iter = iter_;
-    return seek_utf8_codepoint(iter).v0;
-  }
+    constexpr c32 operator*() const
+    {
+        auto iter = iter_;
+        return seek_utf8_codepoint(iter).v0;
+    }
 
-  constexpr Utf8DecodeIter & operator++()
-  {
-    [[maybe_unused]] auto _ = seek_utf8_codepoint(iter_);
-    return *this;
-  }
+    constexpr Utf8DecodeIter & operator++()
+    {
+        [[maybe_unused]] auto _ = seek_utf8_codepoint(iter_);
+        return *this;
+    }
 
-  constexpr Utf8DecodeIter operator++(int)
-  {
-    auto old = *this;
-    this->operator++();
-    return old;
-  }
+    constexpr Utf8DecodeIter operator++(int)
+    {
+        auto old = *this;
+        this->operator++();
+        return old;
+    }
 
-  constexpr bool operator!=(IterEnd) const
-  {
-    return iter_ != iter_end;
-  }
+    constexpr bool operator!=(IterEnd) const
+    {
+        return iter_ != iter_end;
+    }
 
-  constexpr bool operator==(IterEnd) const
-  {
-    return !this->operator!=(iter_end);
-  }
+    constexpr bool operator==(IterEnd) const
+    {
+        return !this->operator!=(iter_end);
+    }
 
-  constexpr auto max_size() const requires (SizedIter<Iter>)
-  {
-    return iter_.size() * 4;
-  }
+    constexpr auto max_size() const requires (SizedIter<Iter>)
+    {
+        return iter_.size() * 4;
+    }
 
-  constexpr auto max_size() const
-    requires (BoundedSizeIter<Iter> && !SizedIter<Iter>)
-  {
-    return iter_.max_size() * 4;
-  }
+    constexpr auto max_size() const
+      requires (BoundedSizeIter<Iter> && !SizedIter<Iter>)
+    {
+        return iter_.max_size() * 4;
+    }
 };
 
 template <IterOf<c32> CodePointIter>
 struct Utf8EncodeIter
 {
-  typedef c8            Type;
-  typedef CodePointIter Iter;
+    typedef c8            Type;
+    typedef CodePointIter Iter;
 
-  Iter iter_;
+    Iter iter_;
 
-  constexpr InplaceVec<c8, 4> operator*() const;
+    constexpr InplaceVec<c8, 4> operator*() const;
 
-  constexpr Utf8EncodeIter & operator++()
-  {
-    iter_++;
-    return *this;
-  }
+    constexpr Utf8EncodeIter & operator++()
+    {
+        iter_++;
+        return *this;
+    }
 
-  constexpr Utf8EncodeIter operator++(int)
-  {
-    auto old = *this;
-    this->operator++();
-    return old;
-  }
+    constexpr Utf8EncodeIter operator++(int)
+    {
+        auto old = *this;
+        this->operator++();
+        return old;
+    }
 
-  constexpr bool operator!=(IterEnd) const
-  {
-    return iter_ != iter_end;
-  }
+    constexpr bool operator!=(IterEnd) const
+    {
+        return iter_ != iter_end;
+    }
 
-  constexpr bool operator==(IterEnd) const
-  {
-    return !this->operator!=(iter_end);
-  }
+    constexpr bool operator==(IterEnd) const
+    {
+        return !this->operator!=(iter_end);
+    }
 
-  constexpr auto max_size() const requires (SizedIter<Iter>)
-  {
-    return iter_.size() * 4;
-  }
+    constexpr auto max_size() const requires (SizedIter<Iter>)
+    {
+        return iter_.size() * 4;
+    }
 
-  constexpr auto max_size() const
-    requires (BoundedSizeIter<Iter> && !SizedIter<Iter>)
-  {
-    return iter_.max_size() * 4;
-  }
+    constexpr auto max_size() const
+      requires (BoundedSizeIter<Iter> && !SizedIter<Iter>)
+    {
+        return iter_.max_size() * 4;
+    }
 };
 
 namespace ascii

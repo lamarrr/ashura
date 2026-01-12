@@ -10,185 +10,187 @@ namespace ash
 
 AwaitFuturesVec IShaderSys::init(Allocator allocator)
 {
-  tracing::ScopeTrace trace;
-  static constexpr u8 BEZIER_STENCIL_SHADER[] = {
+    tracing::ScopeTrace trace;
+    static constexpr u8 BEZIER_STENCIL_SHADER[] = {
 #embed "assets/shaders/bezier_stencil.spv"
-  };
+    };
 
-  static constexpr u8 BLUR_DOWNSAMPLE_SHADER[] = {
+    static constexpr u8 BLUR_DOWNSAMPLE_SHADER[] = {
 #embed "assets/shaders/blur_downsample.spv"
-  };
+    };
 
-  static constexpr u8 BLUR_UPSAMPLE_SHADER[] = {
+    static constexpr u8 BLUR_UPSAMPLE_SHADER[] = {
 #embed "assets/shaders/blur_upsample.spv"
-  };
+    };
 
-  static constexpr u8 COMPOSITE_SDF_SHADER[] = {
+    static constexpr u8 COMPOSITE_SDF_SHADER[] = {
 #embed "assets/shaders/composite_sdf.spv"
-  };
+    };
 
-  static constexpr u8 FILL_STENCIL_SHADER[] = {
+    static constexpr u8 FILL_STENCIL_SHADER[] = {
 #embed "assets/shaders/fill_stencil.spv"
-  };
+    };
 
-  static constexpr u8 PBR_BASE_SHADER[] = {
+    static constexpr u8 PBR_BASE_SHADER[] = {
 #embed "assets/shaders/pbr_base.spv"
-  };
+    };
 
-  static constexpr u8 QUAD_SHADER[] = {
+    static constexpr u8 QUAD_SHADER[] = {
 #embed "assets/shaders/quad_base.spv"
-  };
+    };
 
-  static constexpr u8 SDF_GRADIENT_SHADER[] = {
+    static constexpr u8 SDF_GRADIENT_SHADER[] = {
 #embed "assets/shaders/sdf_gradient.spv"
-  };
+    };
 
-  static constexpr u8 SDF_NOISE_SHADER[] = {
+    static constexpr u8 SDF_NOISE_SHADER[] = {
 #embed "assets/shaders/sdf_noise.spv"
-  };
+    };
 
-  static constexpr u8 SDF_MESH_GRADIENT_SHADER[] = {
+    static constexpr u8 SDF_MESH_GRADIENT_SHADER[] = {
 #embed "assets/shaders/sdf_mesh_gradient.spv"
-  };
+    };
 
-  static constexpr u8 TRIANGLE_FILL_SHADER[] = {
+    static constexpr u8 TRIANGLE_FILL_SHADER[] = {
 #embed "assets/shaders/triangle_fill.spv"
-  };
+    };
 
-  static constexpr u8 VECTOR_PATH_COVERAGE_SHADER[] = {
+    static constexpr u8 VECTOR_PATH_COVERAGE_SHADER[] = {
 #embed "assets/shaders/vector_path_coverage.spv"
-  };
+    };
 
-  static constexpr u8 VECTOR_PATH_FILL_SHADER[] = {
+    static constexpr u8 VECTOR_PATH_FILL_SHADER[] = {
 #embed "assets/shaders/vector_path_fill.spv"
-  };
+    };
 
-  allocator_ = allocator;
-  shaders_   = SparseVec<ShaderId, Shader>{allocator_};
+    allocator_ = allocator;
+    shaders_   = SparseVec<ShaderId, Shader>{allocator_};
 
-  Vec<AnyFuture> load_futs{allocator_};
+    Vec<AnyFuture> load_futs{allocator_};
 
-  Tuple<Str, Span<u8 const>> const shaders[] = {
-    {"defaults/bezier_stencil"_str,       Span{BEZIER_STENCIL_SHADER}      },
-    {"defaults/blur_downsample"_str,      Span{BLUR_DOWNSAMPLE_SHADER}     },
-    {"defaults/blur_upsample"_str,        Span{BLUR_UPSAMPLE_SHADER}       },
-    {"defaults/composite_sdf"_str,        Span{COMPOSITE_SDF_SHADER}       },
-    {"defaults/fill_stencil"_str,         Span{FILL_STENCIL_SHADER}        },
-    {"defaults/pbr_base"_str,             Span{PBR_BASE_SHADER}            },
-    {"defaults/quad_base"_str,            Span{QUAD_SHADER}                },
-    {"defaults/sdf_gradient"_str,         Span{SDF_GRADIENT_SHADER}        },
-    {"defaults/sdf_noise"_str,            Span{SDF_NOISE_SHADER}           },
-    {"defaults/sdf_mesh_gradient"_str,    Span{SDF_MESH_GRADIENT_SHADER}   },
-    {"defaults/triangle_fill"_str,        Span{TRIANGLE_FILL_SHADER}       },
-    {"defaults/vector_path_coverage"_str, Span{VECTOR_PATH_COVERAGE_SHADER}},
-    {"defaults/vector_path_fill"_str,     Span{VECTOR_PATH_FILL_SHADER}    }
-  };
+    Tuple<Str, Span<u8 const>> const shaders[] = {
+      {"defaults/bezier_stencil"_str,       Span{BEZIER_STENCIL_SHADER}      },
+      {"defaults/blur_downsample"_str,      Span{BLUR_DOWNSAMPLE_SHADER}     },
+      {"defaults/blur_upsample"_str,        Span{BLUR_UPSAMPLE_SHADER}       },
+      {"defaults/composite_sdf"_str,        Span{COMPOSITE_SDF_SHADER}       },
+      {"defaults/fill_stencil"_str,         Span{FILL_STENCIL_SHADER}        },
+      {"defaults/pbr_base"_str,             Span{PBR_BASE_SHADER}            },
+      {"defaults/quad_base"_str,            Span{QUAD_SHADER}                },
+      {"defaults/sdf_gradient"_str,         Span{SDF_GRADIENT_SHADER}        },
+      {"defaults/sdf_noise"_str,            Span{SDF_NOISE_SHADER}           },
+      {"defaults/sdf_mesh_gradient"_str,    Span{SDF_MESH_GRADIENT_SHADER}   },
+      {"defaults/triangle_fill"_str,        Span{TRIANGLE_FILL_SHADER}       },
+      {"defaults/vector_path_coverage"_str, Span{VECTOR_PATH_COVERAGE_SHADER}},
+      {"defaults/vector_path_fill"_str,     Span{VECTOR_PATH_FILL_SHADER}    }
+    };
 
-  for (auto [label, spirv] : shaders)
-  {
-    load_futs
-      .push(scheduler_
+    for (auto [label, spirv] : shaders)
+    {
+        load_futs
+          .push(
+            scheduler_
               ->run(allocator_, WorkerThread::Any,
                     [label, spirv, this]() mutable -> Result<ShaderId, SysErr> {
-                      return load_from_memory(label,
-                                              spirv.reinterpret<u32 const>());
+                        return load_from_memory(label,
+                                                spirv.reinterpret<u32 const>());
                     })
               .unwrap())
-      .unwrap();
-  }
+          .unwrap();
+    }
 
-  return AwaitFuturesVec{std::move(load_futs)};
+    return AwaitFuturesVec{std::move(load_futs)};
 }
 
 void IShaderSys::shutdown()
 {
-  WriteGuard guard{rw_lock_};
-  while (!shaders_.is_empty())
-  {
-    unload_(shaders_.to_id(0));
-  }
+    WriteGuard guard{rw_lock_};
+    while (!shaders_.is_empty())
+    {
+        unload_(shaders_.to_id(0));
+    }
 }
 
 Result<ShaderId, SysErr> IShaderSys::load_from_memory(Str label_span,
                                                       Span<u32 const> spirv)
 {
-  tracing::ScopeTrace trace;
+    tracing::ScopeTrace trace;
 
-  Vec<char> label{allocator_};
-  label.append(label_span).unwrap();
-  gpu::Shader object =
-    gpu_sys_->device()
-      ->create_shader(gpu::ShaderInfo{.label = label, .spirv_code = spirv})
-      .unwrap();
+    Vec<char> label{allocator_};
+    label.append(label_span).unwrap();
+    gpu::Shader object =
+      gpu_sys_->device()
+        ->create_shader(gpu::ShaderInfo{.label = label, .spirv_code = spirv})
+        .unwrap();
 
-  {
-    WriteGuard guard{rw_lock_};
-    ShaderId   id = ShaderId{
-      shaders_.push(Shader{.label = std::move(label), .shader = object})
-        .unwrap()};
+    {
+        WriteGuard guard{rw_lock_};
+        ShaderId   id = ShaderId{
+          shaders_.push(Shader{.label = std::move(label), .shader = object})
+            .unwrap()};
 
-    return Ok{id};
-  }
+        return Ok{id};
+    }
 }
 
 Future<Result<ShaderId, SysErr>> IShaderSys::load_from_path(Str label_span,
                                                             Str path)
 {
-  StrVec label{allocator_};
-  label.append(label_span).unwrap();
+    StrVec label{allocator_};
+    label.append(label_span).unwrap();
 
-  return scheduler_
-    ->then(
-      allocator_, WorkerThread::Any,
-      [label = std::move(label), this](Result<Vec<u8>, SysErr> & file_r) {
-        using R = Result<ShaderId, SysErr>;
-        return file_r.match(
-          [&, this](Vec<u8> & spirv) -> R {
-            static_assert(spirv.alignment() >= alignof(u32));
-            static_assert(std::endian::native == std::endian::little);
-            return load_from_memory(label, spirv.view().reinterpret<u32>());
-          },
-          [](SysErr err) -> R { return Err{err}; });
-      },
-      file_sys_->load_file(allocator_, path))
-    .unwrap();
+    return scheduler_
+      ->then(
+        allocator_, WorkerThread::Any,
+        [label = std::move(label), this](Result<Vec<u8>, SysErr> & file_r) {
+            using R = Result<ShaderId, SysErr>;
+            return file_r.match(
+              [&, this](Vec<u8> & spirv) -> R {
+                  static_assert(spirv.alignment() >= alignof(u32));
+                  static_assert(std::endian::native == std::endian::little);
+                  return load_from_memory(label,
+                                          spirv.view().reinterpret<u32>());
+              },
+              [](SysErr err) -> R { return Err{err}; });
+        },
+        file_sys_->load_file(allocator_, path))
+      .unwrap();
 }
 
 ShaderInfo IShaderSys::get(ShaderId id)
 {
-  ReadGuard guard{rw_lock_};
-  ASH_CHECK(shaders_.is_valid_id(id), "");
-  return shaders_[id].v0.view();
+    ReadGuard guard{rw_lock_};
+    ASH_CHECK(shaders_.is_valid_id(id), "");
+    return shaders_[id].v0.view();
 }
 
 Option<ShaderInfo> IShaderSys::get(Str label)
 {
-  ReadGuard guard{rw_lock_};
-  for (auto [shader] : shaders_)
-  {
-    if (mem::eq(label, shader.label.view()))
+    ReadGuard guard{rw_lock_};
+    for (auto [shader] : shaders_)
     {
-      return shader.view();
+        if (mem::eq(label, shader.label.view()))
+        {
+            return shader.view();
+        }
     }
-  }
 
-  return none;
+    return none;
 }
 
 void IShaderSys::unload_(ShaderId id)
 {
-  Shader & shader = shaders_[id].v0;
-  gpu_sys_->current_plan()->add_preframe_task(
-    [shader_h = shader.shader, dev = gpu_sys_->device()](GpuFrame) {
-      dev->uninit(shader_h);
-    });
-  shaders_.erase(id);
+    Shader & shader = shaders_[id].v0;
+    gpu_sys_->current_plan()->add_preframe_task(
+      [shader_h = shader.shader, dev = gpu_sys_->device()](GpuFrame) {
+          dev->uninit(shader_h);
+      });
+    shaders_.erase(id);
 }
 
 void IShaderSys::unload(ShaderId id)
 {
-  WriteGuard guard{rw_lock_};
-  unload_(id);
+    WriteGuard guard{rw_lock_};
+    unload_(id);
 }
 
 }    // namespace ash

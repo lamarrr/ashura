@@ -13,12 +13,12 @@ void noop_panic_handler()
 
 void exception_panic_handler()
 {
-  throw Panic{};
+    throw Panic{};
 }
 
 void trap_panic_handler()
 {
-  __builtin_trap();
+    __builtin_trap();
 }
 
 ASH_C_LINKAGE ASH_DLL_EXPORT u64 * panic_count = &panic_count_impl;
@@ -26,20 +26,20 @@ ASH_C_LINKAGE ASH_DLL_EXPORT List<IPanicHandler> panic_handlers{};
 
 ASH_C_LINKAGE ASH_DLL_EXPORT void handle_panic()
 {
-  for (auto & handler : panic_handlers)
-  {
-    handler.func();
-  }
+    for (auto & handler : panic_handlers)
+    {
+        handler.func();
+    }
 }
 
 ASH_C_LINKAGE ASH_DLL_EXPORT void add_panic_handler(IPanicHandler * handler)
 {
-  panic_handlers.push_back(handler);
+    panic_handlers.push_back(handler);
 }
 
 ASH_C_LINKAGE ASH_DLL_EXPORT void remove_panic_handler(IPanicHandler * handler)
 {
-  panic_handlers.pop_at(handler);
+    panic_handlers.pop_at(handler);
 }
 
 }    // namespace ash

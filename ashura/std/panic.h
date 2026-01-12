@@ -15,9 +15,9 @@ typedef void (*PanicHandleFunc)();
 
 struct [[nodiscard]] IPanicHandler
 {
-  IPanicHandler * next = nullptr;
-  IPanicHandler * prev = nullptr;
-  PanicHandleFunc func = noop;
+    IPanicHandler * next = nullptr;
+    IPanicHandler * prev = nullptr;
+    PanicHandleFunc func = noop;
 };
 
 ASH_C_LINKAGE ASH_DLL_EXPORT u64 * panic_count;

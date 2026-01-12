@@ -10,57 +10,57 @@ namespace ash
 
 struct SdfPipelineParams
 {
-  struct State
-  {
-    Option<PipelineStencil> stencil;
-    RectU                   scissor;
-    gpu::Viewport           viewport;
-  };
+    struct State
+    {
+        Option<PipelineStencil> stencil;
+        RectU                   scissor;
+        gpu::Viewport           viewport;
+    };
 
-  Framebuffer        framebuffer;
-  gpu::DescriptorSet samplers;
-  gpu::DescriptorSet textures;
-  GpuBufferSpan      world_to_ndc;
-  GpuBufferSpan      items;
-  Span<State const>  states;
-  Span<u32 const>    state_runs;
-  PipelineVariantId  variant;
+    Framebuffer        framebuffer;
+    gpu::DescriptorSet samplers;
+    gpu::DescriptorSet textures;
+    GpuBufferSpan      world_to_ndc;
+    GpuBufferSpan      items;
+    Span<State const>  states;
+    Span<u32 const>    state_runs;
+    PipelineVariantId  variant;
 };
 
 struct SdfPipeline final : IPipeline
 {
-  static constexpr PipelineVariantId GRADIENT      = PipelineVariantId::Base;
-  static constexpr PipelineVariantId NOISE         = PipelineVariantId{1};
-  static constexpr PipelineVariantId MESH_GRADIENT = PipelineVariantId{2};
+    static constexpr PipelineVariantId GRADIENT      = PipelineVariantId::Base;
+    static constexpr PipelineVariantId NOISE         = PipelineVariantId{1};
+    static constexpr PipelineVariantId MESH_GRADIENT = PipelineVariantId{2};
 
-  SparseVec<PipelineVariantId, Tuple<Str, gpu::GraphicsPipeline>> variants_;
+    SparseVec<PipelineVariantId, Tuple<Str, gpu::GraphicsPipeline>> variants_;
 
-  SdfPipeline(Allocator);
+    SdfPipeline(Allocator);
 
-  SdfPipeline(SdfPipeline const &)             = delete;
-  SdfPipeline(SdfPipeline &&)                  = delete;
-  SdfPipeline & operator=(SdfPipeline const &) = delete;
-  SdfPipeline & operator=(SdfPipeline &&)      = delete;
+    SdfPipeline(SdfPipeline const &)             = delete;
+    SdfPipeline(SdfPipeline &&)                  = delete;
+    SdfPipeline & operator=(SdfPipeline const &) = delete;
+    SdfPipeline & operator=(SdfPipeline &&)      = delete;
 
-  virtual ~SdfPipeline() override = default;
+    virtual ~SdfPipeline() override = default;
 
-  virtual Str label() override;
+    virtual Str label() override;
 
-  virtual void acquire(GpuFramePlan plan, Allocator allocator,
-                       Allocator scratch) override;
+    virtual void acquire(GpuFramePlan plan, Allocator allocator,
+                         Allocator scratch) override;
 
-  virtual void release(GpuFramePlan plan, Allocator allocator,
-                       Allocator scratch) override;
+    virtual void release(GpuFramePlan plan, Allocator allocator,
+                         Allocator scratch) override;
 
-  PipelineVariantId add_variant(GpuFramePlan plan, Str label,
-                                gpu::Shader shader, Allocator allocator,
-                                Allocator scratch);
+    PipelineVariantId add_variant(GpuFramePlan plan, Str label,
+                                  gpu::Shader shader, Allocator allocator,
+                                  Allocator scratch);
 
-  void remove_variant(GpuFramePlan plan, PipelineVariantId id);
+    void remove_variant(GpuFramePlan plan, PipelineVariantId id);
 
-  PipelineVariantId get_variant_id(Str label);
+    PipelineVariantId get_variant_id(Str label);
 
-  void encode(gpu::CommandEncoder encoder, SdfPipelineParams const & params);
+    void encode(gpu::CommandEncoder encoder, SdfPipelineParams const & params);
 };
 
 }    // namespace ash
