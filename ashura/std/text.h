@@ -274,7 +274,7 @@ struct Utf8EncodeIter
 
     Iter iter_;
 
-    constexpr InplaceVec<c8, 4> operator*() const;
+    constexpr InplaceVec<c8, 4, 0> operator*() const;
 
     constexpr Utf8EncodeIter & operator++()
     {
