@@ -47,9 +47,9 @@ Result<> join(Vec<Char> & out, Span<DelimChar> delimiter, Span<Str0Char> str0,
     return impl::join(out, delimiter, strings);
 }
 
-template <typename Char, usize Capacity, typename DelimChar, typename Str0Char,
-          typename... StrChars>
-Result<> join(InplaceVec<Char, Capacity> & out, Span<DelimChar> delimiter,
+template <typename Char, usize Capacity, usize MinAlignment, typename DelimChar,
+          typename Str0Char, typename... StrChars>
+Result<> join(InplaceVec<Char, Capacity, MinAlignment> & out, Span<DelimChar> delimiter,
               Span<Str0Char> str0, Span<StrChars>... strs)
 {
     Str strings[] = {str0, strs...};
