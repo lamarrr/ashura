@@ -465,7 +465,7 @@ struct TextStyle
 struct TextBlock
 {
     /// @brief utf-32-encoded text
-    Str32 text = {};
+    Str32 str = {};
 
     /// @brief run-end-encoded offset of each text run
     Span<usize const> run_indices = {};
@@ -845,16 +845,16 @@ struct TextRenderInfo
 typedef Fn<void(TextRenderInfo const &, TextPlacement const &)> TextRenderer;
 
 /// @returns the offset and length of the paragraph break
-Slice advance_paragraph(Str32 text);
+Slice advance_paragraph(Str32 str);
 
 /// @returns the offset and length of the paragraph break
-Slice advance_paragraph(Str8 text);
+Slice advance_paragraph(Str8 str);
 
 /// @brief Cull text to only the specified paragraphs
-Str32 cull_paragraphs(Str32 text, Slice paragraphs);
+Str32 cull_paragraphs(Str32 str, Slice paragraphs);
 
 /// @brief Cull text to only the specified paragraphs
-Str8 cull_paragraphs(Str8 text, Slice paragraphs);
+Str8 cull_paragraphs(Str8 str, Slice paragraphs);
 
 /// @brief Cached/pre-computed text layout
 /// @param max_width maximum width the text was laid out with

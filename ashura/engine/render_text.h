@@ -113,7 +113,7 @@ struct [[nodiscard]] RenderText
 
     f32 font_scale_;
 
-    Rc<Str32> text_;
+    Rc<Str32> str_;
 
     TextRunsStyle runs_style_;
 
@@ -132,7 +132,7 @@ struct [[nodiscard]] RenderText
       direction_{TextDirection::LeftToRight},
       alignment_{ALIGNMENT_LEFT},
       font_scale_{1},
-      text_{static_rc(U""_str)},
+      str_{static_rc(U""_str)},
       runs_style_{noop_allocator},
       language_{},
       layout_{.glyphs{allocator},
@@ -165,20 +165,20 @@ struct [[nodiscard]] RenderText
 
     RenderText & alignment(f32 alignment);
 
-    Str32 get_text() const;
+    Str32 str() const;
 
-    RenderText & text(Rc<Str32> utf32, TextStyle const & style, FontStyle const & font);
+    RenderText & str(Rc<Str32> utf32, TextStyle const & style, FontStyle const & font);
 
-    RenderText & text(Rc<Str32> utf32);
+    RenderText & str(Rc<Str32> utf32);
 
-    RenderText & text_copy(Str32 utf32);
+    RenderText & str_copy(Str32 utf32);
 
-    RenderText & text_copy(Str32 utf32, TextStyle const & style,
+    RenderText & str_copy(Str32 utf32, TextStyle const & style,
                            FontStyle const & font);
 
-    RenderText & text_copy(Str8 utf8, TextStyle const & style, FontStyle const & font);
+    RenderText & str_copy(Str8 utf8, TextStyle const & style, FontStyle const & font);
 
-    RenderText & text_copy(Str8 utf8);
+    RenderText & str_copy(Str8 utf8);
 
     RenderText & user_data(void * data);
 
@@ -220,19 +220,19 @@ struct [[nodiscard]] RenderText
 
 struct [[nodiscard]] EditHistoryBuffer
 {
+    enum class RecordType : u8
+    {
+        Erase  = 0,
+        Insert = 1
+    };
+
     struct Record
     {
-        enum class Type : u8
-        {
-            Erase  = 0,
-            Insert = 1
-        };
-
         usize pos = 0;
 
         Rc<Str32> str = static_rc(U""_str);
 
-        Type type = Type::Insert;
+        RecordType type = RecordType::Insert;
 
         constexpr usize size() const
         {
@@ -270,18 +270,20 @@ struct [[nodiscard]] EditHistoryBuffer
     /// @returns selection slice after undo, if any
     Option<Slice> undo(PieceTable32 & str);
 
-    void add_record(Record::Type type, usize pos, Rc<Str32> str);
+    void add_record(RecordType type, usize pos, Rc<Str32> str);
 
     void insert(usize pos, PieceTable32 & str, Rc<Str32> insert_str);
 
     void erase(Slice selection, PieceTable32 & str);
 };
 
-struct [[nodiscard]] EditText
+static constexpr c32 DEFAULT_WORD_SYMBOLS[] = {U' ', U'\t'};
+
+struct [[nodiscard]] InteractText
 {
     struct Cursor
     {
-        u64 id = 0;
+        u64 action_id = 0;
 
         TextCursor v = {};
     };

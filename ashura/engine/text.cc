@@ -8,18 +8,18 @@
 namespace ash
 {
 
-Slice advance_paragraph(Str32 text)
+Slice advance_paragraph(Str32 str)
 {
-    auto  text_size = text.size();
-    usize i         = 0;
+    auto str_size = str.size();
+    auto i        = 0uz;
 
-    while (i < text_size)
+    while (i < str_size)
     {
-        if (text[i] == '\r' && ((i + 1) < text_size) && text[i + 1] == '\n')
+        if (str[i] == '\r' && ((i + 1) < str_size) && str[i + 1] == '\n')
         {
             return Slice{i, 2};
         }
-        else if (text[i] == '\n' || text[i] == '\r')
+        else if (str[i] == '\n' || str[i] == '\r')
         {
             return Slice{i, 1};
         }
@@ -30,18 +30,18 @@ Slice advance_paragraph(Str32 text)
     return Slice{i, 0};
 }
 
-Slice advance_paragraph(Str8 text)
+Slice advance_paragraph(Str8 str)
 {
-    auto  text_size = text.size();
-    usize i         = 0;
+    auto str_size = str.size();
+    auto i        = 0uz;
 
-    while (i < text_size)
+    while (i < str_size)
     {
-        if (text[i] == '\r' && ((i + 1) < text_size) && text[i + 1] == '\n')
+        if (str[i] == '\r' && ((i + 1) < str_size) && str[i + 1] == '\n')
         {
             return Slice{i, 2};
         }
-        else if (text[i] == '\n' || text[i] == '\r')
+        else if (str[i] == '\n' || str[i] == '\r')
         {
             return Slice{i, 1};
         }
@@ -52,64 +52,64 @@ Slice advance_paragraph(Str8 text)
     return Slice{i, 0};
 }
 
-Str32 cull_paragraphs(Str32 text, Slice paragraphs)
+Str32 cull_paragraphs(Str32 str, Slice paragraphs)
 {
-    auto iparagraph          = 0uz;
-    auto text_size           = text.size();
-    auto text_iter           = 0uz;
-    auto text_paragraph_iter = 0uz;
+    auto iparagraph         = 0uz;
+    auto str_size           = str.size();
+    auto str_iter           = 0uz;
+    auto str_paragraph_iter = 0uz;
 
-    while (text_iter < text_size && iparagraph < paragraphs.offset)
+    while (str_iter < str_size && iparagraph < paragraphs.offset)
     {
-        auto delims         = advance_paragraph(text.slice(text_iter));
-        text_paragraph_iter = text_iter + delims.offset;
-        text_iter += delims.end();
+        auto delims        = advance_paragraph(str.slice(str_iter));
+        str_paragraph_iter = str_iter + delims.offset;
+        str_iter += delims.end();
         iparagraph++;
     }
 
-    auto first_paragraph_begin = text_paragraph_iter;
+    auto first_paragraph_begin = str_paragraph_iter;
 
-    while (text_iter < text_size && iparagraph < paragraphs.end())
+    while (str_iter < str_size && iparagraph < paragraphs.end())
     {
-        auto delims         = advance_paragraph(text.slice(text_iter));
-        text_paragraph_iter = text_iter + delims.offset;
-        text_iter += delims.end();
+        auto delims        = advance_paragraph(str.slice(str_iter));
+        str_paragraph_iter = str_iter + delims.offset;
+        str_iter += delims.end();
         iparagraph++;
     }
 
-    auto last_paragraph_end = text_paragraph_iter;
+    auto last_paragraph_end = str_paragraph_iter;
 
-    return text.slice(Slice::offsets(first_paragraph_begin, last_paragraph_end));
+    return str.slice(Slice::offsets(first_paragraph_begin, last_paragraph_end));
 }
 
-Str8 cull_paragraphs(Str8 text, Slice paragraphs)
+Str8 cull_paragraphs(Str8 str, Slice paragraphs)
 {
-    auto iparagraph          = 0uz;
-    auto text_size           = text.size();
-    auto text_iter           = 0uz;
-    auto text_paragraph_iter = 0uz;
+    auto iparagraph         = 0uz;
+    auto str_size           = str.size();
+    auto str_iter           = 0uz;
+    auto str_paragraph_iter = 0uz;
 
-    while (text_iter < text_size && iparagraph < paragraphs.offset)
+    while (str_iter < str_size && iparagraph < paragraphs.offset)
     {
-        auto delims         = advance_paragraph(text.slice(text_iter));
-        text_paragraph_iter = text_iter + delims.offset;
-        text_iter += delims.end();
+        auto delims        = advance_paragraph(str.slice(str_iter));
+        str_paragraph_iter = str_iter + delims.offset;
+        str_iter += delims.end();
         iparagraph++;
     }
 
-    auto first_paragraph_begin = text_paragraph_iter;
+    auto first_paragraph_begin = str_paragraph_iter;
 
-    while (text_iter < text_size && iparagraph < paragraphs.end())
+    while (str_iter < str_size && iparagraph < paragraphs.end())
     {
-        auto delims         = advance_paragraph(text.slice(text_iter));
-        text_paragraph_iter = text_iter + delims.offset;
-        text_iter += delims.end();
+        auto delims        = advance_paragraph(str.slice(str_iter));
+        str_paragraph_iter = str_iter + delims.offset;
+        str_iter += delims.end();
         iparagraph++;
     }
 
-    auto last_paragraph_end = text_paragraph_iter;
+    auto last_paragraph_end = str_paragraph_iter;
 
-    return text.slice(Slice::offsets(first_paragraph_begin, last_paragraph_end));
+    return str.slice(Slice::offsets(first_paragraph_begin, last_paragraph_end));
 }
 
 void TextLayout::clear()
@@ -353,7 +353,7 @@ Tuple<isize, CaretAlignment> TextLayout::hit(TextBlock const &      block,
     f32x2 half_block_extent = 0.5F * block_extent;
     f32   ln_top            = -half_block_extent.y();
     f32   last_ln_bottom    = half_block_extent.y();
-    isize ln                = 0;
+    auto  ln                = 0z;
 
     // separated vertical and horizontal hit test
     if (pos.y() < ln_top)
@@ -474,7 +474,8 @@ Tuple<isize, CaretAlignment> TextLayout::hit(TextBlock const &      block,
                     }
                 }
 
-                isize caret = line.carets.offset + (codepoint - line.codepoints.offset);
+                auto caret = static_cast<isize>(line.carets.offset +
+                                                (codepoint - line.codepoints.offset));
 
                 return {
                   caret, CaretAlignment{

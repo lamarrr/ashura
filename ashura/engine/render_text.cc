@@ -147,60 +147,60 @@ RenderText & RenderText::alignment(f32 alignment)
     return *this;
 }
 
-Str32 RenderText::get_text() const
+Str32 RenderText::str() const
 {
-    return text_.get();
+    return str_.get();
 }
 
-RenderText & RenderText::text(Rc<Str32> utf32, TextStyle const & style,
-                              FontStyle const & font)
+RenderText & RenderText::str(Rc<Str32> utf32, TextStyle const & style,
+                             FontStyle const & font)
 {
-    text(std::move(utf32));
+    str(std::move(utf32));
     style_runs(TextRunsStyle::all(style, font));
     flush_text();
     return *this;
 }
 
-RenderText & RenderText::text(Rc<Str32> utf32)
+RenderText & RenderText::str(Rc<Str32> utf32)
 {
-    text_ = std::move(utf32);
+    str_ = std::move(utf32);
     flush_text();
     return *this;
 }
 
-RenderText & RenderText::text_copy(Str32 utf32)
+RenderText & RenderText::str_copy(Str32 utf32)
 {
     auto vec    = vec::copy(allocator_, utf32).unwrap();
     auto rc_vec = rc<Vec<c32>>(allocator_, std::move(vec)).unwrap();
     auto view   = rc_vec->view().as_const();
-    return text(transmute(std::move(rc_vec), view));
+    return str(transmute(std::move(rc_vec), view));
 }
 
-RenderText & RenderText::text_copy(Str32 utf32, TextStyle const & style,
-                                   FontStyle const & font)
+RenderText & RenderText::str_copy(Str32 utf32, TextStyle const & style,
+                                  FontStyle const & font)
 {
-    text_copy(utf32);
+    str_copy(utf32);
     style_runs(TextRunsStyle::all(style, font));
     flush_text();
     return *this;
 }
 
-RenderText & RenderText::text_copy(Str8 utf8, TextStyle const & style,
-                                   FontStyle const & font)
+RenderText & RenderText::str_copy(Str8 utf8, TextStyle const & style,
+                                  FontStyle const & font)
 {
-    text_copy(utf8);
+    str_copy(utf8);
     style_runs(TextRunsStyle::all(style, font));
     flush_text();
     return *this;
 }
 
-RenderText & RenderText::text_copy(Str8 utf8)
+RenderText & RenderText::str_copy(Str8 utf8)
 {
     Vec<c32> text32{allocator_};
     utf8_decode(utf8, text32).unwrap();
     auto rc_vec = rc<Vec<c32>>(allocator_, std::move(text32)).unwrap();
     auto view   = rc_vec->view().as_const();
-    text_       = transmute(std::move(rc_vec), view);
+    str_        = transmute(std::move(rc_vec), view);
     flush_text();
     return *this;
 }
@@ -213,12 +213,12 @@ RenderText & RenderText::user_data(void * data)
 
 usize RenderText::size() const
 {
-    return text_.get().size();
+    return str_.get().size();
 }
 
 TextBlock RenderText::block() const
 {
-    return TextBlock{.text          = text_,
+    return TextBlock{.str           = str_,
                      .run_indices   = runs_style_.run_indices_,
                      .fonts         = runs_style_.fonts_,
                      .font_scale    = font_scale_,
@@ -302,13 +302,13 @@ Option<Slice> EditHistoryBuffer::redo(PieceTable32 & str)
 
     switch (record.type)
     {
-        case Record::Type::Erase:
+        case RecordType::Erase:
         {
             str.erase(Slice::slice(record.pos, record.size()));
             return Slice::slice(record.pos, 0);
         }
 
-        case Record::Type::Insert:
+        case RecordType::Insert:
         {
             str.insert(record.pos, record.str.alias()).unwrap();
             return Slice::slice(record.pos, record.size());
@@ -332,13 +332,13 @@ Option<Slice> EditHistoryBuffer::undo(PieceTable32 & str)
 
     switch (record.type)
     {
-        case Record::Type::Erase:
+        case RecordType::Erase:
         {
             str.insert(record.pos, record.str.alias()).unwrap();
             return Slice::slice(record.pos, record.size());
         }
 
-        case Record::Type::Insert:
+        case RecordType::Insert:
         {
             str.erase(Slice::slice(record.pos, record.size()));
             return Slice::slice(record.pos, 0);
@@ -349,7 +349,7 @@ Option<Slice> EditHistoryBuffer::undo(PieceTable32 & str)
     }
 }
 
-void EditHistoryBuffer::add_record(Record::Type type, usize pos, Rc<Str32> str)
+void EditHistoryBuffer::add_record(RecordType type, usize pos, Rc<Str32> str)
 {
     Record record{.pos = pos, .str = std::move(str), .type = type};
 
@@ -373,7 +373,7 @@ void EditHistoryBuffer::insert(usize pos, PieceTable32 & str, Rc<Str32> insert_s
 {
     auto record_str = insert_str.alias();
     str.insert(pos, std::move(insert_str)).unwrap();
-    add_record(Record::Type::Insert, pos, std::move(record_str));
+    add_record(RecordType::Insert, pos, std::move(record_str));
 }
 
 void EditHistoryBuffer::erase(Slice selection, PieceTable32 & str)
@@ -385,7 +385,7 @@ void EditHistoryBuffer::erase(Slice selection, PieceTable32 & str)
 
     str.erase(selection);
 
-    add_record(Record::Type::Erase, selection.offset, std::move(substr));
+    add_record(RecordType::Erase, selection.offset, std::move(substr));
 }
 
 static constexpr bool is_symbol(Span<c32 const> symbols, c32 c)
@@ -418,31 +418,31 @@ static constexpr Option<usize> seek(Str32 text, usize pos, bool left, Fn && pred
     return iter - text.pbegin();
 }
 
-static constexpr Option<usize> seek_sym(Str32 text, usize pos, bool left,
+static constexpr Option<usize> seek_sym(Str32 str, usize pos, bool left,
                                         Span<c32 const> symbols)
 {
-    return seek(text, pos, left, [&](c32 c) { return is_symbol(symbols, c); });
+    return seek(str, pos, left, [&](c32 c) { return is_symbol(symbols, c); });
 }
 
 template <typename Fn>
-static constexpr Slice span_boundary(Str32 text, usize pos, Fn && pred)
+static constexpr Slice span_boundary(Str32 str, usize pos, Fn && pred)
 {
-    if (pos >= text.size())
+    if (pos >= str.size())
     {
         return Slice{pos, 0};
     }
 
-    if (pred(text[pos]))
+    if (pred(str[pos]))
     {
         auto neg   = [&](auto cp) { return !pred(cp); };
-        auto begin = seek(text, pos, true, neg).unwrap_or(USIZE_MAX) + 1;
-        auto end   = seek(text, pos, false, neg).unwrap_or(text.size());
+        auto begin = seek(str, pos, true, neg).unwrap_or(USIZE_MAX) + 1;
+        auto end   = seek(str, pos, false, neg).unwrap_or(str.size());
         return Slice::offsets(begin, end);
     }
     else
     {
-        auto begin = seek(text, pos, true, pred).unwrap_or(USIZE_MAX) + 1;
-        auto end   = seek(text, pos, false, pred).unwrap_or(text.size());
+        auto begin = seek(str, pos, true, pred).unwrap_or(USIZE_MAX) + 1;
+        auto end   = seek(str, pos, false, pred).unwrap_or(str.size());
         return Slice::offsets(begin, end);
     }
 }
