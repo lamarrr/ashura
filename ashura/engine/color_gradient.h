@@ -10,12 +10,12 @@ struct ColorGradient
 {
     f32x4 top_    = {};
     f32x4 bottom_ = {};
-    f32x2 rotor_  = {1, 0};
+    f32   angle_  = 0;
     f32   center_ = 0;
 
     constexpr ColorGradient() = default;
 
-    constexpr ColorGradient(f32x4 c) : top_{c}, bottom_{c}, rotor_{1, 0}, center_{0}
+    constexpr ColorGradient(f32x4 c) : top_{c}, bottom_{c}, angle_{0}, center_{0}
     {
     }
 
@@ -26,7 +26,7 @@ struct ColorGradient
     constexpr ColorGradient(f32x4 top, f32x4 bottom, f32 angle, f32 center) :
       top_{top},
       bottom_{bottom},
-      rotor_{ash::rotor(angle)},
+      angle_{angle},
       center_{center}
     {
     }
@@ -38,13 +38,13 @@ struct ColorGradient
 
     constexpr ColorGradient & to_horizontal()
     {
-        rotor_ = {0, 1};
+        angle_ = 0;
         return *this;
     }
 
     constexpr ColorGradient & to_vertical()
     {
-        rotor_ = {1, 0};
+        angle_ = 0.5F * PI;
         return *this;
     }
 
@@ -63,9 +63,9 @@ struct ColorGradient
         return bottom_;
     }
 
-    constexpr f32x2 rotor() const
+    constexpr f32 angle() const
     {
-        return rotor_;
+        return angle_;
     }
 
     constexpr f32 center() const

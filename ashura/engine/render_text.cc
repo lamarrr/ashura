@@ -218,7 +218,7 @@ usize RenderText::size() const
 
 TextBlock RenderText::block() const
 {
-    return TextBlock{.str           = str_,
+    return TextBlock{.str           = str_.get(),
                      .run_indices   = runs_style_.run_indices_,
                      .fonts         = runs_style_.fonts_,
                      .font_scale    = font_scale_,
@@ -470,52 +470,52 @@ static inline Option<isize> translate_caret(TextLayout const & layout, isize car
       CaretAlignment{.x = alignment, .y = static_cast<CaretYAlignment>(line)});
 }
 
-EditText::Renderer EditText::default_renderer()
+Rc<InteractableText::Renderer> InteractableText::default_renderer()
 {
     return static_rc<Fn<RenderText(Allocator, Rc<Str32>)>>(
       [](Allocator allocator, Rc<Str32> str) -> RenderText {
           RenderText text{allocator};
-          text.text(std::move(str));
+          text.str(std::move(str));
           return text;
       });
 }
 
-EditText EditText::create(Allocator allocator)
+InteractableText InteractableText::create(Allocator allocator, bool use_async)
 {
-    return EditText{
-      allocator,
+    return InteractableText{
+      allocator, use_async,
       rc<State>(allocator, State{.text    = RenderText{allocator},
                                  .history = EditHistoryBuffer::create(
-                                   allocator, EditText::DEFAULT_RECORDS_SIZE)})
+                                   allocator, InteractableText::DEFAULT_RECORDS_SIZE)})
         .unwrap(),
       default_renderer()};
 }
 
-bool EditText::has_pending_edit() const
+bool InteractableText::has_pending_edit() const
 {
     return pending_result_.is_some();
 }
 
-Str32 EditText::get_text() const
+Str32 InteractableText::str() const
 {
-    return state_->text.get_text();
+    return state_->text.str();
 }
 
-TextLayout const & EditText::get_layout() const
+TextLayout const & InteractableText::get_layout() const
 {
     return state_->text.get_layout();
 }
 
-RenderText const & EditText::get_render_text() const
+RenderText const & InteractableText::get_render_text() const
 {
     return state_->text;
 }
 
-Future<Vec<c32>> EditText::copy()
+Vec<c32> InteractableText::copy(Allocator allocator)
 {
     auto & layout = get_layout();
 
-    auto cursor = cursor_.v;
+    auto cursor = cursor_.v().indices;
 
     if (!cursor.has_selection())
     {
@@ -523,445 +523,427 @@ Future<Vec<c32>> EditText::copy()
         cursor.select(layout.lines[cp.line].carets);
     }
 
-    auto id = action_id_++;
-    cursor_ = Cursor{id, cursor};
+    cursor.normalize(layout.num_carets);
+    auto slice = layout.get_caret_selection(cursor.selection());
 
-    auto out = future<StrVec32>(allocator_).unwrap();
-
-    action_queue_
-      .push(CopyAction{.id       = id,
-                       .renderer = renderer_.alias(),
-                       .cursor   = cursor,
-                       .output   = out.alias()})
-      .unwrap();
-
-    return out;
+    return vec::copy(allocator, str().slice(slice)).unwrap();
 }
 
-void EditText::unselect()
+void InteractableText::add_cursor(TextCursor         value,
+                                  TextHighlightStyle cursor_highlight_style,
+                                  CaretStyle         caret_style)
 {
-    auto cursor = cursor_.v;
-    cursor.unselect();
-    cursor_ = Cursor{action_id_++, cursor};
+    cursor_ = CursorData{.action_stamp = next_action_stamp_++, .indices = value};
+    cursor_highlight_style_ = cursor_highlight_style;
+    cursor_caret_style_     = caret_style;
 }
 
-void EditText::left()
+void InteractableText::remove_cursor()
 {
-    auto cursor = cursor_.v;
-    cursor.translate(-1).normalize(get_layout().num_carets);
-    cursor_ = Cursor{action_id_++, cursor};
+    cursor_ = none;
 }
 
-void EditText::right()
+// [ ] need to correctly handle adjusting cursors if in non-async mode; they need to be completed before the next action.
+void InteractableText::update_cursor(TextCursor         value,
+                                     TextHighlightStyle cursor_highlight_style,
+                                     CaretStyle         caret_style)
 {
-    auto cursor = cursor_.v;
-    cursor.translate(1).normalize(get_layout().num_carets);
-    cursor_ = Cursor{action_id_++, cursor};
+    cursor_.v() = CursorData{.action_stamp = next_action_stamp_++, .indices = value};
+    cursor_highlight_style_ = cursor_highlight_style;
+    cursor_caret_style_     = caret_style;
 }
 
-void EditText::word_start(Span<c32 const> word_symbols)
+void InteractableText::unselect()
+{
+    auto & cursor = cursor_.v();
+    cursor.indices.unselect();
+    cursor.action_stamp = next_action_stamp_++;
+}
+
+void InteractableText::left()
+{
+    auto & cursor = cursor_.v();
+    cursor.indices.translate(-1).normalize(get_layout().num_carets);
+    cursor.action_stamp = next_action_stamp_++;
+}
+
+void InteractableText::right()
+{
+    auto & cursor = cursor_.v();
+    cursor.indices.translate(1).normalize(get_layout().num_carets);
+    cursor.action_stamp = next_action_stamp_++;
+}
+
+void InteractableText::word_start(Span<c32 const> word_symbols)
 {
     auto & layout = get_layout();
-    auto   cursor = cursor_.v;
-    auto   c      = layout.get_caret_codepoint(cursor.caret());
-    auto   text   = get_text();
-    cursor.move_to(layout.to_caret(
-      seek_sym(text, c.codepoint + (c.after ? 1 : 0), true, word_symbols).unwrap_or(),
+    auto & cursor = cursor_.v();
+    auto   cp     = layout.get_caret_codepoint(cursor.indices.caret());
+    cursor.indices.move_to(layout.to_caret(
+      seek_sym(str(), cp.codepoint + (cp.after ? 1 : 0), true, word_symbols)
+        .unwrap_or(),
       true));
-    cursor_ = Cursor{action_id_++, cursor};
+    cursor.action_stamp = next_action_stamp_++;
 }
 
-void EditText::word_end(Span<c32 const> word_symbols)
+void InteractableText::word_end(Span<c32 const> word_symbols)
 {
     auto & layout = get_layout();
-    auto   cursor = cursor_.v;
-    auto   c      = layout.get_caret_codepoint(cursor.caret());
-    cursor.move_to(layout.to_caret(
-      seek_sym(get_text(), c.codepoint, false, word_symbols).unwrap_or(), true));
-    cursor_ = Cursor{action_id_++, cursor};
+    auto & cursor = cursor_.v();
+    auto   cp     = layout.get_caret_codepoint(cursor.indices.caret());
+    cursor.indices.move_to(layout.to_caret(
+      seek_sym(str(), cp.codepoint, false, word_symbols).unwrap_or(), true));
+    cursor.action_stamp = next_action_stamp_++;
 }
 
-void EditText::line_start()
+void InteractableText::line_start()
 {
     auto & layout = get_layout();
-    auto   cursor = cursor_.v;
-    auto   c      = layout.get_caret_codepoint(cursor.caret());
-    cursor.move_to(layout.lines[c.line].carets.first());
-    cursor_ = Cursor{action_id_++, cursor};
+    auto & cursor = cursor_.v();
+    auto   cp     = layout.get_caret_codepoint(cursor.indices.caret());
+    cursor.indices.move_to(layout.lines[cp.line].carets.first());
+    cursor.action_stamp = next_action_stamp_++;
 }
 
-void EditText::line_end()
+void InteractableText::line_end()
 {
     auto & layout = get_layout();
-    auto   cursor = cursor_.v;
-    auto   c      = layout.get_caret_codepoint(cursor.caret());
-    cursor.move_to(layout.lines[c.line].carets.last());
-    cursor_ = Cursor{action_id_++, cursor};
+    auto & cursor = cursor_.v();
+    auto   cp     = layout.get_caret_codepoint(cursor.indices.caret());
+    cursor.indices.move_to(layout.lines[cp.line].carets.last());
+    cursor.action_stamp = next_action_stamp_++;
 }
 
-void EditText::up()
+void InteractableText::up()
 {
     auto & layout = get_layout();
-    auto   cursor = cursor_.v;
-    cursor.move_to(translate_caret(layout, cursor.caret(), caret_alignment_, -1)
-                     .unwrap_or(cursor.caret()));
-    cursor_ = Cursor{action_id_++, cursor};
+    auto & cursor = cursor_.v();
+    cursor.indices.move_to(
+      translate_caret(layout, cursor.indices.caret(), caret_alignment_, -1)
+        .unwrap_or(cursor.indices.caret()));
+    cursor.action_stamp = next_action_stamp_++;
 }
 
-void EditText::down()
+void InteractableText::down()
 {
     auto & layout = get_layout();
-    auto   cursor = cursor_.v;
-    cursor.move_to(translate_caret(layout, cursor.caret(), caret_alignment_, 1)
-                     .unwrap_or(cursor.caret()));
-    cursor_ = Cursor{action_id_++, cursor};
+    auto & cursor = cursor_.v();
+    cursor.indices.move_to(
+      translate_caret(layout, cursor.indices.caret(), caret_alignment_, 1)
+        .unwrap_or(cursor.indices.caret()));
+    cursor.action_stamp = next_action_stamp_++;
 }
 
-void EditText::page_up(usize lines_per_page)
+void InteractableText::page_up(usize lines_per_page)
 {
     auto & layout = get_layout();
-    auto   cursor = cursor_.v;
-    cursor.move_to(
-      translate_caret(layout, cursor.caret(), caret_alignment_, -(isize) lines_per_page)
-        .unwrap_or(cursor.caret()));
-    cursor_ = Cursor{action_id_++, cursor};
+    auto & cursor = cursor_.v();
+    cursor.indices.move_to(translate_caret(layout, cursor.indices.caret(),
+                                           caret_alignment_, -(isize) lines_per_page)
+                             .unwrap_or(cursor.indices.caret()));
+    cursor.action_stamp = next_action_stamp_++;
 }
 
-void EditText::page_down(usize lines_per_page)
+void InteractableText::page_down(usize lines_per_page)
 {
     auto & layout = get_layout();
-    auto   cursor = cursor_.v;
-    cursor.move_to(
-      translate_caret(layout, cursor.caret(), caret_alignment_, (isize) lines_per_page)
-        .unwrap_or(cursor.caret()));
-    cursor_ = Cursor{action_id_++, cursor};
+    auto & cursor = cursor_.v();
+    cursor.indices.move_to(translate_caret(layout, cursor.indices.caret(),
+                                           caret_alignment_, (isize) lines_per_page)
+                             .unwrap_or(cursor.indices.caret()));
+    cursor.action_stamp = next_action_stamp_++;
 }
 
-void EditText::select_left()
+void InteractableText::select_left()
 {
     auto & layout = get_layout();
-    auto   cursor = cursor_.v;
-    cursor.extend_selection(-1).normalize(layout.num_carets);
-    cursor_ = Cursor{action_id_++, cursor};
+    auto & cursor = cursor_.v();
+    cursor.indices.extend_selection(-1).normalize(layout.num_carets);
+    cursor.action_stamp = next_action_stamp_++;
 }
 
-void EditText::select_right()
+void InteractableText::select_right()
 {
     auto & layout = get_layout();
-    auto   cursor = cursor_.v;
-    cursor.extend_selection(1).normalize(layout.num_carets);
-    cursor_ = Cursor{action_id_++, cursor};
+    auto & cursor = cursor_.v();
+    cursor.indices.extend_selection(1).normalize(layout.num_carets);
+    cursor.action_stamp = next_action_stamp_++;
 }
 
-void EditText::select_up()
+void InteractableText::select_up()
 {
     auto & layout = get_layout();
-    auto   cursor = cursor_.v;
-    cursor.span_to(translate_caret(layout, cursor.caret(), caret_alignment_, -1)
-                     .unwrap_or(cursor.caret()));
-    cursor_ = Cursor{action_id_++, cursor};
+    auto & cursor = cursor_.v();
+    cursor.indices.span_to(
+      translate_caret(layout, cursor.indices.caret(), caret_alignment_, -1)
+        .unwrap_or(cursor.indices.caret()));
+    cursor.action_stamp = next_action_stamp_++;
 }
 
-void EditText::select_down()
+void InteractableText::select_down()
 {
     auto & layout = get_layout();
-    auto   cursor = cursor_.v;
-    cursor.span_to(translate_caret(layout, cursor.caret(), caret_alignment_, 1)
-                     .unwrap_or(cursor.caret()));
-    cursor_ = Cursor{action_id_++, cursor};
+    auto & cursor = cursor_.v();
+    cursor.indices.span_to(
+      translate_caret(layout, cursor.indices.caret(), caret_alignment_, 1)
+        .unwrap_or(cursor.indices.caret()));
+    cursor.action_stamp = next_action_stamp_++;
 }
 
-void EditText::select_to_word_start(Span<c32 const> word_symbols)
+void InteractableText::select_to_word_start(Span<c32 const> word_symbols)
 {
     auto & layout = get_layout();
-    auto   cursor = cursor_.v;
-    auto   c      = layout.get_caret_codepoint(cursor.caret());
-    cursor.span_to(layout.to_caret(
-      seek_sym(get_text(), c.codepoint, true, word_symbols).unwrap_or(), true));
-    cursor_ = Cursor{action_id_++, cursor};
+    auto & cursor = cursor_.v();
+    auto   cp     = layout.get_caret_codepoint(cursor.indices.caret());
+    cursor.indices.span_to(layout.to_caret(
+      seek_sym(str(), cp.codepoint, true, word_symbols).unwrap_or(), true));
+    cursor.action_stamp = next_action_stamp_++;
 }
 
-void EditText::select_to_word_end(Span<c32 const> word_symbols)
+void InteractableText::select_to_word_end(Span<c32 const> word_symbols)
 {
     auto & layout = get_layout();
-    auto   cursor = cursor_.v;
-    auto   c      = layout.get_caret_codepoint(cursor.caret());
-    cursor.span_to(layout.to_caret(
-      seek_sym(get_text(), c.codepoint, false, word_symbols).unwrap_or(), true));
-    cursor_ = Cursor{action_id_++, cursor};
+    auto & cursor = cursor_.v();
+    auto   cp     = layout.get_caret_codepoint(cursor.indices.caret());
+    cursor.indices.span_to(layout.to_caret(
+      seek_sym(str(), cp.codepoint, false, word_symbols).unwrap_or(), true));
+    cursor.action_stamp = next_action_stamp_++;
 }
 
-void EditText::select_to_line_start()
+void InteractableText::select_to_line_start()
 {
     auto & layout = get_layout();
-    auto   cursor = cursor_.v;
-    auto   c      = layout.get_caret_codepoint(cursor.caret());
-    cursor.span_to(layout.lines[c.line].carets.first());
-    cursor_ = Cursor{action_id_++, cursor};
+    auto & cursor = cursor_.v();
+    auto   cp     = layout.get_caret_codepoint(cursor.indices.caret());
+    cursor.indices.span_to(layout.lines[cp.line].carets.first());
+    cursor.action_stamp = next_action_stamp_++;
 }
 
-void EditText::select_to_line_end()
+void InteractableText::select_to_line_end()
 {
     auto & layout = get_layout();
-    auto   cursor = cursor_.v;
-    auto   c      = layout.get_caret_codepoint(cursor.caret());
-    cursor.span_to(layout.lines[c.line].carets.last());
-    cursor_ = Cursor{action_id_++, cursor};
+    auto & cursor = cursor_.v();
+    auto   cp     = layout.get_caret_codepoint(cursor.indices.caret());
+    cursor.indices.span_to(layout.lines[cp.line].carets.last());
+    cursor.action_stamp = next_action_stamp_++;
 }
 
-void EditText::select_page_up(usize lines_per_page)
+void InteractableText::select_page_up(usize lines_per_page)
 {
     auto & layout = get_layout();
-    auto   cursor = cursor_.v;
-    cursor.span_to(
-      translate_caret(layout, cursor.caret(), caret_alignment_, -(isize) lines_per_page)
-        .unwrap_or(cursor.caret()));
-    cursor_ = Cursor{action_id_++, cursor};
+    auto & cursor = cursor_.v();
+    cursor.indices.span_to(translate_caret(layout, cursor.indices.caret(),
+                                           caret_alignment_, -(isize) lines_per_page)
+                             .unwrap_or(cursor.indices.caret()));
+    cursor.action_stamp = next_action_stamp_++;
 }
 
-void EditText::select_page_down(usize lines_per_page)
+void InteractableText::select_page_down(usize lines_per_page)
 {
     auto & layout = get_layout();
-    auto   cursor = cursor_.v;
-    cursor.span_to(
-      translate_caret(layout, cursor.caret(), caret_alignment_, (isize) lines_per_page)
-        .unwrap_or(cursor.caret()));
-    cursor_ = Cursor{action_id_++, cursor};
+    auto & cursor = cursor_.v();
+    cursor.indices.span_to(translate_caret(layout, cursor.indices.caret(),
+                                           caret_alignment_, (isize) lines_per_page)
+                             .unwrap_or(cursor.indices.caret()));
+    cursor.action_stamp = next_action_stamp_++;
 }
 
-void EditText::select_codepoint()
+void InteractableText::select_codepoint()
 {
     auto & layout = get_layout();
-    auto   cursor = cursor_.v;
-    cursor.span_by(1).normalize(layout.num_carets);
-    cursor_ = Cursor{action_id_++, cursor};
+    auto & cursor = cursor_.v();
+    cursor.indices.span_by(1).normalize(layout.num_carets);
+    cursor.action_stamp = next_action_stamp_++;
 }
 
-void EditText::select_word(Span<c32 const> word_symbols)
+void InteractableText::select_word(Span<c32 const> word_symbols)
 {
     auto & layout    = get_layout();
-    auto   cursor    = cursor_.v;
+    auto & cursor    = cursor_.v();
     auto   selection = span_sym_boundary(
-      get_text(), layout.get_caret_codepoint(cursor.caret()).codepoint, word_symbols);
-    cursor.select(layout.get_caret_selection(selection));
-    cursor_ = Cursor{action_id_++, cursor};
+      str(), layout.get_caret_codepoint(cursor.indices.caret()).codepoint,
+      word_symbols);
+    cursor.indices.select(layout.get_caret_selection(selection));
+    cursor.action_stamp = next_action_stamp_++;
 }
 
-void EditText::select_line()
+void InteractableText::select_line()
 {
     auto & layout = get_layout();
-    auto   cursor = cursor_.v;
-    auto   c      = layout.get_caret_codepoint(cursor.caret());
-    cursor.select(layout.lines[c.line].carets);
-    cursor_ = Cursor{action_id_++, cursor};
+    auto & cursor = cursor_.v();
+    auto   cp     = layout.get_caret_codepoint(cursor.indices.caret());
+    cursor.indices.select(layout.lines[cp.line].carets);
+    cursor.action_stamp = next_action_stamp_++;
 }
 
-void EditText::select_all()
+void InteractableText::select_all()
 {
     auto & layout = get_layout();
-    auto   cursor = cursor_.v;
-    cursor.select(Slice{0, layout.num_carets});
-    cursor_ = Cursor{action_id_++, cursor};
+    auto & cursor = cursor_.v();
+    cursor.indices.select(Slice{0, layout.num_carets});
+    cursor.action_stamp = next_action_stamp_++;
 }
 
-void EditText::hit(f32x2 center, f32 aligned_width, f32x2 pos,
-                   f32x4x4 const & transform)
+void InteractableText::hit(f32x2 center, f32 aligned_width, f32x2 pos,
+                           f32x4x4 const & transform)
 {
-    auto cursor       = cursor_.v;
+    auto & cursor     = cursor_.v();
     auto [caret, loc] = state_->text.hit(center, aligned_width, transform, pos);
     caret_alignment_  = loc.x;
-    cursor.move_to(state_->text.get_layout().align_caret(loc));
-    cursor_ = Cursor{action_id_++, cursor};
+    cursor.indices.move_to(state_->text.get_layout().align_caret(loc));
+    cursor.action_stamp = next_action_stamp_++;
 }
 
-void EditText::hit_select(f32x2 center, f32 aligned_width, f32x2 pos,
-                          f32x4x4 const & transform)
+void InteractableText::hit_select(f32x2 center, f32 aligned_width, f32x2 pos,
+                                  f32x4x4 const & transform)
 {
-    auto cursor       = cursor_.v;
+    auto & cursor     = cursor_.v();
     auto [caret, loc] = state_->text.hit(center, aligned_width, transform, pos);
     caret_alignment_  = loc.x;
-    cursor.span_to(state_->text.get_layout().align_caret(loc));
-    cursor_ = Cursor{action_id_++, cursor};
+    cursor.indices.span_to(state_->text.get_layout().align_caret(loc));
+    cursor.action_stamp = next_action_stamp_++;
 }
 
-void EditText::backspace()
+void InteractableText::backspace()
 {
     auto & layout = get_layout();
 
-    auto cursor = cursor_.v;
+    auto & cursor = cursor_.v();
 
-    if (!cursor.has_selection())
+    if (!cursor.indices.has_selection())
     {
-        cursor.translate(-1).span_by(1).normalize(layout.num_carets);
+        cursor.indices.translate(-1).span_by(1).normalize(layout.num_carets);
     }
 
-    auto id = action_id_++;
+    auto action_stamp = next_action_stamp_++;
+    auto indices      = cursor.indices;
 
-    action_queue_
-      .push(EraseAction{.id        = id,
-                        .max_width = max_width_,
-                        .renderer  = renderer_.alias(),
-                        .cursor    = cursor})
-      .unwrap();
+    cursor.indices.unselect_left();
+    cursor.action_stamp = action_stamp;
 
-    cursor.unselect_left();
-    cursor_ = Cursor{id, cursor};
+    run_action_(EraseAction{
+      .max_width = max_width_, .renderer = renderer_.alias(), .indices = indices});
 }
 
-void EditText::del()
+void InteractableText::del()
 {
     auto & layout = get_layout();
+    auto & cursor = cursor_.v();
 
-    auto cursor = cursor_.v;
-
-    if (!cursor.has_selection())
+    if (!cursor.indices.has_selection())
     {
-        cursor.span_by(1).normalize(layout.num_carets);
+        cursor.indices.span_by(1).normalize(layout.num_carets);
     }
 
-    auto id = action_id_++;
+    auto action_stamp = next_action_stamp_++;
+    auto indices      = cursor.indices;
 
-    action_queue_
-      .push(EraseAction{.id        = id,
-                        .max_width = max_width_,
-                        .renderer  = renderer_.alias(),
-                        .cursor    = cursor})
-      .unwrap();
+    cursor.indices.unselect_left();
+    cursor.action_stamp = action_stamp;
 
-    cursor.unselect_left();
-    cursor_ = Cursor{id, cursor};
+    run_action_(EraseAction{
+      .max_width = max_width_, .renderer = renderer_.alias(), .indices = indices});
 }
 
-void EditText::insert(Rc<Str32> input)
+void InteractableText::insert(Rc<Str32> input)
 {
-    auto cursor = cursor_.v;
+    auto & cursor       = cursor_.v();
+    auto   action_stamp = next_action_stamp_++;
+    cursor.action_stamp = action_stamp;
 
-    auto id = action_id_++;
-
-    if (auto selection = cursor.selection(); !selection.is_empty())
+    if (auto selection = cursor.indices.selection(); !selection.is_empty())
     {
-        action_queue_
-          .push(EraseAction{.id        = id,
-                            .max_width = max_width_,
-                            .renderer  = renderer_.alias(),
-                            .cursor    = cursor})
-          .unwrap();
-        cursor.unselect_left();
+        auto erase = cursor.indices;
+        cursor.indices.unselect_left();
+        run_action_(EraseAction{
+          .max_width = max_width_, .renderer = renderer_.alias(), .indices = erase});
     }
 
-    action_queue_
-      .push(InsertAction{.id        = id,
-                         .max_width = max_width_,
-                         .renderer  = renderer_.alias(),
-                         .cursor    = cursor,
-                         .str       = std::move(input)})
-      .unwrap();
-
-    cursor_ = Cursor{id, cursor};
+    run_action_(InsertAction{.max_width = max_width_,
+                             .renderer  = renderer_.alias(),
+                             .indices   = cursor.indices,
+                             .str       = std::move(input)});
 }
 
-void EditText::new_line()
+void InteractableText::new_line()
 {
     return insert(static_rc(U"\n"_str));
 }
 
-Future<StrVec32> EditText::copy_cut()
+StrVec32 InteractableText::copy_cut(Allocator allocator)
 {
     auto & layout = get_layout();
 
-    auto cursor = cursor_.v;
+    auto & cursor = cursor_.v();
 
-    if (!cursor.has_selection())
+    if (!cursor.indices.has_selection())
     {
-        auto cp = layout.get_caret_codepoint(cursor.caret());
-        cursor.select(layout.lines[cp.line].carets);
+        auto cp = layout.get_caret_codepoint(cursor.indices.caret());
+        cursor.indices.select(layout.lines[cp.line].carets)
+          .normalize(layout.num_carets);
     }
 
-    auto out = future<StrVec32>(allocator_).unwrap();
+    auto action_stamp = next_action_stamp_++;
 
-    auto id = action_id_++;
+    auto selection = cursor.indices.selection();
+    auto out       = vec::copy(allocator, str().slice(selection)).unwrap();
 
-    action_queue_
-      .push(CopyAction{.id        = id,
-                       .max_width = max_width_,
-                       .renderer  = renderer_.alias(),
-                       .cursor    = cursor,
-                       .output    = out.alias()})
-      .unwrap();
-    action_queue_
-      .push(EraseAction{.id        = id,
-                        .max_width = max_width_,
-                        .renderer  = renderer_.alias(),
-                        .cursor    = cursor})
-      .unwrap();
+    auto indices = cursor.indices;
+    cursor.indices.unselect_left();
+    cursor.action_stamp = action_stamp;
 
-    cursor.unselect_left();
-    cursor_ = Cursor{id, cursor};
+    run_action_(EraseAction{
+      .max_width = max_width_, .renderer = renderer_.alias(), .indices = indices});
 
     return out;
 }
 
-void EditText::cut()
+void InteractableText::cut()
 {
     auto & layout = get_layout();
 
-    auto cursor = cursor_.v;
+    auto & cursor = cursor_.v();
 
-    if (!cursor.has_selection())
+    if (!cursor.indices.has_selection())
     {
-        auto cp = layout.get_caret_codepoint(cursor.caret());
-        cursor.select(layout.lines[cp.line].carets);
+        auto cp = layout.get_caret_codepoint(cursor.indices.caret());
+        cursor.indices.select(layout.lines[cp.line].carets);
     }
 
-    auto id = action_id_++;
+    auto action_stamp = next_action_stamp_++;
+    auto indices      = cursor.indices;
 
-    action_queue_
-      .push(EraseAction{.id        = id,
-                        .max_width = max_width_,
-                        .renderer  = renderer_.alias(),
-                        .cursor    = cursor})
-      .unwrap();
+    cursor.indices.unselect_left();
+    cursor.action_stamp = action_stamp;
 
-    cursor.unselect_left();
-    cursor_ = Cursor{id, cursor};
+    run_action_(EraseAction{
+      .max_width = max_width_, .renderer = renderer_.alias(), .indices = indices});
 }
 
-void EditText::undo()
+void InteractableText::undo()
 {
-    auto id = action_id_++;
-    action_queue_
-      .push(
-        UndoAction{.id = id, .max_width = max_width_, .renderer = renderer_.alias()})
-      .unwrap();
+    next_action_stamp_++;
+    run_action_(UndoAction{.max_width = max_width_, .renderer = renderer_.alias()});
 }
 
-void EditText::redo()
+void InteractableText::redo()
 {
-    auto id = action_id_++;
-    action_queue_
-      .push(
-        RedoAction{.id = id, .max_width = max_width_, .renderer = renderer_.alias()})
-      .unwrap();
+    next_action_stamp_++;
+    run_action_(RedoAction{.max_width = max_width_, .renderer = renderer_.alias()});
 }
 
-void EditText::layout(f32 max_width)
+void InteractableText::layout(f32 max_width)
 {
-    auto id    = action_id_++;
+    next_action_stamp_++;
     max_width_ = max_width;
-    action_queue_
-      .push(RelayoutAction{
-        .id = id, .max_width = max_width_, .renderer = renderer_.alias()})
-      .unwrap();
+    run_action_(RelayoutAction{.max_width = max_width_, .renderer = renderer_.alias()});
 }
 
-void EditText::set_renderer(Renderer renderer)
+void InteractableText::set_renderer(Rc<Renderer> renderer)
 {
-    auto id   = action_id_++;
+    next_action_stamp_++;
     renderer_ = std::move(renderer);
-    action_queue_
-      .push(RelayoutAction{
-        .id = id, .max_width = max_width_, .renderer = renderer_.alias()})
-      .unwrap();
+    run_action_(RelayoutAction{.max_width = max_width_, .renderer = renderer_.alias()});
 }
 
 void EditText::tick(nanoseconds)

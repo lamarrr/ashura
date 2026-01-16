@@ -2692,6 +2692,11 @@ template <typename Id, typename... T>
 using SparseVec =
   CoreSparseVec<Id, Vec<UnderlyingType<Id>, SIMD_ALIGNMENT>, Vec<T, SIMD_ALIGNMENT>...>;
 
+template <typename Id, usize InlineCapacity, usize MinAlignment, typename... T>
+using SmallSparseVec =
+  CoreSparseVec<Id, SmallVec<UnderlyingType<Id>, InlineCapacity, MinAlignment>,
+                SmallVec<T, InlineCapacity, MinAlignment>...>;
+
 template <typename T, usize MinAlignment>
 struct IsTriviallyRelocatable<Vec<T, MinAlignment>>
 {

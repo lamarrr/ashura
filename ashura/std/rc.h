@@ -111,11 +111,6 @@ struct [[nodiscard]] Rc
     {
         return handle_;
     }
-
-    constexpr operator H() const
-    {
-        return handle_;
-    }
 };
 
 template <typename H>

@@ -20,7 +20,7 @@ TEST(AsyncTest, Basic)
       span({SchedulerThreadInfo{"2"_str}, SchedulerThreadInfo{"3"_str}}),
     .main_thread_id = std::this_thread::get_id()});
 
-  hook_scheduler(sched);
+  hook_scheduler(sched.get());
 
   defer sched_{[&] {
     sched->shutdown();

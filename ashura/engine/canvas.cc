@@ -914,7 +914,7 @@ void ICanvas::render_(TextureSet const & texture_set, Shape const & shape,
       .type             = type,
       .material         = shader::SdfGradientMaterial{.top             = shape.tint.top(),
                                                       .bottom          = shape.tint.bottom(),
-                                                      .gradient_rotor  = shape.tint.rotor(),
+                                                      .gradient_angle  = shape.tint.angle(),
                                                       .gradient_center = shape.tint.center(),
                                                       .sampler         = shape.sampler,
                                                       .texture         = shape.map,
@@ -1020,7 +1020,7 @@ void ICanvas::render_(TextureSet const & texture_set, TriangleSetInfo const & sh
       .material =
         shader::TriangleSetGradientMaterial{.top             = shape.tint.top(),
                                             .bottom          = shape.tint.bottom(),
-                                            .gradient_rotor  = shape.tint.rotor(),
+                                            .gradient_angle  = shape.tint.angle(),
                                             .gradient_center = shape.tint.center(),
                                             .sampler         = shape.sampler,
                                             .texture         = shape.map}
@@ -1303,7 +1303,7 @@ void ICanvas::render_blur_(Shape const & info_)
               .material         = shader::SdfGradientMaterial{
                                                               .top             = info.tint.top(),
                                                               .bottom          = info.tint.bottom(),
-                                                              .gradient_rotor  = info.tint.rotor(),
+                                                              .gradient_angle  = info.tint.angle(),
                                                               .gradient_center = info.tint.center(),
                                                               .sampler         = SamplerIndex::LinearEdgeClampBlackFloat,
                                                               .texture         = ColorImage::sampled_texture_index,
@@ -1370,7 +1370,7 @@ void ICanvas::render_paths_stencil_then_cover_(Span<PathInfo const> paths,
           .material         = shader::SdfGradientMaterial{
                                .top             = path.tint.top(),
                                .bottom          = path.tint.bottom(),
-                               .gradient_rotor  = path.tint.rotor(),
+                               .gradient_angle  = path.tint.angle(),
                                .gradient_center = path.tint.center(),
                                .sampler         = path.sampler,
                                .texture         = path.map,
@@ -1531,7 +1531,7 @@ void ICanvas::render_paths_bezier_stencil_(Span<PathInfo const> paths,
           .material         = shader::SdfGradientMaterial{
                                .top             = path.tint.top(),
                                .bottom          = path.tint.bottom(),
-                               .gradient_rotor  = path.tint.rotor(),
+                               .gradient_angle  = path.tint.angle(),
                                .gradient_center = path.tint.center(),
                                .sampler         = path.sampler,
                                .texture         = path.map,
@@ -1624,9 +1624,9 @@ void ICanvas::render_paths_vector_feathering_(Span<PathInfo const> paths,
             return;
         }
 
-        Vec<shader::VectorPathVertex>             path_vertices{tmp_arena_};
-        Vec<u32>                                  path_indices{tmp_arena_};
-        InplaceVec<shader::VectorPathFillItem, 4> fill_items{};
+        auto path_vertices = Vec<shader::VectorPathVertex, 0>{tmp_arena_};
+        auto path_indices  = Vec<u32>{tmp_arena_};
+        auto fill_items    = InplaceVec<shader::VectorPathFillItem, 4, 0>{};
 
         // inner-region triangulation
         path_vertices.extend_uninit(size32(vertices)).unwrap();
@@ -1748,7 +1748,7 @@ void ICanvas::render_paths_vector_feathering_(Span<PathInfo const> paths,
             .material =
               shader::QuadGradientMaterial{.top             = path.tint.top(),
                                            .bottom          = path.tint.bottom(),
-                                           .gradient_rotor  = path.tint.rotor(),
+                                           .gradient_angle  = path.tint.angle(),
                                            .gradient_center = path.tint.center(),
                                            .sampler         = path.sampler,
                                            .texture         = path.map}
@@ -1775,7 +1775,7 @@ void ICanvas::render_paths_vector_feathering_(Span<PathInfo const> paths,
                   shader::QuadGradientMaterial{
                                                .top             = feather.tint.top(),
                                                .bottom          = feather.tint.bottom(),
-                                               .gradient_rotor  = feather.tint.rotor(),
+                                               .gradient_angle  = feather.tint.angle(),
                                                .gradient_center = feather.tint.center(),
                                                .sampler         = SamplerIndex::LinearEdgeClampWhiteFloat,
                                                .texture         = TextureIndex::White}
@@ -1794,7 +1794,7 @@ void ICanvas::render_paths_vector_feathering_(Span<PathInfo const> paths,
                   shader::QuadGradientMaterial{
                                                .top             = feather.tint.top(),
                                                .bottom          = feather.tint.bottom(),
-                                               .gradient_rotor  = feather.tint.rotor(),
+                                               .gradient_angle  = feather.tint.angle(),
                                                .gradient_center = feather.tint.center(),
                                                .sampler         = SamplerIndex::LinearEdgeClampWhiteFloat,
                                                .texture         = TextureIndex::White}

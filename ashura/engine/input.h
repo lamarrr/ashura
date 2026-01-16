@@ -68,7 +68,7 @@ ASH_BIT_ENUM_OPS(KeyModifiers)
 ///
 /// The values in this enumeration are based on the USB usage page standard:
 /// https://usb.org/sites/default/files/hut1_5.pdf
-enum class ScanCode : u32
+enum class ScanCode : u16
 {
     Unknown = 0U,
     A       = 4U,
@@ -354,7 +354,7 @@ inline constexpr u32 NUM_SCAN_CODES = 512;
 ///
 /// Keys with the `SDLK_EXTENDED_MASK` bit set do not map to a scancode or
 /// unicode code point.
-enum class KeyCode : u32
+enum class KeyCode : u16
 {
     Unknown = 0,
 
@@ -436,9 +436,9 @@ enum class KeyCode : u32
     Pipe       = '|',
     RightBrace = '}',
     Tilde      = '~',
-    Delete     = 0x7FU,
+    Delete     = 127,
 
-    PlusMinus = 0xB1U,
+    PlusMinus = 177,
 
     CapsLock           = 256,
     F1                 = 257,

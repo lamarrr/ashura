@@ -173,8 +173,7 @@ struct [[nodiscard]] RenderText
 
     RenderText & str_copy(Str32 utf32);
 
-    RenderText & str_copy(Str32 utf32, TextStyle const & style,
-                           FontStyle const & font);
+    RenderText & str_copy(Str32 utf32, TextStyle const & style, FontStyle const & font);
 
     RenderText & str_copy(Str8 utf8, TextStyle const & style, FontStyle const & font);
 
@@ -279,13 +278,15 @@ struct [[nodiscard]] EditHistoryBuffer
 
 static constexpr c32 DEFAULT_WORD_SYMBOLS[] = {U' ', U'\t'};
 
-struct [[nodiscard]] InteractText
+struct [[nodiscard]] InteractableText
 {
-    struct Cursor
-    {
-        u64 action_id = 0;
+    using Renderer = Fn<RenderText(Allocator, Rc<Str32>)>;
 
-        TextCursor v = {};
+    struct CursorData
+    {
+        u64 action_stamp = 0;
+
+        TextCursor indices = {};
     };
 
     struct State
@@ -295,147 +296,149 @@ struct [[nodiscard]] InteractText
         EditHistoryBuffer history;
     };
 
-    struct ActionResult
+    struct CursorUpdate
     {
+        TextCursor indices = {};
+    };
+
+    struct ActionsResult
+    {
+        u64 action_stamp = 0;
+
         Option<RenderText> text;
 
         EditHistoryBuffer history;
 
-        SmallVec<Cursor, 8, 0> cursors;
+        Option<CursorUpdate> cursor_update = none;
     };
-
-    using Renderer = Rc<Fn<RenderText(Allocator, Rc<Str32>)>>;
 
     struct InsertAction
     {
-        u64 id = 0;
-
         f32 max_width = 0.0f;
 
-        Renderer renderer;
+        Rc<Renderer> renderer;
 
-        TextCursor cursor = {};
+        TextCursor indices = {};
 
         Rc<Str32> str = static_rc(U""_str);
     };
 
     struct EraseAction
     {
-        u64 id = 0;
-
         f32 max_width = 0.0f;
 
-        Renderer renderer;
+        Rc<Renderer> renderer;
 
-        TextCursor cursor = {};
+        TextCursor indices = {};
     };
 
     struct UndoAction
     {
-        u64 id = 0;
-
         f32 max_width = 0.0f;
 
-        Renderer renderer;
+        Rc<Renderer> renderer;
+
+        TextCursor indices = {};
     };
 
     struct RedoAction
     {
-        u64 id = 0;
-
         f32 max_width = 0.0f;
 
-        Renderer renderer;
+        Rc<Renderer> renderer;
     };
 
     struct RelayoutAction
     {
-        u64 id = 0;
-
         f32 max_width = 0.0f;
 
-        Renderer renderer;
+        Rc<Renderer> renderer;
     };
 
-    struct CopyAction
-    {
-        u64 id = 0;
-
-        f32 max_width = 0.0f;
-
-        Renderer renderer;
-
-        TextCursor cursor = {};
-
-        Future<Vec<c32>> output;
-    };
-
-    using Edit = Enum<InsertAction, EraseAction, UndoAction, RedoAction, RelayoutAction,
-                      CopyAction>;
+    using Action =
+      Enum<InsertAction, EraseAction, UndoAction, RedoAction, RelayoutAction>;
 
     static constexpr usize DEFAULT_RECORDS_SIZE = 2'048;
-
-    static constexpr c32 DEFAULT_WORD_SYMBOLS[] = {U' ', U'\t'};
 
     Allocator allocator_;
 
     Rc<State *> state_;
 
-    Option<Future<Rc<ActionResult *>>> pending_result_;
+    Option<Future<Rc<ActionsResult *>>> pending_result_;
 
-    Renderer renderer_;
+    Rc<Renderer> renderer_;
 
     /// @brief action queue of mutations to be performed on the text.
     /// this is queued up whilst an async text edit is being performed.
     /// after each edit action, the text is re-laid out.
-    SmallVec<Edit, 8, 0> action_queue_;
+    Vec<Action> action_queue_;
 
-    Cursor cursor_;
+    u64 action_queue_stamp_;
+
+    /// @brief Asynchronously resolved cursors.
+    /// These cursors represent the latest known cursor state after all edits before their timestamps have been applied.
+    Option<CursorData> cursor_;
+
+    TextHighlightStyle cursor_highlight_style_;
+
+    CaretStyle cursor_caret_style_;
 
     CaretXAlignment caret_alignment_;
 
+    bool use_async_;
+
     f32 max_width_;
 
-    u64 action_id_;
+    u64 next_action_stamp_;
 
-    constexpr EditText(Allocator allocator, Rc<State *> state, Renderer renderer) :
+    constexpr InteractableText(Allocator allocator, bool use_async, Rc<State *> state,
+                               Rc<Renderer> renderer) :
       allocator_{allocator},
       state_{std::move(state)},
       pending_result_{none},
       renderer_{std::move(renderer)},
       action_queue_{allocator},
-      cursor_{},
+      action_queue_stamp_{0},
+      cursor_{none},
+      cursor_highlight_style_{},
+      cursor_caret_style_{},
       caret_alignment_{CaretXAlignment::Start},
+      use_async_{use_async},
       max_width_{0},
-      action_id_{0}
+      next_action_stamp_{0}
     {
     }
 
-    constexpr EditText(EditText const &)             = delete;
-    constexpr EditText(EditText &&)                  = default;
-    constexpr EditText & operator=(EditText const &) = delete;
-    constexpr EditText & operator=(EditText &&)      = default;
-    constexpr ~EditText()                            = default;
+    constexpr InteractableText(InteractableText const &)             = delete;
+    constexpr InteractableText(InteractableText &&)                  = default;
+    constexpr InteractableText & operator=(InteractableText const &) = delete;
+    constexpr InteractableText & operator=(InteractableText &&)      = default;
+    constexpr ~InteractableText()                                    = default;
 
-    static Renderer default_renderer();
+    static Rc<Renderer> default_renderer();
 
-    static EditText create(Allocator allocator);
+    static InteractableText create(Allocator allocator, bool use_async);
 
     bool has_pending_edit() const;
 
-    Str32 get_text() const;
-
-    Rc<Span<c32 const>> create_copy(Span<c32 const> str);
-
-    Rc<Span<c32 const>> create_copy(Span<c8 const> str);
+    Str32 str() const;
 
     TextLayout const & get_layout() const;
 
     RenderText const & get_render_text() const;
 
-    void set_renderer(Renderer renderer);
+    void set_renderer(Rc<Renderer> renderer);
 
-    Future<Vec<c32>> copy();
+    StrVec32 copy(Allocator allocator);
+
+    void add_cursor(TextCursor value, TextHighlightStyle cursor_highlight_style,
+                    CaretStyle caret_style);
+
+    void remove_cursor();
+
+    // [ ] need to correctly handle adjusting cursors if in non-async mode; they need to be completed before the next action.
+    void update_cursor(TextCursor value, TextHighlightStyle cursor_highlight_style,
+                       CaretStyle caret_style);
 
     void unselect();
 
@@ -498,9 +501,13 @@ struct [[nodiscard]] InteractText
 
     void insert(Rc<Str32> input);
 
+    void insert(Str32 input);
+
+    void insert(Str8 input);
+
     void new_line();
 
-    Future<Vec<c32>> copy_cut();
+    StrVec32 copy_cut(Allocator allocator);
 
     void cut();
 
@@ -508,9 +515,17 @@ struct [[nodiscard]] InteractText
 
     void redo();
 
+    // [ ]  Text state doesn't check max_width though
     void layout(f32 max_width);
 
-    void tick(nanoseconds dt);
+    static Rc<ActionsResult *> execute_actions_(u64 actions_stamp, Vec<Action> actions,
+                                                Rc<State *>       previous_state,
+                                                EditHistoryBuffer history,
+                                                Allocator allocator, Allocator scratch);
+
+    void run_action_(Action action);
+
+    void poll();
 };
 
 }    // namespace ash

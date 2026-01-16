@@ -80,11 +80,6 @@ struct [[nodiscard]] Dyn
     {
         return handle_;
     }
-
-    constexpr operator H() const
-    {
-        return handle_;
-    }
 };
 
 template <typename T, typename... Args>
