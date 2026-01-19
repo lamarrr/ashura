@@ -70,6 +70,8 @@ struct [[nodiscard]] TextRunsStyle
                                       Span<TextStyle const> styles,
                                       Span<FontStyle const> fonts);
 
+    TextRunsStyle copy(Allocator allocator) const;
+
     Span<usize const> run_indices() const
     {
         return run_indices_.view();
@@ -157,6 +159,10 @@ struct [[nodiscard]] RenderText
 
     RenderText & wrap(bool wrap);
 
+    RenderText & use_kerning(bool use_kerning);
+
+    RenderText & use_ligatures(bool use_ligatures);
+
     RenderText & font_scale(f32 scale);
 
     RenderText & direction(TextDirection direction);
@@ -185,13 +191,13 @@ struct [[nodiscard]] RenderText
 
     TextBlock block() const;
 
-    TextBlockStyle block_style(f32 aligned_width) const;
+    TextBlockStyle block_style() const;
 
     TextLayout const & get_layout() const;
 
-    void layout(f32 max_width, Allocator scratch);
+    void layout(f32 max_width, f32 align_width, Allocator scratch);
 
-    /// @brief Render the laid out text
+    /// @brief Place the laid out text
     /// @param center canvas-space region of the text to place the text on
     /// @param align_width the width to align the text to
     /// @param transform the canvas-space transform to apply to the text block
@@ -200,21 +206,23 @@ struct [[nodiscard]] RenderText
     /// @param highlight_styles styles for each of the highlights
     /// @param carets carets to render
     /// @param caret_styles styles for each of the carets
-    /// @param scratch_allocator allocator to use for temporary allocations
-    void render(TextRenderer renderer, f32x2 center, f32 align_width,
-                f32x4x4 const & transform, CRect const & clip,
-                Span<Slice const>              highlights,
-                Span<TextHighlightStyle const> highlight_styles,
-                Span<usize const> carets, Span<CaretStyle const> caret_styles,
-                Allocator scratch_allocator) const;
+    /// @param allocator allocator to use for the placement allocations
+    Tuple<TextRenderInfo, TextPlacement>
+      place(f32x2 center, f32x4x4 const & transform, CRect const & clip,
+            Span<Slice const>              highlights,
+            Span<TextHighlightStyle const> highlight_styles, Span<usize const> carets,
+            Span<CaretStyle const> caret_styles, Allocator allocator) const;
 
     /// @brief Perform hit test on the laid-out text
-    /// @param center canvas-space region the text was placed on
-    /// @param align_width the width the text was aligned to
+    /// @param center canvas-space region used as the center of the text block
+    /// @param align_width the width the text block was aligned to
+    /// @param transform the canvas-space transform applied to the text block
+    /// @param transformed_pos the canvas-space position to hit test
     /// @returns .v0: caret index, .v1: caret location
-    Tuple<isize, CaretAlignment> hit(f32x2 center, f32 align_width,
-                                     f32x4x4 const & transform,
-                                     f32x2           transformed_pos) const;
+    Tuple<isize, CaretAlignment> hit(f32x2 center, f32x4x4 const & transform,
+                                     f32x2 transformed_pos) const;
+
+    RenderText copy_with_str(Rc<Str32> str, Allocator allocator) const;
 };
 
 struct [[nodiscard]] EditHistoryBuffer
@@ -280,8 +288,6 @@ static constexpr c32 DEFAULT_WORD_SYMBOLS[] = {U' ', U'\t'};
 
 struct [[nodiscard]] InteractableText
 {
-    using Renderer = Fn<RenderText(Allocator, Rc<Str32>)>;
-
     struct CursorData
     {
         u64 action_stamp = 0;
@@ -314,9 +320,9 @@ struct [[nodiscard]] InteractableText
 
     struct InsertAction
     {
-        f32 max_width = 0.0f;
+        f32 max_width = 0.0F;
 
-        Rc<Renderer> renderer;
+        f32 align_width = 0.0F;
 
         TextCursor indices = {};
 
@@ -325,27 +331,27 @@ struct [[nodiscard]] InteractableText
 
     struct EraseAction
     {
-        f32 max_width = 0.0f;
+        f32 max_width = 0.0F;
 
-        Rc<Renderer> renderer;
+        f32 align_width = 0.0F;
 
         TextCursor indices = {};
     };
 
     struct UndoAction
     {
-        f32 max_width = 0.0f;
+        f32 max_width = 0.0F;
 
-        Rc<Renderer> renderer;
+        f32 align_width = 0.0F;
 
         TextCursor indices = {};
     };
 
     struct RedoAction
     {
-        f32 max_width = 0.0f;
+        f32 max_width = 0.0F;
 
-        Rc<Renderer> renderer;
+        f32 align_width = 0.0F;
     };
 
     struct RelayoutAction
@@ -389,14 +395,14 @@ struct [[nodiscard]] InteractableText
 
     f32 max_width_;
 
+    f32 align_width_;
+
     u64 next_action_stamp_;
 
-    constexpr InteractableText(Allocator allocator, bool use_async, Rc<State *> state,
-                               Rc<Renderer> renderer) :
+    constexpr InteractableText(Allocator allocator, bool use_async, Rc<State *> state) :
       allocator_{allocator},
       state_{std::move(state)},
       pending_result_{none},
-      renderer_{std::move(renderer)},
       action_queue_{allocator},
       action_queue_stamp_{0},
       cursor_{none},
@@ -405,6 +411,7 @@ struct [[nodiscard]] InteractableText
       caret_alignment_{CaretXAlignment::Start},
       use_async_{use_async},
       max_width_{0},
+      align_width_{0},
       next_action_stamp_{0}
     {
     }
@@ -414,8 +421,6 @@ struct [[nodiscard]] InteractableText
     constexpr InteractableText & operator=(InteractableText const &) = delete;
     constexpr InteractableText & operator=(InteractableText &&)      = default;
     constexpr ~InteractableText()                                    = default;
-
-    static Rc<Renderer> default_renderer();
 
     static InteractableText create(Allocator allocator, bool use_async);
 
@@ -490,10 +495,9 @@ struct [[nodiscard]] InteractableText
 
     void select_all();
 
-    void hit(f32x2 center, f32 aligned_width, f32x2 pos, f32x4x4 const & transform);
+    void hit(f32x2 center, f32x4x4 const & transform, f32x2 pos);
 
-    void hit_select(f32x2 center, f32 aligned_width, f32x2 pos,
-                    f32x4x4 const & transform);
+    void hit_select(f32x2 center, f32x4x4 const & transform, f32x2 pos);
 
     void backspace();
 
@@ -507,6 +511,8 @@ struct [[nodiscard]] InteractableText
 
     void new_line();
 
+    void tab();
+
     StrVec32 copy_cut(Allocator allocator);
 
     void cut();
@@ -515,8 +521,7 @@ struct [[nodiscard]] InteractableText
 
     void redo();
 
-    // [ ]  Text state doesn't check max_width though
-    void layout(f32 max_width);
+    void layout(f32 max_width, f32 align_width);
 
     static Rc<ActionsResult *> execute_actions_(u64 actions_stamp, Vec<Action> actions,
                                                 Rc<State *>       previous_state,

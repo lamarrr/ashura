@@ -349,7 +349,7 @@ Tuple<isize, CaretAlignment> TextLayout::hit(TextBlock const &      block,
 {
     ASH_CHECK(laid_out, "");
 
-    f32x2 block_extent{max(extent.x(), style.align_width), extent.y()};
+    f32x2 block_extent{max(extent.x(), align_width), extent.y()};
     f32x2 half_block_extent = 0.5F * block_extent;
     f32   ln_top            = -half_block_extent.y();
     f32   last_ln_bottom    = half_block_extent.y();
@@ -564,8 +564,7 @@ constexpr Option<CaretTestResult> caret_test(Span<usize const> caret_indices,
     return none;
 }
 
-void TextLayout::render(TextRenderer renderer, TextRenderInfo const & info,
-                        Allocator scratch) const
+TextPlacement TextLayout::place(TextRenderInfo const & info, Allocator allocator) const
 {
     // [ ] merge highlight rects; highlight rect type with merging, next line,
     // close?
@@ -574,10 +573,10 @@ void TextLayout::render(TextRenderer renderer, TextRenderInfo const & info,
     ASH_CHECK(info.highlight_styles.size() == info.highlights.size(), "");
     ASH_CHECK(info.caret_styles.size() == info.carets.size(), "");
 
-    auto  block_width = max(extent.x(), info.style.align_width);
+    auto  block_width = max(extent.x(), align_width);
     f32x2 block_extent{block_width, extent.y()};
 
-    Vec<CaretPlacement> caret_placements{scratch};
+    Vec<CaretPlacement> caret_placements{allocator};
 
     for (auto caret : info.carets)
     {
@@ -586,15 +585,15 @@ void TextLayout::render(TextRenderer renderer, TextRenderInfo const & info,
 
     using P = TextPlacement;
 
-    Vec<P::Block>         blocks{scratch};
-    Vec<P::Line>          lines{scratch};
-    Vec<P::Background>    backgrounds{scratch};
-    Vec<P::GlyphShadow>   glyph_shadows{scratch};
-    Vec<P::Glyph>         glyphs{scratch};
-    Vec<P::Underline>     underlines{scratch};
-    Vec<P::Strikethrough> strikethroughs{scratch};
-    Vec<P::Highlight>     highlights{scratch};
-    Vec<P::Caret>         carets{scratch};
+    auto blocks         = Vec<P::Block>{allocator};
+    auto lines          = Vec<P::Line>{allocator};
+    auto backgrounds    = Vec<P::Background>{allocator};
+    auto glyph_shadows  = Vec<P::GlyphShadow>{allocator};
+    auto glyphs         = Vec<P::Glyph>{allocator};
+    auto underlines     = Vec<P::Underline>{allocator};
+    auto strikethroughs = Vec<P::Strikethrough>{allocator};
+    auto highlights     = Vec<P::Highlight>{allocator};
+    auto carets         = Vec<P::Caret>{allocator};
 
     f32 ln_top = -(0.5F * block_extent.y());
 
@@ -907,17 +906,17 @@ void TextLayout::render(TextRenderer renderer, TextRenderInfo const & info,
         ln_top = ln_bottom;
     }
 
-    auto placement = TextPlacement{.blocks         = blocks,
-                                   .lines          = lines,
-                                   .backgrounds    = backgrounds,
-                                   .glyph_shadows  = glyph_shadows,
-                                   .glyphs         = glyphs,
-                                   .underlines     = underlines,
-                                   .strikethroughs = strikethroughs,
-                                   .highlights     = highlights,
-                                   .carets         = carets};
+    auto placement = TextPlacement{.blocks         = std::move(blocks),
+                                   .lines          = std::move(lines),
+                                   .backgrounds    = std::move(backgrounds),
+                                   .glyph_shadows  = std::move(glyph_shadows),
+                                   .glyphs         = std::move(glyphs),
+                                   .underlines     = std::move(underlines),
+                                   .strikethroughs = std::move(strikethroughs),
+                                   .highlights     = std::move(highlights),
+                                   .carets         = std::move(carets)};
 
-    renderer(info, placement);
+    return placement;
 }
 
 }    // namespace ash

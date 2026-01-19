@@ -498,9 +498,6 @@ struct TextBlockStyle
     /// directionality of the line.
     f32 alignment = 0;
 
-    /// @brief width to align the text block to when rendering.
-    f32 align_width = 0;
-
     f32 min_highlight_width = 15.0F;
 
     void * user_data = nullptr;
@@ -669,7 +666,7 @@ struct CaretPlacement
     bool after = false;
 };
 
-struct TextPlacement
+struct TextPlacementInfo
 {
     struct Block
     {
@@ -805,6 +802,45 @@ struct TextPlacement
     Span<Caret const> carets = {};
 };
 
+struct TextPlacement
+{
+    using Block = TextPlacementInfo::Block;
+
+    using Line = TextPlacementInfo::Line;
+
+    using Background = TextPlacementInfo::Background;
+
+    using GlyphShadow = TextPlacementInfo::GlyphShadow;
+
+    using Glyph = TextPlacementInfo::Glyph;
+
+    using Underline = TextPlacementInfo::Underline;
+
+    using Strikethrough = TextPlacementInfo::Strikethrough;
+
+    using Highlight = TextPlacementInfo::Highlight;
+
+    using Caret = TextPlacementInfo::Caret;
+
+    Vec<Block> blocks;
+
+    Vec<Line> lines;
+
+    Vec<Background> backgrounds;
+
+    Vec<GlyphShadow> glyph_shadows;
+
+    Vec<Glyph> glyphs;
+
+    Vec<Underline> underlines;
+
+    Vec<Strikethrough> strikethroughs;
+
+    Vec<Highlight> highlights;
+
+    Vec<Caret> carets;
+};
+
 struct TextRenderInfo
 {
     /// @brief carets to draw
@@ -842,8 +878,6 @@ struct TextRenderInfo
     Span<CaretStyle const> caret_styles = {};
 };
 
-typedef Fn<void(TextRenderInfo const &, TextPlacement const &)> TextRenderer;
-
 /// @returns the offset and length of the paragraph break
 Slice advance_paragraph(Str32 str);
 
@@ -878,6 +912,8 @@ struct TextLayout
     bool laid_out = false;
 
     f32 max_width = 0;
+
+    f32 align_width = 0;
 
     usize num_carets = 0;
 
@@ -915,8 +951,7 @@ struct TextLayout
 
     /// @brief Render Text using pre-computed layout
     /// @param renderer the renderer to use for rendering the text's regions
-    void render(TextRenderer renderer, TextRenderInfo const & info,
-                Allocator scratch) const;
+    TextPlacement place(TextRenderInfo const & info, Allocator allocator) const;
 };
 
 }    // namespace ash

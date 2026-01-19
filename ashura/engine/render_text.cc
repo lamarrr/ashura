@@ -57,6 +57,12 @@ TextRunsStyle TextRunsStyle::make_sized(Allocator             allocator,
                          std::move(fonts_vec)};
 }
 
+TextRunsStyle TextRunsStyle::copy(Allocator allocator) const
+{
+    return TextRunsStyle::make_indexed(allocator, run_indices_.view(), styles_.view(),
+                                       fonts_.view());
+}
+
 TextRunsStyle TextRunsStyle::make_indexed(Allocator             allocator,
                                           Span<usize const>     run_indices,
                                           Span<TextStyle const> styles,
@@ -105,21 +111,33 @@ RenderText & RenderText::flush_text()
 RenderText & RenderText::wrap(bool wrap)
 {
     wrap_ = wrap;
+    flush_text();
+    return *this;
+}
+
+RenderText & RenderText::use_kerning(bool use_kerning)
+{
+    use_kerning_ = use_kerning;
+    flush_text();
+    return *this;
+}
+
+RenderText & RenderText::use_ligatures(bool use_ligatures)
+{
+    use_ligatures_ = use_ligatures;
+    flush_text();
     return *this;
 }
 
 RenderText & RenderText::font_scale(f32 scale)
 {
     font_scale_ = scale;
+    flush_text();
     return *this;
 }
 
 RenderText & RenderText::direction(TextDirection direction)
 {
-    if (direction_ == direction)
-    {
-        return *this;
-    }
     direction_ = direction;
     flush_text();
     return *this;
@@ -127,10 +145,6 @@ RenderText & RenderText::direction(TextDirection direction)
 
 RenderText & RenderText::language(Str language)
 {
-    if (range_eq(language_, language))
-    {
-        return *this;
-    }
     language_ = language;
     flush_text();
     return *this;
@@ -138,10 +152,6 @@ RenderText & RenderText::language(Str language)
 
 RenderText & RenderText::alignment(f32 alignment)
 {
-    if (alignment_ == alignment)
-    {
-        return *this;
-    }
     alignment_ = alignment;
     flush_text();
     return *this;
@@ -229,10 +239,9 @@ TextBlock RenderText::block() const
                      .use_ligatures = use_ligatures_};
 }
 
-TextBlockStyle RenderText::block_style(f32 aligned_width) const
+TextBlockStyle RenderText::block_style() const
 {
-    return TextBlockStyle{
-      .alignment = alignment_, .align_width = aligned_width, .user_data = user_data_};
+    return TextBlockStyle{.alignment = alignment_, .user_data = user_data_};
 }
 
 TextLayout const & RenderText::get_layout() const
@@ -240,41 +249,41 @@ TextLayout const & RenderText::get_layout() const
     return layout_;
 }
 
-void RenderText::layout(f32 max_width, Allocator scratch)
+void RenderText::layout(f32 max_width, f32 align_width, Allocator scratch)
 {
-    if (hash_ == HASH_CLEAN && max_width == layout_.max_width)
+    if (hash_ == HASH_CLEAN && max_width == layout_.max_width &&
+        align_width == layout_.align_width)
     {
         return;
     }
 
-    sys.font->layout_text(block(), max_width, layout_, scratch);
-    hash_ = HASH_CLEAN;
+    layout_ = sys.font->layout_text(block(), max_width, align_width, scratch);
+    hash_   = HASH_CLEAN;
 }
 
-void RenderText::render(TextRenderer renderer, f32x2 center, f32 align_width,
-                        f32x4x4 const & transform, CRect const & clip,
-                        Span<Slice const>              highlights,
-                        Span<TextHighlightStyle const> highlight_styles,
-                        Span<usize const> carets, Span<CaretStyle const> caret_styles,
-                        Allocator scratch) const
+Tuple<TextRenderInfo, TextPlacement>
+  RenderText::place(f32x2 center, f32x4x4 const & transform, CRect const & clip,
+                    Span<Slice const>              highlights,
+                    Span<TextHighlightStyle const> highlight_styles,
+                    Span<usize const> carets, Span<CaretStyle const> caret_styles,
+                    Allocator allocator) const
 {
     TextRenderInfo info{.center           = center,
                         .transform        = transform,
                         .clip             = clip,
                         .block            = block(),
-                        .style            = block_style(align_width),
+                        .style            = block_style(),
                         .runs             = runs_style_.styles_,
                         .highlights       = highlights,
                         .highlight_styles = highlight_styles,
                         .carets           = carets,
                         .caret_styles     = caret_styles};
 
-    layout_.render(renderer, info, scratch);
+    return {info, layout_.place(info, allocator)};
 }
 
-Tuple<isize, CaretAlignment> RenderText::hit(f32x2 center, f32 align_width,
-                                             f32x4x4 const & transform,
-                                             f32x2           transformed_pos) const
+Tuple<isize, CaretAlignment> RenderText::hit(f32x2 center, f32x4x4 const & transform,
+                                             f32x2 transformed_pos) const
 {
     auto inv_xfm   = inverse(transform);
     auto pos       = ash::transform(inv_xfm, transformed_pos.append(0)).xy();
@@ -470,16 +479,6 @@ static inline Option<isize> translate_caret(TextLayout const & layout, isize car
       CaretAlignment{.x = alignment, .y = static_cast<CaretYAlignment>(line)});
 }
 
-Rc<InteractableText::Renderer> InteractableText::default_renderer()
-{
-    return static_rc<Fn<RenderText(Allocator, Rc<Str32>)>>(
-      [](Allocator allocator, Rc<Str32> str) -> RenderText {
-          RenderText text{allocator};
-          text.str(std::move(str));
-          return text;
-      });
-}
-
 InteractableText InteractableText::create(Allocator allocator, bool use_async)
 {
     return InteractableText{
@@ -487,8 +486,7 @@ InteractableText InteractableText::create(Allocator allocator, bool use_async)
       rc<State>(allocator, State{.text    = RenderText{allocator},
                                  .history = EditHistoryBuffer::create(
                                    allocator, InteractableText::DEFAULT_RECORDS_SIZE)})
-        .unwrap(),
-      default_renderer()};
+        .unwrap()};
 }
 
 bool InteractableText::has_pending_edit() const
@@ -514,8 +512,7 @@ RenderText const & InteractableText::get_render_text() const
 Vec<c32> InteractableText::copy(Allocator allocator)
 {
     auto & layout = get_layout();
-
-    auto cursor = cursor_.v().indices;
+    auto   cursor = cursor_.v().indices;
 
     if (!cursor.has_selection())
     {
@@ -784,21 +781,19 @@ void InteractableText::select_all()
     cursor.action_stamp = next_action_stamp_++;
 }
 
-void InteractableText::hit(f32x2 center, f32 aligned_width, f32x2 pos,
-                           f32x4x4 const & transform)
+void InteractableText::hit(f32x2 center, f32x4x4 const & transform, f32x2 pos)
 {
     auto & cursor     = cursor_.v();
-    auto [caret, loc] = state_->text.hit(center, aligned_width, transform, pos);
+    auto [caret, loc] = state_->text.hit(center, transform, pos);
     caret_alignment_  = loc.x;
     cursor.indices.move_to(state_->text.get_layout().align_caret(loc));
     cursor.action_stamp = next_action_stamp_++;
 }
 
-void InteractableText::hit_select(f32x2 center, f32 aligned_width, f32x2 pos,
-                                  f32x4x4 const & transform)
+void InteractableText::hit_select(f32x2 center, f32x4x4 const & transform, f32x2 pos)
 {
     auto & cursor     = cursor_.v();
-    auto [caret, loc] = state_->text.hit(center, aligned_width, transform, pos);
+    auto [caret, loc] = state_->text.hit(center, transform, pos);
     caret_alignment_  = loc.x;
     cursor.indices.span_to(state_->text.get_layout().align_caret(loc));
     cursor.action_stamp = next_action_stamp_++;
@@ -807,7 +802,6 @@ void InteractableText::hit_select(f32x2 center, f32 aligned_width, f32x2 pos,
 void InteractableText::backspace()
 {
     auto & layout = get_layout();
-
     auto & cursor = cursor_.v();
 
     if (!cursor.indices.has_selection())
@@ -822,7 +816,7 @@ void InteractableText::backspace()
     cursor.action_stamp = action_stamp;
 
     run_action_(EraseAction{
-      .max_width = max_width_, .renderer = renderer_.alias(), .indices = indices});
+      .max_width = max_width_, .align_width = align_width_, .indices = indices});
 }
 
 void InteractableText::del()
@@ -842,7 +836,7 @@ void InteractableText::del()
     cursor.action_stamp = action_stamp;
 
     run_action_(EraseAction{
-      .max_width = max_width_, .renderer = renderer_.alias(), .indices = indices});
+      .max_width = max_width_, .align_width = align_width_, .indices = indices});
 }
 
 void InteractableText::insert(Rc<Str32> input)
@@ -856,13 +850,13 @@ void InteractableText::insert(Rc<Str32> input)
         auto erase = cursor.indices;
         cursor.indices.unselect_left();
         run_action_(EraseAction{
-          .max_width = max_width_, .renderer = renderer_.alias(), .indices = erase});
+          .max_width = max_width_, .align_width = align_width_, .indices = erase});
     }
 
-    run_action_(InsertAction{.max_width = max_width_,
-                             .renderer  = renderer_.alias(),
-                             .indices   = cursor.indices,
-                             .str       = std::move(input)});
+    run_action_(InsertAction{.max_width   = max_width_,
+                             .align_width = align_width_,
+                             .indices     = cursor.indices,
+                             .str         = std::move(input)});
 }
 
 void InteractableText::new_line()
@@ -870,10 +864,14 @@ void InteractableText::new_line()
     return insert(static_rc(U"\n"_str));
 }
 
+void InteractableText::tab()
+{
+    return insert(static_rc(U"\t"_str));
+}
+
 StrVec32 InteractableText::copy_cut(Allocator allocator)
 {
     auto & layout = get_layout();
-
     auto & cursor = cursor_.v();
 
     if (!cursor.indices.has_selection())
@@ -884,16 +882,14 @@ StrVec32 InteractableText::copy_cut(Allocator allocator)
     }
 
     auto action_stamp = next_action_stamp_++;
-
-    auto selection = cursor.indices.selection();
-    auto out       = vec::copy(allocator, str().slice(selection)).unwrap();
-
-    auto indices = cursor.indices;
+    auto selection    = cursor.indices.selection();
+    auto out          = vec::copy(allocator, str().slice(selection)).unwrap();
+    auto indices      = cursor.indices;
     cursor.indices.unselect_left();
     cursor.action_stamp = action_stamp;
 
     run_action_(EraseAction{
-      .max_width = max_width_, .renderer = renderer_.alias(), .indices = indices});
+      .max_width = max_width_, .align_width = align_width_, .indices = indices});
 
     return out;
 }
@@ -901,7 +897,6 @@ StrVec32 InteractableText::copy_cut(Allocator allocator)
 void InteractableText::cut()
 {
     auto & layout = get_layout();
-
     auto & cursor = cursor_.v();
 
     if (!cursor.indices.has_selection())
@@ -917,19 +912,19 @@ void InteractableText::cut()
     cursor.action_stamp = action_stamp;
 
     run_action_(EraseAction{
-      .max_width = max_width_, .renderer = renderer_.alias(), .indices = indices});
+      .max_width = max_width_, .align_width = align_width_, .indices = indices});
 }
 
 void InteractableText::undo()
 {
     next_action_stamp_++;
-    run_action_(UndoAction{.max_width = max_width_, .renderer = renderer_.alias()});
+    run_action_(UndoAction{.max_width = max_width_, .align_width = align_width_});
 }
 
 void InteractableText::redo()
 {
     next_action_stamp_++;
-    run_action_(RedoAction{.max_width = max_width_, .renderer = renderer_.alias()});
+    run_action_(RedoAction{.max_width = max_width_, .align_width = align_width_});
 }
 
 void InteractableText::layout(f32 max_width)
