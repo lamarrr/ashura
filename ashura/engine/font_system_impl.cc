@@ -545,7 +545,7 @@ Future<Result<FontId, SysErr>> FontSysImpl::load_from_memory(Str     label_span,
       scheduler_
         ->run(allocator_, WorkerThread::Any,
               [encoded = std::move(encoded), label = std::move(label), this,
-               face]() mutable { return decode_(label, encoded, face); })
+               face]() mutable { return decode_(label, encoded.get(), face); })
         .unwrap();
 
     auto raster_fut =
@@ -558,7 +558,7 @@ Future<Result<FontId, SysErr>> FontSysImpl::load_from_memory(Str     label_span,
               return r.match(
                 [&](Dyn<Font> & f) -> R {
                     trace("Rasterizing font: {} @{}px"_str, label, font_height);
-                    return rasterize_(f, font_height);
+                    return rasterize_(f.get(), font_height);
                 },
                 [](SysErr err) -> R { return Err{err}; });
           },
@@ -1108,16 +1108,16 @@ void layout_paragraph(Paragraph & paragraph, f32 max_width, TextBlock const & bl
 
 /// https://stackoverflow.com/questions/62374506/how-do-i-align-glyphs-along-the-baseline-with-freetype
 ///
-void FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
-                              TextLayout & layout, Allocator scratch)
+TextLayout FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
+                                    f32 align_width, Allocator scratch)
 {
     tracing::ScopeTrace trace;
 
-    auto       text      = block.text;
-    auto const text_size = block.text.size();
+    auto       str      = block.str;
+    auto const str_size = block.str.size();
+    ASH_CHECK(block.run_indices.size() >= 2, "No run styling provided for text");
     ASH_CHECK(block.run_indices.size() == (block.fonts.size() + 1), "");
-    ASH_CHECK(!block.run_indices.is_empty(), "No run styling provided for text");
-    ASH_CHECK(block.run_indices.last() >= text_size,
+    ASH_CHECK(block.run_indices.last() == USIZE_MAX,
               "Text runs need to span the entire text");
 
     SBAllocator sb_allocator_impl{
@@ -1147,8 +1147,6 @@ void FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
     auto                   script_runs = Vec<usize>::make(1'024, scratch).unwrap();
     auto                   scripts     = Vec<TextScript>::make(1'024, scratch).unwrap();
 
-    layout.clear();
-
     // - the block never has empty paragraphs
     // - paragraphs never have empty lines; they may have empty codepoints or
     // break codepoints
@@ -1162,6 +1160,13 @@ void FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
     f32x2 extent{};
     usize caret_iter = 0;
 
+    auto layout = TextLayout{
+      .glyphs{allocator_},
+      .runs{allocator_},
+      .lines{allocator_},
+      .paragraphs{allocator_},
+    };
+
     // do-while is used to ensure at least one paragraph is processed even if the
     // text is empty
     do
@@ -1173,25 +1178,24 @@ void FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
         scripts.clear();
 
         auto paragraph_begin = p;
-        auto delims          = advance_paragraph(text.slice(paragraph_begin));
+        auto delims          = advance_paragraph(str.slice(paragraph_begin));
         auto paragraph_delims =
           Slice::slice(paragraph_begin + delims.offset, delims.span);
         auto paragraph_end        = paragraph_delims.offset;
         auto paragraph_size       = paragraph_end - paragraph_begin;
         auto paragraph_runs_begin = layout.runs.size();
-        auto paragraph_text =
-          text.slice(Slice::offsets(paragraph_begin, paragraph_end));
+        auto paragraph_str = str.slice(Slice::offsets(paragraph_begin, paragraph_end));
         auto sb_codepoints =
           SBCodepointSequence{.stringEncoding = SBStringEncodingUTF32,
-                              .stringBuffer   = (void *) paragraph_text.data(),
-                              .stringLength   = paragraph_text.size()};
+                              .stringBuffer   = (void *) paragraph_str.data(),
+                              .stringLength   = paragraph_str.size()};
         SBAlgorithmRef sb_algorithm = SBAlgorithmCreate(sb_allocator, &sb_codepoints);
         ASH_CHECK(sb_algorithm != nullptr, "");
         defer sb_algorithm_{[&] { SBAlgorithmRelease(sb_allocator, sb_algorithm); }};
 
-        auto paragraph_level = paragraph_levels(sb_allocator, paragraph_text,
+        auto paragraph_level = paragraph_levels(sb_allocator, paragraph_str,
                                                 sb_algorithm, block.direction, levels);
-        paragraph_script_runs(sb_allocator, paragraph_text, script_runs, scripts);
+        paragraph_script_runs(sb_allocator, paragraph_str, script_runs, scripts);
 
         auto run_iter     = 0uz;
         auto scripts_iter = RunItemView{script_runs.view(), scripts.view()}.begin();
@@ -1207,7 +1211,7 @@ void FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
 
             auto run_props =
               (run_begin < paragraph_size) ?
-                RunProps{.type       = classify_run_type(paragraph_text[run_begin]),
+                RunProps{.type       = classify_run_type(paragraph_str[run_begin]),
                          .style      = static_cast<u32>(style_iter.run()),
                          .script     = (*scripts_iter).v0,
                          .base_level = paragraph_level,
@@ -1225,14 +1229,14 @@ void FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
                 ++run_iter;
             }
 
-            if (!is_wrap_char(paragraph_text[run_begin]))
+            if (!is_wrap_char(paragraph_str[run_begin]))
             {
                 while (run_iter < paragraph_size &&
                        run_props.style == style_iter.run() &&
                        run_props.script == (*scripts_iter).v0 &&
                        run_props.level == (*levels_iter).v0 &&
                        run_props.level == levels[run_iter] &&
-                       !is_wrap_char(paragraph_text[run_iter]))
+                       !is_wrap_char(paragraph_str[run_iter]))
                 {
                     ++run_iter;
                     ++style_iter;
@@ -1252,7 +1256,7 @@ void FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
 
             auto run                = Slice::offsets(run_begin, run_end);
             auto [infos, positions] = shape_run(
-              font.hb_font, buffer.hb_buffer_, paragraph_text, run,
+              font.hb_font, buffer.hb_buffer_, paragraph_str, run,
               hb_script_from_iso15924_tag(
                 SBScriptGetUnicodeTag(SBScript{(u8) run_props.script})),
               ((paragraph_level & 0x1) == 0) ? HB_DIRECTION_LTR : HB_DIRECTION_RTL,
@@ -1279,13 +1283,16 @@ void FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
                          extent);
 
         p = paragraph_delims.end();
-    } while (p < text_size);
+    } while (p < str_size);
 
     layout.max_width      = max_width;
+    layout.align_width    = align_width;
     layout.num_carets     = max(caret_iter, 1ULL);
-    layout.num_codepoints = text_size;
+    layout.num_codepoints = str_size;
     layout.extent         = extent;
     layout.laid_out       = true;
+
+    return layout;
 }
 
 }    // namespace ash

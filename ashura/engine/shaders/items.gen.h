@@ -219,7 +219,7 @@ struct QuadGradientMaterial
 {
     alignas(16) f32x4 top;
     alignas(16) f32x4 bottom;
-    alignas(8) f32x2 gradient_rotor;
+    alignas(4) f32 gradient_angle;
     alignas(4) f32 gradient_center;
     alignas(4) SamplerIndex sampler;
     alignas(4) TextureIndex texture;
@@ -229,7 +229,7 @@ struct SdfGradientMaterial
 {
     alignas(16) f32x4 top;
     alignas(16) f32x4 bottom;
-    alignas(8) f32x2 gradient_rotor;
+    alignas(4) f32 gradient_angle;
     alignas(4) f32 gradient_center;
     alignas(4) SamplerIndex sampler;
     alignas(4) TextureIndex texture;
@@ -261,7 +261,7 @@ struct TriangleSetGradientMaterial
 {
     alignas(16) f32x4 top;
     alignas(16) f32x4 bottom;
-    alignas(8) f32x2 gradient_rotor;
+    alignas(4) f32 gradient_angle;
     alignas(4) f32 gradient_center;
     alignas(4) SamplerIndex sampler;
     alignas(4) TextureIndex texture;

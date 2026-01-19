@@ -25,8 +25,8 @@ struct IFontSys
 
     virtual void shutdown() = 0;
 
-    virtual void layout_text(TextBlock const & block, f32 max_width,
-                             TextLayout & layout, Allocator scratch) = 0;
+    virtual TextLayout layout_text(TextBlock const & block, f32 max_width,
+                                   f32 align_width, Allocator scratch) = 0;
 
     virtual Future<Result<FontId, SysErr>>
       load_from_memory(Str label, RcBlob8 encoded, u32 font_height, u32 face) = 0;

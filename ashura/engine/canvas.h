@@ -600,8 +600,6 @@ struct ICanvas
 
     RectU clip_to_scissor(CRect const & clip) const;
 
-    TextRenderer default_text_renderer();
-
     void begin(gpu::Viewport const & viewport, f32x2 extent, u32x2 framebuffer_extent);
 
     void end();
@@ -730,7 +728,7 @@ struct ICanvas
     ICanvas & paths(Span<PathInfo const> info, bool has_overlaps);
 
     /// @brief Render a text block
-    ICanvas & text(TextRenderInfo const & info, TextPlacement const & placement);
+    ICanvas & text(TextRenderInfo const & info, TextPlacementInfo const & placement);
 };
 
 }    // namespace ash

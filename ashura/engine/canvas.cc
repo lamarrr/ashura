@@ -660,13 +660,6 @@ RectU ICanvas::clip_to_scissor(CRect const & clip) const
                         scissor_f.end().to<u32>().min(framebuffer_extent_));
 }
 
-TextRenderer ICanvas::default_text_renderer()
-{
-    return TextRenderer{
-      this, [](Canvas c, TextRenderInfo const & render,
-               TextPlacement const & placement) { c->text(render, placement); }};
-}
-
 void ICanvas::begin(gpu::Viewport const & viewport, f32x2 extent,
                     u32x2 framebuffer_extent)
 {
@@ -2032,7 +2025,7 @@ ICanvas & ICanvas::paths(Span<PathInfo const> info, bool has_overlaps)
     return *this;
 }
 
-ICanvas & ICanvas::text(TextRenderInfo const & info, TextPlacement const & placement)
+ICanvas & ICanvas::text(TextRenderInfo const & info, TextPlacementInfo const & placement)
 {
     push_clip();
     set_clip(info.clip.intersection(this->clip_));

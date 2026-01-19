@@ -24,7 +24,7 @@ struct TriangleSetGradientMaterial : TriangleSetMaterial
 {
     f32x4        top;
     f32x4        bottom;
-    f32x2        gradient_rotor;    // (cos(theta), sin(theta))
+    f32          gradient_angle;
     f32          gradient_center;
     SamplerIndex sampler;
     TextureIndex texture;
@@ -36,7 +36,8 @@ struct TriangleSetGradientMaterial : TriangleSetMaterial
         var   smp       = samplers[NonUniformResourceIndex(this.sampler)];
         var   tex       = textures[NonUniformResourceIndex(texture)];
         f32x4 tex_color = tex.Sample(smp, norm_uv);
-        f32   t         = dot(gradient_rotor, info.uv) + gradient_center + 0.5;
+        f32x2 rotor     = f32x2(cos(gradient_angle), sin(gradient_angle));
+        f32   t         = dot(rotor, info.uv) + gradient_center + 0.5;
         f32x4 color     = lerp(top, bottom, clamp(t, 0.0, 1.0));
         return color * tex_color;
     }

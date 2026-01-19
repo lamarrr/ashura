@@ -148,8 +148,8 @@ struct FontSysImpl final : IFontSys
 
     TextLayoutBufferImpl & get_thread_layout_buffer();
 
-    virtual void layout_text(TextBlock const & block, f32 max_width,
-                             TextLayout & layout, Allocator scratch) override;
+    virtual TextLayout layout_text(TextBlock const & block, f32 max_width,
+                                   f32 align_width, Allocator scratch) override;
 
     virtual Future<Result<FontId, SysErr>>
       load_from_memory(Str label, RcBlob8 encoded, u32 font_height, u32 face) override;
