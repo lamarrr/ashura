@@ -91,19 +91,19 @@ void IWaitToken::os_notify()
 {
 #if ASH_OS_WINDOWS
 
-    get_sync_lib().WakeByAddressAll(&state__);
+    get_sync_lib().WakeByAddressAll(&state_);
 
 #else
 
 #    if ASH_OS_APPLE
 
-    __ulock_wake(UL_COMPARE_AND_WAIT | ULF_WAKE_ALL, &state__, 0);
+    __ulock_wake(UL_COMPARE_AND_WAIT | ULF_WAKE_ALL, &state_, 0);
 
 #    else
 
 #        if ASH_OS_LINUX
 
-    futex(&state__, FUTEX_WAKE_PRIVATE, I32_MAX, nullptr, nullptr);
+    futex(&state_, FUTEX_WAKE_PRIVATE, I32_MAX, nullptr, nullptr);
 
 #        endif
 
@@ -118,38 +118,38 @@ void IWaitToken::os_wait(u32 old_state, std::memory_order order)
 
 #if ASH_OS_WINDOWS
 
-    std::atomic_ref state{state__};
+    std::atomic_ref state{state_};
 
     do
     {
         // might wake up spuriously
-        get_sync_lib().WaitOnAddress((u32 *) &state__, (PVOID) &old_state,
+        get_sync_lib().WaitOnAddress((u32 *) &state_, (PVOID) &old_state,
                                      sizeof(old_state), U32_MAX);
     } while (state.load(order) == old_state);
 
 #else
 
 #    if ASH_OS_APPLE
-    std::atomic_ref state{state__};
+    std::atomic_ref state{state_};
 
     do
     {
-        __ulock_wait(UL_COMPARE_AND_WAIT, (u32 *) &state__, (u64) old_state, U32_MAX);
+        __ulock_wait(UL_COMPARE_AND_WAIT, (u32 *) &state_, (u64) old_state, U32_MAX);
     } while (state.load(order) == old_state);
 
 #    else
 
 #        if ASH_OS_LINUX
-    std::atomic_ref state{state__};
+    std::atomic_ref state{state_};
 
     do
     {
-        futex((i32 *) &state__, FUTEX_WAIT_PRIVATE, (i32) old_state, nullptr, nullptr);
+        futex((i32 *) &state_, FUTEX_WAIT_PRIVATE, (i32) old_state, nullptr, nullptr);
     } while (state.load(order) == old_state);
 
 #        else
 
-    std::atomic_ref state{state__};
+    std::atomic_ref state{state_};
     usize           poll = 0;
     do
     {

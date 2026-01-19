@@ -34,9 +34,9 @@ typedef struct IWaitToken * WaitToken;
 /// @brief A wait token for sleeping and waking up threads.
 struct [[nodiscard]] IWaitToken
 {
-    u32 state__;
+    u32 state_;
 
-    constexpr IWaitToken(u32 state) : state__{state}
+    constexpr IWaitToken(u32 state) : state_{state}
     {
     }
 
@@ -44,7 +44,7 @@ struct [[nodiscard]] IWaitToken
                                     std::memory_order success,
                                     std::memory_order failure)
     {
-        std::atomic_ref state{state__};
+        std::atomic_ref state{state_};
         return state.compare_exchange_weak(expected, desired, success, failure);
     }
 
@@ -52,19 +52,19 @@ struct [[nodiscard]] IWaitToken
                                       std::memory_order success,
                                       std::memory_order failure)
     {
-        std::atomic_ref state{state__};
+        std::atomic_ref state{state_};
         return state.compare_exchange_strong(expected, desired, success, failure);
     }
 
     void store(u32 state, std::memory_order order)
     {
-        std::atomic_ref state_ref{state__};
+        std::atomic_ref state_ref{state_};
         state_ref.store(state, order);
     }
 
     [[nodiscard]] u32 load(std::memory_order order)
     {
-        std::atomic_ref state{state__};
+        std::atomic_ref state{state_};
         return state.load(order);
     }
 
