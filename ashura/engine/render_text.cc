@@ -288,7 +288,23 @@ Tuple<isize, CaretAlignment> RenderText::hit(f32x2 center, f32x4x4 const & trans
     auto inv_xfm   = inverse(transform);
     auto pos       = ash::transform(inv_xfm, transformed_pos.append(0)).xy();
     auto local_pos = pos - center;
-    return layout_.hit(block(), block_style(align_width), local_pos);
+    return layout_.hit(block(), block_style(), local_pos);
+}
+
+RenderText RenderText::copy_with_str(Rc<Str32> str, Allocator allocator) const
+{
+    auto text = RenderText{allocator};
+    text.wrap(wrap_)
+      .use_kerning(use_kerning_)
+      .use_ligatures(use_ligatures_)
+      .direction(direction_)
+      .alignment(alignment_)
+      .font_scale(font_scale_)
+      .str(std::move(str))
+      .style_runs(get_style_runs().copy(allocator))
+      .language(language_)
+      .user_data(user_data_);
+    return text;
 }
 
 EditHistoryBuffer EditHistoryBuffer::create(Allocator allocator, usize records_capacity)
@@ -507,6 +523,25 @@ TextLayout const & InteractableText::get_layout() const
 RenderText const & InteractableText::get_render_text() const
 {
     return state_->text;
+}
+
+void InteractableText::set_text(RenderText text)
+{
+    run_action_(SetTextAction{
+      .max_width = max_width_, .align_width = align_width_, .text = std::move(text)});
+}
+
+void InteractableText::set_str(Rc<Str32> str)
+{
+    run_action_(SetStrAction{
+      .max_width = max_width_, .align_width = align_width_, .str = std::move(str)});
+}
+
+void InteractableText::set_runs_style(TextRunsStyle runs_style)
+{
+    run_action_(SetRunsStyleAction{.max_width   = max_width_,
+                                   .align_width = align_width_,
+                                   .runs_style  = std::move(runs_style)});
 }
 
 Vec<c32> InteractableText::copy(Allocator allocator)
@@ -927,21 +962,162 @@ void InteractableText::redo()
     run_action_(RedoAction{.max_width = max_width_, .align_width = align_width_});
 }
 
-void InteractableText::layout(f32 max_width)
+void InteractableText::layout(f32 max_width, f32 align_width)
 {
+    if (max_width_ == max_width && align_width_ == align_width)
+    {
+        return;
+    }
     next_action_stamp_++;
-    max_width_ = max_width;
-    run_action_(RelayoutAction{.max_width = max_width_, .renderer = renderer_.alias()});
+    max_width_   = max_width;
+    align_width_ = align_width;
+    run_action_(RelayoutAction{.max_width = max_width_, .align_width = align_width_});
 }
 
-void InteractableText::set_renderer(Rc<Renderer> renderer)
+static RenderText rerender(PieceTable32 const & pieces, f32 max_width, f32 align_width,
+                           Rc<InteractableText::State *> & previous_state,
+                           Option<RenderText> curr_text, Allocator allocator,
+                           Allocator scratch)
 {
-    next_action_stamp_++;
-    renderer_ = std::move(renderer);
-    run_action_(RelayoutAction{.max_width = max_width_, .renderer = renderer_.alias()});
+    auto str = StrVec32{allocator};
+    pieces.compact(Slice::all(), str).unwrap();
+    auto rc_strvec = rc<StrVec32>(allocator, std::move(str)).unwrap();
+    auto view      = rc_strvec->view().as_const();
+    auto rc_str32  = transmute(std::move(rc_strvec), view);
+    auto text      = (curr_text.is_some() ? *curr_text : previous_state->text)
+                  .copy_with_str(std::move(rc_str32), allocator);
+    text.layout(max_width, align_width, scratch);
+    return text;
 }
 
-void EditText::tick(nanoseconds)
+Rc<InteractableText::ActionsResult *>
+  InteractableText::execute_actions_(u64 actions_stamp, Vec<Action> actions,
+                                     Rc<State *> prev, EditHistoryBuffer hist,
+                                     Allocator allocator, Allocator scratch)
+{
+    tracing::ScopeTrace trace;
+
+    auto               cursor_update = Option<CursorUpdate>{};
+    Option<RenderText> new_text      = none;
+
+    for (auto & action : actions)
+    {
+        auto & layout =
+          new_text.is_some() ? new_text->get_layout() : prev->text.get_layout();
+        auto & str    = new_text.is_some() ? new_text->str_ : prev->text.str_;
+        auto   pieces = PieceTable32{scratch};
+        pieces.insert(0, str.alias()).unwrap();
+
+        action.match(
+          [&](InsertAction const & a) {
+              auto cursor = a.indices;
+              cursor.normalize(layout.num_carets);
+              auto cp        = layout.get_caret_codepoint(cursor.caret());
+              auto codepoint = cp.codepoint + (cp.after ? 1 : 0);
+              hist.insert(codepoint, pieces, a.str.alias());
+              new_text          = rerender(pieces, a.max_width, a.align_width, prev,
+                                           std::move(new_text), allocator, scratch);
+              auto & new_layout = new_text->get_layout();
+              auto   caret = new_layout.to_caret(codepoint + a.str.get().size(), true);
+              auto   new_cursor = TextCursor{};
+              new_cursor.move_to(caret).normalize(new_layout.num_carets);
+              cursor_update = CursorUpdate{.indices = new_cursor};
+          },
+          [&](EraseAction const & a) {
+              auto cursor = a.indices;
+              cursor.normalize(layout.num_carets);
+              auto selection = layout.get_caret_selection(cursor.selection());
+              hist.erase(selection, pieces);
+              new_text        = rerender(pieces, a.max_width, a.align_width, prev,
+                                         std::move(new_text), allocator, scratch);
+              auto new_cursor = TextCursor{};
+              new_cursor.move_to(cursor.left_caret())
+                .normalize(new_text->get_layout().num_carets);
+              cursor_update = CursorUpdate{.indices = new_cursor};
+          },
+          [&](UndoAction const & a) {
+              hist.undo(pieces).match(
+                [&](Slice insertion) {
+                    new_text = rerender(pieces, a.max_width, a.align_width, prev,
+                                        std::move(new_text), allocator, scratch);
+                    auto & new_layout = new_text->get_layout();
+                    auto   selection  = new_layout.to_caret_selection(insertion);
+                    auto   new_cursor = TextCursor{};
+                    new_cursor.select(selection);
+                    cursor_update = CursorUpdate{.indices = new_cursor};
+                },
+                [&] {
+                    new_text = rerender(pieces, a.max_width, a.align_width, prev,
+                                        std::move(new_text), allocator, scratch);
+                });
+          },
+          [&](RedoAction const & a) {
+              hist.redo(pieces).match(
+                [&](Slice insertion) {
+                    new_text = rerender(pieces, a.max_width, a.align_width, prev,
+                                        std::move(new_text), allocator, scratch);
+                    auto & new_layout = new_text->get_layout();
+                    auto   selection  = new_layout.to_caret_selection(insertion);
+                    auto   new_cursor = TextCursor{};
+                    new_cursor.select(selection);
+                    cursor_update = CursorUpdate{.indices = new_cursor};
+                },
+                [&] {
+                    new_text = rerender(pieces, a.max_width, a.align_width, prev,
+                                        std::move(new_text), allocator, scratch);
+                });
+          },
+          [&](RelayoutAction const & a) {
+              new_text = rerender(pieces, a.max_width, a.align_width, prev,
+                                  std::move(new_text), allocator, scratch);
+          },
+          [&](UpdateTextAction & a) {
+              auto text = std::move(a.text);
+              text.layout(a.max_width, a.align_width, scratch);
+              new_text = std::move(text);
+          },
+          [&](SetStrAction & a) {
+              auto text = (new_text.is_some() ? *new_text : prev->text)
+                            .copy_with_str(std::move(a.str), allocator);
+              text.layout(a.max_width, a.align_width, scratch);
+              new_text = std::move(text);
+          },
+          [&](SetRunsStyleAction & a) {
+            // TODO: I don't like this action-based mutation of the text object
+            // can we do something more direct?
+              auto text = (new_text.is_some() ? *new_text : prev->text)
+                            .style_runs(std::move(a.runs_style));
+              text.layout(a.max_width, a.align_width, scratch);
+              new_text = std::move(text);
+          });
+    }
+
+    return rc(allocator, ActionsResult{.action_stamp  = actions_stamp,
+                                       .text          = std::move(new_text),
+                                       .history       = std::move(hist),
+                                       .cursor_update = std::move(cursor_update)})
+      .unwrap();
+}
+
+void InteractableText::run_action_(Action action)
+{
+    // TODO: implement
+    // if(use_async_){
+    //  action_queue_
+    //   .push()
+    //   .unwrap();
+    // action_stamp?
+    // action_queue_stamp_ = next_action_stamp
+    // [ ] needs to use result yiedling function below
+    if (use_async_)
+    {
+    }
+    else
+    {
+    }
+}
+
+void InteractableText::poll()
 {
     if (pending_result_.is_some())
     {
@@ -949,20 +1125,24 @@ void EditText::tick(nanoseconds)
         if (p.is_ok())
         {
             // apply new state
-            auto & result = *p.unwrap();
-
-            auto old_text = std::move(state_->text);
+            auto & result   = *p.unwrap();
+            auto   old_text = std::move(state_->text);
 
             *state_ = State{.text    = result->text.unwrap_or(std::move(old_text)),
                             .history = std::move(result->history)};
 
-            for (auto & cursor : result->cursors)
+            if (auto cursor_update = result->cursor_update;
+                cursor_update.is_some() && cursor_.is_some() &&
+                result->action_stamp >= cursor_->action_stamp)
             {
-                if (cursor.id >= cursor_.id)
-                {
-                    cursor_ = cursor;
-                    cursor_.v.normalize(state_->text.get_layout().num_carets);
-                }
+                cursor_ = CursorData{.action_stamp = result->action_stamp,
+                                     .indices      = cursor_update->indices};
+            }
+
+            if (cursor_.is_some())
+            {
+                cursor_->indices =
+                  cursor_->indices.normalize(state_->text.get_layout().num_carets);
             }
 
             pending_result_ = none;
@@ -972,115 +1152,20 @@ void EditText::tick(nanoseconds)
     if (pending_result_.is_none() && !action_queue_.is_empty())
     {
         auto actions  = std::move(action_queue_);
-        action_queue_ = SmallVec<Edit, 8, 0>{allocator_};
+        action_queue_ = Vec<Action>{allocator_};
 
         pending_result_ =
           sys.sched
-            ->run(
-              allocator_, WorkerThread::Any,
-              [allocator = allocator_, actions = std::move(actions),
-               previous_state_ = state_.alias(),
-               history         = std::move(state_->history)]() mutable {
-                  tracing::ScopeTrace trace{"EditText::tick::apply_actions"_str};
-
-                  auto               cursors = SmallVec<Cursor, 8, 0>{allocator};
-                  Option<RenderText> text    = none;
-
-                  auto render = [&](PieceTable32 const & pieces, f32 max_width,
-                                    Renderer const & renderer) {
-                      StrVec32 str{allocator};
-                      pieces.compact(Slice::all(), str).unwrap();
-                      auto rc_strvec = rc<StrVec32>(allocator, std::move(str)).unwrap();
-                      auto view      = rc_strvec->view().as_const();
-                      auto rc_str32  = transmute(std::move(rc_strvec), view);
-                      auto text      = renderer(allocator, std::move(rc_str32));
+            ->run(allocator_, WorkerThread::Any,
+                  [allocator = allocator_, actions = std::move(actions),
+                   previous_state_ = state_.alias(),
+                   history         = std::move(state_->history),
+                   stamp           = action_queue_stamp_]() mutable {
                       auto scratch = IFallbackAllocator{get_thread_arena(), allocator};
-                      text.layout(max_width, scratch);
-                      return text;
-                  };
-
-                  for (auto & action : actions)
-                  {
-                      auto & layout = text.is_some() ?
-                                        text->get_layout() :
-                                        previous_state_->text.get_layout();
-                      auto & str =
-                        text.is_some() ? text->text_ : previous_state_->text.text_;
-                      PieceTable32 pieces{allocator};
-                      pieces.insert(0, str.alias()).unwrap();
-
-                      action.match(
-                        [&](InsertAction & a) {
-                            a.cursor.normalize(layout.num_carets);
-                            auto cp = layout.get_caret_codepoint(a.cursor.caret());
-                            auto codepoint = cp.codepoint + (cp.after ? 1 : 0);
-                            history.insert(codepoint, pieces, a.str.alias());
-                            text              = render(pieces, a.max_width, a.renderer);
-                            auto & new_layout = text->get_layout();
-                            auto   caret =
-                              new_layout.to_caret(codepoint + a.str.get().size(), true);
-                            auto cursor = TextCursor{};
-                            cursor.move_to(caret).normalize(new_layout.num_carets);
-                            cursors.push(Cursor{.id = a.id, .v = cursor}).unwrap();
-                        },
-                        [&](EraseAction & a) {
-                            a.cursor.normalize(layout.num_carets);
-                            auto selection =
-                              layout.get_caret_selection(a.cursor.selection());
-                            history.erase(selection, pieces);
-                            text        = render(pieces, a.max_width, a.renderer);
-                            auto cursor = TextCursor{};
-                            cursor.move_to(a.cursor.left_caret())
-                              .normalize(text->get_layout().num_carets);
-                            cursors.push(Cursor{.id = a.id, .v = cursor}).unwrap();
-                        },
-                        [&](UndoAction & a) {
-                            history.undo(pieces).match(
-                              [&](Slice insertion) {
-                                  text = render(pieces, a.max_width, a.renderer);
-                                  auto & new_layout = text->get_layout();
-                                  auto   selection =
-                                    new_layout.to_caret_selection(insertion);
-                                  auto cursor = TextCursor{};
-                                  cursor.select(selection);
-                                  cursors.push(Cursor{.id = a.id, .v = cursor})
-                                    .unwrap();
-                              },
-                              [&] { text = render(pieces, a.max_width, a.renderer); });
-                        },
-                        [&](RedoAction & a) {
-                            history.redo(pieces).match(
-                              [&](Slice insertion) {
-                                  text = render(pieces, a.max_width, a.renderer);
-                                  auto & new_layout = text->get_layout();
-                                  auto   selection =
-                                    new_layout.to_caret_selection(insertion);
-                                  auto cursor = TextCursor{};
-                                  cursor.select(selection);
-                                  cursors.push(Cursor{.id = a.id, .v = cursor})
-                                    .unwrap();
-                              },
-                              [&] { text = render(pieces, a.max_width, a.renderer); });
-                        },
-                        [&](RelayoutAction & a) {
-                            text = render(pieces, a.max_width, a.renderer);
-                        },
-                        [&](CopyAction & a) {
-                            a.cursor.normalize(layout.num_carets);
-                            auto selection =
-                              layout.get_caret_selection(a.cursor.selection());
-                            Vec<c32> output{allocator};
-                            output.reserve(selection.span).unwrap();
-                            pieces.compact(selection, output).unwrap();
-                            a.output.yield(std::move(output)).unwrap();
-                        });
-                  }
-
-                  return rc(allocator, ActionResult{.text    = std::move(text),
-                                                    .history = std::move(history),
-                                                    .cursors = std::move(cursors)})
-                    .unwrap();
-              })
+                      return InteractableText::execute_actions_(
+                        stamp, std::move(actions), std::move(previous_state_),
+                        std::move(history), allocator, scratch);
+                  })
             .unwrap();
     }
 }

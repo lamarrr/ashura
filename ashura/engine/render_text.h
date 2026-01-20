@@ -286,6 +286,7 @@ struct [[nodiscard]] EditHistoryBuffer
 
 static constexpr c32 DEFAULT_WORD_SYMBOLS[] = {U' ', U'\t'};
 
+// [ ] RENAME TO ASYNCTEXT, use Enum<RenderText, InteractableText>
 struct [[nodiscard]] InteractableText
 {
     struct CursorData
@@ -356,23 +357,49 @@ struct [[nodiscard]] InteractableText
 
     struct RelayoutAction
     {
-        f32 max_width = 0.0f;
+        f32 max_width = 0.0F;
 
-        Rc<Renderer> renderer;
+        f32 align_width = 0.0F;
     };
 
-    using Action =
-      Enum<InsertAction, EraseAction, UndoAction, RedoAction, RelayoutAction>;
+    struct SetTextAction
+    {
+        f32 max_width = 0.0F;
+
+        f32 align_width = 0.0F;
+
+        RenderText text;
+    };
+
+    struct SetStrAction
+    {
+        f32 max_width = 0.0F;
+
+        f32 align_width = 0.0F;
+
+        Rc<Str32> str = static_rc(U""_str);
+    };
+
+    struct SetRunsStyleAction
+    {
+        f32 max_width = 0.0F;
+
+        f32 align_width = 0.0F;
+
+        TextRunsStyle runs_style;
+    };
+
+    using Action = Enum<InsertAction, EraseAction, UndoAction, RedoAction,
+                        RelayoutAction, SetTextAction, SetStrAction, SetRunsStyleAction>;
 
     static constexpr usize DEFAULT_RECORDS_SIZE = 2'048;
 
     Allocator allocator_;
 
+    // [ ] should we make this have a local pending copy? and always only layout when poll is called
     Rc<State *> state_;
 
     Option<Future<Rc<ActionsResult *>>> pending_result_;
-
-    Rc<Renderer> renderer_;
 
     /// @brief action queue of mutations to be performed on the text.
     /// this is queued up whilst an async text edit is being performed.
@@ -432,7 +459,11 @@ struct [[nodiscard]] InteractableText
 
     RenderText const & get_render_text() const;
 
-    void set_renderer(Rc<Renderer> renderer);
+    void set_text(RenderText text);
+
+    void set_str(Rc<Str32> str);
+
+    void set_runs_style(TextRunsStyle runs_style);
 
     StrVec32 copy(Allocator allocator);
 
