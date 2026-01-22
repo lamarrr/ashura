@@ -62,7 +62,7 @@ void IPipelineSys::init(Allocator allocator)
 
     auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
 
-    for (auto [pass] : all)
+    for (auto [pass] : all_)
     {
         pass->acquire(gpu_sys_->current_plan(), allocator_, scratch);
     }

@@ -22,7 +22,7 @@ struct IFileSys
     IFileSys(IFileSys &&)                  = delete;
     IFileSys & operator=(IFileSys const &) = delete;
     IFileSys & operator=(IFileSys &&)      = delete;
-    ~IFileSys();
+    ~IFileSys()                            = default;
 
     void shutdown();
 

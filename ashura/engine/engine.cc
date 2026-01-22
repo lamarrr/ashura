@@ -131,7 +131,7 @@ Result<EngineCfg> EngineCfg::parse_json(Span<u8 const> json, Allocator allocator
     out.font_height = clamp((u32) cfg["fonts.height"].get_int64().value(), 16U, 256U);
 
     std::string_view pipeline_cache_path =
-      cfg["cache.pipeline.path"].get_string().value();
+      cfg["paths.pipeline_cache"].get_string().value();
 
     out.pipeline_cache_path.append(pipeline_cache_path).unwrap();
 
@@ -302,13 +302,13 @@ static void window_event_listener(IEngine::WindowEntry * win, WindowEvent const 
 }
 
 Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
-                            Callbacks callbacks, WindowLoop loop)
+                            Callbacks callbacks, Dyn<WindowLoop> loop)
 {
     tracing::ScopeTrace _;
 
     Dyn<Logger> logger =
       dyn<ILogger>(inplace, default_allocator, span<LogSink>({&stdio_sink})).unwrap();
-    hook_logger(logger);
+    hook_logger(logger.get());
 
     trace("Initializing Engine Core Systems"_str);
     trace("Loading Graphics Pipeline Cache From {}"_str,
@@ -365,16 +365,16 @@ Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
                                        .worker_threads    = worker_thread_infos,
                                        .main_thread_id = std::this_thread::get_id()});
 
-    ash::sys.sched = scheduler;
+    ash::sys.sched = scheduler.get();
 
     Dyn<FileSys> file_sys =
       dyn<IFileSys>(inplace, allocator, scheduler.get(), allocator).unwrap();
 
-    ash::sys.file = file_sys;
+    ash::sys.file = file_sys.get();
 
     Dyn<WindowSys> window_sys = IWindowSys::create_SDL(allocator);
 
-    ash::sys.win = window_sys;
+    ash::sys.win = window_sys.get();
 
     Dyn<gpu::Instance> gpu_instance =
       gpu::create_vulkan_instance(allocator, cfg.gpu.validation).unwrap();
@@ -384,7 +384,7 @@ Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
 
     Dyn<GpuSys> gpu_sys = dyn<IGpuSys>(inplace, allocator).unwrap();
 
-    ash::sys.gpu = gpu_sys;
+    ash::sys.gpu = gpu_sys.get();
 
     auto gpu_pref =
       GpuSysPreferences{.buffering             = cfg.gpu.buffering,
@@ -400,12 +400,21 @@ Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
                      scheduler.get())
         .unwrap();
 
-    ash::sys.image = image_sys;
+    ash::sys.image = image_sys.get();
 
     Dyn<FontSys> font_sys =
       IFontSys::create(allocator, file_sys.get(), image_sys.get(), scheduler.get());
 
-    ash::sys.font = font_sys;
+    auto font_fut = font_sys->init();
+
+    while (!font_fut())
+    {
+        scheduler->run_main_loop(10ms, 10ms);
+    }
+
+    ash::sys.font = font_sys.get();
+
+    // TODO: Initialize Font System
 
     Dyn<ShaderSys> shader_sys = dyn<IShaderSys>(inplace, allocator, gpu_sys.get(),
                                                 file_sys.get(), scheduler.get())
@@ -418,12 +427,12 @@ Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
         scheduler->run_main_loop(10ms, 10ms);
     }
 
-    ash::sys.shader = shader_sys;
+    ash::sys.shader = shader_sys.get();
 
     Dyn<PipelineSys> pipeline_sys =
       dyn<IPipelineSys>(inplace, allocator, gpu_sys.get()).unwrap();
 
-    ash::sys.pipeline = pipeline_sys;
+    ash::sys.pipeline = pipeline_sys.get();
 
     pipeline_sys->init(allocator);
 
@@ -455,7 +464,7 @@ Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
              .pipeline_cache = vec::copy(allocator, cfg.pipeline_cache_path.view()).unwrap()};
     engine->callbacks_ = std::move(callbacks);
 
-    hook_engine(engine);
+    hook_engine(engine.get());
 
     engine->sys_.win->listen({engine.get(), system_event_listener});
     trace("Creating Root Window"_str);
@@ -466,11 +475,11 @@ Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
 }
 
 Dyn<IEngine::WindowEntry *> IEngine::add_window_(EngineCfg::Window const & cfg,
-                                                 WindowLoop                loop)
+                                                 Dyn<WindowLoop>           loop)
 {
     auto entry = dyn<WindowEntry>(inplace, allocator_, *this, allocator_).unwrap();
 
-    auto window = &sys_.win->create_window(gpu_instance_, cfg.title).unwrap();
+    auto window = &sys_.win->create_window(gpu_instance_.get(), cfg.title).unwrap();
 
     entry->win_     = window;
     entry->surface_ = sys_.win->get_surface(window);
@@ -804,7 +813,7 @@ void IEngine::run()
 
             auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
             auto state   = w.view_sys_->tick(this, ui::InputScope{state_, w.state_},
-                                             &w.canvas_, w.loop_, scratch);
+                                             &w.canvas_, w.loop_.get(), scratch);
 
             if (w.state_.extent_.all_nonzero() &&
                 w.state_.surface_extent_.all_nonzero())

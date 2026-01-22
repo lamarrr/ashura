@@ -218,7 +218,7 @@ struct GpuFrameCfg
     u64 max_scratch_buffer_size = 1_GB;
     u32 max_scratch_buffers     = 4;
     u32 min_scratch_images      = 3;
-    u32 max_scratch_images      = 5;
+    u32 max_scratch_images      = 8;
 };
 
 struct GpuSysCfg
@@ -568,7 +568,7 @@ struct ScratchBuffers
 
 struct GpuFrameResources
 {
-    GpuBuffer      buffer;
+    GpuBuffer      buffer{.usage = GpuBuffer::USAGE};
     ScratchBuffers scratch_buffers;
     ScratchImages  scratch_images;
     GpuQueries     queries;

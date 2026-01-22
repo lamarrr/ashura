@@ -87,7 +87,7 @@ struct PassCanvasEncoder final : CustomCanvasEncoder
 namespace impl
 {
 template <typename State>
-void push_state(State const & state, Vec<State> & states, Vec<u32> & runs)
+static void push_state(State const & state, Vec<State> & states, Vec<u32> & runs)
 {
     if (runs.is_empty())
     {
@@ -107,7 +107,7 @@ void push_state(State const & state, Vec<State> & states, Vec<u32> & runs)
     }
 }
 
-void push_index(u32 num_indices, Vec<u32> & runs)
+static void push_index(u32 num_indices, Vec<u32> & runs)
 {
     if (runs.is_empty())
     {

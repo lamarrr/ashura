@@ -185,7 +185,7 @@ constexpr u32 mip(u32 a, u32 level)
 
 constexpr auto mips(Unsigned auto a)
 {
-    return (a == 0) ? 0 : log2(a);
+    return (a == 0) ? 0 : max(log2(a), static_cast<decltype(a)>(1));
 }
 
 /// @brief Linearly interpolate between points `low` and `high` given

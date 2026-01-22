@@ -1327,6 +1327,12 @@ void CommandTracker::track(Image image, VkPipelineStageFlags stages,
     passes_.last().images++;
 }
 
+void CommandTracker::track(ImageView view, VkPipelineStageFlags stages,
+                           VkAccessFlags access, VkImageLayout layout)
+{
+    return track(view->image, stages, access, layout);
+}
+
 void CommandTracker::track(DescriptorSet set, VkShaderStageFlags stages)
 {
     descriptor_sets_.push(set, stages).unwrap();
@@ -1619,7 +1625,7 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
         }
         else
         {
-            optional_extensions.push(ext).unwrap();
+            load_extensions.push(ext).unwrap();
         }
     }
 
@@ -2098,7 +2104,8 @@ Result<gpu::Device, Status>
 
     optional_extensions
       .append(span<Str>({cstr(VK_EXT_DEBUG_MARKER_EXTENSION_NAME),
-                         cstr(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME)}))
+                         cstr(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME),
+                         cstr(VK_KHR_SAMPLER_MIRROR_CLAMP_TO_EDGE_EXTENSION_NAME)}))
       .unwrap();
 
     Vec<Str> load_extensions{scratch};
@@ -2349,7 +2356,6 @@ Result<gpu::Device, Status>
 
     vma_allocator = nullptr;
     vk_dev        = nullptr;
-    dev           = nullptr;
 
     auto queue_label = "CommandQueue 0"_str;
     dev->set_resource_name(queue_label, dev->vk_queue_, VK_OBJECT_TYPE_QUEUE,
@@ -2867,11 +2873,15 @@ Result<gpu::Alias, Status> IDevice::create_alias(gpu::AliasInfo const & info)
                      VMA_ALLOCATION_CREATE_MAPPED_BIT) :
                     0;
 
+    VkMemoryPropertyFlags vk_flags =
+      host_mapped ?
+        (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) :
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+
     VmaAllocationCreateInfo alloc_create_info{.flags         = flags,
-                                              .usage         = VMA_MEMORY_USAGE_AUTO,
-                                              .requiredFlags = {},
-                                              .preferredFlags =
-                                                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                                              .usage         = VMA_MEMORY_USAGE_UNKNOWN,
+                                              .requiredFlags = vk_flags,
+                                              .preferredFlags = vk_flags,
                                               .memoryTypeBits = memory_type_bits,
                                               .pool           = nullptr,
                                               .pUserData      = nullptr,
@@ -3347,21 +3357,26 @@ Result<gpu::DescriptorSet, Status>
                 break;
             case SyncResourceType::Buffer:
             {
-                binding.sync_resources =
+                auto r =
                   SmallVec<Option<IBuffer &>, 4, 0>::make(size, allocator_).unwrap();
+                r.resize(size).unwrap();
+                binding.sync_resources = std::move(r);
             }
             break;
             case SyncResourceType::BufferView:
             {
-                binding.sync_resources =
-                  SmallVec<Option<IBufferView &>, 4, 0>::make(size, allocator_)
-                    .unwrap();
+                auto r = SmallVec<Option<IBufferView &>, 4, 0>::make(size, allocator_)
+                           .unwrap();
+                r.resize(size).unwrap();
+                binding.sync_resources = std::move(r);
             }
             break;
             case SyncResourceType::ImageView:
             {
-                binding.sync_resources =
+                auto r =
                   SmallVec<Option<IImageView &>, 4, 0>::make(size, allocator_).unwrap();
+                r.resize(size).unwrap();
+                binding.sync_resources = std::move(r);
             }
             break;
         }
@@ -5313,13 +5328,14 @@ Result<Void, Status> IDevice::acquire_next(gpu::Swapchain swapchain_)
           vk_dev_, swapchain->vk, U64_MAX,
           swapchain->acquire_semaphores[swapchain->ring_index], nullptr, &next_image);
 
+        if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
+        {
+            return Err{(Status) result};
+        }
+
         if (result == VK_SUBOPTIMAL_KHR)
         {
             swapchain->is_optimal = false;
-        }
-        else
-        {
-            return Err{(Status) result};
         }
 
         swapchain->current_image     = next_image;
@@ -7386,51 +7402,52 @@ void ICommandBuffer::record(gpu::CommandEncoder encoder_)
     auto * encoder = (CommandEncoder) encoder_;
     ASH_CHECK(encoder != nullptr, "");
 
-    if (encoder->tracker_.passes_.is_empty())
-    {
-        return;
-    }
-
     HazardBarriers barriers{arena_};
     auto *         next_command = encoder->tracker_.first_cmd_;
 
-    for (auto [ipass, begin] : enumerate(encoder->tracker_.passes_.view().slice(
-           0, encoder->tracker_.passes_.size() - 1)))
+    if (!encoder->tracker_.passes_.is_empty())
     {
-        auto const & end = encoder->tracker_.passes_[ipass + 1];
-
-        auto commands = Slice32::offsets(begin.commands, end.commands);
-        auto buffers  = Slice32::offsets(begin.buffers, end.buffers);
-        auto images   = Slice32::offsets(begin.images, end.images);
-        auto descriptor_sets =
-          Slice32::offsets(begin.descriptor_sets, end.descriptor_sets);
-
-        for (auto [buffer, stages, access] :
-             encoder->tracker_.buffers_.view().slice(buffers))
+        for (auto [ipass, begin] : enumerate(encoder->tracker_.passes_.view().slice(
+               0, encoder->tracker_.passes_.size() - 1)))
         {
-            resource_states_.access(
-              *buffer, MemAccess{.stages = stages, .access = access}, ipass, barriers);
+            auto const & end = encoder->tracker_.passes_[ipass + 1];
+
+            auto commands = Slice32::offsets(begin.commands, end.commands);
+            auto buffers  = Slice32::offsets(begin.buffers, end.buffers);
+            auto images   = Slice32::offsets(begin.images, end.images);
+            auto descriptor_sets =
+              Slice32::offsets(begin.descriptor_sets, end.descriptor_sets);
+
+            for (auto [buffer, stages, access] :
+                 encoder->tracker_.buffers_.view().slice(buffers))
+            {
+                resource_states_.access(*buffer,
+                                        MemAccess{.stages = stages, .access = access},
+                                        ipass, barriers);
+            }
+
+            for (auto [image, stages, access, layout] :
+                 encoder->tracker_.images_.view().slice(images))
+            {
+                resource_states_.access(*image,
+                                        MemAccess{.stages = stages, .access = access},
+                                        layout, ipass, barriers);
+            }
+
+            for (auto [descriptor_set, stages] :
+                 encoder->tracker_.descriptor_sets_.view().slice(descriptor_sets))
+            {
+                resource_states_.access(*descriptor_set, stages, ipass, barriers);
+            }
+
+            issue_barriers(dev_->table_, vk_, barriers);
+            barriers.clear();
+
+            next_command = encode_n(dev_->table_, vk_, next_command, commands.span);
         }
-
-        for (auto [image, stages, access, layout] :
-             encoder->tracker_.images_.view().slice(images))
-        {
-            resource_states_.access(*image,
-                                    MemAccess{.stages = stages, .access = access},
-                                    layout, ipass, barriers);
-        }
-
-        for (auto [descriptor_set, stages] :
-             encoder->tracker_.descriptor_sets_.view().slice(descriptor_sets))
-        {
-            resource_states_.access(*descriptor_set, stages, ipass, barriers);
-        }
-
-        issue_barriers(dev_->table_, vk_, barriers);
-        barriers.clear();
-
-        next_command = encode_n(dev_->table_, vk_, next_command, commands.span);
     }
+
+    swapchain_ = encoder->swapchain_;
 }
 
 void ICommandBuffer::commit_resource_states()

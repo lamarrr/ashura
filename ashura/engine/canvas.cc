@@ -701,10 +701,11 @@ void ICanvas::begin(gpu::Viewport const & viewport, f32x2 extent,
 
     world_to_fb_ = viewport_to_fb_ * ndc_to_viewport_ * world_to_ndc_;
 
-    // reserve the first image slot for the color target
-    color_ = 0;
+    image_slots_.clear();
+    image_slots_.resize(DEFAULT_NUM_IMAGE_SLOTS).unwrap();
 
-    image_slots_.view().set_bit(color_);
+    // reserve the first image slot for the color target
+    color_ = allocate_image();
 
     state_ = CanvasState::Recording;
 

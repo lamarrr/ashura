@@ -734,19 +734,9 @@ struct [[nodiscard]] SmallVec
     mutable InlineStorage inline_;
 
     explicit constexpr SmallVec(Allocator allocator) :
-      storage_{nullptr},
+      storage_{inline_storage()},
       size_{0},
-      capacity_{0},
-      allocator_{allocator},
-      inline_{}
-    {
-    }
-
-    constexpr SmallVec(Allocator allocator, Type * storage, usize capacity,
-                       usize size) :
-      storage_{storage},
-      size_{size},
-      capacity_{capacity},
+      capacity_{inline_capacity()},
       allocator_{allocator},
       inline_{}
     {
@@ -773,9 +763,9 @@ struct [[nodiscard]] SmallVec
             storage_ = other.storage_;
         }
 
-        other.storage_   = nullptr;
+        other.storage_   = other.inline_storage();
         other.size_      = 0;
-        other.capacity_  = 0;
+        other.capacity_  = other.inline_capacity();
         other.allocator_ = noop_allocator;
     }
 

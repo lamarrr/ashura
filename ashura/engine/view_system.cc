@@ -7,6 +7,15 @@
 namespace ash
 {
 
+IViewSys::Nodes IViewSys::Nodes::create(Allocator allocator, usize initial_capacity)
+{
+    return IViewSys::Nodes{
+      .views{Vec<ref<ui::View>>::make(initial_capacity, allocator).unwrap()},
+      .depth{Vec<u16>::make(initial_capacity, allocator).unwrap()},
+      .parent{Vec<u16>::make(initial_capacity, allocator).unwrap()},
+      .children{Vec<Slice16>::make(initial_capacity, allocator).unwrap()}};
+}
+
 IViewSys::Props IViewSys::Props::create(Allocator allocator, usize capacity)
 {
     return IViewSys::Props{
@@ -180,6 +189,32 @@ void IViewSys::build_states_(Tree & tree)
     tree.props.input.resize_uninit(within_capacity, n).unwrap();
     tree.props.is_viewport.resize_uninit(within_capacity, n).unwrap();
 
+    tree.props.extents.resize_uninit(within_capacity, n).unwrap();
+    tree.props.centers.resize_uninit(within_capacity, n).unwrap();
+    tree.props.viewport_extents.resize_uninit(within_capacity, n).unwrap();
+    tree.props.viewport_centers.resize_uninit(within_capacity, n).unwrap();
+    tree.props.viewport_zooms.resize_uninit(within_capacity, n).unwrap();
+
+    tree.props.fixed.resize_uninit(within_capacity, n).unwrap();
+
+    tree.props.fixed_centers.resize_uninit(within_capacity, n).unwrap();
+
+    tree.props.z_idx.resize_uninit(within_capacity, n).unwrap();
+    tree.props.layers.resize_uninit(within_capacity, n).unwrap();
+
+    tree.props.canvas_xfm.resize_uninit(within_capacity, n).unwrap();
+
+    tree.props.canvas_inv_xfm.resize_uninit(within_capacity, n).unwrap();
+    tree.props.canvas_centers.resize_uninit(within_capacity, n).unwrap();
+    tree.props.canvas_extents.resize_uninit(within_capacity, n).unwrap();
+    tree.props.clips.resize_uninit(within_capacity, n).unwrap();
+    tree.props.z_ord.resize_uninit(within_capacity, n).unwrap();
+
+    tree.props.focus_ord.resize_uninit(within_capacity, n).unwrap();
+
+    tree.props.focus_idx.resize_uninit(within_capacity, n).unwrap();
+
+    // populate view states
     for (auto [i, view] : enumerate(tree.nodes.views.view()))
     {
         auto & s                  = view->state_;
@@ -1092,9 +1127,7 @@ ViewSysState IViewSys::tick(Engine engine, ui::InputScope const & input, Canvas 
 
     auto n = size16(tree.nodes.views);
 
-    auto props = Props::create(scratch_allocator, n);
-
-    tree.props = std::move(props);
+    tree.props = Props::create(scratch_allocator, n);
 
     build_states_(tree);
     event_queue_.clear();

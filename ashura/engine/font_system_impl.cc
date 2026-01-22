@@ -1106,6 +1106,26 @@ void layout_paragraph(Paragraph & paragraph, f32 max_width, TextBlock const & bl
     paragraph.lines = Slice::offsets(lines_begin, lines_end);
 }
 
+static u8 determine_levels(Str32 paragraph_str, TextDirection direction,
+                           SBAllocatorRef sb_allocator, auto & levels)
+{
+    if (paragraph_str.is_empty())
+    {
+        return 0;
+    }
+
+    auto sb_codepoints =
+      SBCodepointSequence{.stringEncoding = SBStringEncodingUTF32,
+                          .stringBuffer   = (void *) paragraph_str.data(),
+                          .stringLength   = paragraph_str.size()};
+    SBAlgorithmRef sb_algorithm = SBAlgorithmCreate(sb_allocator, &sb_codepoints);
+    ASH_CHECK(sb_algorithm != nullptr, "");
+    defer sb_algorithm_{[&] { SBAlgorithmRelease(sb_allocator, sb_algorithm); }};
+
+    return paragraph_levels(sb_allocator, paragraph_str, sb_algorithm, direction,
+                            levels);
+}
+
 /// https://stackoverflow.com/questions/62374506/how-do-i-align-glyphs-along-the-baseline-with-freetype
 ///
 TextLayout FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
@@ -1122,17 +1142,18 @@ TextLayout FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
 
     SBAllocator sb_allocator_impl{
       .user_data = scratch.self,
-      .allocate  = [](void * user_data, usize size, usize alignment,
+      .allocate  = [](void * user_data, usize alignment, usize size,
                      void ** out_ptr) -> SBBoolean {
           auto allocator = (IAllocator *) user_data;
           auto layout    = Layout{.alignment = alignment, .size = size};
-          return allocator->alloc(layout, *((u8 **) out_ptr)) ? SBTrue : SBFalse;
+          return allocator->alloc(layout.aligned(), *((u8 **) out_ptr)) ? SBTrue :
+                                                                           SBFalse;
       },
       .deallocate =
-        [](void * user_data, void * mem, usize size, usize alignment) {
+        [](void * user_data, void * mem, usize alignment, usize size) {
             auto allocator = (IAllocator *) user_data;
             auto layout    = Layout{.alignment = alignment, .size = size};
-            allocator->dealloc(layout, (u8 *) mem);
+            allocator->dealloc(layout.aligned(), (u8 *) mem);
         }};
     SBAllocatorRef sb_allocator = &sb_allocator_impl;
 
@@ -1185,16 +1206,9 @@ TextLayout FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
         auto paragraph_size       = paragraph_end - paragraph_begin;
         auto paragraph_runs_begin = layout.runs.size();
         auto paragraph_str = str.slice(Slice::offsets(paragraph_begin, paragraph_end));
-        auto sb_codepoints =
-          SBCodepointSequence{.stringEncoding = SBStringEncodingUTF32,
-                              .stringBuffer   = (void *) paragraph_str.data(),
-                              .stringLength   = paragraph_str.size()};
-        SBAlgorithmRef sb_algorithm = SBAlgorithmCreate(sb_allocator, &sb_codepoints);
-        ASH_CHECK(sb_algorithm != nullptr, "");
-        defer sb_algorithm_{[&] { SBAlgorithmRelease(sb_allocator, sb_algorithm); }};
 
-        auto paragraph_level = paragraph_levels(sb_allocator, paragraph_str,
-                                                sb_algorithm, block.direction, levels);
+        auto paragraph_level =
+          determine_levels(paragraph_str, block.direction, sb_allocator, levels);
         paragraph_script_runs(sb_allocator, paragraph_str, script_runs, scripts);
 
         auto run_iter     = 0uz;

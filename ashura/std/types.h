@@ -2424,7 +2424,7 @@ struct Fn<R(Args...)>
     /// @brief Make a function view from a functor reference. Functor should
     /// outlive the Fn
     template <typename F>
-    requires ((!Convertible<F, R (*)(Args...)>) && CallableOf<F, R, Args...>)
+    requires (CallableOf<F, R, Args...>)
     Fn(F * functor) : Fn{(void *) (functor), &FunctorThunk<F, R(Args...)>::thunk}
     {
     }

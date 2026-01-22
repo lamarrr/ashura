@@ -61,7 +61,7 @@ struct EngineCfg
 typedef struct IWindow * Window;
 typedef struct IEngine * Engine;
 
-using WindowLoop = Dyn<Fn<ui::View &(Engine, ui::Scope const &)>>;
+using WindowLoop = Fn<ui::View &(Engine, ui::Scope const &)>;
 
 struct IEngine
 {
@@ -97,7 +97,7 @@ struct IEngine
 
         ICanvas canvas_;
 
-        WindowLoop loop_{nullptr, dyn_noop};
+        Dyn<WindowLoop> loop_{nullptr, dyn_noop};
 
         gpu::PresentMode present_mode_preference_ = gpu::PresentMode::Fifo;
 
@@ -124,18 +124,18 @@ struct IEngine
 
     struct Callbacks
     {
-        Dyn<Fn<void(Engine)>> post_init;
+        Dyn<Fn<void(Engine)>> post_init{noop, dyn_noop};
 
-        Dyn<Fn<void(Engine)>> pre_shutdown;
+        Dyn<Fn<void(Engine)>> pre_shutdown{noop, dyn_noop};
 
-        Dyn<Fn<void(Engine)>> post_shutdown;
+        Dyn<Fn<void(Engine)>> post_shutdown{noop, dyn_noop};
     };
 
     Allocator allocator_;
 
     Systems sys_;
 
-    gpu::Instance gpu_instance_;
+    Dyn<gpu::Instance> gpu_instance_;
 
     gpu::Device gpu_device_;
 
@@ -165,7 +165,7 @@ struct IEngine
            .audio{nullptr, dyn_noop},
            .video{nullptr, dyn_noop},
            .animation{nullptr, dyn_noop}},
-      gpu_instance_{},
+      gpu_instance_{nullptr, dyn_noop},
       gpu_device_{},
       buffering_{},
       state_{},
@@ -186,9 +186,9 @@ struct IEngine
     ~IEngine()                           = default;
 
     static Dyn<Engine> create(Allocator allocator, EngineCfg const & cfg,
-                              Callbacks callbacks, WindowLoop loop);
+                              Callbacks callbacks, Dyn<WindowLoop> loop);
 
-    Dyn<WindowEntry *> add_window_(EngineCfg::Window const & cfg, WindowLoop loop);
+    Dyn<WindowEntry *> add_window_(EngineCfg::Window const & cfg, Dyn<WindowLoop> loop);
 
     Option<gpu::SwapchainInfo> create_swapchain_info_(WindowEntry const & win_entry);
 
