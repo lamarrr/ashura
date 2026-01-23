@@ -91,7 +91,7 @@ void BezierStencilPipeline::encode(gpu::CommandEncoder                 e,
                                    .depth_attachment   = {},
                                    .stencil_attachment = params.stencil_attachment};
 
-    // [ ] deferring of begin rendering or allowing store and load and clear value
+    // TODO: deferring of begin rendering or allowing store and load and clear value
     // spec
     e->begin_rendering(info);
     e->bind_graphics_pipeline(pipeline_);

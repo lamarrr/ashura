@@ -314,29 +314,29 @@ namespace ascii
 {
 }
 
-// [ ] to ascii lower
-// [ ] to ascii upper
-// [ ] matches
-// [ ] replace
-// [ ] replace_n
-// [ ] split
-// [ ] truncate
-// [ ] trim
-// [ ] trim_ascii
-// [ ] lines
-// [ ] delimeter
-// [ ] split_ascii
-// [ ] join()
-// [ ] utf-8 iterator
-// [ ] reverse
-// [ ] right
-// [ ] substr
+// TODO: to ascii lower
+// TODO: to ascii upper
+// TODO: matches
+// TODO: replace
+// TODO: replace_n
+// TODO: split
+// TODO: truncate
+// TODO: trim
+// TODO: trim_ascii
+// TODO: lines
+// TODO: delimeter
+// TODO: split_ascii
+// TODO: join()
+// TODO: utf-8 iterator
+// TODO: reverse
+// TODO: right
+// TODO: substr
 
-// [ ] concat(....)
-// [ ] lower
-// [ ] ltrim
-// [ ] rtim
-// [ ] trim
-// [ ] replicate
+// TODO: concat(....)
+// TODO: lower
+// TODO: ltrim
+// TODO: rtim
+// TODO: trim
+// TODO: replicate
 
 }    // namespace ash

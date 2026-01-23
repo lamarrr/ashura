@@ -321,7 +321,7 @@ BezierRegions bezier_region(f32x2 texture_coord)
 
 }    // namespace bary
 
-// [ ] use multi-sampling sample count as part of the tiling computation
+// TODO: use multi-sampling sample count as part of the tiling computation
 u32 tiled_flat_offset(u32x2 offset, u32x2 tile_extent_log2, u32x2 tile_extent,
                       u32x2 num_tiles)
 {

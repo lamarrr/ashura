@@ -59,7 +59,7 @@ static const f32 GAMMA = 2.2;
 
 static const f32 EPSILON = 0.00000011920929;
 
-// [ ] https://drafts.fxtf.org/compositing-1/
+// TODO: https://drafts.fxtf.org/compositing-1/
 enum class BlendMode : u32
 {
     Clear      = 0,

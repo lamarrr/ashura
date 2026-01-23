@@ -289,7 +289,7 @@ struct IArenaPool final : IAllocator
         uninit();
     }
 
-    // [ ] implement
+    // TODO: implement
     void shrink()
     {
     }

@@ -50,7 +50,7 @@ Result<EngineCfg> EngineCfg::parse_json(Span<u8 const> json, Allocator allocator
 
     auto & doc = error.value();
 
-    // [ ] check valid schema
+    // TODO: check valid schema
     auto cfg = doc.get_object().value();
 
     std::string_view version = cfg["version"].get_string().value();
@@ -413,8 +413,6 @@ Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
     }
 
     ash::sys.font = font_sys.get();
-
-    // TODO: Initialize Font System
 
     Dyn<ShaderSys> shader_sys = dyn<IShaderSys>(inplace, allocator, gpu_sys.get(),
                                                 file_sys.get(), scheduler.get())
@@ -800,7 +798,7 @@ void IEngine::run()
 
             auto & w = *window_;
 
-            // [ ] framebuffer extent would be larger than surface extent since we
+            // TODO: framebuffer extent would be larger than surface extent since we
             // render multiple windows into one image
             w.canvas_.begin(
               gpu::Viewport{

@@ -807,7 +807,7 @@ IViewSys::HitState IViewSys::point_seq_(Tree & tree, ui::InputScope const & inpu
                                         Option<u16> prev_tgt, Vec<Event> & events,
                                         RequestQueue & request_queue)
 {
-    // [ ] handle external drop
+    // TODO: handle external drop
     auto diff = [&](Option<u16> tgt, Option<ui::HitInfo> hit) {
         tgt.match([&](auto i) {
             if (i != prev_tgt)
@@ -870,7 +870,7 @@ IViewSys::HitState IViewSys::point_seq_(Tree & tree, ui::InputScope const & inpu
         }
     }
 
-    // [ ] pointerup
+    // TODO: pointerup
 
     if (input.mouse().held(MouseButton::Primary))
     {

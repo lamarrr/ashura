@@ -52,5 +52,5 @@ TEST(RingBufferTest, Basic)
   EXPECT_TRUE(ring.pop(out));
   ASSERT_EQ(out, 1);
 
-  // [ ] test pop
+  // TODO: test pop
 }

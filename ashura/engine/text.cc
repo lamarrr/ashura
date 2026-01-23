@@ -566,7 +566,7 @@ constexpr Option<CaretTestResult> caret_test(Span<usize const> caret_indices,
 
 TextPlacement TextLayout::place(TextRenderInfo const & info, Allocator allocator) const
 {
-    // [ ] merge highlight rects; highlight rect type with merging, next line,
+    // TODO: merge highlight rects; highlight rect type with merging, next line,
     // close?
     ASH_CHECK(laid_out, "");
     ASH_CHECK(info.runs.size() == info.block.fonts.size(), "");

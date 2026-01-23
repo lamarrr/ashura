@@ -65,7 +65,7 @@ VertexOutput vert(u32 instance : SV_VulkanInstanceID, u32 vertex : SV_VulkanVert
 [[shader("fragment")]]
 void frag(VertexOutput in)
 {
-    // [ ] incorrect coord
+    // TODO: incorrect coord
     var pixel       = u32x2(in.screen_pos.xy);
     u32 texel_index = tiled_flat_offset(pixel, cfg.tile_extent_log2,
                                         cfg.tile_texel_count, cfg.tile_count);

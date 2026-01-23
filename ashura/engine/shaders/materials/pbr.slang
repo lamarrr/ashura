@@ -150,7 +150,7 @@ struct PunctualLight : PbrLighting
     }
 };
 
-// [ ] image-based light
-// [ ] rectangular lights
-// [ ]
+// TODO: image-based light
+// TODO: rectangular lights
+// TODO:
 // https://developer.nvidia.com/gpugems/gpugems/part-iii-materials/chapter-19-image-based-lighting

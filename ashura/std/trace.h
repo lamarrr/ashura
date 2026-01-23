@@ -45,7 +45,7 @@ struct F64Range
     f64 end   = 0;
 };
 
-// [ ] trace spans
+// TODO: trace spans
 
 template <typename Data>
 struct Record

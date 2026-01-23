@@ -539,7 +539,7 @@ Future<Result<FontId, SysErr>> FontSysImpl::load_from_memory(Str     label_span,
     StrVec label{allocator_};
     label.append(label_span).unwrap();
 
-    // [ ] using trace span id in logging
+    // TODO: using trace span id in logging
 
     auto decode_fut =
       scheduler_

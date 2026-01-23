@@ -928,7 +928,7 @@ constexpr T exclusive_scan(Span<I const> in, Span<O> out, T init = {}, Op && op 
 /// @warning each element in the range must be ordered relative to `cmp` or be
 /// equal.
 
-// [ ] return Option<T&>
+// TODO: return Option<T&>
 template <typename T, typename Cmp>
 constexpr Span<T> binary_find(Span<T> span, Cmp && cmp)
 {

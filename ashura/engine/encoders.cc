@@ -365,7 +365,7 @@ void VectorPathEncoder::submit(GpuFramePlan plan)
         }
 
         {
-            // [ ] use &-op of the stencil attachment and the scratch stencil bits if
+            // TODO: use &-op of the stencil attachment and the scratch stencil bits if
             // there's a stencil attachment
 
             auto framebuffer = Framebuffer{.color = images[attachments.color].color,

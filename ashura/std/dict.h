@@ -51,7 +51,7 @@ struct DictEntry<K, Void>
     }
 };
 
-// [ ] default-hash, default-cmp
+// TODO: default-hash, default-cmp
 
 /// @brief Robin-hood open-address probing HashMap
 /// @tparam K key type

@@ -682,7 +682,7 @@ ImageUnion ImageUnion::create(GpuSys sys, u32x2 target_extent, gpu::Format color
                               gpu::Format depth_stencil_format, Str label,
                               Allocator scratch)
 {
-    // [ ] MSAA scratch and target textures
+    // TODO: MSAA scratch and target textures
     auto tag = [&](Str component) {
         return sformat(scratch, "{} / {}"_str, label, component).unwrap();
     };

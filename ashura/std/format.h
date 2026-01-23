@@ -27,7 +27,7 @@ enum class Style : char
     Scientific = 'g'
 };
 
-// [ ] zero-padded
+// TODO: zero-padded
 /// Syntax: [sign][alternate_form][width].[precision][style]
 ///
 /// sign: '+'

@@ -114,7 +114,7 @@ void IWaitToken::os_notify()
 
 void IWaitToken::os_wait(u32 old_state, std::memory_order order)
 {
-    // [ ] handle errors
+    // TODO: handle errors
 
 #if ASH_OS_WINDOWS
 
@@ -782,7 +782,7 @@ struct ASH_DLL_EXPORT SchedulerImpl final : IScheduler
         main_thread_loop(main_queue_.allocator, main_queue_, duration, poll_max);
     }
 
-    // [ ] incorrect if threads are shutdown individually
+    // TODO: incorrect if threads are shutdown individually
     virtual void request_thread_shutdown(Thread thread) override
     {
         thread.match(

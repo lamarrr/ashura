@@ -27,7 +27,7 @@
 namespace ash
 {
 
-// [ ] check runtime status in worker threads; to allow proper shutdown
+// TODO: check runtime status in worker threads; to allow proper shutdown
 
 typedef struct IWaitToken * WaitToken;
 
@@ -230,7 +230,7 @@ struct [[nodiscard]] ITicketSpinLock
     }
 };
 
-// [ ] https://en.wikipedia.org/wiki/Seqlock
+// TODO: https://en.wikipedia.org/wiki/Seqlock
 struct [[nodiscard]] ISequenceLock
 {
     usize version_ = 0;
@@ -242,7 +242,7 @@ struct [[nodiscard]] ISequenceLock
     void end_write();
 };
 
-// [ ] https://lwn.net/Articles/262464/
+// TODO: https://lwn.net/Articles/262464/
 struct Rcu;
 
 template <typename L>
@@ -1490,7 +1490,7 @@ struct IScheduler
         // when called across all instances.
         //
         //
-        // [ ] use metadata to optimize Ready pollers
+        // TODO: use metadata to optimize Ready pollers
         //
         //
         this->schedule(

@@ -56,7 +56,7 @@ f32x4 frag(VertexOutput in) :
   COLOR
 {
     var   item        = items[in.instance];
-    // [ ] incorrect coord
+    // TODO: incorrect coord
     u32x2 pixel       = u32x2(in.screen_pos.xy);
     u32   texel_index = tiled_flat_offset(pixel, cfg.tile_extent_log2,
                                           cfg.tile_texel_count, cfg.tile_count);

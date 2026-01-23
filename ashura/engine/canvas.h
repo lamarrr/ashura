@@ -301,7 +301,7 @@ struct NineSliceInfo
 
     NineSliceScaling scaling = NineSliceScaling::Stretch;
 
-    // [ ] is this correct? right name, right specification?
+    // TODO: is this correct? right name, right specification?
 
     CRect top_left = {};
 

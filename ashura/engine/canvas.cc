@@ -767,8 +767,9 @@ void ICanvas::reserve_images(u32 num_images)
 
 u32 ICanvas::allocate_image()
 {
-    // [ ] min, max, current num  images instead of fixed. the num images should
-    // be able to grow and we should select an heuristic to grow [ ] cycle use of
+    // TODO: min, max, current num  images instead of fixed. the num images should
+    // be able to grow and we should select an heuristic to grow
+    // TODO: cycle use of
     // images; add timestamp to image? and cycle; concurrency heuristic
     auto index = image_slots_.view().find_clear_bit();
     ASH_CHECK(index < num_image_slots(), "no more image slots available");
@@ -1986,7 +1987,7 @@ ICanvas & ICanvas::mesh_gradient(MeshGradientInfo const & info)
 
 ICanvas & ICanvas::nine_slice(NineSliceInfo const & info)
 {
-    // [ ] implement; critical
+    // TODO: implement; critical
     return *this;
 }
 
@@ -2070,7 +2071,7 @@ ICanvas & ICanvas::text(TextRenderInfo const & info, TextPlacementInfo const & p
 
     for (auto & b : placement.glyphs)
     {
-        // [ ] if retrieving the font for each glyph ends up being slow, we can
+        // TODO: if retrieving the font for each glyph ends up being slow, we can
         // consider using run-end encoding. of the runs and their glyphs.
 
         auto & style         = info.runs[b.run_style];

@@ -436,7 +436,7 @@ constexpr Max   max;
 constexpr Swap  swap;
 constexpr Clamp clamp;
 
-// [ ] default eq, neq, lt, gt, leq overridable
+// TODO: default eq, neq, lt, gt, leq overridable
 
 constexpr u8 sat_add(u8 a, u8 b)
 {

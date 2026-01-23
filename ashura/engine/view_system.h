@@ -7,12 +7,12 @@
 namespace ash
 {
 
-// [ ] overlap culling; occlusion rects sent to views; quadtrees
-// [ ] mouse displacement for transformed/distorted views
-// [ ] view click area re-targeting
-// [ ] IME rect
-// [ ] IME editing events
-// [ ] make positions relative to center of the screen; especially in the
+// TODO: overlap culling; occlusion rects sent to views; quadtrees
+// TODO: mouse displacement for transformed/distorted views
+// TODO: view click area re-targeting
+// TODO: IME rect
+// TODO: IME editing events
+// TODO: make positions relative to center of the screen; especially in the
 // inputstate goptten from the view
 
 struct RootView final : ui::View
