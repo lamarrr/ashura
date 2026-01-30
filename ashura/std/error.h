@@ -8,13 +8,13 @@
     {                                                                                \
         if (!(cond_expr)) [[unlikely]]                                               \
         {                                                                            \
-            ::ash::SourceLocation const src_loc_ = (src_loc_expr);                   \
+            auto const __src_loc = (src_loc_expr);                                   \
             (logger_expr)                                                            \
               .panic(::ash::cstr("panic in function: "                               \
                                  "{}\n{}:{}:{}: " description_fstr "\ntriggered by " \
                                  "expression: \n\t{}\t|\t... {} ..."),               \
-                     src_loc_.function, src_loc_.file, src_loc_.line,                \
-                     src_loc_.column __VA_OPT__(, ) __VA_ARGS__, src_loc_.line,      \
+                     __src_loc.function, __src_loc.file, __src_loc.line,             \
+                     __src_loc.column __VA_OPT__(, ) __VA_ARGS__, __src_loc.line,    \
                      #cond_expr);                                                    \
         }                                                                            \
     } while (false)
@@ -42,11 +42,11 @@
       static_cast<decltype(__result_for_##var_identifier)::Type &&>(        \
         __result_for_##var_identifier.v0_);
 
-#define ASH_BOUNDS_CHECK(index, size)                                               \
-    do                                                                              \
-    {                                                                               \
-        auto index___ = (index);                                                    \
-        auto size___  = (size);                                                     \
-        ASH_CHECK(index___ < size___, "Index out of bounds: index = {}, size = {}", \
-                  index___, size___);                                               \
+#define ASH_BOUNDS_CHECK(index, size)                                             \
+    do                                                                            \
+    {                                                                             \
+        auto __index = (index);                                                   \
+        auto __size  = (size);                                                    \
+        ASH_CHECK(__index < __size, "Index out of bounds: index = {}, size = {}", \
+                  __index, __size);                                               \
     } while (false)
