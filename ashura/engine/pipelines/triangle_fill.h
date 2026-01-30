@@ -19,17 +19,14 @@ struct TriangleFillPipelineParams
         Option<PipelineStencil> stencil;
     };
 
-    Framebuffer        framebuffer;
-    gpu::DescriptorSet samplers;
-    gpu::DescriptorSet textures;
-    GpuBufferSpan      world_to_ndc;
-    GpuBufferSpan      sets;
-    GpuBufferSpan      vertices;
-    GpuBufferSpan      indices;
-    Span<u32 const>    index_runs;
-    Span<State const>  states;
-    Span<u32 const>    state_runs;
-    PipelineVariantId  variant;
+    Framebuffer                      framebuffer;
+    gpu::DescriptorSet               samplers;
+    gpu::DescriptorSet               textures;
+    shader::TriangleFillShaderParams params;
+    Span<u32 const>                  index_runs;
+    Span<State const>                states;
+    Span<u32 const>                  state_runs;
+    PipelineVariantId                variant;
 };
 
 struct TriangleFillPipeline final : IPipeline

@@ -236,7 +236,7 @@ constexpr TextDirection level_to_direction(u8 level)
 
 struct TextHighlightStyle
 {
-    ColorGradient color = ColorGradient{colors::BLUE};
+    f32x4 color = norm(colors::BLUE);
 
     f32x4 corner_radii = f32x4::splat(0);
 
@@ -249,18 +249,13 @@ struct TextHighlightStyle
 
 struct CaretStyle
 {
-    ColorGradient color = ColorGradient{mdc::GRAY_300};
+    f32x4 color = norm(mdc::GRAY_300);
 
     f32 thickness = 1;
 
     f32x4 corner_radii = f32x4::splat(0.25F);
 
     void * user_data = nullptr;
-
-    constexpr bool is_none() const
-    {
-        return thickness == 0;
-    }
 };
 
 struct TextCursor

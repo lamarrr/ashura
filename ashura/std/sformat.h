@@ -81,4 +81,11 @@ constexpr Result<SmallVec<char, InlineCapacity, MinAlignment>, fmt::Result>
     });
 }
 
+template <typename Vec, typename... Args>
+constexpr Result<Void, fmt::Result> sformat_to(Vec & out, Span<char const> fstr,
+                                               Args const &... args)
+{
+    return impl::sformat_to(out, fstr, args...);
+}
+
 }    // namespace ash

@@ -620,16 +620,17 @@ ASH_BIT_ENUM_OPS(ColorComponents)
 
 enum class BufferUsage : u32
 {
-    None               = 0x0000U,
-    TransferSrc        = 0x0001U,
-    TransferDst        = 0x0002U,
-    UniformTexelBuffer = 0x0004U,
-    StorageTexelBuffer = 0x0008U,
-    UniformBuffer      = 0x0010U,
-    StorageBuffer      = 0x0020U,
-    IndexBuffer        = 0x0040U,
-    VertexBuffer       = 0x0080U,
-    IndirectBuffer     = 0x0100U
+    None                = 0x0000'0000U,
+    TransferSrc         = 0x0000'0001U,
+    TransferDst         = 0x0000'0002U,
+    UniformTexelBuffer  = 0x0000'0004U,
+    StorageTexelBuffer  = 0x0000'0008U,
+    UniformBuffer       = 0x0000'0010U,
+    StorageBuffer       = 0x0000'0020U,
+    IndexBuffer         = 0x0000'0040U,
+    VertexBuffer        = 0x0000'0080U,
+    IndirectBuffer      = 0x0000'0100U,
+    ShaderDeviceAddress = 0x0002'0000U
 };
 
 ASH_BIT_ENUM_OPS(BufferUsage)
@@ -722,6 +723,12 @@ enum class ImageType : u8
     Type3D = 2
 };
 
+enum class ImageTiling : u8
+{
+    Optimal = 0,
+    Linear  = 1
+};
+
 enum class ImageViewType : u8
 {
     Type1D        = 0,
@@ -749,6 +756,8 @@ enum class DescriptorType : u8
     DynRWStorageBuffer   = 11,
     InputAttachment      = 12
 };
+
+using DeviceAddress = u64;
 
 constexpr u8 NUM_DESCRIPTOR_TYPES = 13;
 
@@ -886,6 +895,7 @@ struct ImageInfo
     u32          mip_levels   = 0;
     u32          array_layers = 0;
     SampleCount  sample_count = SampleCount::None;
+    ImageTiling  tiling       = ImageTiling::Optimal;
     MemoryType   memory_type  = MemoryType::Unique;
 };
 
@@ -1599,6 +1609,8 @@ struct IDevice
     virtual Result<FormatProperties, Status> get_format_properties(Format format) = 0;
 
     virtual Result<Span<u8>, Status> get_memory_map(Buffer buffer) = 0;
+
+    virtual DeviceAddress get_device_address(Buffer buffer) = 0;
 
     virtual Result<Void, Status> invalidate_mapped_memory(Buffer  buffer,
                                                           Slice64 range) = 0;

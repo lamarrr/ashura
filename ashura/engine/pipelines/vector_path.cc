@@ -15,9 +15,9 @@ Str VectorPathPipeline::label()
     return "VectorPath"_str;
 }
 
-gpu::GraphicsPipeline create_coverage_pipeline(GpuFramePlan plan, Str label,
-                                               gpu::Shader shader, Allocator,
-                                               Allocator   scratch)
+static gpu::GraphicsPipeline create_coverage_pipeline(GpuFramePlan plan, Str label,
+                                                      gpu::Shader shader, Allocator,
+                                                      Allocator   scratch)
 {
     auto & gpu = *plan->sys();
 
@@ -54,12 +54,8 @@ gpu::GraphicsPipeline create_coverage_pipeline(GpuFramePlan plan, Str label,
     auto const & layout = gpu.descriptors_layout();
 
     gpu::DescriptorSetLayout set_layouts[] = {
-      layout.read_storage_buffer,      // 0: world_to_ndc
-      layout.read_storage_buffer,      // 1: items
-      layout.read_storage_buffer,      // 2: vertices
-      layout.read_storage_buffer,      // 3: indices
-      layout.storage_texel_buffers,    // 4: alpha_masks
-      layout.storage_texel_buffers     // 5: fill_ids
+      layout.storage_texel_buffers,    // 0: alpha_masks
+      layout.storage_texel_buffers     // 1: fill_ids
     };
 
     auto pipeline_info = gpu::GraphicsPipelineInfo{
@@ -78,7 +74,7 @@ gpu::GraphicsPipeline create_coverage_pipeline(GpuFramePlan plan, Str label,
       .stencil_format         = gpu.depth_stencil_format(),
       .vertex_input_bindings  = {},
       .vertex_attributes      = {},
-      .push_constants_size    = sizeof(shader::VectorPathCfg),
+      .push_constants_size    = sizeof(shader::VectorPathFillShaderParams),
       .descriptor_set_layouts = set_layouts,
       .primitive_topology     = gpu::PrimitiveTopology::TriangleList,
       .rasterization_state    = raster_state,
@@ -90,9 +86,9 @@ gpu::GraphicsPipeline create_coverage_pipeline(GpuFramePlan plan, Str label,
     return gpu.device()->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
-gpu::GraphicsPipeline create_fill_pipeline(GpuFramePlan plan, Str label,
-                                           gpu::Shader shader, Allocator,
-                                           Allocator   scratch)
+static gpu::GraphicsPipeline create_fill_pipeline(GpuFramePlan plan, Str label,
+                                                  gpu::Shader shader, Allocator,
+                                                  Allocator   scratch)
 {
     auto & gpu = *plan->sys();
 
@@ -141,10 +137,8 @@ gpu::GraphicsPipeline create_fill_pipeline(GpuFramePlan plan, Str label,
     gpu::DescriptorSetLayout set_layouts[] = {
       layout.samplers,               // 0: samplers
       layout.sampled_textures,       // 1: textures
-      layout.read_storage_buffer,    // 2: world_to_ndc
-      layout.read_storage_buffer,    // 3: sets
-      layout.read_storage_buffer,    // 4: vertices
-      layout.read_storage_buffer     // 5: indices
+      layout.read_storage_buffer,    // 2: alpha_masks
+      layout.read_storage_buffer     // 3: fill_ids
     };
 
     auto pipeline_info = gpu::GraphicsPipelineInfo{
@@ -163,7 +157,7 @@ gpu::GraphicsPipeline create_fill_pipeline(GpuFramePlan plan, Str label,
       .stencil_format         = gpu.depth_stencil_format(),
       .vertex_input_bindings  = {},
       .vertex_attributes      = {},
-      .push_constants_size    = sizeof(shader::VectorPathCfg),
+      .push_constants_size    = sizeof(shader::VectorPathFillShaderParams),
       .descriptor_set_layouts = set_layouts,
       .primitive_topology     = gpu::PrimitiveTopology::TriangleList,
       .rasterization_state    = raster_state,
@@ -184,11 +178,18 @@ VectorPathPipeline::VectorPathPipeline(Allocator allocator) :
 void VectorPathPipeline::acquire(GpuFramePlan plan, Allocator allocator,
                                  Allocator scratch)
 {
-    auto id =
-      add_fill_variant(plan, "base"_str,
-                       sys.shader->get("defaults/vector_path_base"_str).unwrap().shader,
-                       allocator, scratch);
-    ASH_CHECK(id == PipelineVariantId::Base, "");
+    coverage_pipeline_ = create_coverage_pipeline(
+      plan, "coverage"_str,
+      sys.shader->get("defaults/vector_path_coverage"_str).unwrap().shader, allocator,
+      scratch);
+
+    {
+        auto id = add_fill_variant(
+          plan, "base"_str,
+          sys.shader->get("defaults/vector_path_base"_str).unwrap().shader, allocator,
+          scratch);
+        ASH_CHECK(id == PipelineVariantId::Base, "");
+    }
 }
 
 PipelineVariantId VectorPathPipeline::add_fill_variant(GpuFramePlan plan, Str label,
@@ -228,21 +229,12 @@ void VectorPathPipeline::encode(gpu::CommandEncoder                      e,
     e->begin_rendering(info);
 
     e->bind_graphics_pipeline(coverage_pipeline_);
-    e->push_constants(as_u8_span(params.cfg));
+    e->push_constants(as_u8_span(params.params));
     e->bind_descriptor_sets(span({
-                              params.world_to_ndc.buffer.read_storage_buffer,      //
-                              params.coverage_items.buffer.read_storage_buffer,    //
-                              params.vertices.buffer.read_storage_buffer,          //
-                              params.indices.buffer.read_storage_buffer,           //
-                              params.write_alpha_masks,                            //
-                              params.write_fill_ids                                //
+                              params.write_alpha_masks,    //
+                              params.write_fill_ids        //
                             }),
-                            span({
-                              params.world_to_ndc.slice.as_u32().offset,      //
-                              params.coverage_items.slice.as_u32().offset,    //
-                              params.vertices.slice.as_u32().offset,          //
-                              params.indices.slice.as_u32().offset            //
-                            }));
+                            {});
 
     ASH_CHECK(size32(params.states) > 0, "");
     ASH_CHECK(size32(params.state_runs) == (size32(params.states) + 1), "");
@@ -275,7 +267,7 @@ void VectorPathPipeline::encode(gpu::CommandEncoder                      e,
 void VectorPathPipeline::encode(gpu::CommandEncoder                  e,
                                 VectorPathFillPipelineParams const & params)
 {
-    InplaceVec<gpu::RenderingAttachment, 1> color;
+    InplaceVec<gpu::RenderingAttachment, 1, 0> color;
 
     params.framebuffer.color_msaa.match(
       [&](ColorMsaaImage const & tex) {
@@ -319,20 +311,14 @@ void VectorPathPipeline::encode(gpu::CommandEncoder                  e,
 
     e->begin_rendering(info);
     e->bind_graphics_pipeline(pipeline);
-    e->push_constants(as_u8_span(params.cfg));
-    e->bind_descriptor_sets(
-      span({
-        params.samplers,                                   // 0: samplers
-        params.textures,                                   // 1: textures
-        params.world_to_ndc.buffer.read_storage_buffer,    // 2: world_to_ndc
-        params.fill_items.buffer.read_storage_buffer,      // 3: fill_items
-        params.read_alpha_masks,                           // 4: read_alpha_masks
-        params.read_fill_ids                               // 5: read_fill_ids
-      }),
-      span({
-        params.world_to_ndc.slice.as_u32().offset,    // 2: world_to_ndc
-        params.fill_items.slice.as_u32().offset       // 3: fill_items
-      }));
+    e->push_constants(as_u8_span(params.params));
+    e->bind_descriptor_sets(span({
+                              params.samplers,            // 0: samplers
+                              params.textures,            // 1: textures
+                              params.read_alpha_masks,    // 2: read_alpha_masks
+                              params.read_fill_ids        // 3: read_fill_ids
+                            }),
+                            {});
 
     ASH_CHECK(size32(params.states) > 0, "");
     ASH_CHECK(size32(params.state_runs) == (size32(params.states) + 1), "");

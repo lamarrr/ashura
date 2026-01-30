@@ -213,11 +213,12 @@ Future<Result<ImageInfo, SysErr>>
                                     .sample_count = info.sample_count};
 
     return scheduler_
-      ->run(
-        allocator_, MainThread::Main,
-        [label = std::move(label), info = info_copy,
-         view_infos = std::move(view_infos_vec), channels = std::move(channels),
-         this]() mutable { return upload_(label, info, view_infos.view(), channels); })
+      ->run(allocator_, MainThread::Main,
+            [label = std::move(label), info = info_copy,
+             view_infos = std::move(view_infos_vec), channels = std::move(channels),
+             this]() mutable {
+                return upload_(label, info, view_infos.view(), channels.get());
+            })
       .unwrap();
 }
 

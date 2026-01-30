@@ -13,9 +13,10 @@ Str PBRPipeline::label()
     return "PBR"_str;
 }
 
-gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label, gpu::Shader shader,
-                                      gpu::PolygonMode polygon_mode, Allocator,
-                                      Allocator        scratch)
+static gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
+                                             gpu::Shader      shader,
+                                             gpu::PolygonMode polygon_mode, Allocator,
+                                             Allocator        scratch)
 {
     auto & gpu = *plan->sys();
 
@@ -62,12 +63,8 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label, gpu::Shader 
     auto const & layout = gpu.descriptors_layout();
 
     gpu::DescriptorSetLayout const set_layouts[] = {
-      layout.samplers,               // 0: samplers
-      layout.sampled_textures,       // 1: textures
-      layout.read_storage_buffer,    // 2: vertices
-      layout.read_storage_buffer,    // 3: indices
-      layout.read_storage_buffer,    // 4: items
-      layout.read_storage_buffer     // 5: lights
+      layout.samplers,           // 0: samplers
+      layout.sampled_textures    // 1: textures
     };
 
     auto pipeline_info = gpu::GraphicsPipelineInfo{
@@ -86,7 +83,7 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label, gpu::Shader 
       .stencil_format         = gpu.depth_stencil_format(),
       .vertex_input_bindings  = {},
       .vertex_attributes      = {},
-      .push_constants_size    = 0,
+      .push_constants_size    = sizeof(shader::PbrShaderParams),
       .descriptor_set_layouts = set_layouts,
       .primitive_topology     = gpu::PrimitiveTopology::TriangleList,
       .rasterization_state    = raster_state,
@@ -148,7 +145,7 @@ void PBRPipeline::remove_variant(GpuFramePlan plan, PipelineVariantId id)
 
 void PBRPipeline::encode(gpu::CommandEncoder e, PBRPipelineParams const & params)
 {
-    InplaceVec<gpu::RenderingAttachment, 1> color;
+    InplaceVec<gpu::RenderingAttachment, 1, 0> color;
 
     params.framebuffer.color_msaa.match(
       [&](ColorMsaaImage const & tex) {
@@ -236,21 +233,12 @@ void PBRPipeline::encode(gpu::CommandEncoder e, PBRPipelineParams const & params
       .depth_write_enable       = true,
       .depth_bounds_test_enable = false
     });
-    e->bind_descriptor_sets(
-      span({
-        params.samplers,                               // 0: samplers
-        params.textures,                               // 1: textures
-        params.vertices.buffer.read_storage_buffer,    // 2: vertices
-        params.indices.buffer.read_storage_buffer,     // 3: indices
-        params.items.buffer.read_storage_buffer,       // 4: items
-        params.lights.buffer.read_storage_buffer,      // 5: lights
-      }),
-      span({
-        params.vertices.slice.as_u32().offset,    // 2: vertices
-        params.indices.slice.as_u32().offset,     // 3: indices
-        params.items.slice.as_u32().offset,       // 4: items
-        params.lights.slice.as_u32().offset       // 5: lights
-      }));
+    e->push_constants(as_u8_span(params.params));
+    e->bind_descriptor_sets(span({
+                              params.samplers,    // 0: samplers
+                              params.textures     // 1: textures
+                            }),
+                            {});
     e->draw({0, params.num_indices}, {0, 1});
     e->end_rendering();
 }

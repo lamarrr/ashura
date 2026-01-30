@@ -41,3 +41,12 @@
     auto var_identifier =                                                   \
       static_cast<decltype(__result_for_##var_identifier)::Type &&>(        \
         __result_for_##var_identifier.v0_);
+
+#define ASH_BOUNDS_CHECK(index, size)                                               \
+    do                                                                              \
+    {                                                                               \
+        auto index___ = (index);                                                    \
+        auto size___  = (size);                                                     \
+        ASH_CHECK(index___ < size___, "Index out of bounds: index = {}, size = {}", \
+                  index___, size___);                                               \
+    } while (false)

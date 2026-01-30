@@ -28,32 +28,35 @@ struct VertexOutput
     [[vk::location(4)]] nointerpolation u32 instance     : INSTANCE;
 };
 
+struct SdfShaderParams
+{
+    f32x4x4                                       world_to_ndc;
+    DescriptorHandle<StructuredBuffer<ITEM_TYPE>> items;
+};
+
+[[vk::push_constant]]
+ConstantBuffer<SdfShaderParams> params;
+
 [[vk::binding(0, 0)]]
 SamplerState samplers[];
 
 [[vk::binding(0, 1)]]
 Texture2D textures[];
 
-[[vk::binding(0, 2)]]
-ConstantBuffer<f32x4x4> world_to_ndc;
-
-[[vk::binding(0, 3)]]
-StructuredBuffer<ITEM_TYPE> items;
-
 [[shader("vertex")]] VertexOutput vert(u32 instance : SV_VulkanInstanceID,
                                        u32 vertex : SV_VulkanVertexID)
 {
     f32x2 bbox_rel_pos = VERTEX_BUFFER[vertex];
-    var   s            = items[instance];
+    var   s            = params.items[instance];
     f32x4 world_pos    = mul(s.world_transform, f32x4(bbox_rel_pos, 0.0, 1.0));
-    f32x4 screen_pos   = mul(world_to_ndc, world_pos);
+    f32x4 screen_pos   = mul(params.world_to_ndc, world_pos);
     f32x2 uv           = mul(s.uv_transform, f32x4(bbox_rel_pos, 0.0, 1.0)).xy;
     return VertexOutput(screen_pos, world_pos, bbox_rel_pos, uv, instance);
 }
 
 [[shader("fragment")]] f32x4 frag(VertexOutput in) : COLOR
 {
-    var   item     = items[in.instance];
+    var   item     = params.items[in.instance];
     var   material = item.material;
     f32x2 bbox_pos = in.bbox_rel_pos * 2 * item.half_bbox_extent;
     var   frag = SdfFragmentInfo(in.world_pos, in.screen_pos, in.uv, in.bbox_rel_pos);

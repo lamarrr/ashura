@@ -69,19 +69,19 @@ AwaitFuturesVec IShaderSys::init(Allocator allocator)
     Vec<AnyFuture> load_futs{allocator_};
 
     Tuple<Str, Span<u8 const>> const shaders[] = {
-      {"defaults/bezier_stencil"_str,       Span{BEZIER_STENCIL_SHADER}      },
-      {"defaults/blur_downsample"_str,      Span{BLUR_DOWNSAMPLE_SHADER}     },
-      {"defaults/blur_upsample"_str,        Span{BLUR_UPSAMPLE_SHADER}       },
-      {"defaults/composite_sdf"_str,        Span{COMPOSITE_SDF_SHADER}       },
-      {"defaults/fill_stencil"_str,         Span{FILL_STENCIL_SHADER}        },
-      {"defaults/pbr_base"_str,             Span{PBR_BASE_SHADER}            },
-      {"defaults/quad_base"_str,            Span{QUAD_SHADER}                },
-      {"defaults/sdf_gradient"_str,         Span{SDF_GRADIENT_SHADER}        },
-      {"defaults/sdf_noise"_str,            Span{SDF_NOISE_SHADER}           },
-      {"defaults/sdf_mesh_gradient"_str,    Span{SDF_MESH_GRADIENT_SHADER}   },
-      {"defaults/triangle_fill"_str,        Span{TRIANGLE_FILL_SHADER}       },
-      {"defaults/vector_path_coverage"_str, Span{VECTOR_PATH_COVERAGE_SHADER}},
-      {"defaults/vector_path_fill"_str,     Span{VECTOR_PATH_FILL_SHADER}    }
+      {"defaults/bezier_stencil"_str,       BEZIER_STENCIL_SHADER      },
+      {"defaults/blur_downsample"_str,      BLUR_DOWNSAMPLE_SHADER     },
+      {"defaults/blur_upsample"_str,        BLUR_UPSAMPLE_SHADER       },
+      {"defaults/composite_sdf"_str,        COMPOSITE_SDF_SHADER       },
+      {"defaults/fill_stencil"_str,         FILL_STENCIL_SHADER        },
+      {"defaults/pbr_base"_str,             PBR_BASE_SHADER            },
+      {"defaults/quad_base"_str,            QUAD_SHADER                },
+      {"defaults/sdf_gradient"_str,         SDF_GRADIENT_SHADER        },
+      {"defaults/sdf_noise"_str,            SDF_NOISE_SHADER           },
+      {"defaults/sdf_mesh_gradient"_str,    SDF_MESH_GRADIENT_SHADER   },
+      {"defaults/triangle_fill"_str,        TRIANGLE_FILL_SHADER       },
+      {"defaults/vector_path_coverage"_str, VECTOR_PATH_COVERAGE_SHADER},
+      {"defaults/vector_path_fill"_str,     VECTOR_PATH_FILL_SHADER    }
     };
 
     for (auto [label, spirv] : shaders)

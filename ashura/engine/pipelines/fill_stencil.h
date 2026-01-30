@@ -20,15 +20,12 @@ struct FillStencilPipelineParams
         gpu::Viewport  viewport;
     };
 
-    gpu::RenderingAttachment stencil_attachment;
-    RectU                    render_area;
-    GpuBufferSpan            world_to_ndc;
-    GpuBufferSpan            world_transforms;
-    GpuBufferSpan            vertices;
-    GpuBufferSpan            indices;
-    Span<u32 const>          index_runs;
-    Span<State const>        states;
-    Span<u32 const>          state_runs;
+    gpu::RenderingAttachment        stencil_attachment;
+    RectU                           render_area;
+    shader::FillStencilShaderParams params;
+    Span<u32 const>                 index_runs;
+    Span<State const>               states;
+    Span<u32 const>                 state_runs;
 };
 
 struct FillStencilPipeline final : IPipeline

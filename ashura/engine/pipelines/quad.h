@@ -17,14 +17,13 @@ struct QuadPipelineParams
         gpu::Viewport           viewport;
     };
 
-    Framebuffer        framebuffer;
-    gpu::DescriptorSet samplers;
-    gpu::DescriptorSet textures;
-    GpuBufferSpan      world_to_ndc;
-    GpuBufferSpan      quads;
-    Span<State const>  states;
-    Span<u32 const>    state_runs;
-    PipelineVariantId  variant;
+    Framebuffer              framebuffer;
+    gpu::DescriptorSet       samplers;
+    gpu::DescriptorSet       textures;
+    shader::QuadShaderParams params;
+    Span<State const>        states;
+    Span<u32 const>          state_runs;
+    PipelineVariantId        variant;
 };
 
 struct QuadPipeline final : IPipeline

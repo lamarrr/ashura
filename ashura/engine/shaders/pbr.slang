@@ -41,33 +41,33 @@ struct FragmentOutput
     }
 };
 
+struct PbrShaderParams
+{
+    DescriptorHandle<StructuredBuffer<PbrVertex>>     vertices;
+    DescriptorHandle<StructuredBuffer<u32>>           indices;
+    DescriptorHandle<StructuredBuffer<ITEM_TYPE>>     items;
+    DescriptorHandle<StructuredBuffer<PunctualLight>> lights;
+};
+
+[[vk::push_constant]]
+ConstantBuffer<PbrShaderParams> params;
+
 [[vk::binding(0, 0)]]
 SamplerState samplers[];
 
 [[vk::binding(0, 1)]]
 Texture2D textures[];
 
-[[vk::binding(0, 2)]]
-StructuredBuffer<PbrVertex> vertices;
-
-[[vk::binding(0, 3)]]
-StructuredBuffer<u32> indices;
-
-[[vk::binding(0, 4)]]
-ConstantBuffer<ITEM_TYPE> item;
-
-[[vk::binding(0, 5)]]
-StructuredBuffer<PunctualLight> lights;
-
 [[shader("vertex")]]
 VertexOutput vert(u32 vertex : SV_VulkanVertexID, u32 instance : SV_VulkanInstanceID)
 {
-    var   idx        = indices[vertex];
-    var   vtx        = vertices[idx];
+    var   idx        = params.indices[vertex];
+    var   vtx        = params.vertices[idx];
+    var   p          = params.items[instance];
     f32x4 rel_pos    = vtx.pos();
-    f32x4 world_pos  = mul(item.world_transform, rel_pos);
-    f32x4 screen_pos = mul(item.world_to_ndc, world_pos);
-    f32x2 uv         = mul(item.uv_transform, f32x4(vtx.uv(), 0.0, 1.0)).xy;
+    f32x4 world_pos  = mul(p.world_transform, rel_pos);
+    f32x4 screen_pos = mul(p.world_to_ndc, world_pos);
+    f32x2 uv         = mul(p.uv_transform, f32x4(vtx.uv(), 0.0, 1.0)).xy;
     return VertexOutput(screen_pos, world_pos, uv, instance);
 }
 
@@ -75,19 +75,20 @@ VertexOutput vert(u32 vertex : SV_VulkanVertexID, u32 instance : SV_VulkanInstan
 FragmentOutput frag(VertexOutput in)
 {
     var frag     = PbrFragmentInfo(in.world_pos, in.screen_pos, in.uv, in.instance);
-    var material = item.material;
+    var p        = params.items[in.instance];
+    var material = p.material;
     var m        = material.shade(frag, samplers, textures);
 
     f32x3 luminance = m.emission;
 
-    f32x3 V   = normalize(item.eye_position.xyz - in.world_pos.xyz);
+    f32x3 V   = normalize(p.eye_position.xyz - in.world_pos.xyz);
     f32   NoV = dot(m.normal, V.xyz);
 
-    for (u32 i = item.first_light; i < (item.first_light + item.num_lights); i++)
+    for (u32 i = p.first_light; i < (p.first_light + p.num_lights); i++)
     {
         // irradiance - light from source
         // radiance - reaction of the object to the light source
-        var   light     = lights[i];
+        var   light     = params.lights[i];
         f32x3 light_pos = light.position().xyz;
         f32x3 irradiance =
           m.lit * light.irradiance(f32x4(light_pos, 1), f32x4(m.normal, 1)).xyz;

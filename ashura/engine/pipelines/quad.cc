@@ -18,8 +18,9 @@ Str QuadPipeline::label()
     return "Quad"_str;
 }
 
-gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label, gpu::Shader shader,
-                                      Allocator, Allocator scratch)
+static gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
+                                             gpu::Shader shader, Allocator,
+                                             Allocator   scratch)
 {
     auto & gpu = *plan->sys();
 
@@ -63,10 +64,8 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label, gpu::Shader 
     auto const & layout = gpu.descriptors_layout();
 
     gpu::DescriptorSetLayout set_layouts[] = {
-      layout.samplers,               // 0: samplers
-      layout.sampled_textures,       // 1: textures
-      layout.read_storage_buffer,    // 2: world_to_ndc
-      layout.read_storage_buffer,    // 3: quads
+      layout.samplers,           // 0: samplers
+      layout.sampled_textures    // 1: textures
     };
 
     auto tagged_label =
@@ -88,7 +87,7 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label, gpu::Shader 
       .stencil_format         = gpu.depth_stencil_format(),
       .vertex_input_bindings  = {},
       .vertex_attributes      = {},
-      .push_constants_size    = 0,
+      .push_constants_size    = sizeof(shader::QuadShaderParams),
       .descriptor_set_layouts = set_layouts,
       .primitive_topology     = gpu::PrimitiveTopology::TriangleFan,
       .rasterization_state    = raster_state,
@@ -127,7 +126,7 @@ void QuadPipeline::remove_variant(GpuFramePlan plan, PipelineVariantId id)
 
 void QuadPipeline::encode(gpu::CommandEncoder e, QuadPipelineParams const & params)
 {
-    InplaceVec<gpu::RenderingAttachment, 1> color;
+    InplaceVec<gpu::RenderingAttachment, 1, 0> color;
 
     params.framebuffer.color_msaa.match(
       [&](ColorMsaaImage const & tex) {
@@ -171,17 +170,12 @@ void QuadPipeline::encode(gpu::CommandEncoder e, QuadPipelineParams const & para
 
     e->begin_rendering(info);
     e->bind_graphics_pipeline(pipeline);
-    e->bind_descriptor_sets(
-      span({
-        params.samplers,                                   // 0: samplers
-        params.textures,                                   // 1: textures
-        params.world_to_ndc.buffer.read_storage_buffer,    // 2: world_to_ndc
-        params.quads.buffer.read_storage_buffer,           // 3: quads
-      }),
-      span({
-        params.world_to_ndc.slice.as_u32().offset,    // 2: world_to_ndc
-        params.quads.slice.as_u32().offset            // 3: quads
-      }));
+    e->push_constants(as_u8_span(params.params));
+    e->bind_descriptor_sets(span({
+                              params.samplers,    // 0: samplers
+                              params.textures     // 1: textures
+                            }),
+                            {});
 
     ASH_CHECK(size32(params.states) > 0, "");
     ASH_CHECK(size32(params.state_runs) == (size32(params.states) + 1), "");

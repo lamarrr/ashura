@@ -24,7 +24,7 @@ struct VertexOutput
 };
 
 [[vk::binding(0, 0)]]
-ConstantBuffer<Inputs> in;
+StructuredBuffer<Inputs> in;
 
 [[vk::binding(0, 1)]]
 SamplerState Samplers[];

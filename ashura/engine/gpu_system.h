@@ -98,6 +98,8 @@ struct [[nodiscard]] ColorMsaaImage
     void uninit(gpu::Device device);
 };
 
+/// @brief Depth-stencil image for use as render target attachments
+/// and transfer source/destination only.
 struct [[nodiscard]] DepthStencilImage
 {
     static constexpr gpu::FormatFeatures FEATURES =
@@ -105,8 +107,8 @@ struct [[nodiscard]] DepthStencilImage
 
     static constexpr gpu::ImageUsage USAGE =
       gpu::ImageUsage::DepthStencilAttachment | gpu::ImageUsage::InputAttachment |
-      gpu::ImageUsage::Sampled | gpu::ImageUsage::Storage |
-      gpu::ImageUsage::TransferDst | gpu::ImageUsage::TransferSrc;
+      gpu::ImageUsage::Sampled | gpu::ImageUsage::TransferDst |
+      gpu::ImageUsage::TransferSrc;
 
     static constexpr gpu::Format FORMATS[] = {gpu::Format::D16_UNORM_S8_UINT,
                                               gpu::Format::D24_UNORM_S8_UINT,
@@ -126,13 +128,9 @@ struct [[nodiscard]] DepthStencilImage
 
     gpu::DescriptorSet depth_sampled_textures = nullptr;
 
-    gpu::DescriptorSet depth_storage_textures = nullptr;
-
     gpu::DescriptorSet depth_input_attachments = nullptr;
 
     static constexpr TextureIndex depth_sampled_texture_index = TextureIndex::Default;
-
-    static constexpr TextureIndex depth_storage_texture_index = TextureIndex::Default;
 
     static constexpr TextureIndex depth_input_attachment_index = TextureIndex::Default;
 
@@ -171,6 +169,8 @@ struct [[nodiscard]] GpuBuffer
 
     gpu::Buffer buffer = nullptr;
 
+    gpu::DeviceAddress device_address = 0;
+
     gpu::DescriptorSet uniform_buffer = nullptr;
 
     gpu::DescriptorSet read_storage_buffer = nullptr;
@@ -187,6 +187,11 @@ struct [[nodiscard]] GpuBufferSpan
 {
     GpuBuffer buffer = {};
     Slice64   slice  = {};
+
+    gpu::DeviceAddress device_address() const
+    {
+        return buffer.device_address + slice.offset;
+    }
 };
 
 struct GpuQueries
@@ -521,6 +526,8 @@ struct TexelBufferUnion
 
     void uninit(gpu::Device device);
 
+    void update_descriptors(gpu::Device device);
+
     static TexelBufferUnion create(GpuSys sys, u32x2 target_extent, u32 sample_count,
                                    u32x2                   tile_texel_count,
                                    Span<gpu::Format const> formats, Str label,
@@ -535,6 +542,8 @@ struct ImageUnion
     gpu::Alias        alias         = nullptr;
 
     void uninit(gpu::Device device);
+
+    void update_descriptors(gpu::Device device);
 
     static ImageUnion create(GpuSys sys, u32x2 target_extent, gpu::Format color_format,
                              gpu::Format depth_stencil_format, Str label,
@@ -582,8 +591,7 @@ enum class ScratchTexureType : u8
     StorageColor                = 1,
     InputAttachmentColor        = 2,
     SampledDepthStencil         = 3,
-    StorageDepthStencil         = 4,
-    InputAttachmentDepthStencil = 5
+    InputAttachmentDepthStencil = 4
 };
 
 struct ScratchTexture
@@ -809,6 +817,7 @@ struct IGpuSys
       buffering_{0},
       color_format_{gpu::Format::Undefined},
       depth_stencil_format_{gpu::Format::Undefined},
+      sample_count_{gpu::SampleCount::C1},
       descriptors_layout_{},
       queue_scope_{nullptr},
       resources_lock_{},

@@ -64,7 +64,7 @@ void StdioSink::log(LogLevel level, Str log_message)
             break;
     }
 
-    static constexpr char const time_format[] = "%d/%m/%Y, %H:%M:%S";
+    static constexpr char const time_format[] = "%d-%m-%Y, %H:%M:%S";
     char                        time_string[256];
     usize                       time_string_length = 0;
 

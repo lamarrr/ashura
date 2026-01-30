@@ -26,25 +26,28 @@ struct VertexOutput
     [[vk::location(4)]] nointerpolation u32 instance   : INSTANCE;
 };
 
+struct QuadShaderParams
+{
+    f32x4x4                                       world_to_ndc;
+    DescriptorHandle<StructuredBuffer<ITEM_TYPE>> quads;
+};
+
+[[vk::push_constant]]
+ConstantBuffer<QuadShaderParams> params;
+
 [[vk::binding(0, 0)]]
 SamplerState samplers[];
 
 [[vk::binding(0, 1)]]
 Texture2D textures[];
 
-[[vk::binding(0, 2)]]
-ConstantBuffer<f32x4x4> world_to_ndc;
-
-[[vk::binding(0, 3)]]
-StructuredBuffer<ITEM_TYPE> quads;
-
 [[shader("vertex")]] VertexOutput vert(u32 instance : SV_VulkanInstanceID,
                                        u32 vertex : SV_VulkanVertexID)
 {
-    var   quad       = quads[instance];
+    var   quad       = params.quads[instance];
     var   pos        = quad.corners[vertex];
     f32x4 world_pos  = mul(quad.world_transform, pos);
-    f32x4 screen_pos = mul(world_to_ndc, world_pos);
+    f32x4 screen_pos = mul(params.world_to_ndc, world_pos);
     f32x2 uv         = mul(quad.uv_transform, pos).xy;
     f32x2 rel_pos    = REL_POS[vertex];
     return VertexOutput(screen_pos, world_pos, rel_pos, uv, instance);
@@ -52,7 +55,7 @@ StructuredBuffer<ITEM_TYPE> quads;
 
 [[shader("fragment")]] f32x4 frag(VertexOutput in) : COLOR
 {
-    var material = quads[in.instance].material;
+    var material = params.quads[in.instance].material;
     var frag =
       QuadFragmentInfo(in.world_pos, in.screen_pos, in.rel_pos, in.uv, in.instance);
     return material.shade(frag, samplers, textures);

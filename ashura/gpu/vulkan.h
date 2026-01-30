@@ -162,6 +162,10 @@ struct DeviceTable
     ASH_DEF_VKPFN(QueueSubmit);
     ASH_DEF_VKPFN(QueueWaitIdle);
 
+    ASH_DEF_VKPFN(GetBufferDeviceAddressKHR);
+    ASH_DEF_VKPFN(GetBufferOpaqueCaptureAddressKHR);
+    ASH_DEF_VKPFN(GetDeviceMemoryOpaqueCaptureAddressKHR);
+
     // COMMAND BUFFER OBJECT FUNCTIONS
     ASH_DEF_VKPFN(BeginCommandBuffer);
     ASH_DEF_VKPFN(CmdBeginQuery);
@@ -480,6 +484,9 @@ struct IPhysicalDevice
     VkPhysicalDeviceMemoryProperties vk_memory_properties = {};
 
     VkPhysicalDeviceDescriptorIndexingPropertiesEXT vk_descriptor_properties = {};
+
+    VkPhysicalDeviceBufferDeviceAddressFeaturesKHR vk_buffer_device_address_features =
+      {};
 };
 
 struct SwapchainPreference
@@ -591,120 +598,115 @@ enum class Type : usize
     Draw                   = 26,
     DrawIndexed            = 27,
     DrawIndirect           = 28,
-    DrawIndexedIndirect    = 29
+    DrawIndexedIndirect    = 29,
+    Undefined              = USIZE_MAX
 };
 
-struct alignas(8) Cmd
+struct alignas(8) CmdHeader
 {
-    Type const type;
-    Cmd *      next = nullptr;
+    Type const  type = Type::Undefined;
+    CmdHeader * prev = nullptr;
+    CmdHeader * next = nullptr;
 };
 
-struct alignas(8) ResetTimestampQuery
+#define ASH_CMD_HEAD_DECL(type_val)                              \
+    CmdHeader __header                                           \
+    {                                                            \
+        .type = Type::type_val, .prev = nullptr, .next = nullptr \
+    }
+
+struct ResetTimestampQuery
 {
-    Type const  type  = Type::ResetTimestampQuery;
-    Cmd *       next  = nullptr;
+    ASH_CMD_HEAD_DECL(ResetTimestampQuery);
     VkQueryPool query = nullptr;
     Slice32     range = {};
 };
 
-struct alignas(8) ResetStatisticsQuery
+struct ResetStatisticsQuery
 {
-    Type const  type  = Type::ResetStatisticsQuery;
-    Cmd *       next  = nullptr;
+    ASH_CMD_HEAD_DECL(ResetStatisticsQuery);
     VkQueryPool query = nullptr;
     Slice32     range = {};
 };
 
-struct alignas(8) WriteTimestamp
+struct WriteTimestamp
 {
-    Type const              type   = Type::WriteTimestamp;
-    Cmd *                   next   = nullptr;
+    ASH_CMD_HEAD_DECL(WriteTimestamp);
     VkQueryPool             query  = nullptr;
     VkPipelineStageFlagBits stages = VK_PIPELINE_STAGE_NONE;
     u32                     index  = 0;
 };
 
-struct alignas(8) BeginStatistics
+struct BeginStatistics
 {
-    Type const  type  = Type::BeginStatistics;
-    Cmd *       next  = nullptr;
+    ASH_CMD_HEAD_DECL(BeginStatistics);
     VkQueryPool query = nullptr;
     u32         index = 0;
 };
 
-struct alignas(8) EndStatistics
+struct EndStatistics
 {
-    Type const  type  = Type::EndStatistics;
-    Cmd *       next  = nullptr;
+    ASH_CMD_HEAD_DECL(EndStatistics);
     VkQueryPool query = nullptr;
     u32         index = 0;
 };
 
-struct alignas(8) BeginDebugMarker
+struct BeginDebugMarker
 {
-    Type const                 type = Type::BeginDebugMarker;
-    Cmd *                      next = nullptr;
+    ASH_CMD_HEAD_DECL(BeginDebugMarker);
     VkDebugMarkerMarkerInfoEXT info = {};
 };
 
-struct alignas(8) EndDebugMarker
+struct EndDebugMarker
 {
-    Type const type = Type::EndDebugMarker;
-    Cmd *      next = nullptr;
+    ASH_CMD_HEAD_DECL(EndDebugMarker);
 };
 
-struct alignas(8) FillBuffer
+struct FillBuffer
 {
-    Type const type  = Type::FillBuffer;
-    Cmd *      next  = nullptr;
-    VkBuffer   dst   = nullptr;
-    Slice64    range = {};
-    u32        data  = 0;
+    ASH_CMD_HEAD_DECL(FillBuffer);
+    VkBuffer dst   = nullptr;
+    Slice64  range = {};
+    u32      data  = 0;
 };
 
-struct alignas(8) CopyBuffer
+struct CopyBuffer
 {
-    Type const               type   = Type::CopyBuffer;
-    Cmd *                    next   = nullptr;
+    ASH_CMD_HEAD_DECL(CopyBuffer);
     VkBuffer                 src    = nullptr;
     VkBuffer                 dst    = nullptr;
     Span<VkBufferCopy const> copies = {};
 };
 
-struct alignas(8) UpdateBuffer
+struct UpdateBuffer
 {
-    Type const     type       = Type::UpdateBuffer;
-    Cmd *          next       = nullptr;
+    ASH_CMD_HEAD_DECL(UpdateBuffer);
     Span<u8 const> src        = {};
     u64            dst_offset = 0;
     VkBuffer       dst        = nullptr;
 };
 
-struct alignas(8) ClearColorImage
+struct ClearColorImage
 {
-    Type const                          type       = Type::ClearColorImage;
-    Cmd *                               next       = nullptr;
+    ASH_CMD_HEAD_DECL(ClearColorImage);
     VkImage                             dst        = nullptr;
     VkImageLayout                       dst_layout = VK_IMAGE_LAYOUT_UNDEFINED;
     VkClearColorValue                   value      = {};
     Span<VkImageSubresourceRange const> ranges     = {};
 };
 
-struct alignas(8) ClearDepthStencilImage
+struct ClearDepthStencilImage
 {
-    Type const                          type       = Type::ClearDepthStencilImage;
-    Cmd *                               next       = nullptr;
+    ASH_CMD_HEAD_DECL(ClearDepthStencilImage);
     VkImage                             dst        = nullptr;
     VkImageLayout                       dst_layout = VK_IMAGE_LAYOUT_UNDEFINED;
     VkClearDepthStencilValue            value      = {};
     Span<VkImageSubresourceRange const> ranges     = {};
 };
 
-struct alignas(8) CopyImage
+struct CopyImage
 {
-    Type const              type       = Type::CopyImage;
-    Cmd *                   next       = nullptr;
+    ASH_CMD_HEAD_DECL(CopyImage);
     VkImage                 src        = nullptr;
     VkImageLayout           src_layout = VK_IMAGE_LAYOUT_UNDEFINED;
     VkImage                 dst        = nullptr;
@@ -712,20 +714,18 @@ struct alignas(8) CopyImage
     Span<VkImageCopy const> copies     = {};
 };
 
-struct alignas(8) CopyBufferToImage
+struct CopyBufferToImage
 {
-    Type const                    type       = Type::CopyBufferToImage;
-    Cmd *                         next       = nullptr;
+    ASH_CMD_HEAD_DECL(CopyBufferToImage);
     VkBuffer                      src        = nullptr;
     VkImage                       dst        = nullptr;
     VkImageLayout                 dst_layout = VK_IMAGE_LAYOUT_UNDEFINED;
     Span<VkBufferImageCopy const> copies     = {};
 };
 
-struct alignas(8) BlitImage
+struct BlitImage
 {
-    Type const              type       = Type::BlitImage;
-    Cmd *                   next       = nullptr;
+    ASH_CMD_HEAD_DECL(BlitImage);
     VkImage                 src        = nullptr;
     VkImageLayout           src_layout = VK_IMAGE_LAYOUT_UNDEFINED;
     VkImage                 dst        = nullptr;
@@ -734,10 +734,9 @@ struct alignas(8) BlitImage
     VkFilter                filter     = VK_FILTER_LINEAR;
 };
 
-struct alignas(8) ResolveImage
+struct ResolveImage
 {
-    Type const                 type       = Type::ResolveImage;
-    Cmd *                      next       = nullptr;
+    ASH_CMD_HEAD_DECL(ResolveImage);
     VkImage                    src        = nullptr;
     VkImageLayout              src_layout = VK_IMAGE_LAYOUT_UNDEFINED;
     VkImage                    dst        = nullptr;
@@ -745,119 +744,105 @@ struct alignas(8) ResolveImage
     Span<VkImageResolve const> resolves   = {};
 };
 
-struct alignas(8) BeginRendering
+struct BeginRendering
 {
-    Type const      type = Type::BeginRendering;
-    Cmd *           next = nullptr;
+    ASH_CMD_HEAD_DECL(BeginRendering);
     VkRenderingInfo info = {};
 };
 
-struct alignas(8) EndRendering
+struct EndRendering
 {
-    Type const type = Type::EndRendering;
-    Cmd *      next = nullptr;
+    ASH_CMD_HEAD_DECL(EndRendering);
 };
 
-struct alignas(8) BindPipeline
+struct BindPipeline
 {
-    Type const          type       = Type::BindPipeline;
-    Cmd *               next       = nullptr;
+    ASH_CMD_HEAD_DECL(BindPipeline);
     VkPipelineBindPoint bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS;
     VkPipeline          pipeline   = nullptr;
 };
 
-struct alignas(8) BindDescriptorSets
+struct BindDescriptorSets
 {
-    Type const                  type            = Type::BindDescriptorSets;
-    Cmd *                       next            = nullptr;
+    ASH_CMD_HEAD_DECL(BindDescriptorSets);
     VkPipelineBindPoint         bind_point      = VK_PIPELINE_BIND_POINT_MAX_ENUM;
     VkPipelineLayout            layout          = nullptr;
     Span<VkDescriptorSet const> sets            = {};
     Span<u32 const>             dynamic_offsets = {};
 };
 
-struct alignas(8) PushConstants
+struct PushConstants
 {
-    Type const       type      = Type::PushConstants;
-    Cmd *            next      = nullptr;
+    ASH_CMD_HEAD_DECL(PushConstants);
     VkPipelineLayout layout    = nullptr;
     Span<u8 const>   constants = {};
 };
 
-struct alignas(8) Dispatch
+struct Dispatch
 {
-    Type const type        = Type::Dispatch;
-    Cmd *      next        = nullptr;
-    u32x3      group_count = {};
+    ASH_CMD_HEAD_DECL(Dispatch);
+    u32x3 group_count = {};
 };
 
-struct alignas(8) DispatchIndirect
+struct DispatchIndirect
 {
-    Type const type   = Type::DispatchIndirect;
-    Cmd *      next   = nullptr;
-    VkBuffer   buffer = nullptr;
-    u64        offset = 0;
+    ASH_CMD_HEAD_DECL(DispatchIndirect);
+    VkBuffer buffer = nullptr;
+    u64      offset = 0;
 };
 
-struct alignas(8) SetGraphicsState
+struct SetGraphicsState
 {
-    Type const         type  = Type::SetGraphicsState;
-    Cmd *              next  = nullptr;
+    ASH_CMD_HEAD_DECL(SetGraphicsState);
     gpu::GraphicsState state = {};
 };
 
-struct alignas(8) BindVertexBuffers
+struct BindVertexBuffers
 {
-    Type const           type    = Type::BindVertexBuffers;
-    Cmd *                next    = nullptr;
+    ASH_CMD_HEAD_DECL(BindVertexBuffers);
     Span<VkBuffer const> buffers = {};
     Span<u64 const>      offsets = {};
 };
 
-struct alignas(8) BindIndexBuffer
+struct BindIndexBuffer
 {
-    Type const  type       = Type::BindIndexBuffer;
-    Cmd *       next       = nullptr;
+    ASH_CMD_HEAD_DECL(BindIndexBuffer);
     VkBuffer    buffer     = nullptr;
     u64         offset     = 0;
     VkIndexType index_type = VK_INDEX_TYPE_UINT32;
 };
 
-struct alignas(8) Draw
+struct Draw
 {
-    Type const type      = Type::Draw;
-    Cmd *      next      = nullptr;
-    Slice32    vertices  = {};
-    Slice32    instances = {};
+    ASH_CMD_HEAD_DECL(Draw);
+    Slice32 vertices  = {};
+    Slice32 instances = {};
 };
 
-struct alignas(8) DrawIndexed
+struct DrawIndexed
 {
-    Type const type          = Type::DrawIndexed;
-    Cmd *      next          = nullptr;
-    Slice32    indices       = {};
-    Slice32    instances     = {};
-    i32        vertex_offset = 0;
+    ASH_CMD_HEAD_DECL(DrawIndexed);
+    Slice32 indices       = {};
+    Slice32 instances     = {};
+    i32     vertex_offset = 0;
 };
 
-struct alignas(8) DrawIndirect
+struct DrawIndirect
 {
-    Type const type       = Type::DrawIndirect;
-    Cmd *      next       = nullptr;
-    VkBuffer   buffer     = nullptr;
-    u64        offset     = 0;
-    u32        draw_count = 0;
-    u32        stride     = 0;
+    ASH_CMD_HEAD_DECL(DrawIndirect);
+    VkBuffer buffer     = nullptr;
+    u64      offset     = 0;
+    u32      draw_count = 0;
+    u32      stride     = 0;
 };
 
-struct alignas(8) DrawIndexedIndirect
+struct DrawIndexedIndirect
 {
-    Type const type       = Type::DrawIndexedIndirect;
-    Cmd *      next       = nullptr;
-    VkBuffer   buffer     = nullptr;
-    u64        offset     = 0;
-    u32        draw_count = 0;
-    u32        stride     = 0;
+    ASH_CMD_HEAD_DECL(DrawIndexedIndirect);
+    VkBuffer buffer     = nullptr;
+    u64      offset     = 0;
+    u32      draw_count = 0;
+    u32      stride     = 0;
 };
 
 }    // namespace cmd
@@ -1065,31 +1050,32 @@ struct EncoderResourceStates
     void commit(DeviceResourceStates & upstream);
 };
 
+struct PassIndices
+{
+    u32 commands        = 0;
+    u32 buffers         = 0;
+    u32 images          = 0;
+    u32 descriptor_sets = 0;
+};
+
 struct CommandTracker
 {
-    struct Entry
-    {
-        u32 commands        = 0;
-        u32 buffers         = 0;
-        u32 images          = 0;
-        u32 descriptor_sets = 0;
-    };
+    Vec<Tuple<Buffer, VkPipelineStageFlags, VkAccessFlags>> buffers_;
 
-    Vec<Tuple<Buffer, VkPipelineStageFlags, VkAccessFlags>>               buffers_;
     Vec<Tuple<Image, VkPipelineStageFlags, VkAccessFlags, VkImageLayout>> images_;
 
     Vec<Tuple<DescriptorSet, VkShaderStageFlags>> descriptor_sets_;
-    Vec<Entry>                                    passes_;
-    cmd::Cmd *                                    first_cmd_;
-    cmd::Cmd *                                    last_cmd_;
+
+    List<cmd::CmdHeader> cmds_;
+
+    Vec<PassIndices> pass_indices_;
 
     CommandTracker(Allocator allocator) :
       buffers_{allocator},
       images_{allocator},
       descriptor_sets_{allocator},
-      passes_{allocator},
-      first_cmd_{nullptr},
-      last_cmd_{nullptr}
+      cmds_{},
+      pass_indices_{allocator}
     {
     }
 
@@ -1099,9 +1085,9 @@ struct CommandTracker
     CommandTracker & operator=(CommandTracker &&)      = delete;
     ~CommandTracker()                                  = default;
 
-    u32 begin_pass();
+    void begin_pass();
 
-    void command(cmd::Cmd * cmd);
+    void pass_cmd(cmd::CmdHeader * cmd);
 
     void end_pass();
 
@@ -1213,7 +1199,7 @@ struct ICommandEncoder final : gpu::ICommandEncoder
 
         new (p_cmd) CmdImpl{cmd};
 
-        tracker_.command((cmd::Cmd *) p_cmd);
+        tracker_.pass_cmd((cmd::CmdHeader *) p_cmd);
 
         return p_cmd;
     }
@@ -1529,6 +1515,8 @@ struct IDevice final : gpu::IDevice
       get_format_properties(gpu::Format format) override;
 
     virtual Result<Span<u8>, Status> get_memory_map(gpu::Buffer buffer) override;
+
+    virtual gpu::DeviceAddress get_device_address(gpu::Buffer buffer) override;
 
     virtual Result<Void, Status> invalidate_mapped_memory(gpu::Buffer buffer,
                                                           Slice64     range) override;

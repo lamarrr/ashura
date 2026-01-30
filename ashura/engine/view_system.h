@@ -154,14 +154,6 @@ struct IViewSys
         Vec<u16>           parent;
         Vec<Slice16>       children;
 
-        Nodes(Allocator allocator) :
-          views{allocator},
-          depth{allocator},
-          parent{allocator},
-          children{allocator}
-        {
-        }
-
         static Nodes create(Allocator allocator, usize initial_capacity);
     };
 

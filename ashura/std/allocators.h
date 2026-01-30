@@ -12,41 +12,31 @@ typedef struct IArena * Arena;
 struct IArena final : IAllocator
 {
     /// @brief where the memory block begins
-    u8 * begin;
+    u8 * begin_;
 
     /// @brief one byte past the block
-    u8 * end;
+    u8 * end_;
 
     /// @brief end of the last allocation
-    u8 * offset;
+    u8 * iter_;
 
-    /// @brief total allocated bytes
-    usize allocated;
-
-    constexpr IArena() :
-      IAllocator{},
-      begin{nullptr},
-      end{nullptr},
-      offset{nullptr},
-      allocated{0}
+    constexpr IArena() : IAllocator{}, begin_{nullptr}, end_{nullptr}, iter_{nullptr}
     {
     }
 
-    constexpr IArena(u8 * begin, u8 * end, u8 * offset, usize allocated) :
+    constexpr IArena(u8 * begin, u8 * end, u8 * iter) :
       IAllocator{},
-      begin{begin},
-      end{end},
-      offset{offset},
-      allocated{allocated}
+      begin_{begin},
+      end_{end},
+      iter_{iter}
     {
     }
 
     constexpr IArena(u8 * begin, u8 * end) :
       IAllocator{},
-      begin{begin},
-      end{end},
-      offset{begin},
-      allocated{0}
+      begin_{begin},
+      end_{end},
+      iter_{begin}
     {
     }
 
@@ -95,45 +85,32 @@ struct IArena final : IAllocator
     /// @brief Total capacity of the arena in bytes
     [[nodiscard]] constexpr usize capacity() const
     {
-        return end - begin;
+        return end_ - begin_;
     }
 
     /// @brief total bytes used in the arena
     [[nodiscard]] constexpr usize used() const
     {
-        return offset - begin;
+        return iter_ - begin_;
     }
 
     /// @brief total bytes available in the arena
     [[nodiscard]] constexpr usize available() const
     {
-        return end - offset;
+        return end_ - iter_;
     }
 
     /// @brief force reclaim all allocated memory
     constexpr void reclaim()
     {
-        offset    = begin;
-        allocated = 0;
-    }
-
-    /// @brief try to reclaim all allocated memory if there's no active allocation
-    /// @returns true if successful
-    constexpr bool try_reclaim()
-    {
-        if (allocated != 0)
-        {
-            return false;
-        }
-
-        reclaim();
-        return true;
+        iter_ = begin_;
     }
 
     /// @brief check if the arena contains a memory region
+    // TODO: review assumptions; we also pad the offset, shouldnt we consider that when extending?
     constexpr bool contains(Layout layout, u8 * mem) const
     {
-        return (begin <= mem) && (end >= (mem + layout.size));
+        return (begin_ <= mem) && (end_ >= (mem + layout.size));
     }
 
     /// @copydoc IAllocator::alloc
@@ -145,17 +122,18 @@ struct IArena final : IAllocator
             return true;
         }
 
-        u8 * aligned    = align_up(layout.alignment, offset);
-        u8 * new_offset = aligned + layout.size;
-        if (new_offset > end)
+        u8 * aligned  = align_up(layout.alignment, iter_);
+        u8 * new_iter = aligned + layout.size;
+
+        if (new_iter > end_)
         {
             mem = nullptr;
             return false;
         }
 
-        offset = new_offset;
-        mem    = aligned;
-        allocated += layout.size;
+        iter_ = new_iter;
+        mem   = aligned;
+
         return true;
     }
 
@@ -164,7 +142,6 @@ struct IArena final : IAllocator
     {
         if (!alloc(layout, mem))
         {
-            mem = nullptr;
             return false;
         }
 
@@ -178,12 +155,9 @@ struct IArena final : IAllocator
                                        u8 *& mem) override
     {
         // if it is the last allocation and within capacity, just extend the offset
-        if (((mem + layout.size) == offset) && ((mem + new_size) <= end))
+        if (((mem + layout.size) == iter_) && ((mem + new_size) <= end_))
         {
-            offset = mem + new_size;
-            allocated -= layout.size;
-            try_reclaim();
-            allocated += new_size;
+            iter_ = mem + new_size;
             return true;
         }
 
@@ -205,13 +179,10 @@ struct IArena final : IAllocator
     {
         // best-case: stack allocation, we can free memory by adjusting to the
         // beginning of allocation
-        if ((mem + layout.size) == offset)
+        if ((mem + layout.size) == iter_)
         {
-            offset -= layout.size;
+            iter_ -= layout.size;
         }
-
-        allocated -= layout.size;
-        try_reclaim();
     }
 
     constexpr Allocator ref()
@@ -346,7 +317,7 @@ struct IArenaPool final : IAllocator
             auto it = arenas_.pop_back();
             auto layout =
               Layout{.alignment = cfg_.arena_alignment, .size = it->v.capacity()};
-            source_->dealloc(layout, it->v.begin);
+            source_->dealloc(layout, it->v.begin_);
             source_->ndealloc(1, it);
         };
     }
@@ -467,17 +438,17 @@ struct IArenaPool final : IAllocator
                 }
 
                 // if only and first allocation on the arena, realloc arena
-                if (arena.v.begin == mem && arena.v.offset == (mem + layout.size))
+                if (arena.v.begin_ == mem && arena.v.iter_ == (mem + layout.size))
                 {
                     if (!source_->realloc(Layout{.alignment = cfg_.arena_alignment,
                                                  .size      = arena.v.capacity()},
-                                          new_size, arena.v.begin))
+                                          new_size, arena.v.begin_))
                     {
                         return false;
                     }
 
-                    arena.v.end    = arena.v.begin + new_size;
-                    arena.v.offset = arena.v.begin + new_size;
+                    arena.v.end_  = arena.v.begin_ + new_size;
+                    arena.v.iter_ = arena.v.begin_ + new_size;
                     return true;
                 }
 

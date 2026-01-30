@@ -3,7 +3,6 @@
 
 #include "ashura/engine/text.h"
 #include "ashura/std/math.h"
-#include "ashura/std/piece_table.h"
 #include "ashura/std/types.h"
 
 namespace ash
@@ -14,7 +13,7 @@ struct [[nodiscard]] TextRunsStyle
     static auto default_run_indices(Allocator allocator = noop_allocator)
     {
         static constexpr usize data[] = {0uz, USIZE_MAX};
-        return small_vec::copy<4, 0>(allocator, span(data)).unwrap();
+        return small_vec::copy<2, 0>(allocator, span(data)).unwrap();
     }
 
     static auto default_styles(Allocator allocator = noop_allocator)
@@ -29,11 +28,11 @@ struct [[nodiscard]] TextRunsStyle
         return small_vec::copy<1, 0>(allocator, span(data)).unwrap();
     }
 
-    SmallVec<usize, 4, 0>     run_indices_;
+    SmallVec<usize, 2, 0>     run_indices_;
     SmallVec<TextStyle, 1, 0> styles_;
     SmallVec<FontStyle, 1, 0> fonts_;
 
-    TextRunsStyle(SmallVec<usize, 4, 0> run_indices, SmallVec<TextStyle, 1, 0> styles,
+    TextRunsStyle(SmallVec<usize, 2, 0> run_indices, SmallVec<TextStyle, 1, 0> styles,
                   SmallVec<FontStyle, 1, 0> fonts) :
       run_indices_{std::move(run_indices)},
       styles_{std::move(styles)},
@@ -99,8 +98,6 @@ struct [[nodiscard]] RenderText
     static constexpr usize HASH_CLEAN = USIZE_MAX;
     static constexpr usize HASH_DIRTY = 0z;
 
-    Allocator allocator_;
-
     usize hash_;
 
     bool wrap_ : 1;
@@ -115,6 +112,10 @@ struct [[nodiscard]] RenderText
 
     f32 font_scale_;
 
+    f32 max_width_;
+
+    f32 align_width_;
+
     Rc<Str32> str_;
 
     TextRunsStyle runs_style_;
@@ -126,7 +127,6 @@ struct [[nodiscard]] RenderText
     void * user_data_;
 
     constexpr RenderText(Allocator allocator) :
-      allocator_{allocator},
       hash_{HASH_DIRTY},
       wrap_{true},
       use_kerning_{true},
@@ -134,6 +134,8 @@ struct [[nodiscard]] RenderText
       direction_{TextDirection::LeftToRight},
       alignment_{ALIGNMENT_LEFT},
       font_scale_{1},
+      max_width_{1024.0F},
+      align_width_{1024.0F},
       str_{static_rc(U""_str)},
       runs_style_{noop_allocator},
       language_{},
@@ -151,9 +153,9 @@ struct [[nodiscard]] RenderText
     constexpr RenderText & operator=(RenderText &&)      = default;
     constexpr ~RenderText()                              = default;
 
-    RenderText & style_runs(TextRunsStyle style);
+    RenderText & runs_style(TextRunsStyle style);
 
-    TextRunsStyle const & get_style_runs() const;
+    TextRunsStyle const & runs_style() const;
 
     RenderText & flush_text();
 
@@ -177,15 +179,19 @@ struct [[nodiscard]] RenderText
 
     RenderText & str(Rc<Str32> utf32);
 
-    RenderText & str_copy(Str32 utf32);
+    RenderText & str_copy(Str32 utf32, Allocator allocator);
 
-    RenderText & str_copy(Str32 utf32, TextStyle const & style, FontStyle const & font);
+    RenderText & str_copy(Str32 utf32, TextStyle const & style, FontStyle const & font,
+                          Allocator allocator);
 
-    RenderText & str_copy(Str8 utf8, TextStyle const & style, FontStyle const & font);
+    RenderText & str_copy(Str8 utf8, TextStyle const & style, FontStyle const & font,
+                          Allocator allocator);
 
-    RenderText & str_copy(Str8 utf8);
+    RenderText & str_copy(Str8 utf8, Allocator allocator);
 
     RenderText & user_data(void * data);
+
+    RenderText & width(f32 max_width, f32 align_width);
 
     usize size() const;
 
@@ -193,13 +199,12 @@ struct [[nodiscard]] RenderText
 
     TextBlockStyle block_style() const;
 
-    TextLayout const & get_layout() const;
+    TextLayout const & layout() const;
 
-    void layout(f32 max_width, f32 align_width, Allocator scratch);
+    void perform_layout(Allocator scratch);
 
-    /// @brief Place the laid out text
+    /// @brief Generate the placement rectangles for the laid-out text
     /// @param center canvas-space region of the text to place the text on
-    /// @param align_width the width to align the text to
     /// @param transform the canvas-space transform to apply to the text block
     /// @param clip the canvas-space clip rectangle
     /// @param highlights text highlights to render
@@ -221,260 +226,72 @@ struct [[nodiscard]] RenderText
     /// @returns .v0: caret index, .v1: caret location
     Tuple<isize, CaretAlignment> hit(f32x2 center, f32x4x4 const & transform,
                                      f32x2 transformed_pos) const;
-
-    RenderText copy_with_str(Rc<Str32> str, Allocator allocator) const;
-};
-
-struct [[nodiscard]] EditHistoryBuffer
-{
-    enum class RecordType : u8
-    {
-        Erase  = 0,
-        Insert = 1
-    };
-
-    struct Record
-    {
-        usize pos = 0;
-
-        Rc<Str32> str = static_rc(U""_str);
-
-        RecordType type = RecordType::Insert;
-
-        constexpr usize size() const
-        {
-            return str.get().size();
-        }
-    };
-
-    Vec<Record> records_;
-
-    /// @brief Record representing the current text composition state;
-    /// the base state is index 0
-    usize current_record_;
-
-    explicit constexpr EditHistoryBuffer(Vec<Record> buffer) :
-      records_{std::move(buffer)},
-      current_record_{0}
-    {
-    }
-
-    constexpr EditHistoryBuffer(EditHistoryBuffer const &)             = delete;
-    constexpr EditHistoryBuffer & operator=(EditHistoryBuffer const &) = delete;
-    constexpr EditHistoryBuffer(EditHistoryBuffer &&)                  = default;
-    constexpr EditHistoryBuffer & operator=(EditHistoryBuffer &&)      = default;
-    constexpr ~EditHistoryBuffer()                                     = default;
-
-    static EditHistoryBuffer create(Allocator allocator, usize records_capacity);
-
-    /// @brief Apply changes of next record
-    /// @param str  piece table to apply the redo changes to
-    /// @returns selection slice after redo, if any
-    Option<Slice> redo(PieceTable32 & str);
-
-    /// @brief Undo changes of current record
-    /// @param str  piece table to apply the undo changes to
-    /// @returns selection slice after undo, if any
-    Option<Slice> undo(PieceTable32 & str);
-
-    void add_record(RecordType type, usize pos, Rc<Str32> str);
-
-    void insert(usize pos, PieceTable32 & str, Rc<Str32> insert_str);
-
-    void erase(Slice selection, PieceTable32 & str);
 };
 
 static constexpr c32 DEFAULT_WORD_SYMBOLS[] = {U' ', U'\t'};
 
-// [ ] RENAME TO ASYNCTEXT, use Enum<RenderText, InteractableText>
-struct [[nodiscard]] InteractableText
+/// @brief Model for interactive text views
+struct [[nodiscard]] TextModel
 {
-    struct CursorData
-    {
-        u64 action_stamp = 0;
-
-        TextCursor indices = {};
-    };
-
-    struct State
-    {
-        RenderText text;
-
-        EditHistoryBuffer history;
-    };
-
-    struct CursorUpdate
-    {
-        TextCursor indices = {};
-    };
-
-    struct ActionsResult
-    {
-        u64 action_stamp = 0;
-
-        Option<RenderText> text;
-
-        EditHistoryBuffer history;
-
-        Option<CursorUpdate> cursor_update = none;
-    };
-
-    struct InsertAction
-    {
-        f32 max_width = 0.0F;
-
-        f32 align_width = 0.0F;
-
-        TextCursor indices = {};
-
-        Rc<Str32> str = static_rc(U""_str);
-    };
-
-    struct EraseAction
-    {
-        f32 max_width = 0.0F;
-
-        f32 align_width = 0.0F;
-
-        TextCursor indices = {};
-    };
-
-    struct UndoAction
-    {
-        f32 max_width = 0.0F;
-
-        f32 align_width = 0.0F;
-
-        TextCursor indices = {};
-    };
-
-    struct RedoAction
-    {
-        f32 max_width = 0.0F;
-
-        f32 align_width = 0.0F;
-    };
-
-    struct RelayoutAction
-    {
-        f32 max_width = 0.0F;
-
-        f32 align_width = 0.0F;
-    };
-
-    struct SetTextAction
-    {
-        f32 max_width = 0.0F;
-
-        f32 align_width = 0.0F;
-
-        RenderText text;
-    };
-
-    struct SetStrAction
-    {
-        f32 max_width = 0.0F;
-
-        f32 align_width = 0.0F;
-
-        Rc<Str32> str = static_rc(U""_str);
-    };
-
-    struct SetRunsStyleAction
-    {
-        f32 max_width = 0.0F;
-
-        f32 align_width = 0.0F;
-
-        TextRunsStyle runs_style;
-    };
-
-    using Action = Enum<InsertAction, EraseAction, UndoAction, RedoAction,
-                        RelayoutAction, SetTextAction, SetStrAction, SetRunsStyleAction>;
-
-    static constexpr usize DEFAULT_RECORDS_SIZE = 2'048;
+    // TODO: type-erased undo/redo
 
     Allocator allocator_;
 
-    // [ ] should we make this have a local pending copy? and always only layout when poll is called
-    Rc<State *> state_;
+    RenderText text_;
 
-    Option<Future<Rc<ActionsResult *>>> pending_result_;
-
-    /// @brief action queue of mutations to be performed on the text.
-    /// this is queued up whilst an async text edit is being performed.
-    /// after each edit action, the text is re-laid out.
-    Vec<Action> action_queue_;
-
-    u64 action_queue_stamp_;
-
-    /// @brief Asynchronously resolved cursors.
-    /// These cursors represent the latest known cursor state after all edits before their timestamps have been applied.
-    Option<CursorData> cursor_;
-
-    TextHighlightStyle cursor_highlight_style_;
-
-    CaretStyle cursor_caret_style_;
+    Option<TextCursor> cursor_;
 
     CaretXAlignment caret_alignment_;
 
-    bool use_async_;
+    TextHighlightStyle highlight_style_;
 
-    f32 max_width_;
+    CaretStyle caret_style_;
 
-    f32 align_width_;
-
-    u64 next_action_stamp_;
-
-    constexpr InteractableText(Allocator allocator, bool use_async, Rc<State *> state) :
+    constexpr TextModel(Allocator allocator) :
       allocator_{allocator},
-      state_{std::move(state)},
-      pending_result_{none},
-      action_queue_{allocator},
-      action_queue_stamp_{0},
+      text_{allocator},
       cursor_{none},
-      cursor_highlight_style_{},
-      cursor_caret_style_{},
       caret_alignment_{CaretXAlignment::Start},
-      use_async_{use_async},
-      max_width_{0},
-      align_width_{0},
-      next_action_stamp_{0}
+      highlight_style_{},
+      caret_style_{}
     {
     }
 
-    constexpr InteractableText(InteractableText const &)             = delete;
-    constexpr InteractableText(InteractableText &&)                  = default;
-    constexpr InteractableText & operator=(InteractableText const &) = delete;
-    constexpr InteractableText & operator=(InteractableText &&)      = default;
-    constexpr ~InteractableText()                                    = default;
-
-    static InteractableText create(Allocator allocator, bool use_async);
-
-    bool has_pending_edit() const;
+    constexpr TextModel(TextModel const &)             = delete;
+    constexpr TextModel(TextModel &&)                  = default;
+    constexpr TextModel & operator=(TextModel const &) = delete;
+    constexpr TextModel & operator=(TextModel &&)      = default;
+    constexpr ~TextModel()                             = default;
 
     Str32 str() const;
 
-    TextLayout const & get_layout() const;
+    TextLayout const & layout() const;
 
     RenderText const & get_render_text() const;
 
-    void set_text(RenderText text);
+    RenderText & get_render_text();
 
-    void set_str(Rc<Str32> str);
+    void text(RenderText text);
 
-    void set_runs_style(TextRunsStyle runs_style);
+    void str(Rc<Str32> str);
+
+    void str(Str32 str);
+
+    void str(Str8 str);
+
+    void runs_style(TextRunsStyle runs_style);
 
     StrVec32 copy(Allocator allocator);
 
-    void add_cursor(TextCursor value, TextHighlightStyle cursor_highlight_style,
-                    CaretStyle caret_style);
+    void add_cursor(TextCursor value);
+
+    TextCursor & touch_cursor();
+
+    void set_cursor_style(TextHighlightStyle highlight_style, CaretStyle caret_style);
 
     void remove_cursor();
 
-    // [ ] need to correctly handle adjusting cursors if in non-async mode; they need to be completed before the next action.
-    void update_cursor(TextCursor value, TextHighlightStyle cursor_highlight_style,
-                       CaretStyle caret_style);
+    void update_cursor(TextCursor value);
 
     void unselect();
 
@@ -530,11 +347,13 @@ struct [[nodiscard]] InteractableText
 
     void hit_select(f32x2 center, f32x4x4 const & transform, f32x2 pos);
 
+    void erase_at(Slice selection);
+
+    void insert_at(usize pos, Str32 str);
+
     void backspace();
 
     void del();
-
-    void insert(Rc<Str32> input);
 
     void insert(Str32 input);
 
@@ -548,20 +367,9 @@ struct [[nodiscard]] InteractableText
 
     void cut();
 
-    void undo();
+    void width(f32 max_width, f32 align_width);
 
-    void redo();
-
-    void layout(f32 max_width, f32 align_width);
-
-    static Rc<ActionsResult *> execute_actions_(u64 actions_stamp, Vec<Action> actions,
-                                                Rc<State *>       previous_state,
-                                                EditHistoryBuffer history,
-                                                Allocator allocator, Allocator scratch);
-
-    void run_action_(Action action);
-
-    void poll();
+    void perform_layout(Allocator scratch);
 };
 
 }    // namespace ash

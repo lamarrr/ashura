@@ -322,9 +322,9 @@ Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
              });
 
     constexpr Str const dedicated_thread_names[] = {
-      "GpuThread"_str,
-      "AudioThread"_str,
-      "VideoThread"_str,
+      "Gpu Thread"_str,
+      "Audio Thread"_str,
+      "Video Thread"_str,
     };
     constexpr DedicatedThread                  gpu_thread   = DedicatedThread{0};
     [[maybe_unused]] constexpr DedicatedThread audio_thread = DedicatedThread{1};
@@ -352,7 +352,7 @@ Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
 
     for (auto i : range(num_worker_threads))
     {
-        worker_thread_names.push(sformat(allocator, "WorkerThread {}", i).unwrap())
+        worker_thread_names.push(sformat(allocator, "Worker Thread {}", i).unwrap())
           .unwrap();
         worker_thread_infos
           .push(SchedulerThreadInfo{.name = worker_thread_names.last()})
@@ -756,9 +756,10 @@ void IEngine::run()
 
         u32x2 required_framebuffer_extent = window_->state_.surface_extent_;
 
-        plan->set_target(GpuFrameTargetInfo{.extent       = required_framebuffer_extent,
-                                            .color_format = {},
-                                            .depth_stencil_format = {}});
+        plan->set_target(
+          GpuFrameTargetInfo{.extent               = required_framebuffer_extent,
+                             .color_format         = sys.gpu->color_format(),
+                             .depth_stencil_format = sys.gpu->depth_stencil_format()});
 
         {
             if (window_->swapchain_.is_none())

@@ -1216,18 +1216,19 @@ void ICanvas::render_blur_(Shape const & info_)
                 auto dst_image = images[dst];
 
                 sys.pipeline->blur().encode(
-                  enc, BlurPipelineParams{
-                         .framebuffer = Framebuffer{.color         = dst_image.color,
-                                                    .color_msaa    = none,
-                                                    .depth_stencil = none},
-                         .stencil     = none,
-                         .scissor     = padded_area,
-                         .viewport    = viewport,
-                         .samplers    = sys.gpu->samplers(),
-                         .textures    = src_image.color.sampled_textures,
-                         .blurs       = blur,
-                         .instances   = {0, 1},
-                         .upsample    = false
+                  enc,
+                  BlurPipelineParams{
+                    .framebuffer = Framebuffer{.color         = dst_image.color,
+                                               .color_msaa    = none,
+                                               .depth_stencil = none},
+                    .stencil     = none,
+                    .scissor     = padded_area,
+                    .viewport    = viewport,
+                    .samplers    = sys.gpu->samplers(),
+                    .textures    = src_image.color.sampled_textures,
+                    .params = shader::BlurShaderParams{.blurs = blur.device_address()},
+                    .instances = {0, 1},
+                    .upsample  = false
                 });
             });
         }
@@ -1258,18 +1259,19 @@ void ICanvas::render_blur_(Shape const & info_)
                 auto dst_image = images[dst];
 
                 sys.pipeline->blur().encode(
-                  enc, BlurPipelineParams{
-                         .framebuffer = Framebuffer{.color         = dst_image.color,
-                                                    .color_msaa    = none,
-                                                    .depth_stencil = none},
-                         .stencil     = none,
-                         .scissor     = padded_area,
-                         .viewport    = viewport,
-                         .samplers    = sys.gpu->samplers(),
-                         .textures    = src_image.color.sampled_textures,
-                         .blurs       = blur,
-                         .instances   = {0, 1},
-                         .upsample    = true
+                  enc,
+                  BlurPipelineParams{
+                    .framebuffer = Framebuffer{.color         = dst_image.color,
+                                               .color_msaa    = none,
+                                               .depth_stencil = none},
+                    .stencil     = none,
+                    .scissor     = padded_area,
+                    .viewport    = viewport,
+                    .samplers    = sys.gpu->samplers(),
+                    .textures    = src_image.color.sampled_textures,
+                    .params = shader::BlurShaderParams{.blurs = blur.device_address()},
+                    .instances = {0, 1},
+                    .upsample  = true
                 });
             });
         }
@@ -2027,7 +2029,8 @@ ICanvas & ICanvas::paths(Span<PathInfo const> info, bool has_overlaps)
     return *this;
 }
 
-ICanvas & ICanvas::text(TextRenderInfo const & info, TextPlacementInfo const & placement)
+ICanvas & ICanvas::text(TextRenderInfo const &    info,
+                        TextPlacementInfo const & placement)
 {
     push_clip();
     set_clip(info.clip.intersection(this->clip_));

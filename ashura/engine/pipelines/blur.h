@@ -10,15 +10,15 @@ namespace ash
 
 struct BlurPipelineParams
 {
-    Framebuffer             framebuffer;
-    Option<PipelineStencil> stencil;
-    RectU                   scissor;
-    gpu::Viewport           viewport;
-    gpu::DescriptorSet      samplers;
-    gpu::DescriptorSet      textures;
-    GpuBufferSpan           blurs;
-    Slice32                 instances;
-    bool                    upsample;
+    Framebuffer              framebuffer;
+    Option<PipelineStencil>  stencil;
+    RectU                    scissor;
+    gpu::Viewport            viewport;
+    gpu::DescriptorSet       samplers;
+    gpu::DescriptorSet       textures;
+    shader::BlurShaderParams params;
+    Slice32                  instances;
+    bool                     upsample;
 };
 
 struct BlurPipeline final : IPipeline

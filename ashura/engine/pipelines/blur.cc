@@ -18,13 +18,18 @@ namespace ash
 // https://community.arm.com/cfs-file/__key/communityserver-blogs-components-weblogfiles/00-00-00-20-66/siggraph2015_2D00_mmg_2D00_marius_2D00_slides.pdf
 //
 
+BlurPipeline::BlurPipeline(Allocator)
+{
+}
+
 Str BlurPipeline::label()
 {
     return "Blur"_str;
 }
 
-gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label, gpu::Shader shader,
-                                      Allocator, Allocator scratch)
+static gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
+                                             gpu::Shader shader, Allocator,
+                                             Allocator   scratch)
 {
     auto & gpu = *plan->sys();
 
@@ -70,9 +75,8 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label, gpu::Shader 
     auto const & layout = gpu.descriptors_layout();
 
     gpu::DescriptorSetLayout set_layouts[] = {
-      layout.samplers,              // 0: samplers
-      layout.sampled_textures,      // 1: textures
-      layout.read_storage_buffer    // 2: blur
+      layout.samplers,           // 0: samplers
+      layout.sampled_textures    // 1: textures
     };
 
     auto pipeline_info = gpu::GraphicsPipelineInfo{
@@ -91,7 +95,7 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label, gpu::Shader 
       .stencil_format         = gpu.depth_stencil_format(),
       .vertex_input_bindings  = {},
       .vertex_attributes      = {},
-      .push_constants_size    = 0,
+      .push_constants_size    = sizeof(shader::BlurShaderParams),
       .descriptor_set_layouts = set_layouts,
       .primitive_topology     = gpu::PrimitiveTopology::TriangleFan,
       .rasterization_state    = raster_state,
@@ -126,7 +130,7 @@ void BlurPipeline::release(GpuFramePlan plan, Allocator, Allocator)
 
 void BlurPipeline::encode(gpu::CommandEncoder e, BlurPipelineParams const & params)
 {
-    InplaceVec<gpu::RenderingAttachment, 1> color;
+    InplaceVec<gpu::RenderingAttachment, 1, 0> color;
 
     color
       .push(gpu::RenderingAttachment{.view         = params.framebuffer.color.view,
@@ -165,14 +169,12 @@ void BlurPipeline::encode(gpu::CommandEncoder e, BlurPipelineParams const & para
         params.stencil.map([](auto s) { return s.front; }).unwrap_or(),
       .back_face_stencil =
         params.stencil.map([](auto s) { return s.back; }).unwrap_or()});
+    e->push_constants(as_u8_span(params.params));
     e->bind_descriptor_sets(span({
-                              params.samplers,                           // 0: samplers
-                              params.textures,                           // 1: textures
-                              params.blurs.buffer.read_storage_buffer    // 2: blur
+                              params.samplers,    // 0: samplers
+                              params.textures     // 1: textures
                             }),
-                            span({
-                              params.blurs.slice.as_u32().offset    // 2: blur
-                            }));
+                            {});
     e->draw({0, 4}, params.instances);
     e->end_rendering();
 }

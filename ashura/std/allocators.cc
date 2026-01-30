@@ -32,7 +32,7 @@ struct ThreadArena
 
     ~ThreadArena()
     {
-        upstream->dealloc(arena_layout, arena.begin);
+        upstream->dealloc(arena_layout, arena.begin_);
     }
 };
 

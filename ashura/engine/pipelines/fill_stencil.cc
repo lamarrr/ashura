@@ -67,13 +67,16 @@ void FillStencilPipeline::acquire(GpuFramePlan plan, Allocator, Allocator scratc
                                                      .entry_point                   = "vert"_str,
                                                      .specialization_constants      = {},
                                                      .specialization_constants_data = {}},
-      .fragment_shader        = {},
+      .fragment_shader        = gpu::ShaderStageInfo{.shader                   = shader,
+                                                     .entry_point              = "frag"_str,
+                                                     .specialization_constants = {},
+                                                     .specialization_constants_data = {}},
       .color_formats          = {},
       .depth_format           = {},
       .stencil_format         = gpu.depth_stencil_format(),
       .vertex_input_bindings  = {},
       .vertex_attributes      = {},
-      .push_constants_size    = 0,
+      .push_constants_size    = sizeof(shader::FillStencilShaderParams),
       .descriptor_set_layouts = set_layouts,
       .primitive_topology     = gpu::PrimitiveTopology::TriangleList,
       .rasterization_state    = raster_state,
@@ -97,19 +100,7 @@ void FillStencilPipeline::encode(gpu::CommandEncoder               e,
     e->begin_rendering(info);
 
     e->bind_graphics_pipeline(pipeline_);
-    e->bind_descriptor_sets(
-      span({
-        params.world_to_ndc.buffer.read_storage_buffer,        // 0: world_to_ndc
-        params.world_transforms.buffer.read_storage_buffer,    // 1: world_transforms
-        params.vertices.buffer.read_storage_buffer,            // 2: vertices
-        params.indices.buffer.read_storage_buffer,             // 3: indices
-      }),
-      span({
-        params.world_to_ndc.slice.as_u32().offset,        // 0: world_to_ndc
-        params.world_transforms.slice.as_u32().offset,    // 1: world_transforms
-        params.vertices.slice.as_u32().offset,            // 2: vertices
-        params.indices.slice.as_u32().offset,             // 3: indices
-      }));
+    e->push_constants(as_u8_span(params.params));
 
     ASH_CHECK(size32(params.states) > 0, "");
     ASH_CHECK(size32(params.state_runs) == (size32(params.states) + 1), "");

@@ -91,6 +91,7 @@ static void push_state(State const & state, Vec<State> & states, Vec<u32> & runs
 {
     if (runs.is_empty())
     {
+        states.push(state).unwrap();
         runs.append(span({0U, 1U})).unwrap();
     }
     else

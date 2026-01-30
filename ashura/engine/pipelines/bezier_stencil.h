@@ -20,15 +20,12 @@ struct BezierStencilPipelineParams
         gpu::Viewport  viewport;
     };
 
-    gpu::RenderingAttachment stencil_attachment;
-    RectU                    render_area;
-    GpuBufferSpan            world_to_ndc;
-    GpuBufferSpan            items;
-    GpuBufferSpan            vertices;
-    GpuBufferSpan            indices;
-    Span<u32 const>          index_runs;
-    Span<State const>        states;
-    Span<u32 const>          state_runs;
+    gpu::RenderingAttachment          stencil_attachment;
+    RectU                             render_area;
+    shader::BezierStencilShaderParams params;
+    Span<u32 const>                   index_runs;
+    Span<State const>                 states;
+    Span<u32 const>                   state_runs;
 };
 
 struct BezierStencilPipeline final : IPipeline

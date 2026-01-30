@@ -101,6 +101,8 @@ enum class [[nodiscard]] SamplerIndex : u32
 namespace shader
 {
 
+using BufferAddress = u64;
+
 enum class BlendMode : u32
 {
     Clear      = 0,
@@ -404,6 +406,77 @@ struct BezierStencilItem
 {
     alignas(16) f32x4x4 world_transform;
     alignas(4) u32 first_bezier_index;
+};
+
+struct BezierStencilShaderParams
+{
+    alignas(16) f32x4x4 world_to_ndc;
+    alignas(8) BufferAddress items;
+    alignas(8) BufferAddress vertices;
+    alignas(8) BufferAddress indices;
+};
+
+struct BlurShaderParams
+{
+    alignas(8) BufferAddress blurs;
+};
+
+struct CompositeSdfShaderParams
+{
+    alignas(16) f32x4x4 world_to_ndc;
+    alignas(8) BufferAddress composites;
+};
+
+struct FillStencilShaderParams
+{
+    alignas(16) f32x4x4 world_to_ndc;
+    alignas(8) BufferAddress world_transforms;
+    alignas(8) BufferAddress vertices;
+    alignas(8) BufferAddress indices;
+};
+
+struct PbrShaderParams
+{
+    alignas(8) BufferAddress vertices;
+    alignas(8) BufferAddress indices;
+    alignas(8) BufferAddress items;
+    alignas(8) BufferAddress lights;
+};
+
+struct QuadShaderParams
+{
+    alignas(16) f32x4x4 world_to_ndc;
+    alignas(8) BufferAddress quads;
+};
+
+struct SdfShaderParams
+{
+    alignas(16) f32x4x4 world_to_ndc;
+    alignas(8) BufferAddress items;
+};
+
+struct TriangleFillShaderParams
+{
+    alignas(16) f32x4x4 world_to_ndc;
+    alignas(8) BufferAddress sets;
+    alignas(8) BufferAddress vertices;
+    alignas(8) BufferAddress indices;
+};
+
+struct VectorPathCoverageShaderParams
+{
+    VectorPathCfg cfg;
+    alignas(16) f32x4x4 world_to_ndc;
+    alignas(8) BufferAddress items;
+    alignas(8) BufferAddress vertices;
+    alignas(8) BufferAddress indices;
+};
+
+struct VectorPathFillShaderParams
+{
+    VectorPathCfg cfg;
+    alignas(16) f32x4x4 world_to_ndc;
+    alignas(8) BufferAddress items;
 };
 
 }    // namespace shader

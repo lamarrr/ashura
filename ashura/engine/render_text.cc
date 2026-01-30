@@ -4,14 +4,13 @@
 #include "ashura/engine/systems.h"
 #include "ashura/std/range.h"
 #include "ashura/std/text.h"
-#include "ashura/std/trace.h"
 
 namespace ash
 {
 
 TextRunsStyle TextRunsStyle::all(TextStyle const & style, FontStyle const & font)
 {
-    SmallVec<usize, 4, 0>     run_indices{noop_allocator};
+    SmallVec<usize, 2, 0>     run_indices{noop_allocator};
     SmallVec<TextStyle, 1, 0> styles{noop_allocator};
     SmallVec<FontStyle, 1, 0> fonts{noop_allocator};
 
@@ -34,7 +33,7 @@ TextRunsStyle TextRunsStyle::make_sized(Allocator             allocator,
               "run_sizes and fonts must have the same size");
 
     auto run_indices =
-      SmallVec<usize, 4, 0>::make(run_sizes.size() + 1, allocator).unwrap();
+      SmallVec<usize, 2, 0>::make(run_sizes.size() + 1, allocator).unwrap();
     auto styles_vec = small_vec::copy<1, 0>(allocator, styles).unwrap();
     auto fonts_vec  = small_vec::copy<1, 0>(allocator, fonts).unwrap();
 
@@ -76,7 +75,7 @@ TextRunsStyle TextRunsStyle::make_indexed(Allocator             allocator,
     ASH_CHECK(run_indices.size() - 1 == fonts.size(),
               "run_indices and fonts must have compatible sizes");
 
-    auto run_indices_vec = small_vec::copy<4, 0>(allocator, run_indices).unwrap();
+    auto run_indices_vec = small_vec::copy<2, 0>(allocator, run_indices).unwrap();
 
     if (run_indices_vec.last() != USIZE_MAX)
     {
@@ -90,14 +89,14 @@ TextRunsStyle TextRunsStyle::make_indexed(Allocator             allocator,
                          std::move(fonts_vec)};
 }
 
-RenderText & RenderText::style_runs(TextRunsStyle style)
+RenderText & RenderText::runs_style(TextRunsStyle style)
 {
     runs_style_ = std::move(style);
     hash_       = HASH_DIRTY;
     return *this;
 }
 
-TextRunsStyle const & RenderText::get_style_runs() const
+TextRunsStyle const & RenderText::runs_style() const
 {
     return runs_style_;
 }
@@ -110,50 +109,73 @@ RenderText & RenderText::flush_text()
 
 RenderText & RenderText::wrap(bool wrap)
 {
+    if (wrap_ != wrap)
+    {
+        flush_text();
+    }
+
     wrap_ = wrap;
-    flush_text();
     return *this;
 }
 
 RenderText & RenderText::use_kerning(bool use_kerning)
 {
+    if (use_kerning_ != use_kerning)
+    {
+        flush_text();
+    }
+
     use_kerning_ = use_kerning;
-    flush_text();
     return *this;
 }
 
 RenderText & RenderText::use_ligatures(bool use_ligatures)
 {
+    if (use_ligatures_ != use_ligatures)
+    {
+        flush_text();
+    }
     use_ligatures_ = use_ligatures;
-    flush_text();
     return *this;
 }
 
 RenderText & RenderText::font_scale(f32 scale)
 {
+    if (font_scale_ != scale)
+    {
+        flush_text();
+    }
     font_scale_ = scale;
-    flush_text();
     return *this;
 }
 
 RenderText & RenderText::direction(TextDirection direction)
 {
+    if (direction_ != direction)
+    {
+        flush_text();
+    }
     direction_ = direction;
-    flush_text();
     return *this;
 }
 
 RenderText & RenderText::language(Str language)
 {
+    if (!span_bit_eq(language_, language))
+    {
+        flush_text();
+    }
     language_ = language;
-    flush_text();
     return *this;
 }
 
 RenderText & RenderText::alignment(f32 alignment)
 {
+    if (alignment_ != alignment)
+    {
+        flush_text();
+    }
     alignment_ = alignment;
-    flush_text();
     return *this;
 }
 
@@ -166,7 +188,7 @@ RenderText & RenderText::str(Rc<Str32> utf32, TextStyle const & style,
                              FontStyle const & font)
 {
     str(std::move(utf32));
-    style_runs(TextRunsStyle::all(style, font));
+    runs_style(TextRunsStyle::all(style, font));
     flush_text();
     return *this;
 }
@@ -178,37 +200,37 @@ RenderText & RenderText::str(Rc<Str32> utf32)
     return *this;
 }
 
-RenderText & RenderText::str_copy(Str32 utf32)
+RenderText & RenderText::str_copy(Str32 utf32, Allocator allocator)
 {
-    auto vec    = vec::copy(allocator_, utf32).unwrap();
-    auto rc_vec = rc<Vec<c32>>(allocator_, std::move(vec)).unwrap();
+    auto vec    = vec::copy(allocator, utf32).unwrap();
+    auto rc_vec = rc<Vec<c32>>(allocator, std::move(vec)).unwrap();
     auto view   = rc_vec->view().as_const();
     return str(transmute(std::move(rc_vec), view));
 }
 
 RenderText & RenderText::str_copy(Str32 utf32, TextStyle const & style,
-                                  FontStyle const & font)
+                                  FontStyle const & font, Allocator allocator)
 {
-    str_copy(utf32);
-    style_runs(TextRunsStyle::all(style, font));
+    str_copy(utf32, allocator);
+    runs_style(TextRunsStyle::all(style, font));
     flush_text();
     return *this;
 }
 
 RenderText & RenderText::str_copy(Str8 utf8, TextStyle const & style,
-                                  FontStyle const & font)
+                                  FontStyle const & font, Allocator allocator)
 {
-    str_copy(utf8);
-    style_runs(TextRunsStyle::all(style, font));
+    str_copy(utf8, allocator);
+    runs_style(TextRunsStyle::all(style, font));
     flush_text();
     return *this;
 }
 
-RenderText & RenderText::str_copy(Str8 utf8)
+RenderText & RenderText::str_copy(Str8 utf8, Allocator allocator)
 {
-    Vec<c32> text32{allocator_};
+    Vec<c32> text32{allocator};
     utf8_decode(utf8, text32).unwrap();
-    auto rc_vec = rc<Vec<c32>>(allocator_, std::move(text32)).unwrap();
+    auto rc_vec = rc<Vec<c32>>(allocator, std::move(text32)).unwrap();
     auto view   = rc_vec->view().as_const();
     str_        = transmute(std::move(rc_vec), view);
     flush_text();
@@ -218,6 +240,19 @@ RenderText & RenderText::str_copy(Str8 utf8)
 RenderText & RenderText::user_data(void * data)
 {
     user_data_ = data;
+    return *this;
+}
+
+RenderText & RenderText::width(f32 max_width, f32 align_width)
+{
+    if (max_width_ != max_width || align_width_ != align_width)
+    {
+        hash_ = HASH_DIRTY;
+    }
+
+    max_width_   = max_width;
+    align_width_ = align_width;
+
     return *this;
 }
 
@@ -244,21 +279,19 @@ TextBlockStyle RenderText::block_style() const
     return TextBlockStyle{.alignment = alignment_, .user_data = user_data_};
 }
 
-TextLayout const & RenderText::get_layout() const
+TextLayout const & RenderText::layout() const
 {
     return layout_;
 }
 
-void RenderText::layout(f32 max_width, f32 align_width, Allocator scratch)
+void RenderText::perform_layout(Allocator scratch)
 {
-    if (hash_ == HASH_CLEAN && max_width == layout_.max_width &&
-        align_width == layout_.align_width)
+    if (hash_ != HASH_CLEAN)
     {
-        return;
+        layout_ = sys.font->layout_text(block(), max_width_, align_width_, scratch);
     }
 
-    layout_ = sys.font->layout_text(block(), max_width, align_width, scratch);
-    hash_   = HASH_CLEAN;
+    hash_ = HASH_CLEAN;
 }
 
 Tuple<TextRenderInfo, TextPlacement>
@@ -289,128 +322,6 @@ Tuple<isize, CaretAlignment> RenderText::hit(f32x2 center, f32x4x4 const & trans
     auto pos       = ash::transform(inv_xfm, transformed_pos.append(0)).xy();
     auto local_pos = pos - center;
     return layout_.hit(block(), block_style(), local_pos);
-}
-
-RenderText RenderText::copy_with_str(Rc<Str32> str, Allocator allocator) const
-{
-    auto text = RenderText{allocator};
-    text.wrap(wrap_)
-      .use_kerning(use_kerning_)
-      .use_ligatures(use_ligatures_)
-      .direction(direction_)
-      .alignment(alignment_)
-      .font_scale(font_scale_)
-      .str(std::move(str))
-      .style_runs(get_style_runs().copy(allocator))
-      .language(language_)
-      .user_data(user_data_);
-    return text;
-}
-
-EditHistoryBuffer EditHistoryBuffer::create(Allocator allocator, usize records_capacity)
-{
-    ASH_CHECK(records_capacity > 0, "");
-    return EditHistoryBuffer{Vec<Record>::make(records_capacity, allocator).unwrap()};
-}
-
-Option<Slice> EditHistoryBuffer::redo(PieceTable32 & str)
-{
-    if ((current_record_ + 1) >= records_.size())
-    {
-        return none;
-    }
-
-    current_record_++;
-
-    // apply changes of next record
-    auto & record = records_[current_record_];
-
-    switch (record.type)
-    {
-        case RecordType::Erase:
-        {
-            str.erase(Slice::slice(record.pos, record.size()));
-            return Slice::slice(record.pos, 0);
-        }
-
-        case RecordType::Insert:
-        {
-            str.insert(record.pos, record.str.alias()).unwrap();
-            return Slice::slice(record.pos, record.size());
-        }
-
-        default:
-            ASH_UNREACHABLE;
-    }
-}
-
-Option<Slice> EditHistoryBuffer::undo(PieceTable32 & str)
-{
-    if (current_record_ == 0)
-    {
-        return none;
-    }
-
-    // undo changes of current record
-    auto & record = records_[current_record_];
-    current_record_--;
-
-    switch (record.type)
-    {
-        case RecordType::Erase:
-        {
-            str.insert(record.pos, record.str.alias()).unwrap();
-            return Slice::slice(record.pos, record.size());
-        }
-
-        case RecordType::Insert:
-        {
-            str.erase(Slice::slice(record.pos, record.size()));
-            return Slice::slice(record.pos, 0);
-        }
-
-        default:
-            ASH_UNREACHABLE;
-    }
-}
-
-void EditHistoryBuffer::add_record(RecordType type, usize pos, Rc<Str32> str)
-{
-    Record record{.pos = pos, .str = std::move(str), .type = type};
-
-    // remove all records after current record
-    records_.erase(current_record_ + 1, USIZE_MAX);
-
-    if (records_.push(within_capacity, std::move(record)))
-    {
-        current_record_ = records_.size() - 1;
-        return;
-    }
-
-    // truncate half of the history
-
-    records_.erase(Slice::offsets(0, max(records_.size() >> 1, 1uz)));
-    records_.push(within_capacity, std::move(record)).unwrap();
-    current_record_ = records_.size() - 1;
-}
-
-void EditHistoryBuffer::insert(usize pos, PieceTable32 & str, Rc<Str32> insert_str)
-{
-    auto record_str = insert_str.alias();
-    str.insert(pos, std::move(insert_str)).unwrap();
-    add_record(RecordType::Insert, pos, std::move(record_str));
-}
-
-void EditHistoryBuffer::erase(Slice selection, PieceTable32 & str)
-{
-    ASH_CHECK(str.num_pieces() == 1, "");
-
-    selection   = selection(str.size());
-    auto substr = std::move(str.pieces_[0].subslice(selection).buffer_);
-
-    str.erase(selection);
-
-    add_record(RecordType::Erase, selection.offset, std::move(substr));
 }
 
 static constexpr bool is_symbol(Span<c32 const> symbols, c32 c)
@@ -495,59 +406,62 @@ static inline Option<isize> translate_caret(TextLayout const & layout, isize car
       CaretAlignment{.x = alignment, .y = static_cast<CaretYAlignment>(line)});
 }
 
-InteractableText InteractableText::create(Allocator allocator, bool use_async)
+Str32 TextModel::str() const
 {
-    return InteractableText{
-      allocator, use_async,
-      rc<State>(allocator, State{.text    = RenderText{allocator},
-                                 .history = EditHistoryBuffer::create(
-                                   allocator, InteractableText::DEFAULT_RECORDS_SIZE)})
-        .unwrap()};
+    return text_.str();
 }
 
-bool InteractableText::has_pending_edit() const
+TextLayout const & TextModel::layout() const
 {
-    return pending_result_.is_some();
+    return text_.layout();
 }
 
-Str32 InteractableText::str() const
+RenderText const & TextModel::get_render_text() const
 {
-    return state_->text.str();
+    return text_;
 }
 
-TextLayout const & InteractableText::get_layout() const
+RenderText & TextModel::get_render_text()
 {
-    return state_->text.get_layout();
+    return text_;
 }
 
-RenderText const & InteractableText::get_render_text() const
+void TextModel::text(RenderText text)
 {
-    return state_->text;
+    text_ = std::move(text);
 }
 
-void InteractableText::set_text(RenderText text)
+void TextModel::str(Rc<Str32> str)
 {
-    run_action_(SetTextAction{
-      .max_width = max_width_, .align_width = align_width_, .text = std::move(text)});
+    text_.str(std::move(str));
 }
 
-void InteractableText::set_str(Rc<Str32> str)
+void TextModel::str(Str32 s)
 {
-    run_action_(SetStrAction{
-      .max_width = max_width_, .align_width = align_width_, .str = std::move(str)});
+    auto str32  = vec::copy(allocator_, s).unwrap();
+    auto rc_str = rc<StrVec32>(allocator_, std::move(str32)).unwrap();
+    auto view   = rc_str->view().as_const();
+    str(transmute(std::move(rc_str), view));
 }
 
-void InteractableText::set_runs_style(TextRunsStyle runs_style)
+void TextModel::str(Str8 s)
 {
-    run_action_(SetRunsStyleAction{.max_width   = max_width_,
-                                   .align_width = align_width_,
-                                   .runs_style  = std::move(runs_style)});
+    auto str32 = Vec<c32>::make(s.size(), allocator_).unwrap();
+    utf8_decode(s, str32).unwrap();
+    auto rc_str = rc<StrVec32>(allocator_, std::move(str32)).unwrap();
+    auto view   = rc_str->view().as_const();
+    str(transmute(std::move(rc_str), view));
 }
 
-Vec<c32> InteractableText::copy(Allocator allocator)
+void TextModel::runs_style(TextRunsStyle runs_style)
 {
-    auto & layout = get_layout();
-    auto   cursor = cursor_.v().indices;
+    text_.runs_style(std::move(runs_style));
+}
+
+StrVec32 TextModel::copy(Allocator allocator)
+{
+    auto & layout = this->layout();
+    auto   cursor = touch_cursor();
 
     if (!cursor.has_selection())
     {
@@ -561,613 +475,410 @@ Vec<c32> InteractableText::copy(Allocator allocator)
     return vec::copy(allocator, str().slice(slice)).unwrap();
 }
 
-void InteractableText::add_cursor(TextCursor         value,
-                                  TextHighlightStyle cursor_highlight_style,
-                                  CaretStyle         caret_style)
+void TextModel::add_cursor(TextCursor value)
 {
-    cursor_ = CursorData{.action_stamp = next_action_stamp_++, .indices = value};
-    cursor_highlight_style_ = cursor_highlight_style;
-    cursor_caret_style_     = caret_style;
+    cursor_ = value.normalize(layout().num_carets);
 }
 
-void InteractableText::remove_cursor()
+TextCursor & TextModel::touch_cursor()
+{
+    if (cursor_.is_none())
+    {
+        cursor_ = TextCursor{};
+    }
+
+    return *cursor_;
+}
+
+void TextModel::set_cursor_style(TextHighlightStyle highlight_style,
+                                 CaretStyle         caret_style)
+{
+    highlight_style_ = highlight_style;
+    caret_style_     = caret_style;
+}
+
+void TextModel::remove_cursor()
 {
     cursor_ = none;
 }
 
-// [ ] need to correctly handle adjusting cursors if in non-async mode; they need to be completed before the next action.
-void InteractableText::update_cursor(TextCursor         value,
-                                     TextHighlightStyle cursor_highlight_style,
-                                     CaretStyle         caret_style)
+void TextModel::update_cursor(TextCursor value)
 {
-    cursor_.v() = CursorData{.action_stamp = next_action_stamp_++, .indices = value};
-    cursor_highlight_style_ = cursor_highlight_style;
-    cursor_caret_style_     = caret_style;
+    cursor_ = value.normalize(layout().num_carets);
 }
 
-void InteractableText::unselect()
+void TextModel::unselect()
 {
-    auto & cursor = cursor_.v();
-    cursor.indices.unselect();
-    cursor.action_stamp = next_action_stamp_++;
+    auto & cursor = touch_cursor();
+    cursor.unselect();
 }
 
-void InteractableText::left()
+void TextModel::left()
 {
-    auto & cursor = cursor_.v();
-    cursor.indices.translate(-1).normalize(get_layout().num_carets);
-    cursor.action_stamp = next_action_stamp_++;
+    auto & cursor = touch_cursor();
+    cursor.translate(-1).normalize(layout().num_carets);
 }
 
-void InteractableText::right()
+void TextModel::right()
 {
-    auto & cursor = cursor_.v();
-    cursor.indices.translate(1).normalize(get_layout().num_carets);
-    cursor.action_stamp = next_action_stamp_++;
+    auto & cursor = touch_cursor();
+    cursor.translate(1).normalize(layout().num_carets);
 }
 
-void InteractableText::word_start(Span<c32 const> word_symbols)
+void TextModel::word_start(Span<c32 const> word_symbols)
 {
-    auto & layout = get_layout();
-    auto & cursor = cursor_.v();
-    auto   cp     = layout.get_caret_codepoint(cursor.indices.caret());
-    cursor.indices.move_to(layout.to_caret(
-      seek_sym(str(), cp.codepoint + (cp.after ? 1 : 0), true, word_symbols)
-        .unwrap_or(),
-      true));
-    cursor.action_stamp = next_action_stamp_++;
+    auto & l      = layout();
+    auto & cursor = touch_cursor();
+    auto   cp     = l.get_caret_codepoint(cursor.caret());
+    cursor.move_to(
+      l.to_caret(seek_sym(str(), cp.codepoint + (cp.after ? 1 : 0), true, word_symbols)
+                   .unwrap_or(),
+                 true));
 }
 
-void InteractableText::word_end(Span<c32 const> word_symbols)
+void TextModel::word_end(Span<c32 const> word_symbols)
 {
-    auto & layout = get_layout();
-    auto & cursor = cursor_.v();
-    auto   cp     = layout.get_caret_codepoint(cursor.indices.caret());
-    cursor.indices.move_to(layout.to_caret(
-      seek_sym(str(), cp.codepoint, false, word_symbols).unwrap_or(), true));
-    cursor.action_stamp = next_action_stamp_++;
+    auto & l      = layout();
+    auto & cursor = touch_cursor();
+    auto   cp     = l.get_caret_codepoint(cursor.caret());
+    cursor.move_to(
+      l.to_caret(seek_sym(str(), cp.codepoint, false, word_symbols).unwrap_or(), true));
 }
 
-void InteractableText::line_start()
+void TextModel::line_start()
 {
-    auto & layout = get_layout();
-    auto & cursor = cursor_.v();
-    auto   cp     = layout.get_caret_codepoint(cursor.indices.caret());
-    cursor.indices.move_to(layout.lines[cp.line].carets.first());
-    cursor.action_stamp = next_action_stamp_++;
+    auto & l      = layout();
+    auto & cursor = touch_cursor();
+    auto   cp     = l.get_caret_codepoint(cursor.caret());
+    cursor.move_to(l.lines[cp.line].carets.first());
 }
 
-void InteractableText::line_end()
+void TextModel::line_end()
 {
-    auto & layout = get_layout();
-    auto & cursor = cursor_.v();
-    auto   cp     = layout.get_caret_codepoint(cursor.indices.caret());
-    cursor.indices.move_to(layout.lines[cp.line].carets.last());
-    cursor.action_stamp = next_action_stamp_++;
+    auto & l      = layout();
+    auto & cursor = touch_cursor();
+    auto   cp     = l.get_caret_codepoint(cursor.caret());
+    cursor.move_to(l.lines[cp.line].carets.last());
 }
 
-void InteractableText::up()
+void TextModel::up()
 {
-    auto & layout = get_layout();
-    auto & cursor = cursor_.v();
-    cursor.indices.move_to(
-      translate_caret(layout, cursor.indices.caret(), caret_alignment_, -1)
-        .unwrap_or(cursor.indices.caret()));
-    cursor.action_stamp = next_action_stamp_++;
+    auto & l      = layout();
+    auto & cursor = touch_cursor();
+    cursor.move_to(translate_caret(l, cursor.caret(), caret_alignment_, -1)
+                     .unwrap_or(cursor.caret()));
 }
 
-void InteractableText::down()
+void TextModel::down()
 {
-    auto & layout = get_layout();
-    auto & cursor = cursor_.v();
-    cursor.indices.move_to(
-      translate_caret(layout, cursor.indices.caret(), caret_alignment_, 1)
-        .unwrap_or(cursor.indices.caret()));
-    cursor.action_stamp = next_action_stamp_++;
+    auto & l      = layout();
+    auto & cursor = touch_cursor();
+    cursor.move_to(translate_caret(l, cursor.caret(), caret_alignment_, 1)
+                     .unwrap_or(cursor.caret()));
 }
 
-void InteractableText::page_up(usize lines_per_page)
+void TextModel::page_up(usize lines_per_page)
 {
-    auto & layout = get_layout();
-    auto & cursor = cursor_.v();
-    cursor.indices.move_to(translate_caret(layout, cursor.indices.caret(),
-                                           caret_alignment_, -(isize) lines_per_page)
-                             .unwrap_or(cursor.indices.caret()));
-    cursor.action_stamp = next_action_stamp_++;
+    auto & l      = layout();
+    auto & cursor = touch_cursor();
+    cursor.move_to(
+      translate_caret(l, cursor.caret(), caret_alignment_, -(isize) lines_per_page)
+        .unwrap_or(cursor.caret()));
 }
 
-void InteractableText::page_down(usize lines_per_page)
+void TextModel::page_down(usize lines_per_page)
 {
-    auto & layout = get_layout();
-    auto & cursor = cursor_.v();
-    cursor.indices.move_to(translate_caret(layout, cursor.indices.caret(),
-                                           caret_alignment_, (isize) lines_per_page)
-                             .unwrap_or(cursor.indices.caret()));
-    cursor.action_stamp = next_action_stamp_++;
+    auto & l      = layout();
+    auto & cursor = touch_cursor();
+    cursor.move_to(
+      translate_caret(l, cursor.caret(), caret_alignment_, (isize) lines_per_page)
+        .unwrap_or(cursor.caret()));
 }
 
-void InteractableText::select_left()
+void TextModel::select_left()
 {
-    auto & layout = get_layout();
-    auto & cursor = cursor_.v();
-    cursor.indices.extend_selection(-1).normalize(layout.num_carets);
-    cursor.action_stamp = next_action_stamp_++;
+    auto & l      = layout();
+    auto & cursor = touch_cursor();
+    cursor.extend_selection(-1).normalize(l.num_carets);
 }
 
-void InteractableText::select_right()
+void TextModel::select_right()
 {
-    auto & layout = get_layout();
-    auto & cursor = cursor_.v();
-    cursor.indices.extend_selection(1).normalize(layout.num_carets);
-    cursor.action_stamp = next_action_stamp_++;
+    auto & l      = layout();
+    auto & cursor = touch_cursor();
+    cursor.extend_selection(1).normalize(l.num_carets);
 }
 
-void InteractableText::select_up()
+void TextModel::select_up()
 {
-    auto & layout = get_layout();
-    auto & cursor = cursor_.v();
-    cursor.indices.span_to(
-      translate_caret(layout, cursor.indices.caret(), caret_alignment_, -1)
-        .unwrap_or(cursor.indices.caret()));
-    cursor.action_stamp = next_action_stamp_++;
+    auto & l      = layout();
+    auto & cursor = touch_cursor();
+    cursor.span_to(translate_caret(l, cursor.caret(), caret_alignment_, -1)
+                     .unwrap_or(cursor.caret()));
 }
 
-void InteractableText::select_down()
+void TextModel::select_down()
 {
-    auto & layout = get_layout();
-    auto & cursor = cursor_.v();
-    cursor.indices.span_to(
-      translate_caret(layout, cursor.indices.caret(), caret_alignment_, 1)
-        .unwrap_or(cursor.indices.caret()));
-    cursor.action_stamp = next_action_stamp_++;
+    auto & l      = layout();
+    auto & cursor = touch_cursor();
+    cursor.span_to(translate_caret(l, cursor.caret(), caret_alignment_, 1)
+                     .unwrap_or(cursor.caret()));
 }
 
-void InteractableText::select_to_word_start(Span<c32 const> word_symbols)
+void TextModel::select_to_word_start(Span<c32 const> word_symbols)
 {
-    auto & layout = get_layout();
-    auto & cursor = cursor_.v();
-    auto   cp     = layout.get_caret_codepoint(cursor.indices.caret());
-    cursor.indices.span_to(layout.to_caret(
-      seek_sym(str(), cp.codepoint, true, word_symbols).unwrap_or(), true));
-    cursor.action_stamp = next_action_stamp_++;
+    auto & l      = layout();
+    auto & cursor = touch_cursor();
+    auto   cp     = l.get_caret_codepoint(cursor.caret());
+    cursor.span_to(
+      l.to_caret(seek_sym(str(), cp.codepoint, true, word_symbols).unwrap_or(), true));
 }
 
-void InteractableText::select_to_word_end(Span<c32 const> word_symbols)
+void TextModel::select_to_word_end(Span<c32 const> word_symbols)
 {
-    auto & layout = get_layout();
-    auto & cursor = cursor_.v();
-    auto   cp     = layout.get_caret_codepoint(cursor.indices.caret());
-    cursor.indices.span_to(layout.to_caret(
-      seek_sym(str(), cp.codepoint, false, word_symbols).unwrap_or(), true));
-    cursor.action_stamp = next_action_stamp_++;
+    auto & l      = layout();
+    auto & cursor = touch_cursor();
+    auto   cp     = l.get_caret_codepoint(cursor.caret());
+    cursor.span_to(
+      l.to_caret(seek_sym(str(), cp.codepoint, false, word_symbols).unwrap_or(), true));
 }
 
-void InteractableText::select_to_line_start()
+void TextModel::select_to_line_start()
 {
-    auto & layout = get_layout();
-    auto & cursor = cursor_.v();
-    auto   cp     = layout.get_caret_codepoint(cursor.indices.caret());
-    cursor.indices.span_to(layout.lines[cp.line].carets.first());
-    cursor.action_stamp = next_action_stamp_++;
+    auto & l      = layout();
+    auto & cursor = touch_cursor();
+    auto   cp     = l.get_caret_codepoint(cursor.caret());
+    cursor.span_to(l.lines[cp.line].carets.first());
 }
 
-void InteractableText::select_to_line_end()
+void TextModel::select_to_line_end()
 {
-    auto & layout = get_layout();
-    auto & cursor = cursor_.v();
-    auto   cp     = layout.get_caret_codepoint(cursor.indices.caret());
-    cursor.indices.span_to(layout.lines[cp.line].carets.last());
-    cursor.action_stamp = next_action_stamp_++;
+    auto & l      = layout();
+    auto & cursor = touch_cursor();
+    auto   cp     = l.get_caret_codepoint(cursor.caret());
+    cursor.span_to(l.lines[cp.line].carets.last());
 }
 
-void InteractableText::select_page_up(usize lines_per_page)
+void TextModel::select_page_up(usize lines_per_page)
 {
-    auto & layout = get_layout();
-    auto & cursor = cursor_.v();
-    cursor.indices.span_to(translate_caret(layout, cursor.indices.caret(),
-                                           caret_alignment_, -(isize) lines_per_page)
-                             .unwrap_or(cursor.indices.caret()));
-    cursor.action_stamp = next_action_stamp_++;
+    auto & l      = layout();
+    auto & cursor = touch_cursor();
+    cursor.span_to(
+      translate_caret(l, cursor.caret(), caret_alignment_, -(isize) lines_per_page)
+        .unwrap_or(cursor.caret()));
 }
 
-void InteractableText::select_page_down(usize lines_per_page)
+void TextModel::select_page_down(usize lines_per_page)
 {
-    auto & layout = get_layout();
-    auto & cursor = cursor_.v();
-    cursor.indices.span_to(translate_caret(layout, cursor.indices.caret(),
-                                           caret_alignment_, (isize) lines_per_page)
-                             .unwrap_or(cursor.indices.caret()));
-    cursor.action_stamp = next_action_stamp_++;
+    auto & l      = layout();
+    auto & cursor = touch_cursor();
+    cursor.span_to(
+      translate_caret(l, cursor.caret(), caret_alignment_, (isize) lines_per_page)
+        .unwrap_or(cursor.caret()));
 }
 
-void InteractableText::select_codepoint()
+void TextModel::select_codepoint()
 {
-    auto & layout = get_layout();
-    auto & cursor = cursor_.v();
-    cursor.indices.span_by(1).normalize(layout.num_carets);
-    cursor.action_stamp = next_action_stamp_++;
+    auto & l      = layout();
+    auto & cursor = touch_cursor();
+    cursor.span_by(1).normalize(l.num_carets);
 }
 
-void InteractableText::select_word(Span<c32 const> word_symbols)
+void TextModel::select_word(Span<c32 const> word_symbols)
 {
-    auto & layout    = get_layout();
-    auto & cursor    = cursor_.v();
+    auto & l         = layout();
+    auto & cursor    = touch_cursor();
     auto   selection = span_sym_boundary(
-      str(), layout.get_caret_codepoint(cursor.indices.caret()).codepoint,
-      word_symbols);
-    cursor.indices.select(layout.get_caret_selection(selection));
-    cursor.action_stamp = next_action_stamp_++;
+      str(), l.get_caret_codepoint(cursor.caret()).codepoint, word_symbols);
+    cursor.select(l.get_caret_selection(selection));
 }
 
-void InteractableText::select_line()
+void TextModel::select_line()
 {
-    auto & layout = get_layout();
-    auto & cursor = cursor_.v();
-    auto   cp     = layout.get_caret_codepoint(cursor.indices.caret());
-    cursor.indices.select(layout.lines[cp.line].carets);
-    cursor.action_stamp = next_action_stamp_++;
+    auto & l      = layout();
+    auto & cursor = touch_cursor();
+    auto   cp     = l.get_caret_codepoint(cursor.caret());
+    cursor.select(l.lines[cp.line].carets);
 }
 
-void InteractableText::select_all()
+void TextModel::select_all()
 {
-    auto & layout = get_layout();
-    auto & cursor = cursor_.v();
-    cursor.indices.select(Slice{0, layout.num_carets});
-    cursor.action_stamp = next_action_stamp_++;
+    auto & l      = layout();
+    auto & cursor = touch_cursor();
+    cursor.select(Slice{0, l.num_carets});
 }
 
-void InteractableText::hit(f32x2 center, f32x4x4 const & transform, f32x2 pos)
+void TextModel::hit(f32x2 center, f32x4x4 const & transform, f32x2 pos)
 {
-    auto & cursor     = cursor_.v();
-    auto [caret, loc] = state_->text.hit(center, transform, pos);
+    auto & l          = layout();
+    auto & cursor     = touch_cursor();
+    auto [caret, loc] = text_.hit(center, transform, pos);
     caret_alignment_  = loc.x;
-    cursor.indices.move_to(state_->text.get_layout().align_caret(loc));
-    cursor.action_stamp = next_action_stamp_++;
+    cursor.move_to(l.align_caret(loc));
 }
 
-void InteractableText::hit_select(f32x2 center, f32x4x4 const & transform, f32x2 pos)
+void TextModel::hit_select(f32x2 center, f32x4x4 const & transform, f32x2 pos)
 {
-    auto & cursor     = cursor_.v();
-    auto [caret, loc] = state_->text.hit(center, transform, pos);
+    auto & l          = layout();
+    auto & cursor     = touch_cursor();
+    auto [caret, loc] = text_.hit(center, transform, pos);
     caret_alignment_  = loc.x;
-    cursor.indices.span_to(state_->text.get_layout().align_caret(loc));
-    cursor.action_stamp = next_action_stamp_++;
+    cursor.span_to(l.align_caret(loc));
 }
 
-void InteractableText::backspace()
+void TextModel::erase_at(Slice selection)
 {
-    auto & layout = get_layout();
-    auto & cursor = cursor_.v();
+    auto str  = text_.str();
+    selection = selection(str.size());
+    auto res  = StrVec32::make(str.size() - selection.span, allocator_).unwrap();
+    res.append(str.slice(0, selection.begin())).unwrap();
+    res.append(str.slice(selection.end())).unwrap();
+    auto rc_resv = rc<StrVec32>(allocator_, std::move(res)).unwrap();
+    auto view    = rc_resv->view().as_const();
+    text_.str(transmute(std::move(rc_resv), view));
+}
 
-    if (!cursor.indices.has_selection())
+void TextModel::insert_at(usize pos, Str32 in)
+{
+    auto str = text_.str();
+    auto res = StrVec32::make(str.size() + in.size(), allocator_).unwrap();
+    res.append(str.slice(0, pos)).unwrap();
+    res.append(in).unwrap();
+    res.append(str.slice(pos)).unwrap();
+    auto rc_resv = rc<StrVec32>(allocator_, std::move(res)).unwrap();
+    auto view    = rc_resv->view().as_const();
+    text_.str(transmute(std::move(rc_resv), view));
+}
+
+void TextModel::backspace()
+{
+    auto & cursor = touch_cursor();
+
     {
-        cursor.indices.translate(-1).span_by(1).normalize(layout.num_carets);
-    }
-
-    auto action_stamp = next_action_stamp_++;
-    auto indices      = cursor.indices;
-
-    cursor.indices.unselect_left();
-    cursor.action_stamp = action_stamp;
-
-    run_action_(EraseAction{
-      .max_width = max_width_, .align_width = align_width_, .indices = indices});
-}
-
-void InteractableText::del()
-{
-    auto & layout = get_layout();
-    auto & cursor = cursor_.v();
-
-    if (!cursor.indices.has_selection())
-    {
-        cursor.indices.span_by(1).normalize(layout.num_carets);
-    }
-
-    auto action_stamp = next_action_stamp_++;
-    auto indices      = cursor.indices;
-
-    cursor.indices.unselect_left();
-    cursor.action_stamp = action_stamp;
-
-    run_action_(EraseAction{
-      .max_width = max_width_, .align_width = align_width_, .indices = indices});
-}
-
-void InteractableText::insert(Rc<Str32> input)
-{
-    auto & cursor       = cursor_.v();
-    auto   action_stamp = next_action_stamp_++;
-    cursor.action_stamp = action_stamp;
-
-    if (auto selection = cursor.indices.selection(); !selection.is_empty())
-    {
-        auto erase = cursor.indices;
-        cursor.indices.unselect_left();
-        run_action_(EraseAction{
-          .max_width = max_width_, .align_width = align_width_, .indices = erase});
-    }
-
-    run_action_(InsertAction{.max_width   = max_width_,
-                             .align_width = align_width_,
-                             .indices     = cursor.indices,
-                             .str         = std::move(input)});
-}
-
-void InteractableText::new_line()
-{
-    return insert(static_rc(U"\n"_str));
-}
-
-void InteractableText::tab()
-{
-    return insert(static_rc(U"\t"_str));
-}
-
-StrVec32 InteractableText::copy_cut(Allocator allocator)
-{
-    auto & layout = get_layout();
-    auto & cursor = cursor_.v();
-
-    if (!cursor.indices.has_selection())
-    {
-        auto cp = layout.get_caret_codepoint(cursor.indices.caret());
-        cursor.indices.select(layout.lines[cp.line].carets)
-          .normalize(layout.num_carets);
-    }
-
-    auto action_stamp = next_action_stamp_++;
-    auto selection    = cursor.indices.selection();
-    auto out          = vec::copy(allocator, str().slice(selection)).unwrap();
-    auto indices      = cursor.indices;
-    cursor.indices.unselect_left();
-    cursor.action_stamp = action_stamp;
-
-    run_action_(EraseAction{
-      .max_width = max_width_, .align_width = align_width_, .indices = indices});
-
-    return out;
-}
-
-void InteractableText::cut()
-{
-    auto & layout = get_layout();
-    auto & cursor = cursor_.v();
-
-    if (!cursor.indices.has_selection())
-    {
-        auto cp = layout.get_caret_codepoint(cursor.indices.caret());
-        cursor.indices.select(layout.lines[cp.line].carets);
-    }
-
-    auto action_stamp = next_action_stamp_++;
-    auto indices      = cursor.indices;
-
-    cursor.indices.unselect_left();
-    cursor.action_stamp = action_stamp;
-
-    run_action_(EraseAction{
-      .max_width = max_width_, .align_width = align_width_, .indices = indices});
-}
-
-void InteractableText::undo()
-{
-    next_action_stamp_++;
-    run_action_(UndoAction{.max_width = max_width_, .align_width = align_width_});
-}
-
-void InteractableText::redo()
-{
-    next_action_stamp_++;
-    run_action_(RedoAction{.max_width = max_width_, .align_width = align_width_});
-}
-
-void InteractableText::layout(f32 max_width, f32 align_width)
-{
-    if (max_width_ == max_width && align_width_ == align_width)
-    {
-        return;
-    }
-    next_action_stamp_++;
-    max_width_   = max_width;
-    align_width_ = align_width;
-    run_action_(RelayoutAction{.max_width = max_width_, .align_width = align_width_});
-}
-
-static RenderText rerender(PieceTable32 const & pieces, f32 max_width, f32 align_width,
-                           Rc<InteractableText::State *> & previous_state,
-                           Option<RenderText> curr_text, Allocator allocator,
-                           Allocator scratch)
-{
-    auto str = StrVec32{allocator};
-    pieces.compact(Slice::all(), str).unwrap();
-    auto rc_strvec = rc<StrVec32>(allocator, std::move(str)).unwrap();
-    auto view      = rc_strvec->view().as_const();
-    auto rc_str32  = transmute(std::move(rc_strvec), view);
-    auto text      = (curr_text.is_some() ? *curr_text : previous_state->text)
-                  .copy_with_str(std::move(rc_str32), allocator);
-    text.layout(max_width, align_width, scratch);
-    return text;
-}
-
-Rc<InteractableText::ActionsResult *>
-  InteractableText::execute_actions_(u64 actions_stamp, Vec<Action> actions,
-                                     Rc<State *> prev, EditHistoryBuffer hist,
-                                     Allocator allocator, Allocator scratch)
-{
-    tracing::ScopeTrace trace;
-
-    auto               cursor_update = Option<CursorUpdate>{};
-    Option<RenderText> new_text      = none;
-
-    for (auto & action : actions)
-    {
-        auto & layout =
-          new_text.is_some() ? new_text->get_layout() : prev->text.get_layout();
-        auto & str    = new_text.is_some() ? new_text->str_ : prev->text.str_;
-        auto   pieces = PieceTable32{scratch};
-        pieces.insert(0, str.alias()).unwrap();
-
-        action.match(
-          [&](InsertAction const & a) {
-              auto cursor = a.indices;
-              cursor.normalize(layout.num_carets);
-              auto cp        = layout.get_caret_codepoint(cursor.caret());
-              auto codepoint = cp.codepoint + (cp.after ? 1 : 0);
-              hist.insert(codepoint, pieces, a.str.alias());
-              new_text          = rerender(pieces, a.max_width, a.align_width, prev,
-                                           std::move(new_text), allocator, scratch);
-              auto & new_layout = new_text->get_layout();
-              auto   caret = new_layout.to_caret(codepoint + a.str.get().size(), true);
-              auto   new_cursor = TextCursor{};
-              new_cursor.move_to(caret).normalize(new_layout.num_carets);
-              cursor_update = CursorUpdate{.indices = new_cursor};
-          },
-          [&](EraseAction const & a) {
-              auto cursor = a.indices;
-              cursor.normalize(layout.num_carets);
-              auto selection = layout.get_caret_selection(cursor.selection());
-              hist.erase(selection, pieces);
-              new_text        = rerender(pieces, a.max_width, a.align_width, prev,
-                                         std::move(new_text), allocator, scratch);
-              auto new_cursor = TextCursor{};
-              new_cursor.move_to(cursor.left_caret())
-                .normalize(new_text->get_layout().num_carets);
-              cursor_update = CursorUpdate{.indices = new_cursor};
-          },
-          [&](UndoAction const & a) {
-              hist.undo(pieces).match(
-                [&](Slice insertion) {
-                    new_text = rerender(pieces, a.max_width, a.align_width, prev,
-                                        std::move(new_text), allocator, scratch);
-                    auto & new_layout = new_text->get_layout();
-                    auto   selection  = new_layout.to_caret_selection(insertion);
-                    auto   new_cursor = TextCursor{};
-                    new_cursor.select(selection);
-                    cursor_update = CursorUpdate{.indices = new_cursor};
-                },
-                [&] {
-                    new_text = rerender(pieces, a.max_width, a.align_width, prev,
-                                        std::move(new_text), allocator, scratch);
-                });
-          },
-          [&](RedoAction const & a) {
-              hist.redo(pieces).match(
-                [&](Slice insertion) {
-                    new_text = rerender(pieces, a.max_width, a.align_width, prev,
-                                        std::move(new_text), allocator, scratch);
-                    auto & new_layout = new_text->get_layout();
-                    auto   selection  = new_layout.to_caret_selection(insertion);
-                    auto   new_cursor = TextCursor{};
-                    new_cursor.select(selection);
-                    cursor_update = CursorUpdate{.indices = new_cursor};
-                },
-                [&] {
-                    new_text = rerender(pieces, a.max_width, a.align_width, prev,
-                                        std::move(new_text), allocator, scratch);
-                });
-          },
-          [&](RelayoutAction const & a) {
-              new_text = rerender(pieces, a.max_width, a.align_width, prev,
-                                  std::move(new_text), allocator, scratch);
-          },
-          [&](UpdateTextAction & a) {
-              auto text = std::move(a.text);
-              text.layout(a.max_width, a.align_width, scratch);
-              new_text = std::move(text);
-          },
-          [&](SetStrAction & a) {
-              auto text = (new_text.is_some() ? *new_text : prev->text)
-                            .copy_with_str(std::move(a.str), allocator);
-              text.layout(a.max_width, a.align_width, scratch);
-              new_text = std::move(text);
-          },
-          [&](SetRunsStyleAction & a) {
-            // TODO: I don't like this action-based mutation of the text object
-            // can we do something more direct?
-              auto text = (new_text.is_some() ? *new_text : prev->text)
-                            .style_runs(std::move(a.runs_style));
-              text.layout(a.max_width, a.align_width, scratch);
-              new_text = std::move(text);
-          });
-    }
-
-    return rc(allocator, ActionsResult{.action_stamp  = actions_stamp,
-                                       .text          = std::move(new_text),
-                                       .history       = std::move(hist),
-                                       .cursor_update = std::move(cursor_update)})
-      .unwrap();
-}
-
-void InteractableText::run_action_(Action action)
-{
-    // TODO: implement
-    // if(use_async_){
-    //  action_queue_
-    //   .push()
-    //   .unwrap();
-    // action_stamp?
-    // action_queue_stamp_ = next_action_stamp
-    // [ ] needs to use result yiedling function below
-    if (use_async_)
-    {
-    }
-    else
-    {
-    }
-}
-
-void InteractableText::poll()
-{
-    if (pending_result_.is_some())
-    {
-        auto p = pending_result_->poll();
-        if (p.is_ok())
+        auto & l = layout();
+        if (!cursor.has_selection())
         {
-            // apply new state
-            auto & result   = *p.unwrap();
-            auto   old_text = std::move(state_->text);
-
-            *state_ = State{.text    = result->text.unwrap_or(std::move(old_text)),
-                            .history = std::move(result->history)};
-
-            if (auto cursor_update = result->cursor_update;
-                cursor_update.is_some() && cursor_.is_some() &&
-                result->action_stamp >= cursor_->action_stamp)
+            if (cursor.caret() == 0)
             {
-                cursor_ = CursorData{.action_stamp = result->action_stamp,
-                                     .indices      = cursor_update->indices};
+                return;
             }
+            cursor.translate(-1).span_by(1).normalize(l.num_carets);
+        }
 
-            if (cursor_.is_some())
+        erase_at(l.get_caret_selection(cursor.selection()));
+    }
+
+    cursor.unselect_left().normalize(layout().num_carets);
+}
+
+void TextModel::del()
+{
+    auto & cursor = touch_cursor();
+
+    {
+        auto & l = layout();
+
+        if (!cursor.has_selection())
+        {
+            if (l.num_carets == 0 || cursor.caret() == ((isize) l.num_carets - 1))
             {
-                cursor_->indices =
-                  cursor_->indices.normalize(state_->text.get_layout().num_carets);
+                return;
             }
+            cursor.span_by(1).normalize(l.num_carets);
+        }
 
-            pending_result_ = none;
+        erase_at(l.get_caret_selection(cursor.selection()));
+    }
+
+    cursor.unselect_left().normalize(layout().num_carets);
+}
+
+void TextModel::insert(Str32 input)
+{
+    auto & cursor = touch_cursor();
+
+    {
+        auto & l = layout();
+        if (auto selection = cursor.selection(); !selection.is_empty())
+        {
+            cursor.unselect_left();
+            erase_at(l.get_caret_selection(selection));
         }
     }
 
-    if (pending_result_.is_none() && !action_queue_.is_empty())
     {
-        auto actions  = std::move(action_queue_);
-        action_queue_ = Vec<Action>{allocator_};
-
-        pending_result_ =
-          sys.sched
-            ->run(allocator_, WorkerThread::Any,
-                  [allocator = allocator_, actions = std::move(actions),
-                   previous_state_ = state_.alias(),
-                   history         = std::move(state_->history),
-                   stamp           = action_queue_stamp_]() mutable {
-                      auto scratch = IFallbackAllocator{get_thread_arena(), allocator};
-                      return InteractableText::execute_actions_(
-                        stamp, std::move(actions), std::move(previous_state_),
-                        std::move(history), allocator, scratch);
-                  })
-            .unwrap();
+        auto & l = layout();
+        cursor.normalize(l.num_carets);
+        auto cp        = l.get_caret_codepoint(cursor.caret());
+        auto codepoint = cp.codepoint + (cp.after ? 1 : 0);
+        insert_at(codepoint, input);
+        auto caret = l.to_caret(codepoint + input.size(), true);
+        cursor.move_to(caret).normalize(l.num_carets);
     }
+}
+
+void TextModel::insert(Str8 input)
+{
+    auto     scratch = IFallbackAllocator{get_thread_arena(), default_allocator};
+    Vec<c32> utf32{scratch};
+    utf8_decode(input, utf32).unwrap();
+    insert(utf32);
+}
+
+void TextModel::new_line()
+{
+    return insert(U"\n"_str);
+}
+
+void TextModel::tab()
+{
+    return insert(U"\t"_str);
+}
+
+StrVec32 TextModel::copy_cut(Allocator allocator)
+{
+    auto & l      = layout();
+    auto & cursor = touch_cursor();
+
+    if (!cursor.has_selection())
+    {
+        auto cp = l.get_caret_codepoint(cursor.caret());
+        cursor.select(l.lines[cp.line].carets);
+    }
+
+    cursor.normalize(l.num_carets);
+    auto slice = l.get_caret_selection(cursor.selection());
+    auto copy  = vec::copy(allocator, str().slice(slice)).unwrap();
+
+    backspace();
+
+    return copy;
+}
+
+void TextModel::cut()
+{
+    auto & l      = layout();
+    auto & cursor = touch_cursor();
+
+    if (!cursor.has_selection())
+    {
+        auto cp = l.get_caret_codepoint(cursor.caret());
+        cursor.select(l.lines[cp.line].carets);
+    }
+
+    backspace();
+}
+
+void TextModel::width(f32 max_width, f32 align_width)
+{
+    text_.width(max_width, align_width);
+}
+
+void TextModel::perform_layout(Allocator scratch)
+{
+    text_.perform_layout(scratch);
+    cursor_.match(
+      [&](TextCursor & cursor) { cursor.normalize(text_.layout().num_carets); }, [] {});
 }
 
 }    // namespace ash

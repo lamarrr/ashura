@@ -5,11 +5,11 @@ project(Ashura LANGUAGES C CXX ASM)
 
 option(ASH_WERROR "Make all ASH's compilation warnings manifest as errors" OFF)
 option(ASH_SANITIZE "Sanitize address and memory" OFF)
-option(ASH_EXCLUDE_GPU "" OFF)
-option(ASH_EXCLUDE_ENGINE "" OFF)
-option(ASH_EXCLUDE_EDITOR "" OFF)
-option(ASH_EXCLUDE_TESTS "" OFF)
-option(ASH_EXCLUDE_BENCHMARKS "" OFF)
+option(ASH_BUILD_GPU "" ON)
+option(ASH_BUILD_ENGINE "" ON)
+option(ASH_BUILD_TESTS "" ON)
+option(ASH_BUILD_SAMPLES "" ON)
+option(ASH_BUILD_BENCHMARKS "" ON)
 option(ASH_BUILD_DOC "Build documentation" OFF)
 
 set(CMAKE_CXX_STANDARD 26)
@@ -220,7 +220,7 @@ FetchContent_Declare(
     GIT_TAG 92c3963)
 
 find_package(FFMPEG REQUIRED)
-find_package(libjpeg-turbo CONFIG REQUIRED)
+find_package(JPEG REQUIRED)
 find_package(Threads REQUIRED)
 
 if(ASH_BUILD_DOC)
@@ -341,7 +341,7 @@ target_link_options(ashura_std PUBLIC ${ASH_LINK_OPTIONS})
 
 # ASHURA STD - TESTS
 
-if(NOT ASH_EXCLUDE_TESTS)
+if(ASH_BUILD_TESTS)
     add_executable(
         ashura_std_tests
         ashura/std/tests/allocators.cc
@@ -384,7 +384,7 @@ endif()
 
 # ASHURA GPU
 
-if(NOT ASH_EXCLUDE_GPU)
+if(ASH_BUILD_GPU)
     add_library(ashura_gpu STATIC ashura/gpu/format.cc ashura/gpu/gpu.cc
                                   ashura/gpu/vma_def.cc ashura/gpu/vulkan.cc)
     target_link_libraries(
@@ -401,7 +401,7 @@ endif()
 
 # ASHURA ENGINE
 
-if(NOT ASH_EXCLUDE_ENGINE)
+if(ASH_BUILD_ENGINE)
     add_library(
         ashura_engine STATIC
         # ENGINE CORE
@@ -417,6 +417,7 @@ if(NOT ASH_EXCLUDE_ENGINE)
         ashura/engine/font.cc
         ashura/engine/gpu_system.cc
         ashura/engine/image_decoder.cc
+        ashura/engine/image_system.cc
         ashura/engine/input.cc
         ashura/engine/pipeline_system.cc
         ashura/engine/pipeline.cc
@@ -439,6 +440,7 @@ if(NOT ASH_EXCLUDE_ENGINE)
         ashura/engine/pipelines/triangle_fill.cc
         ashura/engine/pipelines/vector_path.cc
         # VIEWS
+        ashura/engine/views/model/text.cc
         # ashura/engine/views/button.cc
         # ashura/engine/views/check_box.cc
         # ashura/engine/views/color_picker.cc
@@ -459,24 +461,22 @@ if(NOT ASH_EXCLUDE_ENGINE)
         # ashura/engine/views/stack.cc
         # ashura/engine/views/switch.cc
         # ashura/engine/views/table.cc
-        # ashura/engine/views/text.cc
-    )
+        ashura/engine/views/text.cc)
 
     target_link_libraries(
         ashura_engine
         PUBLIC ashura_std ashura_gpu
-        PRIVATE
-            SDL3::SDL3-static
-            harfbuzz
-            CURL::libcurl
-            freetype
-            simdjson::simdjson_static
-            webp
-            webpdecoder
-            $<IF:$<TARGET_EXISTS:libjpeg-turbo::turbojpeg>,libjpeg-turbo::turbojpeg,libjpeg-turbo::turbojpeg-static>
-            png_static
-            sheenbidi::sheenbidi
-            ${FFMPEG_LIBRARIES})
+        PRIVATE SDL3::SDL3-static
+                harfbuzz
+                CURL::libcurl
+                freetype
+                simdjson::simdjson_static
+                webp
+                webpdecoder
+                JPEG::JPEG
+                png_static
+                sheenbidi::sheenbidi
+                ${FFMPEG_LIBRARIES})
 
     target_include_directories(
         ashura_engine
@@ -488,7 +488,7 @@ if(NOT ASH_EXCLUDE_ENGINE)
 
     # ASHURA ENGINE - TESTS
 
-    if(NOT ASH_EXCLUDE_TESTS)
+    if(ASH_BUILD_TESTS)
         add_executable(
             ashura_engine_tests
             ashura/engine/tests/main.cc ashura/engine/tests/animation.cc
@@ -496,15 +496,6 @@ if(NOT ASH_EXCLUDE_ENGINE)
         target_link_libraries(ashura_engine_tests ashura_std ashura_engine GTest::gtest)
     endif()
 
-endif()
-
-# ASHURA EDITOR
-
-if(NOT ASH_EXCLUDE_EDITOR)
-    add_executable(ashura_editor ashura/editor/editor.cc)
-    target_link_libraries(ashura_editor ashura_std ashura_engine)
-    target_compile_definitions(ashura_editor PUBLIC ${ASH_COMPILE_DEFINITIONS})
-    target_link_options(ashura_editor PUBLIC ${ASH_LINK_OPTIONS})
 endif()
 
 # Ashura Engine's Core Shaders
@@ -533,7 +524,9 @@ set(SLANG_OUT_DIR "${CMAKE_SOURCE_DIR}/assets/shaders")
 
 set(SLANG_FEATURE_LIST
     SPV_EXT_descriptor_indexing
+    SPV_EXT_physical_storage_buffer
     SPV_KHR_non_semantic_info
+    spvRayTracingKHR
     spvImageQuery
     spvImageGatherExtended
     spvShaderNonUniformEXT
@@ -585,19 +578,21 @@ function(add_shader target_name shader_file)
     add_dependencies(ashura_shaders ${target_name}_shaders)
 endfunction()
 
-add_shader(bezier_stencil bezier_stencil.slang)
-add_shader(blur_downsample blur.slang "-DDOWNSAMPLE=1")
-add_shader(blur_upsample blur.slang "-DDOWNSAMPLE=0")
-add_shader(composite_sdf composite_sdf.slang)
-add_shader(fill_stencil fill_stencil.slang)
-add_shader(pbr_base pbr.slang)
-add_shader(quad_base quad.slang)
-add_shader(sdf_gradient sdf.slang "-DITEM_TYPE=SdfGradientItem")
-add_shader(sdf_noise sdf.slang "-DITEM_TYPE=SdfNoiseItem")
-add_shader(sdf_mesh_gradient sdf.slang "-DITEM_TYPE=SdfMeshGradientItem")
-add_shader(triangle_fill triangle_fill.slang)
-add_shader(vector_path_coverage vector_path_coverage.slang)
-add_shader(vector_path_fill vector_path_fill.slang)
+if(ASH_BUILD_ENGINE)
+    add_shader(bezier_stencil bezier_stencil.slang)
+    add_shader(blur_downsample blur.slang "-DDOWNSAMPLE=1")
+    add_shader(blur_upsample blur.slang "-DDOWNSAMPLE=0")
+    add_shader(composite_sdf composite_sdf.slang)
+    add_shader(fill_stencil fill_stencil.slang)
+    add_shader(pbr_base pbr.slang)
+    add_shader(quad_base quad.slang)
+    add_shader(sdf_gradient sdf.slang "-DITEM_TYPE=SdfGradientItem")
+    add_shader(sdf_noise sdf.slang "-DITEM_TYPE=SdfNoiseItem")
+    add_shader(sdf_mesh_gradient sdf.slang "-DITEM_TYPE=SdfMeshGradientItem")
+    add_shader(triangle_fill triangle_fill.slang)
+    add_shader(vector_path_coverage vector_path_coverage.slang)
+    add_shader(vector_path_fill vector_path_fill.slang)
+endif()
 
 if(ASH_BUILD_DOC)
     set(DOXYGEN_IN ${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in)
@@ -611,4 +606,14 @@ if(ASH_BUILD_DOC)
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
         COMMENT "Generating API documentation with Doxygen"
         VERBATIM)
+endif()
+
+# ASHURA ENGINE SAMPLES
+
+if(ASH_BUILD_SAMPLES)
+    add_executable(ashura_text_sample ashura/engine/samples/views/text.cc)
+    target_link_libraries(ashura_text_sample ashura_std ashura_engine)
+    target_compile_definitions(ashura_text_sample PUBLIC ${ASH_COMPILE_DEFINITIONS})
+    target_compile_options(ashura_text_sample PUBLIC ${ASH_COMPILE_OPTIONS})
+    target_link_options(ashura_text_sample PUBLIC ${ASH_LINK_OPTIONS})
 endif()

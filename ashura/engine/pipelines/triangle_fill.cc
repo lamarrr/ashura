@@ -14,8 +14,9 @@ Str TriangleFillPipeline::label()
     return "TriangleFill"_str;
 }
 
-gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label, gpu::Shader shader,
-                                      Allocator, Allocator scratch)
+static gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
+                                             gpu::Shader shader, Allocator,
+                                             Allocator   scratch)
 {
     auto & gpu = *plan->sys();
 
@@ -62,12 +63,8 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label, gpu::Shader 
     auto const & layout = gpu.descriptors_layout();
 
     gpu::DescriptorSetLayout set_layouts[] = {
-      layout.samplers,               // 0: samplers
-      layout.sampled_textures,       // 1: textures
-      layout.read_storage_buffer,    // 2: world_to_ndc
-      layout.read_storage_buffer,    // 3: sets
-      layout.read_storage_buffer,    // 4: vertices
-      layout.read_storage_buffer     // 5: indices
+      layout.samplers,           // 0: samplers
+      layout.sampled_textures    // 1: textures
     };
 
     auto pipeline_info = gpu::GraphicsPipelineInfo{
@@ -86,7 +83,7 @@ gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label, gpu::Shader 
       .stencil_format         = gpu.depth_stencil_format(),
       .vertex_input_bindings  = {},
       .vertex_attributes      = {},
-      .push_constants_size    = 0,
+      .push_constants_size    = sizeof(shader::TriangleFillShaderParams),
       .descriptor_set_layouts = set_layouts,
       .primitive_topology     = gpu::PrimitiveTopology::TriangleList,
       .rasterization_state    = raster_state,
@@ -105,10 +102,9 @@ TriangleFillPipeline::TriangleFillPipeline(Allocator allocator) : pipelines_{all
 void TriangleFillPipeline::acquire(GpuFramePlan plan, Allocator allocator,
                                    Allocator scratch)
 {
-    auto id =
-      add_variant(plan, "base"_str,
-                  sys.shader->get("defaults/triangle_fill_base"_str).unwrap().shader,
-                  allocator, scratch);
+    auto id = add_variant(plan, "base"_str,
+                          sys.shader->get("defaults/triangle_fill"_str).unwrap().shader,
+                          allocator, scratch);
     ASH_CHECK(id == PipelineVariantId::Base, "");
 }
 
@@ -133,7 +129,7 @@ void TriangleFillPipeline::remove_variant(GpuFramePlan plan, PipelineVariantId i
 void TriangleFillPipeline::encode(gpu::CommandEncoder                e,
                                   TriangleFillPipelineParams const & params)
 {
-    InplaceVec<gpu::RenderingAttachment, 1> color;
+    InplaceVec<gpu::RenderingAttachment, 1, 0> color;
 
     params.framebuffer.color_msaa.match(
       [&](ColorMsaaImage const & tex) {
@@ -179,20 +175,12 @@ void TriangleFillPipeline::encode(gpu::CommandEncoder                e,
     auto pipeline = pipelines_[params.variant].v0.v1;
 
     e->bind_graphics_pipeline(pipeline);
+    e->push_constants(as_u8_span(params.params));
     e->bind_descriptor_sets(span({
-                              params.samplers,                                   //
-                              params.textures,                                   //
-                              params.world_to_ndc.buffer.read_storage_buffer,    //
-                              params.sets.buffer.read_storage_buffer,            //
-                              params.vertices.buffer.read_storage_buffer,        //
-                              params.indices.buffer.read_storage_buffer          //
+                              params.samplers,    // 0: samplers
+                              params.textures     // 1: textures
                             }),
-                            span({
-                              params.world_to_ndc.slice.as_u32().offset,    //
-                              params.sets.slice.as_u32().offset,            //
-                              params.vertices.slice.as_u32().offset,        //
-                              params.indices.slice.as_u32().offset          //
-                            }));
+                            {});
 
     ASH_CHECK(size32(params.states) > 0, "");
     ASH_CHECK(size32(params.state_runs) == (size32(params.states) + 1), "");

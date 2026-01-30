@@ -17,10 +17,7 @@ struct PBRPipelineParams
     gpu::PolygonMode        polygon_mode;
     gpu::DescriptorSet      samplers;
     gpu::DescriptorSet      textures;
-    GpuBufferSpan           vertices;
-    GpuBufferSpan           indices;
-    GpuBufferSpan           items;
-    GpuBufferSpan           lights;
+    shader::PbrShaderParams params;
     u32                     num_indices;
     gpu::CullMode           cull_mode;
     gpu::FrontFace          front_face;

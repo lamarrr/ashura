@@ -46,15 +46,6 @@ void BezierStencilPipeline::acquire(GpuFramePlan plan, Allocator, Allocator)
                              .min_depth_bounds         = 0,
                              .max_depth_bounds         = 0};
 
-    auto const & layout = gpu.descriptors_layout();
-
-    gpu::DescriptorSetLayout set_layouts[] = {
-      layout.read_storage_buffer,    // 0: world_to_ndc
-      layout.read_storage_buffer,    // 1: items
-      layout.read_storage_buffer,    // 2: vertices
-      layout.read_storage_buffer     // 3: indices
-    };
-
     auto pipeline_info = gpu::GraphicsPipelineInfo{
       .label                  = "Bezier Stencil Graphics Pipeline"_str,
       .vertex_shader          = gpu::ShaderStageInfo{.shader                        = shader,
@@ -70,8 +61,8 @@ void BezierStencilPipeline::acquire(GpuFramePlan plan, Allocator, Allocator)
       .stencil_format         = gpu.depth_stencil_format(),
       .vertex_input_bindings  = {},
       .vertex_attributes      = {},
-      .push_constants_size    = 0,
-      .descriptor_set_layouts = set_layouts,
+      .push_constants_size    = sizeof(shader::BezierStencilShaderParams),
+      .descriptor_set_layouts = {},
       .primitive_topology     = gpu::PrimitiveTopology::TriangleList,
       .rasterization_state    = raster_state,
       .depth_stencil_state    = depth_stencil_state,
@@ -95,20 +86,7 @@ void BezierStencilPipeline::encode(gpu::CommandEncoder                 e,
     // spec
     e->begin_rendering(info);
     e->bind_graphics_pipeline(pipeline_);
-
-    e->bind_descriptor_sets(
-      span({
-        params.world_to_ndc.buffer.read_storage_buffer,    // 0: world_to_ndc
-        params.items.buffer.read_storage_buffer,           // 1: items
-        params.vertices.buffer.read_storage_buffer,        // 2: vertices
-        params.indices.buffer.read_storage_buffer          // 3: indices
-      }),
-      span({
-        params.world_to_ndc.slice.as_u32().offset,    // 0: world_to_ndc
-        params.items.slice.as_u32().offset,           // 1: items
-        params.vertices.slice.as_u32().offset,        // 2: vertices
-        params.indices.slice.as_u32().offset          // 3: indices
-      }));
+    e->push_constants(as_u8_span(params.params));
 
     ASH_CHECK(size32(params.states) > 0, "");
     ASH_CHECK(size32(params.state_runs) == (size32(params.states) + 1), "");

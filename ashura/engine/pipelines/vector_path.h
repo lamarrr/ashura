@@ -17,34 +17,28 @@ struct VectorPathCoveragePipelineParams
         gpu::Viewport  viewport;
     };
 
-    DepthStencilImage     stencil;
-    shader::VectorPathCfg cfg;
-    gpu::DescriptorSet    write_alpha_masks;
-    gpu::DescriptorSet    write_fill_ids;
-    GpuBufferSpan         world_to_ndc;
-    GpuBufferSpan         vertices;
-    GpuBufferSpan         indices;
-    GpuBufferSpan         coverage_items;
-    Span<u32 const>       index_runs;
-    Span<State const>     states;
-    Span<u32 const>       state_runs;
+    DepthStencilImage                      stencil;
+    gpu::DescriptorSet                     write_alpha_masks;
+    gpu::DescriptorSet                     write_fill_ids;
+    shader::VectorPathCoverageShaderParams params;
+    Span<u32 const>                        index_runs;
+    Span<State const>                      states;
+    Span<u32 const>                        state_runs;
 };
 
 struct VectorPathFillPipelineParams
 {
     using State = VectorPathCoveragePipelineParams::State;
 
-    Framebuffer           framebuffer;
-    shader::VectorPathCfg cfg;
-    gpu::DescriptorSet    samplers;
-    gpu::DescriptorSet    textures;
-    gpu::DescriptorSet    read_alpha_masks;
-    gpu::DescriptorSet    read_fill_ids;
-    GpuBufferSpan         world_to_ndc;
-    GpuBufferSpan         fill_items;
-    Span<State const>     states;
-    Span<u32 const>       state_runs;
-    PipelineVariantId     variant;
+    Framebuffer                        framebuffer;
+    gpu::DescriptorSet                 samplers;
+    gpu::DescriptorSet                 textures;
+    gpu::DescriptorSet                 read_alpha_masks;
+    gpu::DescriptorSet                 read_fill_ids;
+    shader::VectorPathFillShaderParams params;
+    Span<State const>                  states;
+    Span<u32 const>                    state_runs;
+    PipelineVariantId                  variant;
 };
 
 struct VectorPathPipeline final : IPipeline

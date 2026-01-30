@@ -17,14 +17,13 @@ struct SdfPipelineParams
         gpu::Viewport           viewport;
     };
 
-    Framebuffer        framebuffer;
-    gpu::DescriptorSet samplers;
-    gpu::DescriptorSet textures;
-    GpuBufferSpan      world_to_ndc;
-    GpuBufferSpan      items;
-    Span<State const>  states;
-    Span<u32 const>    state_runs;
-    PipelineVariantId  variant;
+    Framebuffer             framebuffer;
+    gpu::DescriptorSet      samplers;
+    gpu::DescriptorSet      textures;
+    shader::SdfShaderParams params;
+    Span<State const>       states;
+    Span<u32 const>         state_runs;
+    PipelineVariantId       variant;
 };
 
 struct SdfPipeline final : IPipeline

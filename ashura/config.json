@@ -21,7 +21,7 @@
   "window.width": 1920,
   "window.height": 1080,
   "fonts.height": 32,
-  "paths.pipeline_cache": "${paths:working_dir}/caches/pipeline.cache",
+  "paths.pipeline_cache": "./pipeline.cache",
   "paths.working_dir": ".",
   "window.title": "Ashura Demo App"
 }

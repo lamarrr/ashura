@@ -175,9 +175,15 @@ struct [[nodiscard]] Vec
         return get(0);
     }
 
+    constexpr Type & unsafe_get(usize index) const
+    {
+        return data()[index];
+    }
+
     constexpr Type & last() const
     {
-        return get(size() - 1);
+        ASH_BOUNDS_CHECK(0, size_);
+        return unsafe_get(size_ - 1);
     }
 
     constexpr Type & operator[](usize index) const
@@ -187,6 +193,7 @@ struct [[nodiscard]] Vec
 
     constexpr Type & get(usize index) const
     {
+        ASH_BOUNDS_CHECK(index, size_);
         return data()[index];
     }
 
@@ -899,9 +906,15 @@ struct [[nodiscard]] SmallVec
         return get(0);
     }
 
+    constexpr Type & unsafe_get(usize index) const
+    {
+        return data()[index];
+    }
+
     constexpr Type & last() const
     {
-        return get(size() - 1);
+        ASH_BOUNDS_CHECK(0, size_);
+        return unsafe_get(size_ - 1);
     }
 
     constexpr Type & operator[](usize index) const
@@ -911,6 +924,7 @@ struct [[nodiscard]] SmallVec
 
     constexpr Type & get(usize index) const
     {
+        ASH_BOUNDS_CHECK(index, size_);
         return data()[index];
     }
 
@@ -1582,9 +1596,15 @@ struct [[nodiscard]] InplaceVec
         return get(0);
     }
 
+    constexpr Type & unsafe_get(usize index) const
+    {
+        return data()[index];
+    }
+
     constexpr Type & last() const
     {
-        return get(size() - 1);
+        ASH_BOUNDS_CHECK(0, size_);
+        return unsafe_get(size() - 1);
     }
 
     constexpr Type & operator[](usize index) const
@@ -1594,6 +1614,7 @@ struct [[nodiscard]] InplaceVec
 
     constexpr Type & get(usize index) const
     {
+        ASH_BOUNDS_CHECK(index, size_);
         return data()[index];
     }
 
@@ -2047,13 +2068,20 @@ struct [[nodiscard]] CoreBitVec
         return get(0);
     }
 
+    constexpr Type & unsafe_get(usize index) const
+    {
+        return data()[index];
+    }
+
     constexpr Type last() const
     {
-        return get(size() - 1);
+        ASH_BOUNDS_CHECK(0, size_);
+        return unsafe_get(size() - 1);
     }
 
     constexpr Type get(usize index) const
     {
+        ASH_BOUNDS_CHECK(index, size_);
         return view().get(index);
     }
 

@@ -137,6 +137,16 @@ struct ListIter
         return *iter_;
     }
 
+    constexpr Node * operator->() const
+    {
+        return iter_;
+    }
+
+    constexpr Node * ptr() const
+    {
+        return iter_;
+    }
+
     constexpr ListIter & operator++()
     {
         iter_ = iter_->*NEXT;
@@ -169,6 +179,16 @@ struct RevListIter
     constexpr Node & operator*() const
     {
         return *iter_;
+    }
+
+    constexpr Node * operator->() const
+    {
+        return iter_;
+    }
+
+    constexpr Node * ptr() const
+    {
+        return iter_;
     }
 
     constexpr RevListIter & operator++()
