@@ -2,6 +2,7 @@
 #pragma once
 
 #include "ashura/std/log.h"
+#include "ashura/std/source_location.h"
 
 #define ASH_CHECK_EX(logger_expr, src_loc_expr, cond_expr, description_fstr, ...)    \
     do                                                                               \

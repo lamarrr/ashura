@@ -18,20 +18,22 @@
 #include "ashura/std/sformat.h"
 #include "ashura/std/trace.h"
 #include "simdjson.h"
+#include <filesystem>
 
 namespace ash
 {
 
-Result<EngineCfg> EngineCfg::parse_json(Span<u8 const> json, Allocator allocator,
-                                        Allocator scratch_allocator)
+Result<EngineCfg> EngineCfg::parse_json(Span<u8 const> json, Allocator allocator)
 {
+    ASH_SCRATCH_SCOPE(scratch, allocator);
+
     EngineCfg out{.window{.title{allocator}},
                   .font_paths{allocator},
                   .image_paths{allocator},
                   .working_dir_path{allocator},
                   .pipeline_cache_path{allocator}};
 
-    Vec<u8> json_copy{scratch_allocator};
+    Vec<u8> json_copy{scratch};
     if (!(json_copy.reserve_extend(json.size() + simdjson::SIMDJSON_PADDING) &&
           json_copy.append(json)))
     {
@@ -314,6 +316,10 @@ Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
     trace("Loading Graphics Pipeline Cache From {}"_str,
           cfg.pipeline_cache_path.view());
 
+    std::filesystem::path path{
+      std::string_view{cfg.pipeline_cache_path.data(), cfg.pipeline_cache_path.size()}
+    };
+    std::filesystem::create_directories(path.parent_path());
     Vec<u8> pipeline_cache{allocator};
     read_file(cfg.pipeline_cache_path, pipeline_cache, allocator)
       .match([](Void) {},
@@ -810,9 +816,8 @@ void IEngine::run()
             },
               w.state_.extent_.to<f32>(), w.state_.surface_extent_);
 
-            auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
-            auto state   = w.view_sys_->tick(this, ui::InputScope{state_, w.state_},
-                                             &w.canvas_, w.loop_.get(), scratch);
+            auto state = w.view_sys_->tick(this, ui::InputScope{state_, w.state_},
+                                           &w.canvas_, w.loop_.get());
 
             if (w.state_.extent_.all_nonzero() &&
                 w.state_.surface_extent_.all_nonzero())

@@ -19,9 +19,10 @@ Str QuadPipeline::label()
 }
 
 static gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
-                                             gpu::Shader shader, Allocator,
-                                             Allocator   scratch)
+                                             gpu::Shader shader, Allocator allocator)
 {
+    ASH_SCRATCH_SCOPE(scratch, allocator);
+
     auto & gpu = *plan->sys();
 
     auto raster_state =
@@ -99,19 +100,18 @@ static gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
     return gpu.device()->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
-void QuadPipeline::acquire(GpuFramePlan plan, Allocator allocator, Allocator scratch)
+void QuadPipeline::acquire(GpuFramePlan plan, Allocator allocator)
 {
-    auto id = add_variant(plan, "base"_str,
-                          sys.shader->get("defaults/quad_base"_str).unwrap().shader,
-                          allocator, scratch);
+    auto id =
+      add_variant(plan, "base"_str,
+                  sys.shader->get("defaults/quad_base"_str).unwrap().shader, allocator);
     ASH_CHECK(id == PipelineVariantId::Base, "");
 }
 
 PipelineVariantId QuadPipeline::add_variant(GpuFramePlan plan, Str label,
-                                            gpu::Shader shader, Allocator allocator,
-                                            Allocator scratch)
+                                            gpu::Shader shader, Allocator allocator)
 {
-    auto pipeline = create_pipeline(plan, label, shader, allocator, scratch);
+    auto pipeline = create_pipeline(plan, label, shader, allocator);
     auto id       = variants_.push(Tuple{label, pipeline}).unwrap();
     return (PipelineVariantId) id;
 }
@@ -201,7 +201,7 @@ void QuadPipeline::encode(gpu::CommandEncoder e, QuadPipelineParams const & para
     e->end_rendering();
 }
 
-void QuadPipeline::release(GpuFramePlan plan, Allocator, Allocator)
+void QuadPipeline::release(GpuFramePlan plan, Allocator)
 {
     for (auto [v] : variants_)
     {

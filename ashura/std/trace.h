@@ -50,10 +50,10 @@ struct F64Range
 template <typename Data>
 struct Record
 {
-    u64            variant  = 0;
-    SourceLocation location = {};
-    Str            label    = ""_str;
-    Data           data     = {};
+    u64            variant = 0;
+    SourceLocation loc     = {};
+    Str            label   = ""_str;
+    Data           data    = {};
 };
 
 using I64Record      = Record<I64>;
@@ -125,13 +125,13 @@ struct ScopeTrace
     ScopeTrace(Str label = SourceLocation::current().function, u64 variant = 0,
                SourceLocation loc = SourceLocation::current()) :
       record_{
-        .variant  = variant,
-        .location = loc,
-        .label    = label,
-        .data     = I64Range{
-                             .begin =
+        .variant = variant,
+        .loc     = loc,
+        .label   = label,
+        .data    = I64Range{
+                            .begin =
             static_cast<nanoseconds>(steady_clock::now().time_since_epoch()).count(),
-                             .end = 0}
+                            .end = 0}
     }
     {
     }

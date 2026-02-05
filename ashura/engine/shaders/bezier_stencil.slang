@@ -14,10 +14,10 @@ struct VertexOutput
 
 struct BezierStencilShaderParams
 {
-    f32x4x4                                               world_to_ndc;
-    DescriptorHandle<StructuredBuffer<BezierStencilItem>> items;
-    DescriptorHandle<StructuredBuffer<f32x2>>             vertices;
-    DescriptorHandle<StructuredBuffer<u32>>               indices;
+    f32x4x4             world_to_ndc;
+    BezierStencilItem * items;
+    f32x2 *             vertices;
+    u32 *               indices;
 };
 
 [[vk::push_constant]]

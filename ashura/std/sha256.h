@@ -1,4 +1,6 @@
 #pragma once
+#include "ashura/std/array.h"
+#include "ashura/std/span.h"
 #include "ashura/std/types.h"
 
 namespace ash

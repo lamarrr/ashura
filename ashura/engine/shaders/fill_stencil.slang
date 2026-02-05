@@ -11,10 +11,10 @@ struct VertexOutput
 
 struct FillStencilShaderParams
 {
-    f32x4x4                                     world_to_ndc;
-    DescriptorHandle<StructuredBuffer<f32x4x4>> world_transforms;
-    DescriptorHandle<StructuredBuffer<f32x2>>   vertices;
-    DescriptorHandle<StructuredBuffer<u32>>     indices;
+    f32x4x4   world_to_ndc;
+    f32x4x4 * world_transforms;
+    f32x2 *   vertices;
+    u32 *     indices;
 };
 
 [[vk::push_constant]]

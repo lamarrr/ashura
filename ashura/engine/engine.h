@@ -52,8 +52,7 @@ struct EngineCfg
 
     Vec<char> pipeline_cache_path;
 
-    static Result<EngineCfg> parse_json(Span<u8 const> json, Allocator allocator,
-                                        Allocator scratch_allocator);
+    static Result<EngineCfg> parse_json(Span<u8 const> json, Allocator allocator);
 
     static Result<EngineCfg> load_json(Str path, Allocator allocator);
 };

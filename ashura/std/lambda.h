@@ -1,5 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
+#include "ashura/std/fn.h"
 #include "ashura/std/obj.h"
 #include "ashura/std/traits.h"
 #include "ashura/std/types.h"

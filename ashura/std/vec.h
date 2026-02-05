@@ -182,7 +182,7 @@ struct [[nodiscard]] Vec
 
     constexpr Type & last() const
     {
-        ASH_BOUNDS_CHECK(0, size_);
+        ASH_BOUNDS_CHECK(0uz, size_);
         return unsafe_get(size_ - 1);
     }
 
@@ -913,7 +913,7 @@ struct [[nodiscard]] SmallVec
 
     constexpr Type & last() const
     {
-        ASH_BOUNDS_CHECK(0, size_);
+        ASH_BOUNDS_CHECK(0uz, size_);
         return unsafe_get(size_ - 1);
     }
 
@@ -1603,7 +1603,7 @@ struct [[nodiscard]] InplaceVec
 
     constexpr Type & last() const
     {
-        ASH_BOUNDS_CHECK(0, size_);
+        ASH_BOUNDS_CHECK(0uz, size_);
         return unsafe_get(size() - 1);
     }
 
@@ -2075,7 +2075,7 @@ struct [[nodiscard]] CoreBitVec
 
     constexpr Type last() const
     {
-        ASH_BOUNDS_CHECK(0, size_);
+        ASH_BOUNDS_CHECK(0uz, size_);
         return unsafe_get(size() - 1);
     }
 

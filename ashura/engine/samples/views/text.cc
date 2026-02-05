@@ -23,8 +23,7 @@ int main()
 #embed "ashura/config.json"
     };
 
-    auto cfg =
-      EngineCfg::parse_json(JSON_CONFIG, default_allocator, default_allocator).unwrap();
+    auto cfg = EngineCfg::parse_json(JSON_CONFIG, default_allocator).unwrap();
 
     ui::Text txt{default_allocator, U"Hello, Ashura!"_str, TextStyle{}, FontStyle{}};
 

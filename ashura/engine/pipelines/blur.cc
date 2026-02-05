@@ -107,8 +107,10 @@ static gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
     return gpu.device()->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
-void BlurPipeline::acquire(GpuFramePlan plan, Allocator allocator, Allocator scratch)
+void BlurPipeline::acquire(GpuFramePlan plan, Allocator allocator)
 {
+    ASH_SCRATCH_SCOPE(scratch, allocator);
+
     downsample_pipeline_ =
       create_pipeline(plan, "Downsample"_str,
                       sys.shader->get("defaults/blur_downsample"_str).unwrap().shader,
@@ -119,7 +121,7 @@ void BlurPipeline::acquire(GpuFramePlan plan, Allocator allocator, Allocator scr
                       allocator, scratch);
 }
 
-void BlurPipeline::release(GpuFramePlan plan, Allocator, Allocator)
+void BlurPipeline::release(GpuFramePlan plan, Allocator)
 {
     plan->add_preframe_task([p0 = downsample_pipeline_, p1 = upsample_pipeline_,
                              d = plan->device()](GpuFrame) {

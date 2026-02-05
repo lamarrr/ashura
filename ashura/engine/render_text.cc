@@ -284,11 +284,11 @@ TextLayout const & RenderText::layout() const
     return layout_;
 }
 
-void RenderText::perform_layout(Allocator scratch)
+void RenderText::perform_layout()
 {
     if (hash_ != HASH_CLEAN)
     {
-        layout_ = sys.font->layout_text(block(), max_width_, align_width_, scratch);
+        layout_ = sys.font->layout_text(block(), max_width_, align_width_);
     }
 
     hash_ = HASH_CLEAN;
@@ -819,7 +819,7 @@ void TextModel::insert(Str32 input)
 
 void TextModel::insert(Str8 input)
 {
-    auto     scratch = IFallbackAllocator{get_thread_arena(), default_allocator};
+    ASH_SCRATCH_SCOPE(scratch, allocator_);
     Vec<c32> utf32{scratch};
     utf8_decode(input, utf32).unwrap();
     insert(utf32);
@@ -874,9 +874,9 @@ void TextModel::width(f32 max_width, f32 align_width)
     text_.width(max_width, align_width);
 }
 
-void TextModel::perform_layout(Allocator scratch)
+void TextModel::perform_layout()
 {
-    text_.perform_layout(scratch);
+    text_.perform_layout();
     cursor_.match(
       [&](TextCursor & cursor) { cursor.normalize(text_.layout().num_carets); }, [] {});
 }

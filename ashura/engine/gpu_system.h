@@ -161,7 +161,7 @@ struct [[nodiscard]] GpuBuffer
       gpu::BufferUsage::UniformTexelBuffer | gpu::BufferUsage::StorageTexelBuffer |
       gpu::BufferUsage::UniformBuffer | gpu::BufferUsage::StorageBuffer |
       gpu::BufferUsage::IndexBuffer | gpu::BufferUsage::VertexBuffer |
-      gpu::BufferUsage::IndirectBuffer;
+      gpu::BufferUsage::IndirectBuffer | gpu::BufferUsage::ShaderDeviceAddress;
 
     u64 capacity = 0;
 
@@ -179,8 +179,8 @@ struct [[nodiscard]] GpuBuffer
 
     void uninit(gpu::Device device);
 
-    static GpuBuffer create(GpuSys sys, u64 capacity, gpu::BufferUsage usage, Str label,
-                            Allocator scratch);
+    static GpuBuffer create(GpuSys sys, u64 capacity, gpu::BufferUsage usage,
+                            Str label);
 };
 
 struct [[nodiscard]] GpuBufferSpan
@@ -212,7 +212,7 @@ struct GpuQueries
 
     static GpuQueries create(Allocator allocator, gpu::Device device,
                              Span<char const> label, u32 timestamps_capacity,
-                             u32 statistics_capacity, Allocator scratch);
+                             u32 statistics_capacity);
 };
 
 struct GpuFrameCfg
@@ -305,8 +305,8 @@ struct GpuDescriptorsLayout
 
     void uninit(gpu::Device device);
 
-    static GpuDescriptorsLayout create(gpu::Device device, Str label,
-                                       GpuSysCfg const & cfg, Allocator scratch);
+    static GpuDescriptorsLayout create(Allocator allocator, gpu::Device device,
+                                       Str label, GpuSysCfg const & cfg);
 };
 
 struct GpuDescriptors
@@ -321,7 +321,7 @@ struct GpuDescriptors
 
     void uninit(gpu::Device device);
 
-    static GpuDescriptors create(GpuSys sys, Str label, Allocator scratch);
+    static GpuDescriptors create(GpuSys sys, Str label);
 };
 
 struct GpuFrameTargetInfo
@@ -530,8 +530,7 @@ struct TexelBufferUnion
 
     static TexelBufferUnion create(GpuSys sys, u32x2 target_extent, u32 sample_count,
                                    u32x2                   tile_texel_count,
-                                   Span<gpu::Format const> formats, Str label,
-                                   Allocator scratch);
+                                   Span<gpu::Format const> formats, Str label);
 };
 
 struct ImageUnion
@@ -546,8 +545,7 @@ struct ImageUnion
     void update_descriptors(gpu::Device device);
 
     static ImageUnion create(GpuSys sys, u32x2 target_extent, gpu::Format color_format,
-                             gpu::Format depth_stencil_format, Str label,
-                             Allocator scratch);
+                             gpu::Format depth_stencil_format, Str label);
 };
 
 struct ScratchImages
@@ -559,7 +557,7 @@ struct ScratchImages
     static ScratchImages create(GpuSys sys, u32 num_scratch, u32x2 target_extent,
                                 gpu::Format color_format,
                                 gpu::Format depth_stencil_format, Str label,
-                                Allocator allocator, Allocator scratch);
+                                Allocator allocator);
 };
 
 struct ScratchBuffers
@@ -569,10 +567,9 @@ struct ScratchBuffers
     void uninit(gpu::Device device);
 
     static ScratchBuffers create(GpuSys sys, Span<u64 const> sizes, Str label,
-                                 Allocator allocator, Allocator scratch);
+                                 Allocator allocator);
 
-    void grow(GpuSys sys, Span<u64 const> sizes, Str label, Allocator allocator,
-              Allocator scratch);
+    void grow(GpuSys sys, Span<u64 const> sizes, Str label, Allocator allocator);
 };
 
 struct GpuFrameResources

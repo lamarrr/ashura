@@ -1,7 +1,10 @@
 # SPDX-License-Identifier: MIT
 cmake_minimum_required(VERSION 3.20)
 
-project(Ashura LANGUAGES C CXX ASM)
+project(
+    Ashura
+    VERSION 0.1.0
+    LANGUAGES C CXX ASM)
 
 option(ASH_WERROR "Make all ASH's compilation warnings manifest as errors" OFF)
 option(ASH_SANITIZE "Sanitize address and memory" OFF)
@@ -10,7 +13,7 @@ option(ASH_BUILD_ENGINE "" ON)
 option(ASH_BUILD_TESTS "" ON)
 option(ASH_BUILD_SAMPLES "" ON)
 option(ASH_BUILD_BENCHMARKS "" ON)
-option(ASH_BUILD_DOC "Build documentation" OFF)
+option(ASH_BUILD_DOC "Build documentation" ON)
 
 set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -540,9 +543,8 @@ string(JOIN "+" SLANG_FEATURES ${SLANG_FEATURE_LIST})
 
 set(SLANG_FLAGS
     -profile
-    "spirv_1_3+${SLANG_FEATURES}"
+    "spirv_1_4+${SLANG_FEATURES}"
     -emit-spirv-directly
-    -preserve-params
     -matrix-layout-row-major
     -fvk-use-gl-layout
     -fvk-use-entrypoint-name

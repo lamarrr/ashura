@@ -1452,10 +1452,10 @@ constexpr bool is_valid_image_access(gpu::ImageAspects aspects, u32 num_mip_leve
            access_aspects != gpu::ImageAspects::None;
 }
 
-static VkBool32 VKAPI_ATTR VKAPI_CALL debug_callback(
-  VkDebugUtilsMessageSeverityFlagBitsEXT       message_severity,
-  VkDebugUtilsMessageTypeFlagsEXT              message_type,
-  VkDebugUtilsMessengerCallbackDataEXT const * data, [[maybe_unused]] void * pUserData)
+static VkBool32 VKAPI_ATTR VKAPI_CALL
+  debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT       message_severity,
+                 VkDebugUtilsMessageTypeFlagsEXT              message_type,
+                 VkDebugUtilsMessengerCallbackDataEXT const * data, void * pUserData)
 {
     LogLevel level = LogLevel::Trace;
     if (message_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
@@ -1475,7 +1475,7 @@ static VkBool32 VKAPI_ATTR VKAPI_CALL debug_callback(
         level = LogLevel::Trace;
     }
 
-    auto scratch = IFallbackAllocator{get_thread_arena(), default_allocator};
+    ASH_SCRATCH_SCOPE(scratch, *static_cast<IAllocator *>(pUserData));
 
     auto msg = StrVec{scratch};
 
@@ -1539,7 +1539,7 @@ static VkBool32 VKAPI_ATTR VKAPI_CALL debug_callback(
 Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
                                                    bool      enable_validation)
 {
-    auto scratch = IFallbackAllocator{get_thread_arena(), allocator};
+    ASH_SCRATCH_SCOPE(scratch, allocator);
 
     u32  num_exts;
     auto result = vkEnumerateInstanceExtensionProperties(nullptr, &num_exts, nullptr);
@@ -1723,7 +1723,7 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
                      VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
                      VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
       .pfnUserCallback = debug_callback,
-      .pUserData       = nullptr};
+      .pUserData       = allocator.self};
 
     auto has_portability_ext =
       !find(load_extensions.view(), cstr(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME),
@@ -1864,7 +1864,7 @@ Result<gpu::Device, Status>
   IInstance::create_device(Allocator                   allocator,
                            Span<gpu::DeviceType const> preferred_types)
 {
-    auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
+    ASH_SCRATCH_SCOPE(scratch, allocator);
 
     u32  num_devs;
     auto result = table_.EnumeratePhysicalDevices(vk_, &num_devs, nullptr);
@@ -2323,12 +2323,12 @@ Result<gpu::Device, Status>
 
     VkPhysicalDeviceDynamicRenderingFeaturesKHR dynamic_rendering_features{
       .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR,
-      .pNext = &extended_dynamic_state_features,
+      .pNext = nullptr,
       .dynamicRendering = VK_TRUE};
 
     VkPhysicalDeviceDescriptorIndexingFeaturesEXT descriptor_indexing_features{
       .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES_EXT,
-      .pNext = &dynamic_rendering_features,
+      .pNext = nullptr,
       .shaderInputAttachmentArrayDynamicIndexing          = VK_TRUE,
       .shaderUniformTexelBufferArrayDynamicIndexing       = VK_TRUE,
       .shaderStorageTexelBufferArrayDynamicIndexing       = VK_TRUE,
@@ -2350,8 +2350,19 @@ Result<gpu::Device, Status>
       .descriptorBindingVariableDescriptorCount           = VK_TRUE,
       .runtimeDescriptorArray                             = VK_TRUE};
 
+    VkPhysicalDeviceBufferDeviceAddressFeaturesKHR buffer_device_address_features{
+      .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES_KHR,
+      .pNext = nullptr,
+      .bufferDeviceAddress              = VK_TRUE,
+      .bufferDeviceAddressCaptureReplay = VK_FALSE,
+      .bufferDeviceAddressMultiDevice   = VK_FALSE};
+
+    extended_dynamic_state_features.pNext = &dynamic_rendering_features;
+    dynamic_rendering_features.pNext      = &descriptor_indexing_features;
+    descriptor_indexing_features.pNext    = &buffer_device_address_features;
+
     VkDeviceCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-                                   .pNext = &descriptor_indexing_features,
+                                   .pNext = &extended_dynamic_state_features,
                                    .flags = 0,
                                    .queueCreateInfoCount    = 1,
                                    .pQueueCreateInfos       = &queue_create_info,
@@ -2397,7 +2408,7 @@ Result<gpu::Device, Status>
       .pHeapSizeLimit                 = nullptr,
       .pVulkanFunctions               = &vma_table,
       .instance                       = vk_,
-      .vulkanApiVersion               = VK_API_VERSION_1_0,
+      .vulkanApiVersion               = ENGINE_VULKAN_VERSION,
       .pTypeExternalMemoryHandleTypes = nullptr};
 
     VmaAllocator vma_allocator;
@@ -2431,7 +2442,7 @@ Result<gpu::Device, Status>
 
     auto queue_label = "CommandQueue 0"_str;
     dev->set_resource_name(queue_label, dev->vk_queue_, VK_OBJECT_TYPE_QUEUE,
-                           VK_DEBUG_REPORT_OBJECT_TYPE_QUEUE_EXT, scratch);
+                           VK_DEBUG_REPORT_OBJECT_TYPE_QUEUE_EXT);
 
     return Ok<gpu::Device>{dev};
 }
@@ -2460,9 +2471,10 @@ void IInstance::uninit(gpu::Surface surface)
 }
 
 void IDevice::set_resource_name(Str label, void const * resource, VkObjectType type,
-                                VkDebugReportObjectTypeEXT debug_type,
-                                Allocator                  scratch)
+                                VkDebugReportObjectTypeEXT debug_type)
 {
+    ASH_SCRATCH_SCOPE(scratch, allocator_);
+
     Vec<char> label_c_str{scratch};
 
     label_c_str.append(label).unwrap();
@@ -2611,7 +2623,6 @@ Result<gpu::Buffer, Status> IDevice::create_buffer(gpu::BufferInfo const & info)
 {
     ASH_CHECK(info.size != 0, "");
     ASH_CHECK(info.usage != gpu::BufferUsage::None, "");
-    auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
 
     VkBufferCreateInfo create_info{.sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
                                    .pNext       = nullptr,
@@ -2632,7 +2643,7 @@ Result<gpu::Buffer, Status> IDevice::create_buffer(gpu::BufferInfo const & info)
     }
 
     set_resource_name(info.label, vk, VK_OBJECT_TYPE_BUFFER,
-                      VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT, scratch);
+                      VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT);
 
     IBuffer * buffer;
 
@@ -2671,8 +2682,6 @@ Result<gpu::Buffer, Status> IDevice::create_buffer(gpu::BufferInfo const & info)
 Result<gpu::BufferView, Status>
   IDevice::create_buffer_view(gpu::BufferViewInfo const & info)
 {
-    auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
-
     auto * buffer = (Buffer) info.buffer;
 
     ASH_CHECK(buffer != nullptr, "");
@@ -2702,7 +2711,7 @@ Result<gpu::BufferView, Status>
     }
 
     set_resource_name(info.label, vk, VK_OBJECT_TYPE_BUFFER_VIEW,
-                      VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_VIEW_EXT, scratch);
+                      VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_VIEW_EXT);
 
     IBufferView * view;
 
@@ -2722,8 +2731,6 @@ Result<gpu::BufferView, Status>
 
 Result<gpu::Image, Status> IDevice::create_image(gpu::ImageInfo const & info)
 {
-    auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
-
     ASH_CHECK(info.format != gpu::Format::Undefined, "");
     ASH_CHECK(info.usage != gpu::ImageUsage::None, "");
     ASH_CHECK(info.aspects != gpu::ImageAspects::None, "");
@@ -2794,7 +2801,7 @@ Result<gpu::Image, Status> IDevice::create_image(gpu::ImageInfo const & info)
     }
 
     set_resource_name(info.label, vk, VK_OBJECT_TYPE_IMAGE,
-                      VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT, scratch);
+                      VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT);
 
     IImage * image;
 
@@ -2836,8 +2843,6 @@ Result<gpu::Image, Status> IDevice::create_image(gpu::ImageInfo const & info)
 Result<gpu::ImageView, Status>
   IDevice::create_image_view(gpu::ImageViewInfo const & info)
 {
-    auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
-
     auto * src_image = (Image) info.image;
 
     ASH_CHECK(info.image != nullptr, "");
@@ -2878,7 +2883,7 @@ Result<gpu::ImageView, Status>
     }
 
     set_resource_name(info.label, vk, VK_OBJECT_TYPE_IMAGE_VIEW,
-                      VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_VIEW_EXT, scratch);
+                      VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_VIEW_EXT);
 
     IImageView * view;
 
@@ -3049,8 +3054,6 @@ Result<gpu::Alias, Status> IDevice::create_shim_alias(gpu::AliasInfo const & inf
 
 Result<gpu::Sampler, Status> IDevice::create_sampler(gpu::SamplerInfo const & info)
 {
-    auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
-
     ASH_CHECK(!(info.anisotropy_enable &&
                 (info.max_anisotropy > phy_.vk_properties.limits.maxSamplerAnisotropy)),
               "");
@@ -3084,15 +3087,13 @@ Result<gpu::Sampler, Status> IDevice::create_sampler(gpu::SamplerInfo const & in
     }
 
     set_resource_name(info.label, vk_sampler, VK_OBJECT_TYPE_SAMPLER,
-                      VK_DEBUG_REPORT_OBJECT_TYPE_SAMPLER_EXT, scratch);
+                      VK_DEBUG_REPORT_OBJECT_TYPE_SAMPLER_EXT);
 
     return Ok{(gpu::Sampler) vk_sampler};
 }
 
 Result<gpu::Shader, Status> IDevice::create_shader(gpu::ShaderInfo const & info)
 {
-    auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
-
     ASH_CHECK(info.spirv_code.size_bytes() > 0, "");
 
     VkShaderModuleCreateInfo create_info{.sType =
@@ -3110,7 +3111,7 @@ Result<gpu::Shader, Status> IDevice::create_shader(gpu::ShaderInfo const & info)
     }
 
     set_resource_name(info.label, vk_shader, VK_OBJECT_TYPE_SHADER_MODULE,
-                      VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT, scratch);
+                      VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT);
 
     return Ok{(gpu::Shader) vk_shader};
 }
@@ -3164,7 +3165,7 @@ bool is_readonly_set(Span<gpu::DescriptorBindingInfo const> bindings)
 Result<gpu::DescriptorSetLayout, Status>
   IDevice::create_descriptor_set_layout(gpu::DescriptorSetLayoutInfo const & info)
 {
-    auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
+    ASH_SCRATCH_SCOPE(scratch, allocator_);
 
     u32                                   num_descriptors     = 0;
     u32                                   num_variable_length = 0;
@@ -3269,7 +3270,7 @@ Result<gpu::DescriptorSetLayout, Status>
     }};
 
     set_resource_name(info.label, vk, VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT,
-                      VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT_EXT, scratch);
+                      VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT_EXT);
 
     IDescriptorSetLayout * layout;
 
@@ -3296,7 +3297,7 @@ Result<gpu::DescriptorSetLayout, Status>
 Result<gpu::DescriptorSet, Status>
   IDevice::create_descriptor_set(gpu::DescriptorSetInfo const & info)
 {
-    auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
+    ASH_SCRATCH_SCOPE(scratch, allocator_);
 
     auto * layout = (DescriptorSetLayout) info.layout;
     ASH_CHECK(info.variable_lengths.size() == layout->num_variable_length, "");
@@ -3402,10 +3403,10 @@ Result<gpu::DescriptorSet, Status>
     }
 
     set_resource_name(info.label, vk, VK_OBJECT_TYPE_DESCRIPTOR_SET,
-                      VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_SET_EXT, scratch);
+                      VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_SET_EXT);
 
     set_resource_name(info.label, vk_pool, VK_OBJECT_TYPE_DESCRIPTOR_POOL,
-                      VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_POOL_EXT, scratch);
+                      VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_POOL_EXT);
 
     SmallVec<DescriptorBinding, 1, 0> bindings{allocator_};
 
@@ -3476,8 +3477,6 @@ Result<gpu::DescriptorSet, Status>
 Result<gpu::PipelineCache, Status>
   IDevice::create_pipeline_cache(gpu::PipelineCacheInfo const & info)
 {
-    auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
-
     VkPipelineCacheCreateInfo create_info{
       .sType           = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO,
       .pNext           = nullptr,
@@ -3493,7 +3492,7 @@ Result<gpu::PipelineCache, Status>
     }
 
     set_resource_name(info.label, vk_cache, VK_OBJECT_TYPE_PIPELINE_CACHE,
-                      VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_CACHE_EXT, scratch);
+                      VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_CACHE_EXT);
 
     return Ok{(gpu::PipelineCache) vk_cache};
 }
@@ -3501,7 +3500,7 @@ Result<gpu::PipelineCache, Status>
 Result<gpu::ComputePipeline, Status>
   IDevice::create_compute_pipeline(gpu::ComputePipelineInfo const & info)
 {
-    auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
+    ASH_SCRATCH_SCOPE(scratch, allocator_);
 
     ASH_CHECK(info.descriptor_set_layouts.size() <=
                 phy_.vk_properties.limits.maxBoundDescriptorSets,
@@ -3584,9 +3583,9 @@ Result<gpu::ComputePipeline, Status>
     }
 
     set_resource_name(info.label, vk, VK_OBJECT_TYPE_PIPELINE,
-                      VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_EXT, scratch);
+                      VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_EXT);
     set_resource_name(info.label, vk_layout, VK_OBJECT_TYPE_PIPELINE_LAYOUT,
-                      VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_LAYOUT_EXT, scratch);
+                      VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_LAYOUT_EXT);
 
     IComputePipeline * pipeline;
 
@@ -3608,7 +3607,7 @@ Result<gpu::ComputePipeline, Status>
 Result<gpu::GraphicsPipeline, Status>
   IDevice::create_graphics_pipeline(gpu::GraphicsPipelineInfo const & info)
 {
-    auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
+    ASH_SCRATCH_SCOPE(scratch, allocator_);
 
     ASH_CHECK(!(info.rasterization_state.polygon_mode != gpu::PolygonMode::Fill &&
                 !phy_.vk_features.fillModeNonSolid),
@@ -3921,9 +3920,9 @@ Result<gpu::GraphicsPipeline, Status>
     }
 
     set_resource_name(info.label, vk, VK_OBJECT_TYPE_PIPELINE,
-                      VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_EXT, scratch);
+                      VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_EXT);
     set_resource_name(info.label, vk_layout, VK_OBJECT_TYPE_PIPELINE_LAYOUT,
-                      VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_LAYOUT_EXT, scratch);
+                      VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_LAYOUT_EXT);
 
     IGraphicsPipeline * pipeline;
 
@@ -3952,7 +3951,7 @@ Result<gpu::GraphicsPipeline, Status>
 
 Result<Void, Status> IDevice::recreate_swapchain(Swapchain swapchain)
 {
-    auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
+    ASH_SCRATCH_SCOPE(scratch, allocator_);
 
     auto info = std::move(swapchain->preference);
     ASH_CHECK(info.preferred_extent.x() > 0, "");
@@ -4080,9 +4079,11 @@ Result<Void, Status> IDevice::recreate_swapchain(Swapchain swapchain)
     images.resize(num_images).unwrap();
     SmallVec<VkSemaphore, 8, 0> acquire_semaphores{allocator_};
     acquire_semaphores.resize(num_images).unwrap();
+    SmallVec<VkSemaphore, 8, 0> submit_semaphores{allocator_};
+    submit_semaphores.resize(num_images).unwrap();
 
-    for (auto [i, vk, image, acquire_semaphore] :
-         enumerate(vk_images, images, acquire_semaphores))
+    for (auto [i, vk, image, acquire_semaphore, submit_semaphore] :
+         enumerate(vk_images, images, acquire_semaphores, submit_semaphores))
     {
         ASH_CHECK(allocator_->nalloc(1, image), "");
 
@@ -4104,24 +4105,34 @@ Result<Void, Status> IDevice::recreate_swapchain(Swapchain swapchain)
           table_.CreateSemaphore(vk_dev_, &sem_info, nullptr, &acquire_semaphore);
 
         ASH_CHECK(result == VK_SUCCESS, "");
+
+        result = table_.CreateSemaphore(vk_dev_, &sem_info, nullptr, &submit_semaphore);
+        ASH_CHECK(result == VK_SUCCESS, "");
     }
 
     auto swapchain_label = sformat(scratch, "{} / Swapchain"_str, info.label).unwrap();
 
     set_resource_name(swapchain_label, vk, VK_OBJECT_TYPE_SWAPCHAIN_KHR,
-                      VK_DEBUG_REPORT_OBJECT_TYPE_SWAPCHAIN_KHR_EXT, scratch);
-    for (auto [i, image, acquire_semaphore] : enumerate(images, acquire_semaphores))
+                      VK_DEBUG_REPORT_OBJECT_TYPE_SWAPCHAIN_KHR_EXT);
+    for (auto [i, image, acquire_semaphore, submit_semaphore] :
+         enumerate(images, acquire_semaphores, submit_semaphores))
     {
         auto label =
           sformat(scratch, "{} / SwapchainImage {}"_str, info.label, i).unwrap();
         set_resource_name(label, image->vk, VK_OBJECT_TYPE_IMAGE,
-                          VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT, scratch);
+                          VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT);
 
         auto acq_sem_label =
           sformat(scratch, "{} / AcquireSemaphore {}"_str, info.label, i).unwrap();
 
         set_resource_name(acq_sem_label, acquire_semaphore, VK_OBJECT_TYPE_SEMAPHORE,
-                          VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT, scratch);
+                          VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT);
+
+        auto sbm_sem_label =
+          sformat(scratch, "{} / SubmitSemaphore {}"_str, info.label, i).unwrap();
+
+        set_resource_name(sbm_sem_label, submit_semaphore, VK_OBJECT_TYPE_SEMAPHORE,
+                          VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT);
     }
 
     for (auto image : images)
@@ -4135,21 +4146,22 @@ Result<Void, Status> IDevice::recreate_swapchain(Swapchain swapchain)
     swapchain->~ISwapchain();
 
     new (swapchain) ISwapchain{
-      .vk                 = vk,
-      .vk_surface         = vk_surface,
-      .images             = std::move(images),
-      .acquire_semaphores = std::move(acquire_semaphores),
-      .current_image      = none,
-      .current_semaphore  = none,
-      .is_deferred        = false,
-      .is_out_of_date     = false,
-      .is_optimal         = true,
-      .format             = info.format,
-      .usage              = info.usage,
-      .present_mode       = info.present_mode,
-      .extent             = {vk_extent.width, vk_extent.height},
-      .composite_alpha    = info.composite_alpha,
-      .preference         = std::move(info)
+      .vk                        = vk,
+      .vk_surface                = vk_surface,
+      .images                    = std::move(images),
+      .acquire_semaphores        = std::move(acquire_semaphores),
+      .submit_semaphores         = std::move(submit_semaphores),
+      .current_image             = none,
+      .current_acquire_semaphore = none,
+      .is_deferred               = false,
+      .is_out_of_date            = false,
+      .is_optimal                = true,
+      .format                    = info.format,
+      .usage                     = info.usage,
+      .present_mode              = info.present_mode,
+      .extent                    = {vk_extent.width, vk_extent.height},
+      .composite_alpha           = info.composite_alpha,
+      .preference                = std::move(info)
     };
 
     old_vk_swapchain = nullptr;
@@ -4208,17 +4220,18 @@ Result<gpu::Swapchain, Status>
       .vk_surface = nullptr,
       .images{allocator_},
       .acquire_semaphores{allocator_},
-      .current_image     = none,
-      .current_semaphore = none,
-      .is_deferred       = false,
-      .is_out_of_date    = false,
-      .is_optimal        = true,
-      .format            = info.format,
-      .usage             = info.usage,
-      .present_mode      = info.present_mode,
-      .extent            = {0, 0},
-      .composite_alpha   = info.composite_alpha,
-      .preference        = pref.unwrap()
+      .submit_semaphores{allocator_},
+      .current_image             = none,
+      .current_acquire_semaphore = none,
+      .is_deferred               = false,
+      .is_out_of_date            = false,
+      .is_optimal                = true,
+      .format                    = info.format,
+      .usage                     = info.usage,
+      .present_mode              = info.present_mode,
+      .extent                    = {0, 0},
+      .composite_alpha           = info.composite_alpha,
+      .preference                = pref.unwrap()
     };
 
     auto result = recreate_swapchain(shim);
@@ -4237,7 +4250,7 @@ Result<gpu::Swapchain, Status>
 Result<gpu::TimestampQuery, Status>
   IDevice::create_timestamp_query(gpu::TimestampQueryInfo const & info)
 {
-    auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
+    ASH_SCRATCH_SCOPE(scratch, allocator_);
 
     ASH_CHECK(info.count > 0, "");
 
@@ -4256,7 +4269,7 @@ Result<gpu::TimestampQuery, Status>
     }
 
     set_resource_name(info.label, vk_pool, VK_OBJECT_TYPE_QUERY_POOL,
-                      VK_DEBUG_REPORT_OBJECT_TYPE_QUERY_POOL_EXT, scratch);
+                      VK_DEBUG_REPORT_OBJECT_TYPE_QUERY_POOL_EXT);
 
     return Ok{(gpu::TimestampQuery) vk_pool};
 }
@@ -4264,7 +4277,7 @@ Result<gpu::TimestampQuery, Status>
 Result<gpu::StatisticsQuery, Status>
   IDevice::create_statistics_query(gpu::StatisticsQueryInfo const & info)
 {
-    auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
+    ASH_SCRATCH_SCOPE(scratch, allocator_);
 
     ASH_CHECK(info.count > 0, "");
 
@@ -4297,7 +4310,7 @@ Result<gpu::StatisticsQuery, Status>
     }
 
     set_resource_name(info.label, vk_pool, VK_OBJECT_TYPE_QUERY_POOL,
-                      VK_DEBUG_REPORT_OBJECT_TYPE_QUERY_POOL_EXT, scratch);
+                      VK_DEBUG_REPORT_OBJECT_TYPE_QUERY_POOL_EXT);
 
     return Ok{(gpu::StatisticsQuery) vk_pool};
 }
@@ -4320,7 +4333,7 @@ Result<gpu::CommandEncoder, Status>
 Result<gpu::CommandBuffer, Status>
   IDevice::create_command_buffer(gpu::CommandBufferInfo const & info)
 {
-    auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
+    ASH_SCRATCH_SCOPE(scratch, allocator_);
 
     VkCommandPoolCreateInfo pool_create_info{
       .sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
@@ -4346,7 +4359,7 @@ Result<gpu::CommandBuffer, Status>
 
     auto pool_label = sformat(scratch, "{} / CommandPool"_str, info.label).unwrap();
     set_resource_name(pool_label, vk_pool, VK_OBJECT_TYPE_COMMAND_POOL,
-                      VK_DEBUG_REPORT_OBJECT_TYPE_COMMAND_POOL_EXT, scratch);
+                      VK_DEBUG_REPORT_OBJECT_TYPE_COMMAND_POOL_EXT);
 
     VkCommandBufferAllocateInfo allocate_info{
       .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -4371,7 +4384,7 @@ Result<gpu::CommandBuffer, Status>
     }};
 
     set_resource_name(info.label, vk, VK_OBJECT_TYPE_COMMAND_BUFFER,
-                      VK_DEBUG_REPORT_OBJECT_TYPE_COMMAND_BUFFER_EXT, scratch);
+                      VK_DEBUG_REPORT_OBJECT_TYPE_COMMAND_BUFFER_EXT);
 
     ICommandBuffer * buff;
 
@@ -4391,17 +4404,9 @@ Result<gpu::CommandBuffer, Status>
 Result<gpu::QueueScope, Status>
   IDevice::create_queue_scope(gpu::QueueScopeInfo const & info)
 {
-    auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
-
-    SmallVec<VkSemaphore, 4, 0> submit_semaphores{allocator_};
-    SmallVec<VkFence, 4, 0>     submit_fences{allocator_};
+    SmallVec<VkFence, 4, 0> submit_fences{allocator_};
 
     defer _{[&] {
-        for (auto sem : submit_semaphores)
-        {
-            table_.DestroySemaphore(vk_dev_, sem, nullptr);
-        }
-
         for (auto fence : submit_fences)
         {
             table_.DestroyFence(vk_dev_, fence, nullptr);
@@ -4417,8 +4422,7 @@ Result<gpu::QueueScope, Status>
 
     for (auto i : range(info.buffering))
     {
-        auto sbm_sem_label =
-          sformat(scratch, "{} / SubmitSemaphore {}"_str, info.label, i).unwrap();
+        ASH_SCRATCH_SCOPE(scratch, allocator_);
         auto sbm_fnc_label =
           sformat(scratch, "{} / SubmitFence {}"_str, info.label, i).unwrap();
 
@@ -4429,20 +4433,16 @@ Result<gpu::QueueScope, Status>
             return Err{(Status) result};
         }
 
-        VkSemaphore submit_sem;
-
-        result = table_.CreateSemaphore(vk_dev_, &sem_info, nullptr, &submit_sem);
-
-        set_resource_name(sbm_sem_label, submit_sem, VK_OBJECT_TYPE_SEMAPHORE,
-                          VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT, scratch);
-
-        submit_semaphores.push(submit_sem).unwrap();
-
         VkFence submit_fence;
         result = table_.CreateFence(vk_dev_, &fence_info, nullptr, &submit_fence);
 
+        if (result != VK_SUCCESS)
+        {
+            return Err{(Status) result};
+        }
+
         set_resource_name(sbm_fnc_label, submit_fence, VK_OBJECT_TYPE_FENCE,
-                          VK_DEBUG_REPORT_OBJECT_TYPE_FENCE_EXT, scratch);
+                          VK_DEBUG_REPORT_OBJECT_TYPE_FENCE_EXT);
 
         submit_fences.push(submit_fence).unwrap();
     }
@@ -4454,8 +4454,7 @@ Result<gpu::QueueScope, Status>
         return Err{Status::OutOfDeviceMemory};
     }
 
-    new (scope) IQueueScope{info.buffering, std::move(submit_semaphores),
-                            std::move(submit_fences)};
+    new (scope) IQueueScope{info.buffering, std::move(submit_fences)};
 
     return Ok{(gpu::QueueScope) scope};
 }
@@ -4750,6 +4749,11 @@ void IDevice::release(ISwapchain & swapchain)
         table_.DestroySemaphore(vk_dev_, sem, nullptr);
     }
 
+    for (auto sem : swapchain.submit_semaphores)
+    {
+        table_.DestroySemaphore(vk_dev_, sem, nullptr);
+    }
+
     table_.DestroySwapchainKHR(vk_dev_, swapchain.vk, nullptr);
 }
 
@@ -4817,11 +4821,6 @@ void IDevice::uninit(gpu::QueueScope scope_)
     if (scope == nullptr)
     {
         return;
-    }
-
-    for (auto sem : scope->submit_semaphores_)
-    {
-        table_.DestroySemaphore(vk_dev_, sem, nullptr);
     }
 
     for (auto fence : scope->submit_fences_)
@@ -4973,8 +4972,6 @@ Result<Void, Status> IDevice::merge_pipeline_cache(gpu::PipelineCache           
 
 void IDevice::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
 {
-    auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
-
     if (update.buffers.is_empty() && update.texel_buffers.is_empty() &&
         update.images.is_empty())
     {
@@ -5049,6 +5046,8 @@ void IDevice::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
         default:
             ASH_CHECK_UNREACHABLE();
     }
+
+    ASH_SCRATCH_SCOPE(scratch, allocator_);
 
     Vec<VkDescriptorBufferInfo> buffer_infos{scratch};
     Vec<VkDescriptorImageInfo>  image_infos{scratch};
@@ -5187,7 +5186,7 @@ Result<Void, Status> IDevice::await_queue_idle()
 Result<Void, Status> IDevice::get_surface_formats(gpu::Surface              surface_,
                                                   Vec<gpu::SurfaceFormat> & formats)
 {
-    auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
+    ASH_SCRATCH_SCOPE(scratch, allocator_);
 
     auto surface = (VkSurfaceKHR) surface_;
 
@@ -5236,7 +5235,7 @@ Result<Void, Status> IDevice::get_surface_formats(gpu::Surface              surf
 Result<Void, Status> IDevice::get_surface_present_modes(gpu::Surface surface_,
                                                         Vec<gpu::PresentMode> & modes)
 {
-    auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
+    ASH_SCRATCH_SCOPE(scratch, allocator_);
 
     auto surface = (VkSurfaceKHR) surface_;
 
@@ -5392,6 +5391,9 @@ Result<Void, Status> IDevice::acquire_next(gpu::Swapchain swapchain_)
     ASH_CHECK(swapchain_ != nullptr, "");
     auto swapchain = (Swapchain) swapchain_;
 
+    swapchain->current_image             = none;
+    swapchain->current_acquire_semaphore = none;
+
     VkResult result = VK_SUCCESS;
 
     if (swapchain->is_out_of_date || !swapchain->is_optimal || swapchain->is_deferred)
@@ -5424,8 +5426,8 @@ Result<Void, Status> IDevice::acquire_next(gpu::Swapchain swapchain_)
             swapchain->is_optimal = false;
         }
 
-        swapchain->current_image     = next_image;
-        swapchain->current_semaphore = swapchain->ring_index;
+        swapchain->current_image             = next_image;
+        swapchain->current_acquire_semaphore = swapchain->ring_index;
         swapchain->ring_index = (swapchain->ring_index + 1) % size32(swapchain->images);
     }
 
@@ -5442,8 +5444,7 @@ Result<u64, Status> IDevice::submit(gpu::CommandBuffer buffer_, gpu::QueueScope 
 
     auto scope = (QueueScope) scope_;
 
-    auto submit_fence     = scope->submit_fences_[scope->ring_index_];
-    auto submit_semaphore = scope->submit_semaphores_[scope->ring_index_];
+    auto submit_fence = scope->submit_fences_[scope->ring_index_];
 
     // wait to re-use sync primitives
     auto result = table_.WaitForFences(vk_dev_, 1, &submit_fence, VK_TRUE, U64_MAX);
@@ -5459,8 +5460,11 @@ Result<u64, Status> IDevice::submit(gpu::CommandBuffer buffer_, gpu::QueueScope 
       swapchain.is_some() && !swapchain->is_out_of_date && !swapchain->is_deferred;
     auto acquire_semaphore =
       is_presenting ?
-        swapchain->acquire_semaphores[swapchain->current_semaphore.unwrap()] :
+        swapchain->acquire_semaphores[swapchain->current_acquire_semaphore.unwrap()] :
         nullptr;
+    auto submit_semaphore =
+      is_presenting ? swapchain->submit_semaphores[swapchain->current_image.unwrap()] :
+                      nullptr;
 
     VkPipelineStageFlags wait_stages = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
 
@@ -7100,12 +7104,16 @@ void ICommandEncoder::present(gpu::Swapchain swapchain_)
               "Attempted to present to out-of-date swapchain");
     this->swapchain_ = *swapchain;
 
+    tracker_.begin_pass();
+
     if (!swapchain->is_deferred)
     {
         tracker_.track(swapchain->images[swapchain->current_image.unwrap()],
                        VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_ACCESS_NONE,
                        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     }
+
+    tracker_.end_pass();
 }
 
 void ICommandBuffer::begin()

@@ -21,7 +21,7 @@ struct VertexOutput
 
 struct BlurShaderParams
 {
-    DescriptorHandle<StructuredBuffer<ITEM_TYPE>> blurs;
+    ITEM_TYPE * blurs;
 };
 
 [[vk::push_constant]]

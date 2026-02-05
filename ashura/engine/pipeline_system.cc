@@ -60,22 +60,18 @@ void IPipelineSys::init(Allocator allocator)
     all_            = std::move(all);
     allocator_      = allocator;
 
-    auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
-
     for (auto [pass] : all_)
     {
-        pass->acquire(gpu_sys_->current_plan(), allocator_, scratch);
+        pass->acquire(gpu_sys_->current_plan(), allocator_);
     }
 }
 
 void IPipelineSys::shutdown()
 {
-    auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
-
     WriteGuard guard{rw_lock_};
     for (auto [p] : all_)
     {
-        p->release(gpu_sys_->current_plan(), allocator_, scratch);
+        p->release(gpu_sys_->current_plan(), allocator_);
     }
 }
 
@@ -124,8 +120,7 @@ Future<PipelineId> IPipelineSys::add_pipeline(Dyn<Pipeline> pipeline)
     return scheduler
       ->run(allocator_, MainThread::Main,
             [pipeline = std::move(pipeline), this]() mutable {
-                auto scratch = IFallbackAllocator{get_thread_arena(), allocator_};
-                pipeline->acquire(gpu_sys_->current_plan(), allocator_, scratch);
+                pipeline->acquire(gpu_sys_->current_plan(), allocator_);
                 WriteGuard guard{this->rw_lock_};
                 return this->all_.push(std::move(pipeline)).unwrap();
             })

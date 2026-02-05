@@ -1659,9 +1659,13 @@ struct IDevice
 
     virtual Result<u64, Status> submit(CommandBuffer buffer, QueueScope scope) = 0;
 
+    /// @brief Waits until all work submitted to the queue scope is complete or the
+    /// timeout elapses.
     virtual Result<Void, Status> await_queue_scope_idle(QueueScope  scope,
                                                         nanoseconds timeout) = 0;
 
+    /// @brief Waits until the specified frame in the queue scope is complete or the
+    /// timeout elapses.
     virtual Result<Void, Status> await_queue_scope_frame(QueueScope scope, u64 frame,
                                                          nanoseconds timeout) = 0;
 };

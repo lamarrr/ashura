@@ -13,11 +13,11 @@ Str BloomPipeline::label()
     return "Bloom"_str;
 }
 
-void BloomPipeline::acquire(GpuFramePlan, Allocator, Allocator)
+void BloomPipeline::acquire(GpuFramePlan, Allocator)
 {
 }
 
-void BloomPipeline::release(GpuFramePlan, Allocator, Allocator)
+void BloomPipeline::release(GpuFramePlan, Allocator)
 {
 }
 

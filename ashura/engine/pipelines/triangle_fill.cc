@@ -15,9 +15,10 @@ Str TriangleFillPipeline::label()
 }
 
 static gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
-                                             gpu::Shader shader, Allocator,
-                                             Allocator   scratch)
+                                             gpu::Shader shader, Allocator allocator)
 {
+    ASH_SCRATCH_SCOPE(scratch, allocator);
+
     auto & gpu = *plan->sys();
 
     auto tagged_label =
@@ -99,21 +100,21 @@ TriangleFillPipeline::TriangleFillPipeline(Allocator allocator) : pipelines_{all
 {
 }
 
-void TriangleFillPipeline::acquire(GpuFramePlan plan, Allocator allocator,
-                                   Allocator scratch)
+void TriangleFillPipeline::acquire(GpuFramePlan plan, Allocator allocator)
 {
+    ASH_SCRATCH_SCOPE(scratch, allocator);
+
     auto id = add_variant(plan, "base"_str,
                           sys.shader->get("defaults/triangle_fill"_str).unwrap().shader,
-                          allocator, scratch);
+                          allocator);
     ASH_CHECK(id == PipelineVariantId::Base, "");
 }
 
 PipelineVariantId TriangleFillPipeline::add_variant(GpuFramePlan plan, Str label,
                                                     gpu::Shader shader,
-                                                    Allocator   allocator,
-                                                    Allocator   scratch)
+                                                    Allocator   allocator)
 {
-    auto pipeline = create_pipeline(plan, label, shader, allocator, scratch);
+    auto pipeline = create_pipeline(plan, label, shader, allocator);
     auto id       = pipelines_.push(Tuple{label, pipeline}).unwrap();
     return (PipelineVariantId) id;
 }
@@ -212,7 +213,7 @@ void TriangleFillPipeline::encode(gpu::CommandEncoder                e,
     e->end_rendering();
 }
 
-void TriangleFillPipeline::release(GpuFramePlan plan, Allocator, Allocator)
+void TriangleFillPipeline::release(GpuFramePlan plan, Allocator)
 {
     for (auto [v] : pipelines_)
     {

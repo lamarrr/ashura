@@ -12,9 +12,9 @@ static const f32x2 VERTEX_BUFFER[] = {
 
 struct VectorPathFillShaderParams
 {
-    VectorPathCfg                                          cfg;
-    f32x4x4                                                world_to_ndc;
-    DescriptorHandle<StructuredBuffer<VectorPathFillItem>> items;
+    VectorPathCfg        cfg;
+    f32x4x4              world_to_ndc;
+    VectorPathFillItem * items;
 };
 
 [[vk::push_constant]]

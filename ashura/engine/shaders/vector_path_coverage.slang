@@ -8,11 +8,11 @@
 
 struct VectorPathCoverageShaderParams
 {
-    VectorPathCfg                                              cfg;
-    f32x4x4                                                    world_to_ndc;
-    DescriptorHandle<StructuredBuffer<VectorPathCoverageItem>> items;
-    DescriptorHandle<StructuredBuffer<VectorPathVertex>>       vertices;
-    DescriptorHandle<StructuredBuffer<u32>>                    indices;
+    VectorPathCfg            cfg;
+    f32x4x4                  world_to_ndc;
+    VectorPathCoverageItem * items;
+    VectorPathVertex *       vertices;
+    u32 *                    indices;
 };
 
 [[vk::push_constant]]

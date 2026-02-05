@@ -345,8 +345,7 @@ struct IViewSys
                       RequestQueue & request_queue, Allocator scratch_allocator);
 
     ViewSysState tick(Engine engine, ui::InputScope const & input, Canvas canvas,
-                      Fn<ui::View &(Engine, ui::Scope const &)> loop,
-                      Allocator                                 scratch_allocator);
+                      Fn<ui::View &(Engine, ui::Scope const &)> loop);
 };
 
 }    // namespace ash

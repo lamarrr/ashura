@@ -71,9 +71,9 @@ void GpuBuffer::uninit(gpu::Device device)
     device->uninit(buffer);
 }
 
-GpuBuffer GpuBuffer::create(GpuSys sys, u64 capacity, gpu::BufferUsage usage, Str label,
-                            Allocator scratch)
+GpuBuffer GpuBuffer::create(GpuSys sys, u64 capacity, gpu::BufferUsage usage, Str label)
 {
+    ASH_SCRATCH_SCOPE(scratch, sys->allocator_);
     auto & d = *sys->dev_;
 
     auto buffer_label = sformat(scratch, "{} / {}"_str, label, "Buffer"_str).unwrap();
@@ -148,8 +148,9 @@ u32 GpuQueries::statistics_capacity() const
 
 GpuQueries GpuQueries::create(Allocator allocator, gpu::Device device,
                               Span<char const> label, u32 timestamps_capacity,
-                              u32 statistics_capacity, Allocator scratch)
+                              u32 statistics_capacity)
 {
+    ASH_SCRATCH_SCOPE(scratch, allocator);
     ASH_CHECK(timestamps_capacity > 0, "");
     ASH_CHECK(statistics_capacity > 0, "");
 
@@ -192,10 +193,11 @@ void GpuDescriptorsLayout::uninit(gpu::Device device)
     device->uninit(input_attachments);
 }
 
-GpuDescriptorsLayout GpuDescriptorsLayout::create(gpu::Device device, Str label,
-                                                  GpuSysCfg const & cfg,
-                                                  Allocator         scratch)
+GpuDescriptorsLayout GpuDescriptorsLayout::create(Allocator   allocator,
+                                                  gpu::Device device, Str label,
+                                                  GpuSysCfg const & cfg)
 {
+    ASH_SCRATCH_SCOPE(scratch, allocator);
     auto tag = [&](Str component) {
         return sformat(scratch, "{} / {}"_str, label, component).unwrap();
     };
@@ -387,8 +389,9 @@ void GpuDescriptors::uninit(gpu::Device device)
     device->uninit(sampled_textures);
 }
 
-GpuDescriptors GpuDescriptors::create(GpuSys sys, Str label, Allocator scratch)
+GpuDescriptors GpuDescriptors::create(GpuSys sys, Str label)
 {
+    ASH_SCRATCH_SCOPE(scratch, sys->allocator_);
     auto tag = [&](Str component) {
         return sformat(scratch, "{} / {}"_str, label, component).unwrap();
     };
@@ -577,9 +580,9 @@ void TexelBufferUnion::uninit(gpu::Device device)
 
 TexelBufferUnion TexelBufferUnion::create(GpuSys sys, u32x2 target_extent,
                                           u32 sample_count, u32x2 tile_texel_count,
-                                          Span<gpu::Format const> formats, Str label,
-                                          Allocator scratch)
+                                          Span<gpu::Format const> formats, Str label)
 {
+    ASH_SCRATCH_SCOPE(scratch, sys->allocator_);
     ASH_CHECK(!tile_texel_count.any_zero(), "");
     ASH_CHECK(is_pow2(tile_texel_count.x()) && is_pow2(tile_texel_count.y()), "");
     ASH_CHECK(sample_count == 1, "");
@@ -689,9 +692,9 @@ void ImageUnion::uninit(gpu::Device device)
 }
 
 ImageUnion ImageUnion::create(GpuSys sys, u32x2 target_extent, gpu::Format color_format,
-                              gpu::Format depth_stencil_format, Str label,
-                              Allocator scratch)
+                              gpu::Format depth_stencil_format, Str label)
 {
+    ASH_SCRATCH_SCOPE(scratch, sys->allocator_);
     // TODO: MSAA scratch and target textures
     auto tag = [&](Str component) {
         return sformat(scratch, "{} / {}"_str, label, component).unwrap();
@@ -895,8 +898,8 @@ ImageUnion ImageUnion::create(GpuSys sys, u32x2 target_extent, gpu::Format color
 
     static constexpr u32x2 TILE_TEXEL_COUNT = u32x2{32, 32};
 
-    auto texel_union = TexelBufferUnion::create(sys, target_extent, 1, TILE_TEXEL_COUNT,
-                                                FORMATS, label, scratch);
+    auto texel_union =
+      TexelBufferUnion::create(sys, target_extent, 1, TILE_TEXEL_COUNT, FORMATS, label);
 
     auto alias_label = tag("Alias"_str);
     auto alias =
@@ -924,15 +927,16 @@ void ScratchImages::uninit(gpu::Device device)
 ScratchImages ScratchImages::create(GpuSys sys, u32 num_scratch, u32x2 target_extent,
                                     gpu::Format color_format,
                                     gpu::Format depth_stencil_format, Str label,
-                                    Allocator allocator, Allocator scratch)
+                                    Allocator allocator)
 {
+    ASH_SCRATCH_SCOPE(scratch, sys->allocator_);
     Vec<ImageUnion> images{allocator};
 
     for (auto i : range(num_scratch))
     {
         auto union_label = sformat(scratch, "{} / {}"_str, label, i).unwrap();
-        auto union_image = ImageUnion::create(
-          sys, target_extent, color_format, depth_stencil_format, union_label, scratch);
+        auto union_image = ImageUnion::create(sys, target_extent, color_format,
+                                              depth_stencil_format, union_label);
         images.push(union_image).unwrap();
     }
 
@@ -948,13 +952,14 @@ void ScratchBuffers::uninit(gpu::Device device)
 }
 
 ScratchBuffers ScratchBuffers::create(GpuSys sys, Span<u64 const> sizes, Str label,
-                                      Allocator allocator, Allocator scratch)
+                                      Allocator allocator)
 {
+    ASH_SCRATCH_SCOPE(scratch, sys->allocator_);
     Vec<GpuBuffer> buffers{allocator};
     for (auto [i, size] : enumerate(sizes))
     {
         auto tag    = sformat(scratch, "{} / Buffer {}"_str, label, i).unwrap();
-        auto buffer = GpuBuffer::create(sys, size, GpuBuffer::USAGE, tag, scratch);
+        auto buffer = GpuBuffer::create(sys, size, GpuBuffer::USAGE, tag);
         buffers.push(buffer).unwrap();
     }
     return ScratchBuffers{.buffers = std::move(buffers)};
@@ -968,35 +973,34 @@ void GpuFrameResources::uninit(gpu::Device device)
     queries.uninit(device);
 }
 
-static void grow_buffer(GpuSys sys, Str label, GpuBuffer & buffer, u64 next_capacity,
-                        Allocator scratch)
+static void grow_buffer(GpuSys sys, Str label, GpuBuffer & buffer, u64 next_capacity)
 {
     if (buffer.capacity < next_capacity)
     {
         buffer.uninit(sys->dev_);
-        buffer = GpuBuffer::create(sys, next_capacity, buffer.usage, label, scratch);
+        buffer = GpuBuffer::create(sys, next_capacity, buffer.usage, label);
     }
     else if (buffer.capacity > HalfGrowth::grow(next_capacity))
     {
         // Target at least 75% utilization
         buffer.uninit(sys->dev_);
-        buffer = GpuBuffer::create(sys, next_capacity, buffer.usage, label, scratch);
+        buffer = GpuBuffer::create(sys, next_capacity, buffer.usage, label);
     }
 }
 
 void ScratchBuffers::grow(GpuSys sys, Span<u64 const> sizes, Str label,
-                          Allocator allocator, Allocator scratch)
+                          Allocator allocator)
 {
     if (buffers.size() != sizes.size())
     {
         uninit(sys->dev_);
-        *this = create(sys, sizes, label, allocator, scratch);
+        *this = create(sys, sizes, label, allocator);
         return;
     }
 
     for (auto [buffer, size] : zip(buffers, sizes))
     {
-        grow_buffer(sys, label, buffer, size, scratch);
+        grow_buffer(sys, label, buffer, size);
     }
 }
 
@@ -1146,21 +1150,21 @@ void IGpuFrame::submit()
 {
     tracing::ScopeTrace trace;
     ASH_CHECK(state_ == GpuFrameState::Recorded, "");
-    u8                 scratch_buffer_[1_KB];
-    IArena             scratch_arena_{scratch_buffer_};
-    IFallbackAllocator scratch{&scratch_arena_, allocator_};
 
     {
+        ASH_SCRATCH_SCOPE(scratch, allocator_);
         auto label = sformat(scratch, "GpuFrame {} / Buffer"_str, id_).unwrap();
         ASH_CHECK(current_plan_->gpu_buffer_data_.size() <= cfg_.max_buffer_size, "");
         auto size = clamp(current_plan_->gpu_buffer_data_.size(), cfg_.min_buffer_size,
                           cfg_.max_buffer_size);
-        grow_buffer(sys_, label, resources_.buffer, size, scratch);
+        grow_buffer(sys_, label, resources_.buffer, size);
         mem::copy(current_plan_->gpu_buffer_data_.view(),
                   dev_->get_memory_map(resources_.buffer.buffer).unwrap());
     }
 
     {
+        ASH_SCRATCH_SCOPE(scratch, allocator_);
+
         auto label =
           sformat(scratch, "GpuFrame {} / Scratch Buffers"_str, id_).unwrap();
         for (auto s : current_plan_->scratch_buffer_sizes_)
@@ -1181,7 +1185,7 @@ void IGpuFrame::submit()
               .unwrap();
         }
 
-        resources_.scratch_buffers.grow(sys_, sizes, label, allocator_, scratch);
+        resources_.scratch_buffers.grow(sys_, sizes, label, allocator_);
     }
 
     ASH_CHECK(current_plan_->num_scratch_images_ <= cfg_.max_scratch_images, "");
@@ -1197,12 +1201,13 @@ void IGpuFrame::submit()
     if (target_info_ != current_plan_->target_ ||
         resources_.scratch_images.images.size() != num_scratch_images)
     {
+        ASH_SCRATCH_SCOPE(scratch, allocator_);
         resources_.scratch_images.uninit(dev_);
         auto label = sformat(scratch, "GpuFrame {} / Scratch Images"_str, id_).unwrap();
         resources_.scratch_images = ScratchImages::create(
           sys_, num_scratch_images, current_plan_->target_.extent,
           current_plan_->target_.color_format,
-          current_plan_->target_.depth_stencil_format, label, allocator_, scratch);
+          current_plan_->target_.depth_stencil_format, label, allocator_);
     }
 
     target_info_ = current_plan_->target_;
@@ -1212,11 +1217,12 @@ void IGpuFrame::submit()
         sys_->cfg_.frame_statistics_capacity !=
           resources_.queries.statistics_capacity())
     {
+        ASH_SCRATCH_SCOPE(scratch, allocator_);
         auto label = sformat(scratch, "GpuFrame {} / Queries"_str, id_).unwrap();
         resources_.queries.uninit(dev_);
-        resources_.queries = GpuQueries::create(
-          allocator_, dev_, label, sys_->cfg_.frame_timestamps_capacity,
-          sys_->cfg_.frame_statistics_capacity, scratch);
+        resources_.queries = GpuQueries::create(allocator_, dev_, label,
+                                                sys_->cfg_.frame_timestamps_capacity,
+                                                sys_->cfg_.frame_statistics_capacity);
     }
 
     for (auto & task : current_plan_->pre_frame_tasks_)
@@ -1368,7 +1374,7 @@ void IGpuSys::shutdown(Vec<u8> & cache)
     dev_->uninit(pipeline_cache_);
 }
 
-static void create_default_samplers(GpuSys sys, Allocator scratch)
+static void create_default_samplers(GpuSys sys)
 {
     constexpr Tuple<Str, gpu::BorderColor> colors[] = {
       {"FloatTransparentBlack"_str, gpu::BorderColor::FloatTransparentBlack},
@@ -1398,6 +1404,8 @@ static void create_default_samplers(GpuSys sys, Allocator scratch)
         {
             for (auto [color_name, color] : colors)
             {
+                ASH_SCRATCH_SCOPE(scratch, sys->allocator_);
+
                 auto label = sformat(scratch, "/ Sampler: {} + {} + {}"_str,
                                      mip_map_mode_name, address_mode_name, color_name)
                                .unwrap();
@@ -1573,10 +1581,6 @@ void IGpuSys::init(Allocator allocator, gpu::Device device,
                    GpuSysPreferences const & preferences, Scheduler scheduler,
                    Thread thread)
 {
-    u8                 scratch_buffer_[1_KB];
-    IArena             scratch_arena_{scratch_buffer_};
-    IFallbackAllocator scratch{&scratch_arena_, allocator_};
-
     ASH_CHECK(preferences.buffering > 0, "");
     ASH_CHECK(preferences.buffering <= MAX_BUFFERING, "");
 
@@ -1605,7 +1609,7 @@ void IGpuSys::init(Allocator allocator, gpu::Device device,
     trace("Selected depth stencil format: {}"_str, depth_stencil_format_);
 
     descriptors_layout_ =
-      GpuDescriptorsLayout::create(dev_, "/ DescriptorsLayout"_str, cfg_, scratch);
+      GpuDescriptorsLayout::create(allocator_, dev_, "/ DescriptorsLayout"_str, cfg_);
 
     queue_scope_ = dev_
                      ->create_queue_scope(gpu::QueueScopeInfo{
@@ -1613,12 +1617,14 @@ void IGpuSys::init(Allocator allocator, gpu::Device device,
                      .unwrap();
 
     sampler_cache_ = SamplerCache{allocator_};
-    descriptors_   = GpuDescriptors::create(this, "/ Descriptors", scratch);
+    descriptors_   = GpuDescriptors::create(this, "/ Descriptors");
 
     auto frames = Vec<Dyn<GpuFrame>>::make(buffering_, allocator_).unwrap();
 
     for (auto i : range(buffering_))
     {
+        ASH_SCRATCH_SCOPE(scratch, allocator_);
+
         // start as signaled wait token
         auto wait_token = dyn<IWaitToken>(inplace, allocator_, NOT_IN_USE).unwrap();
 
@@ -1664,7 +1670,7 @@ void IGpuSys::init(Allocator allocator, gpu::Device device,
 
     current_plan()->begin();
     create_default_textures(this);
-    create_default_samplers(this, scratch);
+    create_default_samplers(this);
 }
 
 SamplerIndex IGpuSys::create_cached_sampler(gpu::SamplerInfo const & info_)

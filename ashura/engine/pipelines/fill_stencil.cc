@@ -19,8 +19,10 @@ FillStencilPipeline::FillStencilPipeline(Allocator)
 {
 }
 
-void FillStencilPipeline::acquire(GpuFramePlan plan, Allocator, Allocator scratch)
+void FillStencilPipeline::acquire(GpuFramePlan plan, Allocator allocator)
 {
+    ASH_SCRATCH_SCOPE(scratch, allocator);
+
     auto & gpu = *plan->sys();
 
     auto tagged_label = sformat(scratch, "Fill Stencil Graphics Pipeline"_str).unwrap();
@@ -132,7 +134,7 @@ void FillStencilPipeline::encode(gpu::CommandEncoder               e,
     e->end_rendering();
 }
 
-void FillStencilPipeline::release(GpuFramePlan plan, Allocator, Allocator)
+void FillStencilPipeline::release(GpuFramePlan plan, Allocator)
 {
     plan->add_preframe_task(
       [d = plan->device(), p = pipeline_](GpuFrame) { d->uninit(p); });

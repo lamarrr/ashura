@@ -1,5 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
+#include "ashura/std/span.h"
 #include "ashura/std/types.h"
 
 namespace ash

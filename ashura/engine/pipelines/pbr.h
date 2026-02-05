@@ -46,14 +46,12 @@ struct PBRPipeline final : IPipeline
 
     virtual Str label() override;
 
-    virtual void acquire(GpuFramePlan plan, Allocator allocator,
-                         Allocator scratch) override;
+    virtual void acquire(GpuFramePlan plan, Allocator allocator) override;
 
-    virtual void release(GpuFramePlan plan, Allocator allocator,
-                         Allocator scratch) override;
+    virtual void release(GpuFramePlan plan, Allocator allocator) override;
 
     PipelineVariantId add_variant(GpuFramePlan plan, Str label, gpu::Shader shader,
-                                  Allocator allocator, Allocator scratch);
+                                  Allocator allocator);
 
     void remove_variant(GpuFramePlan plan, PipelineVariantId id);
 

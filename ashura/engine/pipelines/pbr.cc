@@ -15,9 +15,11 @@ Str PBRPipeline::label()
 
 static gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
                                              gpu::Shader      shader,
-                                             gpu::PolygonMode polygon_mode, Allocator,
-                                             Allocator        scratch)
+                                             gpu::PolygonMode polygon_mode,
+                                             Allocator        allocator)
 {
+    ASH_SCRATCH_SCOPE(scratch, allocator);
+
     auto & gpu = *plan->sys();
 
     auto tagged_label =
@@ -96,15 +98,12 @@ static gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
 }
 
 PBRPipeline::Pipeline create_pipeline(GpuFramePlan plan, Str label, gpu::Shader shader,
-                                      Allocator allocator, Allocator scratch)
+                                      Allocator allocator)
 {
     return {
-      .fill  = create_pipeline(plan, label, shader, gpu::PolygonMode::Fill, allocator,
-                               scratch),
-      .line  = create_pipeline(plan, label, shader, gpu::PolygonMode::Line, allocator,
-                               scratch),
-      .point = create_pipeline(plan, label, shader, gpu::PolygonMode::Point, allocator,
-                               scratch),
+      .fill  = create_pipeline(plan, label, shader, gpu::PolygonMode::Fill, allocator),
+      .line  = create_pipeline(plan, label, shader, gpu::PolygonMode::Line, allocator),
+      .point = create_pipeline(plan, label, shader, gpu::PolygonMode::Point, allocator),
     };
 }
 
@@ -112,19 +111,18 @@ PBRPipeline::PBRPipeline(Allocator allocator) : variants_{allocator}
 {
 }
 
-void PBRPipeline::acquire(GpuFramePlan plan, Allocator allocator, Allocator scratch)
+void PBRPipeline::acquire(GpuFramePlan plan, Allocator allocator)
 {
-    auto id = add_variant(plan, "base"_str,
-                          sys.shader->get("defaults/pbr_base"_str).unwrap().shader,
-                          allocator, scratch);
+    auto id =
+      add_variant(plan, "base"_str,
+                  sys.shader->get("defaults/pbr_base"_str).unwrap().shader, allocator);
     ASH_CHECK(id == PipelineVariantId::Base, "");
 }
 
 PipelineVariantId PBRPipeline::add_variant(GpuFramePlan plan, Str label,
-                                           gpu::Shader shader, Allocator allocator,
-                                           Allocator scratch)
+                                           gpu::Shader shader, Allocator allocator)
 {
-    auto pipeline = create_pipeline(plan, label, shader, allocator, scratch);
+    auto pipeline = create_pipeline(plan, label, shader, allocator);
     auto id       = (PipelineVariantId) variants_.push(Tuple{label, pipeline}).unwrap();
     ASH_CHECK(id == PipelineVariantId::Base, "");
     return id;
@@ -243,7 +241,7 @@ void PBRPipeline::encode(gpu::CommandEncoder e, PBRPipelineParams const & params
     e->end_rendering();
 }
 
-void PBRPipeline::release(GpuFramePlan plan, Allocator, Allocator)
+void PBRPipeline::release(GpuFramePlan plan, Allocator)
 {
     for (auto [v] : variants_)
     {

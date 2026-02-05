@@ -201,7 +201,7 @@ struct [[nodiscard]] RenderText
 
     TextLayout const & layout() const;
 
-    void perform_layout(Allocator scratch);
+    void perform_layout();
 
     /// @brief Generate the placement rectangles for the laid-out text
     /// @param center canvas-space region of the text to place the text on
@@ -369,7 +369,7 @@ struct [[nodiscard]] TextModel
 
     void width(f32 max_width, f32 align_width);
 
-    void perform_layout(Allocator scratch);
+    void perform_layout();
 };
 
 }    // namespace ash

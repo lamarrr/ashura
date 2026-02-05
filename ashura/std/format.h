@@ -1,7 +1,10 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
+#include "ashura/std/array.h"
 #include "ashura/std/buffer.h"
+#include "ashura/std/fn.h"
 #include "ashura/std/math.h"
+#include "ashura/std/span.h"
 #include "ashura/std/types.h"
 
 namespace ash

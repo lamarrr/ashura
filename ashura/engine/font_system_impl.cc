@@ -1129,9 +1129,11 @@ static u8 determine_levels(Str32 paragraph_str, TextDirection direction,
 /// https://stackoverflow.com/questions/62374506/how-do-i-align-glyphs-along-the-baseline-with-freetype
 ///
 TextLayout FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
-                                    f32 align_width, Allocator scratch)
+                                    f32 align_width)
 {
     tracing::ScopeTrace trace;
+    ASH_SCRATCH_SCOPE(scratch, allocator_);
+    auto scratch_allocator = Allocator{scratch};
 
     auto       str      = block.str;
     auto const str_size = block.str.size();
@@ -1141,7 +1143,7 @@ TextLayout FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
               "Text runs need to span the entire text");
 
     SBAllocator sb_allocator_impl{
-      .user_data = scratch.self,
+      .user_data = scratch_allocator.self,
       .allocate  = [](void * user_data, usize alignment, usize size,
                      void ** out_ptr) -> SBBoolean {
           auto allocator = (IAllocator *) user_data;

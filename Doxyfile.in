@@ -1,2 +1,70 @@
-OUTPUT_DIRECTORY       = @CMAKE_CURRENT_BINARY_DIR@/docs/
+# Project information
+PROJECT_NAME           = "Ashura"
+PROJECT_NUMBER         = @PROJECT_VERSION@
+PROJECT_BRIEF          = "Ashura Game Engine"
+
+# Output configuration
+OUTPUT_DIRECTORY       = @CMAKE_CURRENT_BINARY_DIR@/docs
+CREATE_SUBDIRS         = NO
+
+# Input configuration
 INPUT                  = @CMAKE_CURRENT_SOURCE_DIR@/ashura
+FILE_PATTERNS          = *.h *.cc *.hpp *.cpp *.c
+RECURSIVE              = YES
+EXCLUDE_PATTERNS       = */build/* */tests/* */samples/* */benchmarks/*
+
+# Source code configuration
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = NO
+EXTRACT_STATIC         = YES
+EXTRACT_LOCAL_CLASSES  = YES
+
+# HTML output configuration
+GENERATE_HTML          = YES
+HTML_OUTPUT            = html
+HTML_FILE_EXTENSION    = .html
+HTML_COLORSTYLE        = AUTO_LIGHT
+HTML_TIMESTAMP         = YES
+HTML_DYNAMIC_SECTIONS  = YES
+HTML_INDEX_NUM_ENTRIES = 100
+
+# Other output formats
+GENERATE_LATEX         = NO
+GENERATE_MAN           = NO
+GENERATE_RTF           = NO
+GENERATE_XML           = NO
+
+# Preprocessing
+ENABLE_PREPROCESSING   = YES
+MACRO_EXPANSION        = YES
+EXPAND_ONLY_PREDEF     = NO
+SEARCH_INCLUDES        = YES
+INCLUDE_PATH           = @CMAKE_CURRENT_SOURCE_DIR@
+PREDEFINED             = __cplusplus
+
+# Dot/Graphviz diagrams
+HAVE_DOT               = NO
+CLASS_DIAGRAMS         = YES
+HIDE_UNDOC_RELATIONS   = NO
+CLASS_GRAPH            = YES
+COLLABORATION_GRAPH    = YES
+INCLUDE_GRAPH          = YES
+INCLUDED_BY_GRAPH      = YES
+CALL_GRAPH             = NO
+CALLER_GRAPH           = NO
+
+# Additional options
+QUIET                  = NO
+WARNINGS               = YES
+WARN_IF_UNDOCUMENTED   = NO
+WARN_IF_DOC_ERROR      = YES
+WARN_NO_PARAMDOC       = NO
+
+# Search and navigation
+SEARCHENGINE           = YES
+SERVER_BASED_SEARCH    = NO
+
+# Sorting and grouping
+SORT_MEMBER_DOCS       = YES
+SORT_BRIEF_DOCS        = NO
+SORT_GROUP_NAMES       = NO

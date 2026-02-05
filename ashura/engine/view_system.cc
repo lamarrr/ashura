@@ -922,9 +922,8 @@ IViewSys::HitState IViewSys::point_seq_(Tree & tree, ui::InputScope const & inpu
     return PointState{.tgt = tgt};
 }
 
-void IViewSys::hit_seq_(Tree & tree, ui::InputScope const & input,
-
-                        Vec<Event> & events, RequestQueue & request_queue)
+void IViewSys::hit_seq_(Tree & tree, ui::InputScope const & input, Vec<Event> & events,
+                        RequestQueue & request_queue)
 {
     tracing::ScopeTrace trace;
     // - build hitstate from the ids
@@ -1109,10 +1108,10 @@ Tuple<Option<ui::FocusRect>, Option<TextInputInfo>, Cursor>
 }
 
 ViewSysState IViewSys::tick(Engine engine, ui::InputScope const & input, Canvas canvas,
-                            Fn<ui::View &(Engine, ui::Scope const &)> loop,
-                            Allocator                                 scratch_allocator)
+                            Fn<ui::View &(Engine, ui::Scope const &)> loop)
 {
     tracing::ScopeTrace trace;
+    ASH_SCRATCH_SCOPE(scratch, allocator_);
 
     auto & base      = loop(engine, prev_frame_scope_);
     root_view_.next_ = base;
@@ -1127,7 +1126,7 @@ ViewSysState IViewSys::tick(Engine engine, ui::InputScope const & input, Canvas 
 
     auto n = size16(tree.nodes.views);
 
-    tree.props = Props::create(scratch_allocator, n);
+    tree.props = Props::create(scratch, n);
 
     build_states_(tree);
     event_queue_.clear();
@@ -1140,7 +1139,7 @@ ViewSysState IViewSys::tick(Engine engine, ui::InputScope const & input, Canvas 
     /// Based on the current state and the new input events, prepare the view
     /// events
     auto [focus_rect, input_info, cursor] =
-      prepare_events_(tree, input, request_queue, scratch_allocator);
+      prepare_events_(tree, input, request_queue, scratch);
 
     /// Prepare the new system and window states for dispath on the next frame
     prev_frame_sys_state_ = input.system().copy();

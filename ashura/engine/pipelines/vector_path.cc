@@ -16,9 +16,10 @@ Str VectorPathPipeline::label()
 }
 
 static gpu::GraphicsPipeline create_coverage_pipeline(GpuFramePlan plan, Str label,
-                                                      gpu::Shader shader, Allocator,
-                                                      Allocator   scratch)
+                                                      gpu::Shader shader,
+                                                      Allocator   allocator)
 {
+    ASH_SCRATCH_SCOPE(scratch, allocator);
     auto & gpu = *plan->sys();
 
     auto tagged_label =
@@ -87,9 +88,11 @@ static gpu::GraphicsPipeline create_coverage_pipeline(GpuFramePlan plan, Str lab
 }
 
 static gpu::GraphicsPipeline create_fill_pipeline(GpuFramePlan plan, Str label,
-                                                  gpu::Shader shader, Allocator,
-                                                  Allocator   scratch)
+                                                  gpu::Shader shader,
+                                                  Allocator   allocator)
 {
+    ASH_SCRATCH_SCOPE(scratch, allocator);
+
     auto & gpu = *plan->sys();
 
     auto tagged_label =
@@ -175,29 +178,25 @@ VectorPathPipeline::VectorPathPipeline(Allocator allocator) :
 {
 }
 
-void VectorPathPipeline::acquire(GpuFramePlan plan, Allocator allocator,
-                                 Allocator scratch)
+void VectorPathPipeline::acquire(GpuFramePlan plan, Allocator allocator)
 {
     coverage_pipeline_ = create_coverage_pipeline(
       plan, "coverage"_str,
-      sys.shader->get("defaults/vector_path_coverage"_str).unwrap().shader, allocator,
-      scratch);
+      sys.shader->get("defaults/vector_path_coverage"_str).unwrap().shader, allocator);
 
     {
         auto id = add_fill_variant(
           plan, "base"_str,
-          sys.shader->get("defaults/vector_path_base"_str).unwrap().shader, allocator,
-          scratch);
+          sys.shader->get("defaults/vector_path_base"_str).unwrap().shader, allocator);
         ASH_CHECK(id == PipelineVariantId::Base, "");
     }
 }
 
 PipelineVariantId VectorPathPipeline::add_fill_variant(GpuFramePlan plan, Str label,
                                                        gpu::Shader shader,
-                                                       Allocator   allocator,
-                                                       Allocator   scratch)
+                                                       Allocator   allocator)
 {
-    auto pipeline = create_fill_pipeline(plan, label, shader, allocator, scratch);
+    auto pipeline = create_fill_pipeline(plan, label, shader, allocator);
     auto id       = fill_pipelines_.push(Tuple{label, pipeline}).unwrap();
     return (PipelineVariantId) id;
 }
@@ -348,7 +347,7 @@ void VectorPathPipeline::encode(gpu::CommandEncoder                  e,
     e->end_rendering();
 }
 
-void VectorPathPipeline::release(GpuFramePlan plan, Allocator, Allocator)
+void VectorPathPipeline::release(GpuFramePlan plan, Allocator)
 {
     plan->add_preframe_task(
       [p = coverage_pipeline_, d = plan->device()](GpuFrame) { d->uninit(p); });

@@ -11,10 +11,10 @@
 
 struct TriangleFillShaderParams
 {
-    f32x4x4                                       world_to_ndc;
-    DescriptorHandle<StructuredBuffer<ITEM_TYPE>> sets;
-    DescriptorHandle<StructuredBuffer<Vertex2D>>  vertices;
-    DescriptorHandle<StructuredBuffer<u32>>       indices;
+    f32x4x4     world_to_ndc;
+    ITEM_TYPE * sets;
+    Vertex2D *  vertices;
+    u32 *       indices;
 };
 
 [[vk::push_constant]]

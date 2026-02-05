@@ -29,7 +29,7 @@ inline constexpr char const ENGINE_NAME[] = "Ash";
 inline constexpr u32 ENGINE_VERSION = VK_MAKE_API_VERSION(
   ASH_VERSION.variant, ASH_VERSION.major, ASH_VERSION.minor, ASH_VERSION.patch);
 
-inline constexpr u32 ENGINE_VULKAN_VERSION = VK_API_VERSION_1_1;
+inline constexpr u32 ENGINE_VULKAN_VERSION = VK_API_VERSION_1_2;
 
 inline constexpr char const CLIENT_NAME[] = "Ash Client";
 
@@ -516,13 +516,17 @@ struct ISwapchain
 
     SmallVec<Image, 8, 0> images;
 
+    // TODO: size by num frames in flight
     SmallVec<VkSemaphore, 8, 0> acquire_semaphores;
+
+    // TODO: size by num images
+    SmallVec<VkSemaphore, 8, 0> submit_semaphores;
 
     u32 ring_index = 0;
 
     Option<u32> current_image = none;
 
-    Option<u32> current_semaphore = none;
+    Option<u32> current_acquire_semaphore = none;
 
     bool is_deferred = true;
 
@@ -1342,18 +1346,15 @@ struct ICommandBuffer final : gpu::ICommandBuffer
 
 struct IQueueScope
 {
-    u64                         buffering_;
-    u64                         frame_;
-    u64                         ring_index_;
-    SmallVec<VkSemaphore, 4, 0> submit_semaphores_;
-    SmallVec<VkFence, 4, 0>     submit_fences_;
+    u64                     buffering_;
+    u64                     frame_;
+    u64                     ring_index_;
+    SmallVec<VkFence, 4, 0> submit_fences_;
 
-    IQueueScope(u64 buffering, SmallVec<VkSemaphore, 4, 0> submit_semaphores,
-                SmallVec<VkFence, 4, 0> submit_fences) :
+    IQueueScope(u64 buffering, SmallVec<VkFence, 4, 0> submit_fences) :
       buffering_{buffering},
       frame_{0},
       ring_index_{0},
-      submit_semaphores_{std::move(submit_semaphores)},
       submit_fences_{std::move(submit_fences)}
     {
     }
@@ -1401,7 +1402,7 @@ struct IDevice final : gpu::IDevice
     ~IDevice()                           = default;
 
     void set_resource_name(Str label, void const * resource, VkObjectType type,
-                           VkDebugReportObjectTypeEXT debug_type, Allocator scratch);
+                           VkDebugReportObjectTypeEXT debug_type);
 
     AliasId allocate_alias_id();
 

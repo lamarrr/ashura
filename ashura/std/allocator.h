@@ -6,11 +6,6 @@
 namespace ash
 {
 
-///
-/// REQUIREMENTS
-/// =============
-///
-///
 struct IAllocator
 {
     constexpr IAllocator()                               = default;

@@ -1,6 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/std/allocators.h"
 #include "ashura/std/async.h"
+#include "ashura/std/error.h"
 #include "ashura/std/list.h"
 #include "ashura/std/mem.h"
 

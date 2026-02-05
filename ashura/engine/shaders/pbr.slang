@@ -43,10 +43,10 @@ struct FragmentOutput
 
 struct PbrShaderParams
 {
-    DescriptorHandle<StructuredBuffer<PbrVertex>>     vertices;
-    DescriptorHandle<StructuredBuffer<u32>>           indices;
-    DescriptorHandle<StructuredBuffer<ITEM_TYPE>>     items;
-    DescriptorHandle<StructuredBuffer<PunctualLight>> lights;
+    PbrVertex *     vertices;
+    u32 *           indices;
+    ITEM_TYPE *     items;
+    PunctualLight * lights;
 };
 
 [[vk::push_constant]]

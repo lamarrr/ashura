@@ -30,8 +30,8 @@ struct VertexOutput
 
 struct SdfShaderParams
 {
-    f32x4x4                                       world_to_ndc;
-    DescriptorHandle<StructuredBuffer<ITEM_TYPE>> items;
+    f32x4x4     world_to_ndc;
+    ITEM_TYPE * items;
 };
 
 [[vk::push_constant]]

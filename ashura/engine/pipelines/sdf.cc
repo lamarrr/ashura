@@ -19,9 +19,10 @@ Str SdfPipeline::label()
 }
 
 static gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
-                                             gpu::Shader shader, Allocator,
-                                             Allocator   scratch)
+                                             gpu::Shader shader, Allocator allocator)
 {
+    ASH_SCRATCH_SCOPE(scratch, allocator);
+
     auto & gpu = *plan->sys();
 
     auto raster_state =
@@ -99,28 +100,26 @@ static gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
     return gpu.device()->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
-void SdfPipeline::acquire(GpuFramePlan plan, Allocator allocator, Allocator scratch)
+void SdfPipeline::acquire(GpuFramePlan plan, Allocator allocator)
 {
     auto gradient_id = add_variant(
       plan, "gradient"_str,
-      sys.shader->get("defaults/sdf_gradient"_str).unwrap().shader, allocator, scratch);
+      sys.shader->get("defaults/sdf_gradient"_str).unwrap().shader, allocator);
     ASH_CHECK(gradient_id == GRADIENT, "");
-    auto noise_id = add_variant(
-      plan, "noise"_str, sys.shader->get("defaults/sdf_noise"_str).unwrap().shader,
-      allocator, scratch);
+    auto noise_id =
+      add_variant(plan, "noise"_str,
+                  sys.shader->get("defaults/sdf_noise"_str).unwrap().shader, allocator);
     ASH_CHECK(noise_id == NOISE, "");
-    auto mesh_gradient_id =
-      add_variant(plan, "mesh_gradient"_str,
-                  sys.shader->get("defaults/sdf_mesh_gradient"_str).unwrap().shader,
-                  allocator, scratch);
+    auto mesh_gradient_id = add_variant(
+      plan, "mesh_gradient"_str,
+      sys.shader->get("defaults/sdf_mesh_gradient"_str).unwrap().shader, allocator);
     ASH_CHECK(mesh_gradient_id == MESH_GRADIENT, "");
 }
 
 PipelineVariantId SdfPipeline::add_variant(GpuFramePlan plan, Str label,
-                                           gpu::Shader shader, Allocator allocator,
-                                           Allocator scratch)
+                                           gpu::Shader shader, Allocator allocator)
 {
-    auto pipeline = create_pipeline(plan, label, shader, allocator, scratch);
+    auto pipeline = create_pipeline(plan, label, shader, allocator);
     return variants_.push(Tuple{label, pipeline}).unwrap();
 }
 
@@ -208,7 +207,7 @@ void SdfPipeline::encode(gpu::CommandEncoder e, SdfPipelineParams const & params
     e->end_rendering();
 }
 
-void SdfPipeline::release(GpuFramePlan plan, Allocator, Allocator)
+void SdfPipeline::release(GpuFramePlan plan, Allocator)
 {
     for (auto [v] : variants_)
     {
