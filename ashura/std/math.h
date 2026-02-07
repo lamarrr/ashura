@@ -1962,7 +1962,7 @@ struct affine
         auto   m = to_mat() * b.to_mat();
         affine r;
 #pragma unroll
-        for (auto i = 0uz; i < NUM_ROWS - 1; i++)
+        for (auto i = 0uz; i < NUM_ROWS; i++)
         {
             r[i] = m[i];
         }

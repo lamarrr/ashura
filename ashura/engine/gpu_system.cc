@@ -497,9 +497,9 @@ GpuBufferId IGpuFramePlan::push_gpu(Span<u8 const> data)
     ASH_CHECK(gpu_buffer_data_.size() <= U32_MAX, "");
     auto aligned_size =
       align_offset_up<usize>(gpu::BUFFER_OFFSET_ALIGNMENT, gpu_buffer_data_.size());
+    gpu_buffer_data_.resize_uninit(aligned_size).unwrap();
     auto idx = gpu_buffer_entries_.size();
     gpu_buffer_entries_.push(offset, size).unwrap();
-    gpu_buffer_data_.resize_uninit(aligned_size).unwrap();
     return GpuBufferId{(u32) idx};
 }
 
@@ -1076,14 +1076,14 @@ Span<ImageUnion const> IGpuFrame::get_scratch_images() const
 
 Span<GpuBuffer const> IGpuFrame::get_scratch_buffers() const
 {
-    ASH_CHECK(state_ == GpuFrameState::Recording || state_ == GpuFrameState::Recorded, ,
+    ASH_CHECK(state_ == GpuFrameState::Recording || state_ == GpuFrameState::Recorded,
               "");
     return resources_.scratch_buffers.buffers;
 }
 
 GpuBufferSpan IGpuFrame::get(GpuBufferId id)
 {
-    ASH_CHECK(state_ == GpuFrameState::Recording || state_ == GpuFrameState::Recorded, ,
+    ASH_CHECK(state_ == GpuFrameState::Recording || state_ == GpuFrameState::Recorded,
               "");
     Slice64 slice = current_plan_->gpu_buffer_entries_.get((usize) id);
     return {resources_.buffer, slice};
@@ -1091,7 +1091,7 @@ GpuBufferSpan IGpuFrame::get(GpuBufferId id)
 
 Span<u8> IGpuFrame::get(CpuBufferId id)
 {
-    ASH_CHECK(state_ == GpuFrameState::Recording || state_ == GpuFrameState::Recorded, ,
+    ASH_CHECK(state_ == GpuFrameState::Recording || state_ == GpuFrameState::Recorded,
               "");
     ASH_CHECK(current_plan_ != nullptr, "");
     auto slice = current_plan_->cpu_buffer_entries_.get((usize) id);
@@ -1406,7 +1406,7 @@ static void create_default_samplers(GpuSys sys)
             {
                 ASH_SCRATCH_SCOPE(scratch, sys->allocator_);
 
-                auto label = sformat(scratch, "/ Sampler: {} + {} + {}"_str,
+                auto label = sformat(scratch, "Sampler: {} + {} + {}"_str,
                                      mip_map_mode_name, address_mode_name, color_name)
                                .unwrap();
                 [[maybe_unused]] auto id = sys->create_cached_sampler(
@@ -1591,7 +1591,7 @@ void IGpuSys::init(Allocator allocator, gpu::Device device,
     pipeline_cache_ =
       dev_
         ->create_pipeline_cache(gpu::PipelineCacheInfo{
-          .label = "/ PipelineCache"_str, .initial_data = pipeline_cache_data})
+          .label = "PipelineCache"_str, .initial_data = pipeline_cache_data})
         .unwrap();
     buffering_ = preferences.buffering;
 
@@ -1609,15 +1609,15 @@ void IGpuSys::init(Allocator allocator, gpu::Device device,
     trace("Selected depth stencil format: {}"_str, depth_stencil_format_);
 
     descriptors_layout_ =
-      GpuDescriptorsLayout::create(allocator_, dev_, "/ DescriptorsLayout"_str, cfg_);
+      GpuDescriptorsLayout::create(allocator_, dev_, "DescriptorsLayout"_str, cfg_);
 
     queue_scope_ = dev_
                      ->create_queue_scope(gpu::QueueScopeInfo{
-                       .label = "/ QueueScope"_str, .buffering = buffering_ * 4})
+                       .label = "QueueScope"_str, .buffering = buffering_ * 4})
                      .unwrap();
 
     sampler_cache_ = SamplerCache{allocator_};
-    descriptors_   = GpuDescriptors::create(this, "/ Descriptors");
+    descriptors_   = GpuDescriptors::create(this, "Descriptors");
 
     auto frames = Vec<Dyn<GpuFrame>>::make(buffering_, allocator_).unwrap();
 
@@ -1629,14 +1629,14 @@ void IGpuSys::init(Allocator allocator, gpu::Device device,
         auto wait_token = dyn<IWaitToken>(inplace, allocator_, NOT_IN_USE).unwrap();
 
         auto encoder_label =
-          sformat(scratch, "/ GpuFrame {} / CommandEncoder"_str, i).unwrap();
+          sformat(scratch, "GpuFrame {} / CommandEncoder"_str, i).unwrap();
 
         auto encoder =
           dev_->create_command_encoder(gpu::CommandEncoderInfo{.label = encoder_label})
             .unwrap();
 
         auto buffer_label =
-          sformat(scratch, "/ GpuFrame {} / CommandBuffer"_str, i).unwrap();
+          sformat(scratch, "GpuFrame {} / CommandBuffer"_str, i).unwrap();
 
         auto buffer =
           dev_->create_command_buffer(gpu::CommandBufferInfo{.label = buffer_label})

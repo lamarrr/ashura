@@ -2313,7 +2313,7 @@ using SmallBitVec =
 /// @tparam V dense containers for the properties, i.e. Vec<i32>, Vec<f32>
 ///
 /// The index and id either point to valid indices/ids or are an implicit free
-/// list of ids and indices masked by RELEASED_MASK
+/// list of ids and indices masked by FREE_MASK
 ///
 template <typename IdType, typename IndexVecType, typename... V>
 requires (NonConst<IdType> && NonConst<IndexVecType> &&
@@ -2327,8 +2327,8 @@ struct CoreSparseVec
     using Indices = IndexVecType;
     using Id      = IdType;
 
-    static constexpr Index RELEASED_MASK = ~(NumTraits<Index>::MAX >> 1);
-    static constexpr Index STUB          = NumTraits<Index>::MAX;
+    static constexpr Index FREE_MASK = ~(NumTraits<Index>::MAX >> 1);
+    static constexpr Index NONE      = NumTraits<Index>::MAX;
 
     struct Iter
     {
@@ -2404,7 +2404,7 @@ struct CoreSparseVec
       index_to_id_{allocator},
       id_to_index_{allocator},
       dense{V{allocator}...},
-      free_id_head_{STUB}
+      free_id_head_{NONE}
     {
     }
 
@@ -2418,7 +2418,7 @@ struct CoreSparseVec
       dense{static_cast<Dense &&>(other.dense)},
       free_id_head_{other.free_id_head_}
     {
-        other.free_id_head_ = STUB;
+        other.free_id_head_ = NONE;
     }
 
     constexpr CoreSparseVec & operator=(CoreSparseVec && other)
@@ -2431,7 +2431,7 @@ struct CoreSparseVec
         id_to_index_        = static_cast<Indices &&>(other.id_to_index_);
         dense               = static_cast<Dense &&>(other.dense);
         free_id_head_       = other.free_id_head_;
-        other.free_id_head_ = STUB;
+        other.free_id_head_ = NONE;
         return *this;
     }
 
@@ -2472,7 +2472,7 @@ struct CoreSparseVec
         apply([](auto &... d) { (d.clear(), ...); }, dense);
         id_to_index_.clear();
         index_to_id_.clear();
-        free_id_head_ = STUB;
+        free_id_head_ = NONE;
     }
 
     constexpr void reset()
@@ -2480,7 +2480,7 @@ struct CoreSparseVec
         apply([](auto &... d) { (d.reset(), ...); }, dense);
         id_to_index_.reset();
         index_to_id_.reset();
-        free_id_head_ = STUB;
+        free_id_head_ = NONE;
     }
 
     constexpr void uninit()
@@ -2499,7 +2499,7 @@ struct CoreSparseVec
             return false;
         }
 
-        return (id_to_index_[id] & RELEASED_MASK) == 0;
+        return (id_to_index_[id] & FREE_MASK) == 0;
     }
 
     constexpr bool is_valid_index(Index index) const
@@ -2595,7 +2595,7 @@ struct CoreSparseVec
             index_to_id_[index]   = last_id;
         }
 
-        id_to_index_[id] = free_id_head_ | RELEASED_MASK;
+        id_to_index_[id] = free_id_head_ | FREE_MASK;
         free_id_head_    = id;
         index_to_id_.pop();
     }
@@ -2662,12 +2662,12 @@ struct CoreSparseVec
     constexpr Index create_id_()
     {
         auto const index = static_cast<Index>(index_to_id_.size());
-        if (free_id_head_ != STUB)
+        if (free_id_head_ != NONE)
         {
             auto const id        = free_id_head_;
             auto const next_free = id_to_index_[free_id_head_];
-            id_to_index_[id]     = index | RELEASED_MASK;
-            free_id_head_        = next_free;
+            id_to_index_[id]     = index | FREE_MASK;
+            free_id_head_ = (next_free == NONE) ? NONE : (next_free & ~FREE_MASK);
             index_to_id_.push(id).discard();
             return id;
         }

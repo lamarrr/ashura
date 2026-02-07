@@ -9,6 +9,11 @@
 // clang-format off
 
 #include "vulkan/vulkan_beta.h"
+#include "vulkan/vulkan_android.h"
+#include "vulkan/vulkan_ios.h"
+#include "vulkan/vulkan_macos.h"
+#include "vulkan/vulkan_metal.h"
+#include "vulkan/vulkan_wayland.h"
 #include "vulkan/vk_enum_string_helper.h"
 
 // clang-format on
@@ -1590,22 +1595,22 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
 
     ASH_CHECK(layers.size() == num_layers, "");
 
-    trace("Available Extensions:"_str);
+    trace("Available Instance Extensions:"_str);
 
     for (auto const & ext : extensions)
     {
-        trace("{}\t\t(spec version {}.{}.{} variant {})"_str, cstr(ext.extensionName),
+        trace("\t\t{} (spec version {}.{}.{} variant {})"_str, cstr(ext.extensionName),
               VK_API_VERSION_MAJOR(ext.specVersion),
               VK_API_VERSION_MINOR(ext.specVersion),
               VK_API_VERSION_PATCH(ext.specVersion),
               VK_API_VERSION_VARIANT(ext.specVersion));
     }
 
-    trace("Available Layers:"_str);
+    trace("Available Instance Layers:"_str);
 
     for (auto const & layer : layers)
     {
-        trace("{}\t\t(spec version {}.{}.{} variant {}, implementation "
+        trace("\t\t{} (spec version {}.{}.{} variant {}, implementation "
               "version: "
               "{}.{}.{} variant {})"_str,
               cstr(layer.layerName), VK_API_VERSION_MAJOR(layer.specVersion),
@@ -1630,13 +1635,15 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
     Vec<Str> optional_extensions{scratch};
 
     optional_extensions
-      .append(span({cstr(VK_EXT_DEBUG_UTILS_EXTENSION_NAME),
-                    cstr(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME),
-                    "VK_KHR_android_surface"_str, "VK_MVK_ios_surface"_str,
-                    "VK_MVK_macos_surface"_str, "VK_EXT_metal_surface"_str,
-                    "VK_NN_vi_surface"_str, "VK_KHR_wayland_surface"_str,
-                    "VK_KHR_win32_surface"_str, "VK_KHR_xcb_surface"_str,
-                    "VK_KHR_xlib_surface"_str}))
+      .append(
+        span({cstr(VK_EXT_DEBUG_UTILS_EXTENSION_NAME),
+              cstr(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME),
+              cstr(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME),
+              cstr(VK_MVK_IOS_SURFACE_EXTENSION_NAME),
+              cstr(VK_MVK_MACOS_SURFACE_EXTENSION_NAME),
+              cstr(VK_EXT_METAL_SURFACE_EXTENSION_NAME), "VK_NN_vi_surface"_str,
+              cstr(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME), "VK_KHR_win32_surface"_str,
+              "VK_KHR_xcb_surface"_str, "VK_KHR_xlib_surface"_str}))
       .unwrap();
 
     if (enable_validation)
@@ -1915,7 +1922,13 @@ Result<gpu::Device, Status>
           .bufferDeviceAddressCaptureReplay = {},
           .bufferDeviceAddressMultiDevice   = {}};
 
-        features.pNext = &buffer_device_address_features;
+        VkPhysicalDeviceScalarBlockLayoutFeaturesEXT scalar_block_layout_features{
+          .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SCALAR_BLOCK_LAYOUT_FEATURES_EXT,
+          .pNext = nullptr,
+          .scalarBlockLayout = VK_TRUE};
+
+        features.pNext                       = &buffer_device_address_features;
+        buffer_device_address_features.pNext = &scalar_block_layout_features;
 
         table_.GetPhysicalDeviceFeatures2KHR(vk_dev, &features);
 
@@ -2168,7 +2181,8 @@ Result<gpu::Device, Status>
                          cstr(VK_KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME),
                          cstr(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME),
                          cstr(VK_KHR_CREATE_RENDERPASS_2_EXTENSION_NAME),
-                         cstr(VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME)}))
+                         cstr(VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME),
+                         cstr(VK_EXT_SCALAR_BLOCK_LAYOUT_EXTENSION_NAME)}))
       .unwrap();
 
     Vec<Str> optional_extensions{scratch};
@@ -2353,13 +2367,21 @@ Result<gpu::Device, Status>
     VkPhysicalDeviceBufferDeviceAddressFeaturesKHR buffer_device_address_features{
       .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES_KHR,
       .pNext = nullptr,
-      .bufferDeviceAddress              = VK_TRUE,
-      .bufferDeviceAddressCaptureReplay = VK_FALSE,
-      .bufferDeviceAddressMultiDevice   = VK_FALSE};
+      .bufferDeviceAddress = VK_TRUE,
+      .bufferDeviceAddressCaptureReplay =
+        selected_dev.vk_buffer_device_address_features.bufferDeviceAddressCaptureReplay,
+      .bufferDeviceAddressMultiDevice =
+        selected_dev.vk_buffer_device_address_features.bufferDeviceAddressMultiDevice};
+
+    VkPhysicalDeviceScalarBlockLayoutFeaturesEXT scalar_block_layout_features{
+      .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SCALAR_BLOCK_LAYOUT_FEATURES_EXT,
+      .pNext = nullptr,
+      .scalarBlockLayout = VK_TRUE};
 
     extended_dynamic_state_features.pNext = &dynamic_rendering_features;
     dynamic_rendering_features.pNext      = &descriptor_indexing_features;
     descriptor_indexing_features.pNext    = &buffer_device_address_features;
+    buffer_device_address_features.pNext  = &scalar_block_layout_features;
 
     VkDeviceCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
                                    .pNext = &extended_dynamic_state_features,
@@ -2658,8 +2680,7 @@ Result<gpu::Buffer, Status> IDevice::create_buffer(gpu::BufferInfo const & info)
       .usage       = info.usage,
       .host_mapped = info.host_mapped,
       .size        = info.size,
-      .memory =
-        MemoryInfo{.alias = nullptr, .element = 0, .type = gpu::MemoryType::Unique},
+      .memory = MemoryInfo{.alias = nullptr, .element = 0, .type = info.memory_type},
       .bind_locations = BindLocations{allocator_}
     };
 
@@ -4841,6 +4862,8 @@ Result<Span<u8>, Status> IDevice::get_memory_map(gpu::Buffer buffer_)
 
     auto & mem       = buffer->memory;
     auto * alias_map = (u8 *) mem.alias->map;
+
+    ASH_CHECK(alias_map != nullptr, "");
 
     return Ok{
       Span<u8>{alias_map, buffer->size}

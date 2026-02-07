@@ -819,6 +819,10 @@ void IEngine::run()
             auto state = w.view_sys_->tick(this, ui::InputScope{state_, w.state_},
                                            &w.canvas_, w.loop_.get());
 
+            w.canvas_.end();
+            w.canvas_.execute(plan);
+            w.canvas_.reset();
+
             if (w.state_.extent_.all_nonzero() &&
                 w.state_.surface_extent_.all_nonzero())
             {
@@ -844,10 +848,6 @@ void IEngine::run()
                     });
                 });
             }
-
-            w.canvas_.end();
-            w.canvas_.execute(plan);
-            w.canvas_.reset();
 
             if (window_->state_.mouse_.focused_)
             {

@@ -10,7 +10,7 @@
 // clang-format off
 #define VMA_STATIC_VULKAN_FUNCTIONS  0
 #define VMA_DYNAMIC_VULKAN_FUNCTIONS 1
-#define VMA_VULKAN_VERSION           1'000'000
+#define VMA_VULKAN_VERSION           1'002'000
 
 #include "vulkan/vulkan_core.h"
 #include "vk_mem_alloc.h"
