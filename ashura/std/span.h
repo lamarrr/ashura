@@ -207,15 +207,22 @@ struct [[nodiscard]] Span
         return get(0);
     }
 
+    // TODO: structure all index-based getters and setters to use range checks
     constexpr T & last() const
     {
         return get(size() - 1);
+    }
+
+    constexpr T & unsafe_get(usize index) const
+    {
+        return data()[index];
     }
 
     constexpr T & operator[](usize index) const
     {
         return data()[index];
     }
+
 
     constexpr T & get(usize index) const
     {
@@ -497,10 +504,16 @@ struct BitSpan
         return Span<R>{storage_, atom_size()};
     }
 
+    constexpr bool unsafe_get(usize index) const
+    {
+        return impl::get_bit(storage_, index);
+    }
+
     constexpr bool operator[](usize index) const
     {
         return impl::get_bit(storage_, index);
     }
+
 
     constexpr bool get(usize index) const
     {

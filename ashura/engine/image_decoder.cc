@@ -2,8 +2,8 @@
 #include "ashura/engine/image_decoder.h"
 #include "ashura/std/image.h"
 #include "ashura/std/range.h"
-#include "ashura/std/trace.h"
 #include "ashura/std/span.h"
+#include "ashura/std/trace.h"
 
 extern "C"
 {
@@ -205,7 +205,6 @@ Result<DecodedImageInfo, SysErr> decode_image(Span<u8 const> bytes, Vec<u8> & ch
     // RIFF-[file size: 4 bytes]-WEBP
     static constexpr u8 WEBP_MAGIC1[] = {'R', 'I', 'F', 'F'};
     static constexpr u8 WEBP_MAGIC2[] = {'W', 'E', 'B', 'P'};
-
 
     if (range_eq(bytes.slice(0, size(JPG_MAGIC)), JPG_MAGIC))
     {

@@ -17,6 +17,7 @@
 #else
 #    if ASH_OS_LINUX
 #        include <linux/futex.h>
+#        include <sys/syscall.h>
 #    else
 #        if ASH_OS_APPLE
 #            include <sys/ulock.h>
@@ -103,7 +104,7 @@ void IWaitToken::os_notify()
 
 #        if ASH_OS_LINUX
 
-    futex(&state_, FUTEX_WAKE_PRIVATE, I32_MAX, nullptr, nullptr);
+    syscall(SYS_futex, &state_, FUTEX_WAKE_PRIVATE, I32_MAX, nullptr, nullptr, 0);
 
 #        endif
 
@@ -144,7 +145,8 @@ void IWaitToken::os_wait(u32 old_state, std::memory_order order)
 
     do
     {
-        futex((i32 *) &state_, FUTEX_WAIT_PRIVATE, (i32) old_state, nullptr, nullptr);
+        syscall(SYS_futex, (i32 *) &state_, FUTEX_WAIT_PRIVATE, (i32) old_state,
+                nullptr, nullptr, 0);
     } while (state.load(order) == old_state);
 
 #        else

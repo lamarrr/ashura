@@ -7,7 +7,7 @@
 /*********************** COMPILERS ***********************/
 
 #if defined(__GNUC__)    //  any compiler that implements the GNU compiler \
-                             //  extensions
+                         //  extensions
 #    define ASH_COMPILER_GNUC 1
 #else
 #    define ASH_COMPILER_GNUC 0

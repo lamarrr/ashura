@@ -5555,7 +5555,7 @@ Result<Void, Status> IDevice::await_queue_scope_idle(gpu::QueueScope scope_,
     auto submit_fence = scope->submit_fences_[scope->ring_index_];
 
     auto result = table_.WaitForFences(vk_dev_, 1, &submit_fence, VK_TRUE,
-                                       (u64) max(timeout.count(), 0LL));
+                                       max((u64) timeout.count(), (u64) 0));
 
     if (result != VK_SUCCESS)
     {
@@ -5583,7 +5583,7 @@ Result<Void, Status> IDevice::await_queue_scope_frame(gpu::QueueScope scope_, u6
     auto submit_fence = scope->submit_fences_[ring_index];
 
     auto result = table_.WaitForFences(vk_dev_, 1, &submit_fence, VK_TRUE,
-                                       (u64) max(timeout.count(), 0LL));
+                                       max((u64) timeout.count(), (u64) 0));
 
     if (result != VK_SUCCESS)
     {

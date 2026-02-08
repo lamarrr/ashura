@@ -604,29 +604,29 @@ constexpr bool is_pow2(u64 x)
     return (x & (x - 1)) == 0ULL;
 }
 
-constexpr u64 operator""_B(u64 x)
+constexpr u64 operator""_B(unsigned long long int x)
 {
-    return x;
+    return static_cast<u64>(x);
 }
 
-constexpr u64 operator""_KB(u64 x)
+constexpr u64 operator""_KB(unsigned long long int x)
 {
-    return x << 10;
+    return static_cast<u64>(x << 10);
 }
 
-constexpr u64 operator""_MB(u64 x)
+constexpr u64 operator""_MB(unsigned long long int x)
 {
-    return x << 20;
+    return static_cast<u64>(x << 20);
 }
 
-constexpr u64 operator""_GB(u64 x)
+constexpr u64 operator""_GB(unsigned long long int x)
 {
-    return x << 30;
+    return static_cast<u64>(x << 30);
 }
 
-constexpr u64 operator""_TB(u64 x)
+constexpr u64 operator""_TB(unsigned long long int x)
 {
-    return x << 40;
+    return static_cast<u64>(x << 40);
 }
 
 template <typename Repr>

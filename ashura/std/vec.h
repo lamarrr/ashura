@@ -2070,11 +2070,12 @@ struct [[nodiscard]] CoreBitVec
 
     constexpr Type & unsafe_get(usize index) const
     {
-        return data()[index];
+        return view().unsafe_get(index);
     }
 
     constexpr Type last() const
     {
+        // TODO: use view methods
         ASH_BOUNDS_CHECK(0uz, size_);
         return unsafe_get(size() - 1);
     }

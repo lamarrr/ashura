@@ -1303,7 +1303,7 @@ TextLayout FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
 
     layout.max_width      = max_width;
     layout.align_width    = align_width;
-    layout.num_carets     = max(caret_iter, 1ULL);
+    layout.num_carets     = max(caret_iter, 1uz);
     layout.num_codepoints = str_size;
     layout.extent         = extent;
     layout.laid_out       = true;
