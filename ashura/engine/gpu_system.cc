@@ -988,6 +988,7 @@ static void grow_buffer(GpuSys sys, Str label, GpuBuffer & buffer, u64 next_capa
     }
 }
 
+// TODO: ok to recreate every frame
 void ScratchBuffers::grow(GpuSys sys, Span<u64 const> sizes, Str label,
                           Allocator allocator)
 {

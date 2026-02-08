@@ -2144,7 +2144,7 @@ Result<gpu::Device, Status>
 
     ASH_CHECK(layers.size() == num_layers, "");
 
-    trace("Available Extensions:"_str);
+    trace("Available Device Extensions:"_str);
 
     for (auto & ext : extensions)
     {
@@ -2155,7 +2155,7 @@ Result<gpu::Device, Status>
               VK_API_VERSION_VARIANT(ext.specVersion));
     }
 
-    trace("Available Layers:");
+    trace("Available Device Layers:"_str);
 
     for (auto & layer : layers)
     {

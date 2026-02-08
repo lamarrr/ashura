@@ -615,6 +615,8 @@ struct ASH_DLL_EXPORT SchedulerImpl final : IScheduler
         u64             poll = 0;
         std::atomic_ref stop_token{stop_token_};
 
+        // TODO: use futex and stop spinning
+
         // stop execution once drain token is signaled
         while (!stop_token.load(std::memory_order_relaxed)) [[likely]]
         {
