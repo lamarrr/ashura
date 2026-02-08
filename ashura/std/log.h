@@ -1,10 +1,12 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
+#include "ashura/std/buffer.h"
 #include "ashura/std/cfg.h"
 #include "ashura/std/format.h"
 #include "ashura/std/mem.h"
 #include "ashura/std/obj.h"
 #include "ashura/std/panic.h"
+#include "ashura/std/span.h"
 #include "ashura/std/types.h"
 #include <atomic>
 #include <cstdlib>
@@ -17,23 +19,23 @@ namespace ash
 
 enum class LogLevel : u32
 {
-  Debug   = 0,
-  Trace   = 1,
-  Info    = 2,
-  Warning = 3,
-  Error   = 4,
-  Fatal   = 5
+    Debug   = 0,
+    Trace   = 1,
+    Info    = 2,
+    Warning = 3,
+    Error   = 4,
+    Fatal   = 5
 };
 
 enum class LogLevels : u32
 {
-  None    = 0x00,
-  Debug   = 0x01,
-  Trace   = 0x02,
-  Info    = 0x04,
-  Warning = 0x08,
-  Error   = 0x10,
-  Fatal   = 0x20
+    None    = 0x00,
+    Debug   = 0x01,
+    Trace   = 0x02,
+    Info    = 0x04,
+    Warning = 0x08,
+    Error   = 0x10,
+    Fatal   = 0x20
 };
 
 ASH_BIT_ENUM_OPS(LogLevels)
@@ -43,8 +45,18 @@ typedef struct ILogger *  Logger;
 
 struct ILogSink
 {
-  virtual void log(LogLevel level, Str log_message) = 0;
-  virtual void flush()                              = 0;
+    ILogSink * next = nullptr;
+    ILogSink * prev = nullptr;
+
+    virtual void log(LogLevel level, Str log_message)
+    {
+        (void) level;
+        (void) log_message;
+    }
+
+    virtual void flush()
+    {
+    }
 };
 
 /// @brief Logger needs to use fixed-size memory as malloc can fail and make
@@ -52,185 +64,119 @@ struct ILogSink
 /// limited to `BUFFER_CAPACITY`.
 struct ILogger
 {
-  static constexpr usize MAX_SINKS       = 32;
-  static constexpr usize BUFFER_CAPACITY = 8_KB;
+    static constexpr usize BUFFER_CAPACITY = 16_KB;
 
-  LogSink sinks_[MAX_SINKS];
-  usize   num_sinks_;
+    ILogSink head_;
 
-  constexpr ILogger(Span<LogSink const> sinks) : sinks_{}, num_sinks_{0}
-  {
-    sinks = sinks.slice(0, MAX_SINKS);
-    obj::copy_assign(sinks, sinks_);
-    num_sinks_ = sinks.size();
-  }
+    ILogger(Span<LogSink const> sinks);
+    constexpr ILogger(ILogger const &)             = delete;
+    constexpr ILogger(ILogger &&)                  = default;
+    constexpr ILogger & operator=(ILogger &&)      = default;
+    constexpr ILogger & operator=(ILogger const &) = delete;
+    constexpr ~ILogger()                           = default;
 
-  constexpr ILogger(InitList<LogSink const> sinks) : ILogger{span(sinks)}
-  {
-  }
-
-  constexpr ILogger(ILogger const &)             = delete;
-  constexpr ILogger(ILogger &&)                  = default;
-  constexpr ILogger & operator=(ILogger &&)      = default;
-  constexpr ILogger & operator=(ILogger const &) = delete;
-  constexpr ~ILogger()                           = default;
-
-  constexpr Span<LogSink const> sinks() const
-  {
-    return Span{sinks_, num_sinks_};
-  }
-
-  template <typename... Args>
-  bool debug(Str fstr, Args const &... args)
-  {
-    return log(LogLevel::Debug, fstr, args...);
-  }
-
-  template <typename... Args>
-  bool trace(Str fstr, Args const &... args)
-  {
-    return log(LogLevel::Trace, fstr, args...);
-  }
-
-  template <typename... Args>
-  bool info(Str fstr, Args const &... args)
-  {
-    return log(LogLevel::Info, fstr, args...);
-  }
-
-  template <typename... Args>
-  bool warn(Str fstr, Args const &... args)
-  {
-    return log(LogLevel::Warning, fstr, args...);
-  }
-
-  template <typename... Args>
-  bool error(Str fstr, Args const &... args)
-  {
-    return log(LogLevel::Error, fstr, args...);
-  }
-
-  template <typename... Args>
-  bool fatal(Str fstr, Args const &... args)
-  {
-    return log(LogLevel::Fatal, fstr, args...);
-  }
-
-  void flush()
-  {
-    for (auto & sink : sinks())
+    template <typename... Args>
+    bool debug(Str fstr, Args const &... args)
     {
-      sink->flush();
+        return log(LogLevel::Debug, fstr, args...);
     }
-  }
 
-  template <typename... Args>
-  bool log(LogLevel level, Str fstr, Args const &... args)
-  {
-    static_assert(sizeof...(args) <= fmt::MAX_ARGS);
+    template <typename... Args>
+    bool trace(Str fstr, Args const &... args)
+    {
+        return log(LogLevel::Trace, fstr, args...);
+    }
 
-    char buffer_scratch[BUFFER_CAPACITY];
+    template <typename... Args>
+    bool info(Str fstr, Args const &... args)
+    {
+        return log(LogLevel::Info, fstr, args...);
+    }
 
-    fmt::Op ops_scratch[fmt::MAX_ARGS * 2];
+    template <typename... Args>
+    bool warn(Str fstr, Args const &... args)
+    {
+        return log(LogLevel::Warning, fstr, args...);
+    }
 
-    Buffer<char> buffer{buffer_scratch};
+    template <typename... Args>
+    bool error(Str fstr, Args const &... args)
+    {
+        return log(LogLevel::Error, fstr, args...);
+    }
 
-    Buffer<fmt::Op> ops{ops_scratch};
+    template <typename... Args>
+    bool fatal(Str fstr, Args const &... args)
+    {
+        return log(LogLevel::Fatal, fstr, args...);
+    }
 
-    auto format_sink = [&](Str str) {
-      if (!buffer.append(str))
-      {
-        for (auto & sink : sinks())
+    void flush();
+
+    void write_to_sinks(LogLevel level, Str str, Buffer<char> & buffer);
+
+    void flush_buffer(LogLevel level, Buffer<char> & buffer);
+
+    template <typename... Args>
+    bool log(LogLevel level, Str fstr, Args const &... args)
+    {
+        static_assert(sizeof...(args) <= fmt::MAX_ARGS);
+
+        char            ops_scratch[sizeof(fmt::Op) * (fmt::MAX_ARGS * 2)];
+        Buffer<fmt::Op> ops{span(ops_scratch).reinterpret<fmt::Op>()};
+        char            buffer_scratch[BUFFER_CAPACITY];
+        Buffer<char>    buffer{buffer_scratch};
+
+        auto sink_writer = [&](Str str) { write_to_sinks(level, str, buffer); };
+
+        fmt::Context ctx{&sink_writer, std::move(ops)};
+
+        if (fmt::Result result = ctx.format(fstr, args...);
+            result.error != fmt::Error::None)
         {
-          sink->log(level, buffer);
+            switch (result.error)
+            {
+                case fmt::Error::ItemsMismatch:
+                case fmt::Error::UnexpectedToken:
+                case fmt::Error::UnmatchedToken:
+                {
+                    (void) std::fprintf(stderr, "Format Error: %s\n",
+                                        to_str(result.error).data());
+                    (void) std::fflush(stderr);
+                    std::abort();
+                }
+                case fmt::Error::OutOfMemory:
+                default:
+                {
+                    return false;
+                }
+            }
         }
 
-        buffer.clear();
+        // flush remaining buffer content to sinks
+        flush_buffer(level, buffer);
 
-        if (!buffer.append(str))
+        return true;
+    }
+
+    template <typename... Args>
+    [[noreturn]] void panic(Str fstr, Args const &... args)
+    {
+        std::atomic_ref panic_count{*ash::panic_count};
+        if (panic_count.fetch_add(1, std::memory_order::relaxed))
         {
-          for (auto & sink : sinks())
-          {
-            sink->log(level, str);
-          }
+            (void) std::fputs("panicked while processing a panic. aborting...", stderr);
+            (void) std::fflush(stderr);
+            std::abort();
         }
-      }
-    };
-
-    fmt::Context ctx{&format_sink, std::move(ops)};
-
-    if (fmt::Result result = ctx.format(fstr, args...);
-        result.error != fmt::Error::None)
-    {
-      switch (result.error)
-      {
-        case fmt::Error::ItemsMismatch:
-        case fmt::Error::UnexpectedToken:
-        case fmt::Error::UnmatchedToken:
+        if (!fatal(fstr, args...))
         {
-          (void) std::fprintf(stderr, "Format Error: %s\n",
-                              to_str(result.error).data());
-          (void) std::fflush(stderr);
-          std::abort();
+            (void) std::fputs("ran out of log buffer memory while panicking.", stderr);
         }
-        case fmt::Error::OutOfMemory:
-        default:
-        {
-          return false;
-        }
-      }
+        flush();
+        handle_panic();
+        std::abort();
     }
-
-    for (auto & sink : sinks())
-    {
-      sink->log(level, buffer);
-    }
-
-    return true;
-  }
-
-  template <typename... Args>
-  [[noreturn]] void panic(Str fstr, Args const &... args)
-  {
-    std::atomic_ref panic_count{*ash::panic_count};
-    if (panic_count.fetch_add(1, std::memory_order::relaxed))
-    {
-      (void) std::fputs("panicked while processing a panic. aborting...",
-                        stderr);
-      (void) std::fflush(stderr);
-      std::abort();
-    }
-    if (!fatal(fstr, args...))
-    {
-      (void) std::fputs("ran out of log buffer memory while panicking.",
-                        stderr);
-    }
-    flush();
-    if (panic_handler != nullptr)
-    {
-      panic_handler();
-    }
-    std::abort();
-  }
-};
-
-struct StdioSink : ILogSink
-{
-  std::mutex mutex;
-
-  void log(LogLevel level, Str log_message) override;
-  void flush() override;
-};
-
-extern StdioSink stdio_sink;
-
-struct FileSink : ILogSink
-{
-  std::FILE * file = nullptr;
-  std::mutex  mutex;
-
-  void log(LogLevel level, Str log_message) override;
-  void flush() override;
 };
 
 extern Logger logger;
@@ -240,37 +186,37 @@ ASH_C_LINKAGE ASH_DLL_EXPORT void hook_logger(Logger);
 template <typename... Args>
 void debug(Str fstr, Args const &... args)
 {
-  logger->debug(fstr, args...);
+    logger->debug(fstr, args...);
 }
 
 template <typename... Args>
 void trace(Str fstr, Args const &... args)
 {
-  logger->trace(fstr, args...);
+    logger->trace(fstr, args...);
 }
 
 template <typename... Args>
 void info(Str fstr, Args const &... args)
 {
-  logger->info(fstr, args...);
+    logger->info(fstr, args...);
 }
 
 template <typename... Args>
 void warn(Str fstr, Args const &... args)
 {
-  logger->warn(fstr, args...);
+    logger->warn(fstr, args...);
 }
 
 template <typename... Args>
 void error(Str fstr, Args const &... args)
 {
-  logger->error(fstr, args...);
+    logger->error(fstr, args...);
 }
 
 template <typename... Args>
 void fatal(Str fstr, Args const &... args)
 {
-  logger->fatal(fstr, args...);
+    logger->fatal(fstr, args...);
 }
 
 }    // namespace ash

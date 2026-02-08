@@ -8,7 +8,7 @@ Systems sys = {};
 
 ASH_C_LINKAGE ASH_DLL_EXPORT void hook_systems(Systems const * psys)
 {
-  sys = *psys;
+    sys = *psys;
 }
 
 }    // namespace ash

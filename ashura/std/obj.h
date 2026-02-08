@@ -12,82 +12,82 @@ namespace obj
 template <NonConst T>
 constexpr void default_construct(Span<T> dst)
 {
-  for (T * iter = dst.pbegin(); iter != dst.pend(); iter++)
-  {
-    new (iter) T{};
-  }
+    for (T * iter = dst.pbegin(); iter != dst.pend(); iter++)
+    {
+        new (iter) T{};
+    }
 }
 
 template <NonConst T, NonConst U>
 constexpr void move_construct(Span<T> src, U * dst)
 {
-  for (T * in = src.pbegin(); in != src.pend(); in++, dst++)
-  {
-    new (dst) T{static_cast<T &&>(*in)};
-  }
+    for (T * in = src.pbegin(); in != src.pend(); in++, dst++)
+    {
+        new (dst) T{static_cast<T &&>(*in)};
+    }
 }
 
 template <NonConst T, NonConst U>
 constexpr void move_construct(Span<T> src, Span<U> dst)
 {
-  move_construct(src, dst.data());
+    move_construct(src, dst.data());
 }
 
 template <typename T, NonConst U>
 constexpr void copy_construct(Span<T> src, U * dst)
 {
-  for (T * in = src.pbegin(); in != src.pend(); in++, dst++)
-  {
-    new (dst) T{*in};
-  }
+    for (T * in = src.pbegin(); in != src.pend(); in++, dst++)
+    {
+        new (dst) T{*in};
+    }
 }
 
 template <typename T, NonConst U>
 constexpr void copy_construct(Span<T> src, Span<U> dst)
 {
-  copy_construct(src, dst.data());
+    copy_construct(src, dst.data());
 }
 
 template <typename T>
 constexpr void destruct(Span<T> src)
 {
-  if constexpr (!TriviallyDestructible<T>)
-  {
-    for (T * iter = src.pbegin(); iter != src.pend(); iter++)
+    if constexpr (!TriviallyDestructible<T>)
     {
-      iter->~T();
+        for (T * iter = src.pbegin(); iter != src.pend(); iter++)
+        {
+            iter->~T();
+        }
     }
-  }
 }
 
 template <typename T, NonConst U>
 constexpr void move_assign(Span<T> src, U * dst)
 {
-  for (T * in = src.pbegin(); in != src.pend(); in++, dst++)
-  {
-    *in = static_cast<T &&>(*dst);
-  }
+    for (T * in = src.pbegin(); in != src.pend(); in++, dst++)
+    {
+        *in = static_cast<T &&>(*dst);
+    }
 }
 
 template <typename T, NonConst U>
 constexpr void move_assign(Span<T> src, Span<U> dst)
 {
-  move_assign(src, dst.data());
+    move_assign(src, dst.data());
 }
 
 template <typename T, NonConst U>
 constexpr void copy_assign(Span<T> src, U * dst)
 {
-  for (T * in = src.pbegin(); in != src.pend(); in++, dst++)
-  {
-    *dst = *in;
-  }
+    for (T * in = src.pbegin(); in != src.pend(); in++, dst++)
+    {
+        *dst = *in;
+    }
 }
 
 template <typename T, NonConst U>
 constexpr void copy_assign(Span<T> src, Span<U> dst)
 {
-  copy_assign(src, dst.data());
+    copy_assign(src, dst.data());
 }
 
 /// @brief Same as relocate but for non-overlapping memory placements
@@ -96,30 +96,30 @@ constexpr void copy_assign(Span<T> src, Span<U> dst)
 template <NonConst T>
 constexpr void relocate_nonoverlapping(Span<T> src, T * dst)
 {
-  if constexpr (TriviallyRelocatable<T>)
-  {
-    mem::copy(src, dst);
-  }
-  else
-  {
-    move_construct(src, dst);
-    destruct(src);
-  }
+    if constexpr (TriviallyRelocatable<T>)
+    {
+        mem::copy(src, dst);
+    }
+    else
+    {
+        move_construct(src, dst);
+        destruct(src);
+    }
 }
 
 template <NonConst T>
 constexpr void relocate_nonoverlapping(Span<T> src, Span<T> dst)
 {
-  relocate_nonoverlapping(src, dst.data());
+    relocate_nonoverlapping(src, dst.data());
 }
 
 struct ByteEq
 {
-  template <typename T>
-  bool operator()(T const & a, T const & b) const
-  {
-    return mem::eq(Span{&a, 1}, Span{&b, 1});
-  }
+    template <typename T>
+    bool operator()(T const & a, T const & b) const
+    {
+        return mem::eq(Span{&a, 1}, Span{&b, 1});
+    }
 };
 
 inline constexpr ByteEq byte_eq;

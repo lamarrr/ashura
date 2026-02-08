@@ -15,7 +15,7 @@ namespace intr
 template <typename F, usize... I>
 constexpr decltype(auto) index_apply(F && f, std::index_sequence<I...>)
 {
-  return static_cast<F &&>(f).template operator()<I...>();
+    return static_cast<F &&>(f).template operator()<I...>();
 }
 
 }    // namespace intr
@@ -23,7 +23,7 @@ constexpr decltype(auto) index_apply(F && f, std::index_sequence<I...>)
 template <usize N, typename F>
 constexpr decltype(auto) index_apply(F && f)
 {
-  return intr::index_apply(static_cast<F &&>(f), std::make_index_sequence<N>{});
+    return intr::index_apply(static_cast<F &&>(f), std::make_index_sequence<N>{});
 }
 
 }    // namespace ash

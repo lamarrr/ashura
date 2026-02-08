@@ -13,7 +13,7 @@ struct VecTest : testing::Test
 {
 };
 
-using Types = testing::Types<Vec<i32>, SmallVec<i32, 10>, InplaceVec<i32, 256>>;
+using Types = testing::Types<Vec<i32>, SmallVec<i32, 10, 0>, InplaceVec<i32, 256, 0>>;
 
 TYPED_TEST_SUITE(VecTest, Types);
 

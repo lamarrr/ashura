@@ -7,7 +7,6 @@ namespace ash
 
 namespace ui
 {
-
 }
 
 }    // namespace ash

@@ -14,66 +14,66 @@ using ImageSrc = Enum<None, ImageId, Future<Result<ImageId, ImageLoadErr>>>;
 
 enum class ImageFit : u8
 {
-  /// @brief Try to contain the image within the frame
-  /// without distorting it (preserving aspect ratio)
-  Contain = 0,
+    /// @brief Try to contain the image within the frame
+    /// without distorting it (preserving aspect ratio)
+    Contain = 0,
 
-  /// @brief Crop the image to fit within the frame
-  Crop = 1,
+    /// @brief Crop the image to fit within the frame
+    Crop = 1,
 
-  /// @brief Distort the image to fill the frame
-  Fit = 2
+    /// @brief Distort the image to fill the frame
+    Fit = 2
 };
 
 struct Image : View
 {
-  struct State
-  {
-    Enum<None, Option<ash::ImageInfo>, ImageLoadErr> resolved = none;
-  } state_;
+    struct State
+    {
+        Enum<None, Option<ash::ImageInfo>, ImageLoadErr> resolved = none;
+    } state_;
 
-  struct Style
-  {
-    Option<f32> aspect_ratio = none;
+    struct Style
+    {
+        Option<f32> aspect_ratio = none;
 
-    Frame frame = Frame{}.abs(250, 250);
+        Frame frame = Frame{}.abs(250, 250);
 
-    CornerRadii radii = CornerRadii::all(2);
+        CornerRadii radii = CornerRadii::all(2);
 
-    ColorGradient tint = colors::WHITE;
+        ColorGradient tint = colors::WHITE;
 
-    ImageFit fit = ImageFit::Contain;
+        ImageFit fit = ImageFit::Contain;
 
-    f32x2 alignment = ALIGNMENT_CENTER_CENTER;
-  } style_;
+        f32x2 alignment = ALIGNMENT_CENTER_CENTER;
+    } style_;
 
-  ImageSrc src_;
+    ImageSrc src_;
 
-  Image(ImageSrc src = None{});
+    Image(ImageSrc src = None{});
 
-  Image & source(ImageSrc src);
+    Image & source(ImageSrc src);
 
-  Image & aspect_ratio(f32 width, f32 height);
+    Image & aspect_ratio(f32 width, f32 height);
 
-  Image & aspect_ratio(Option<f32> ratio);
+    Image & aspect_ratio(Option<f32> ratio);
 
-  Image & frame(Frame frame);
+    Image & frame(Frame frame);
 
-  Image & corner_radii(CornerRadii const & radii);
+    Image & corner_radii(CornerRadii const & radii);
 
-  Image & tint(ColorGradient const & color);
+    Image & tint(ColorGradient const & color);
 
-  Image & fit(ImageFit fit);
+    Image & fit(ImageFit fit);
 
-  Image & align(f32x2 alignment);
+    Image & align(f32x2 alignment);
 
-  virtual ui::State tick(Ctx const & ctx, Events const & events,
-                         Fn<void(View &)> build) override;
+    virtual ui::State tick(Scope const & scope, Events const & events,
+                           Fn<void(View &)> build) override;
 
-  virtual Layout fit(f32x2 allocated, Span<f32x2 const> sizes,
-                     Span<f32x2> centers) override;
+    virtual Layout fit(f32x2 allocated, Span<f32x2 const> sizes,
+                       Span<f32x2> centers) override;
 
-  virtual void render(Canvas & canvas, RenderInfo const & info) override;
+    virtual void render(Canvas & canvas, RenderInfo const & info) override;
 };
 
 }    // namespace ui

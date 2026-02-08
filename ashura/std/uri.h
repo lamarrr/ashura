@@ -79,120 +79,119 @@ namespace ash
 /// fragment = *( pchar / "/" / "?" )
 struct UriView
 {
-  Str         scheme    = {};
-  Str         hier_part = {};
-  Option<Str> queries   = none;
-  Option<Str> fragments = none;
+    Str         scheme    = {};
+    Str         hier_part = {};
+    Option<Str> queries   = none;
+    Option<Str> fragments = none;
 
-  static Result<UriView> parse(Str uri)
-  {
-    auto iter  = usize{0};
-    auto size  = uri.size();
-    auto p_uri = uri.pbegin();
-
-    auto scheme_begin = iter;
-
-    while (iter < size && p_uri[iter] != ':')
+    static Result<UriView> parse(Str uri)
     {
-      iter++;
-    }
+        auto iter  = 0uz;
+        auto size  = uri.size();
+        auto p_uri = uri.pbegin();
 
-    auto scheme_end = iter;
-    auto scheme     = uri.slice(Slice::offsets(scheme_begin, scheme_end));
+        auto scheme_begin = iter;
 
-    if (iter >= size)
-    {
-      return Err{};
-    }
+        while (iter < size && p_uri[iter] != ':')
+        {
+            iter++;
+        }
 
-    iter++;
+        auto scheme_end = iter;
+        auto scheme     = uri.slice(Slice::offsets(scheme_begin, scheme_end));
 
-    if (iter >= size)
-    {
-      return Err{};
-    }
+        if (iter >= size)
+        {
+            return Err{};
+        }
 
-    auto hier_part_begin = iter;
-
-    while (iter < size && p_uri[iter] != '?' && p_uri[iter] != '#')
-    {
-      iter++;
-    }
-
-    auto hier_part_end = iter;
-
-    auto hier_part = uri.slice(Slice::offsets(hier_part_begin, hier_part_end));
-
-    if (iter >= size)
-    {
-      return Ok{
-        UriView{.scheme = scheme, .hier_part = hier_part}
-      };
-    }
-    else if (p_uri[iter] == '?')
-    {
-      iter++;
-
-      auto queries_begin = iter;
-
-      while (iter < size && p_uri[iter] != '#')
-      {
-        iter++;
-      }
-
-      auto queries_end = iter;
-      auto queries     = uri.slice(Slice::offsets(queries_begin, queries_end));
-
-      if (iter >= size)
-      {
-        return Ok{
-          UriView{.scheme    = scheme,
-                  .hier_part = hier_part,
-                  .queries   = queries,
-                  .fragments = none}
-        };
-      }
-
-      if (p_uri[iter] == '#')
-      {
         iter++;
 
-        auto fragments_begin = iter;
-        auto fragments_end   = size;
-        auto fragments =
-          uri.slice(Slice::offsets(fragments_begin, fragments_end));
+        if (iter >= size)
+        {
+            return Err{};
+        }
 
-        return Ok{
-          UriView{.scheme    = scheme,
-                  .hier_part = hier_part,
-                  .queries   = queries,
-                  .fragments = fragments}
-        };
-      }
+        auto hier_part_begin = iter;
+
+        while (iter < size && p_uri[iter] != '?' && p_uri[iter] != '#')
+        {
+            iter++;
+        }
+
+        auto hier_part_end = iter;
+
+        auto hier_part = uri.slice(Slice::offsets(hier_part_begin, hier_part_end));
+
+        if (iter >= size)
+        {
+            return Ok{
+              UriView{.scheme = scheme, .hier_part = hier_part}
+            };
+        }
+        else if (p_uri[iter] == '?')
+        {
+            iter++;
+
+            auto queries_begin = iter;
+
+            while (iter < size && p_uri[iter] != '#')
+            {
+                iter++;
+            }
+
+            auto queries_end = iter;
+            auto queries     = uri.slice(Slice::offsets(queries_begin, queries_end));
+
+            if (iter >= size)
+            {
+                return Ok{
+                  UriView{.scheme    = scheme,
+                          .hier_part = hier_part,
+                          .queries   = queries,
+                          .fragments = none}
+                };
+            }
+
+            if (p_uri[iter] == '#')
+            {
+                iter++;
+
+                auto fragments_begin = iter;
+                auto fragments_end   = size;
+                auto fragments =
+                  uri.slice(Slice::offsets(fragments_begin, fragments_end));
+
+                return Ok{
+                  UriView{.scheme    = scheme,
+                          .hier_part = hier_part,
+                          .queries   = queries,
+                          .fragments = fragments}
+                };
+            }
+        }
+        else if (p_uri[iter] == '#')
+        {
+            iter++;
+
+            auto fragments_begin = iter;
+            auto fragments_end   = size;
+            auto fragments = uri.slice(Slice::offsets(fragments_begin, fragments_end));
+
+            return Ok{
+              UriView{.scheme    = scheme,
+                      .hier_part = hier_part,
+                      .queries   = none,
+                      .fragments = fragments}
+            };
+        }
+        else
+        {
+            ASH_UNREACHABLE;
+        }
+
+        ASH_UNREACHABLE;
     }
-    else if (p_uri[iter] == '#')
-    {
-      iter++;
-
-      auto fragments_begin = iter;
-      auto fragments_end   = size;
-      auto fragments =
-        uri.slice(Slice::offsets(fragments_begin, fragments_end));
-
-      return Ok{
-        UriView{.scheme    = scheme,
-                .hier_part = hier_part,
-                .queries   = none,
-                .fragments = fragments}
-      };
-    }
-    else
-    {
-      ASH_UNREACHABLE;
-    }
-
-    ASH_UNREACHABLE;
-  }
 };
 
 }    // namespace ash

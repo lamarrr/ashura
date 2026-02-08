@@ -14,21 +14,21 @@ struct BloomPipelineParams
 
 struct BloomPipeline final : IPipeline
 {
-  BloomPipeline(Allocator);
-  BloomPipeline(BloomPipeline const &)             = delete;
-  BloomPipeline(BloomPipeline &&)                  = delete;
-  BloomPipeline & operator=(BloomPipeline const &) = delete;
-  BloomPipeline & operator=(BloomPipeline &&)      = delete;
+    BloomPipeline(Allocator);
+    BloomPipeline(BloomPipeline const &)             = delete;
+    BloomPipeline(BloomPipeline &&)                  = delete;
+    BloomPipeline & operator=(BloomPipeline const &) = delete;
+    BloomPipeline & operator=(BloomPipeline &&)      = delete;
 
-  virtual ~BloomPipeline() override = default;
+    virtual ~BloomPipeline() override = default;
 
-  virtual Str label() override;
+    virtual Str label() override;
 
-  virtual void acquire(GpuFramePlan plan) override;
+    virtual void acquire(GpuFramePlan plan, Allocator allocator) override;
 
-  virtual void release(GpuFramePlan plan) override;
+    virtual void release(GpuFramePlan plan, Allocator allocator) override;
 
-  void encode(gpu::CommandEncoder encoder, BloomPipelineParams const & params);
+    void encode(gpu::CommandEncoder encoder, BloomPipelineParams const & params);
 };
 
 }    // namespace ash

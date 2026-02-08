@@ -7,90 +7,89 @@
 namespace ash
 {
 
-Result<Void, IoErr> read_file(Str path, Vec<u8> & buff,
-                              Allocator scratch_allocator)
+Result<Void, IoErr> read_file(Str path, Vec<u8> & buff, Allocator scratch_allocator)
 {
-  Vec<char> path_c_str{scratch_allocator};
+    Vec<char> path_c_str{scratch_allocator};
 
-  if (!path_c_str.extend_uninit(path.size() + 1))
-  {
-    return Err{IoErr::OutOfMemory};
-  }
+    if (!path_c_str.extend_uninit(path.size() + 1))
+    {
+        return Err{IoErr::OutOfMemory};
+    }
 
-  mem::copy(path, path_c_str.data());
-  path_c_str.last() = '\0';
+    mem::copy(path, path_c_str.data());
+    path_c_str.last() = '\0';
 
-  std::FILE * file = std::fopen(path_c_str.data(), "rb");
+    std::FILE * file = std::fopen(path_c_str.data(), "rb");
 
-  if (file == nullptr)
-  {
-    return Err{(IoErr) errno};
-  }
+    if (file == nullptr)
+    {
+        return Err{(IoErr) errno};
+    }
 
-  defer file_{[&] { std::fclose(file); }};
+    defer file_{[&] { std::fclose(file); }};
 
-  int error = std::fseek(file, 0, SEEK_END);
+    int error = std::fseek(file, 0, SEEK_END);
 
-  if (error != 0)
-  {
-    return Err{(IoErr) errno};
-  }
+    if (error != 0)
+    {
+        return Err{(IoErr) errno};
+    }
 
-  long file_size = std::ftell(file);
+    long file_size = std::ftell(file);
 
-  if (file_size == -1L)
-  {
-    return Err{(IoErr) errno};
-  }
+    if (file_size == -1L)
+    {
+        return Err{(IoErr) errno};
+    }
 
-  error = std::fseek(file, 0, SEEK_SET);
+    error = std::fseek(file, 0, SEEK_SET);
 
-  if (error != 0)
-  {
-    return Err{(IoErr) errno};
-  }
+    if (error != 0)
+    {
+        return Err{(IoErr) errno};
+    }
 
-  usize buff_offset = buff.size();
+    usize buff_offset = buff.size();
 
-  if (!buff.extend_uninit(file_size))
-  {
-    return Err{IoErr::OutOfMemory};
-  }
+    if (!buff.extend_uninit(file_size))
+    {
+        return Err{IoErr::OutOfMemory};
+    }
 
-  if (std::fread(buff.data() + buff_offset, 1, (usize) file_size, file) !=
-      (usize) file_size)
-  {
-    return Err{(IoErr) errno};
-  }
+    if (std::fread(buff.data() + buff_offset, 1, (usize) file_size, file) !=
+        (usize) file_size)
+    {
+        return Err{(IoErr) errno};
+    }
 
-  return Ok{};
+    return Ok{};
 }
 
 Result<Void, IoErr> write_to_file(Str path, Span<u8 const> buff, bool append,
                                   Allocator scratch_allocator)
 {
-  Vec<char> path_c_str{scratch_allocator};
+    Vec<char> path_c_str{scratch_allocator};
 
-  if (!path_c_str.extend_uninit(path.size() + 1))
-  {
-    return Err{IoErr::OutOfMemory};
-  }
+    if (!path_c_str.extend_uninit(path.size() + 1))
+    {
+        return Err{IoErr::OutOfMemory};
+    }
 
-  mem::copy(path, path_c_str.data());
-  path_c_str.last() = '\0';
+    mem::copy(path, path_c_str.data());
+    path_c_str.last() = '\0';
 
-  std::FILE * file = std::fopen(path_c_str.data(), append ? "a" : "w");
+    std::FILE * file = std::fopen(path_c_str.data(), append ? "a" : "w");
 
-  if (file == nullptr)
-  {
-    return Err{(IoErr) errno};
-  }
+    if (file == nullptr)
+    {
+        return Err{(IoErr) errno};
+    }
 
-  defer file_{[&] { std::fclose(file); }};
+    defer file_{[&] { std::fclose(file); }};
 
-  std::fwrite(buff.data(), 1, buff.size(), file);
+    std::fwrite(buff.data(), 1, buff.size(), file);
 
-  return Ok{};
+    return Ok{};
 }
 
 }    // namespace ash

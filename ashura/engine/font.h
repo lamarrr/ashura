@@ -14,46 +14,45 @@ inline constexpr i32 AU_UNIT = 128 * 64;
 
 inline constexpr f32 AU_SCALE = 1 / (f32) AU_UNIT;
 
-static_assert((AU_UNIT % 64) == 0,
-              "App Unit needs to be in 26.6 Fractional Unit");
+static_assert((AU_UNIT % 64) == 0, "App Unit needs to be in 26.6 Fractional Unit");
 
 static_assert((AU_UNIT / 64) >= 64,
               "App Unit needs to be at least 64 26.6 Fractional Units");
 
 constexpr f32 au_to_px(i32 au, f32 base)
 {
-  return au * AU_SCALE * base;
+    return au * AU_SCALE * base;
 }
 
 constexpr f32x2 au_to_px(i32x2 au, f32 base)
 {
-  return f32x2{au_to_px(au.x(), base), au_to_px(au.y(), base)};
+    return f32x2{au_to_px(au.x(), base), au_to_px(au.y(), base)};
 }
 
 constexpr Str to_str(SysErr err)
 {
-  switch (err)
-  {
-    case SysErr::OutOfMemory:
-      return "OutOfMemory"_str;
-    case SysErr::DecodeFailed:
-      return "DecodeFailed"_str;
-    case SysErr::FaceNotFound:
-      return "FaceNotFound"_str;
-    case SysErr::UnsupportedFormat:
-      return "UnsupportedFormat"_str;
-    case SysErr::InvalidPath:
-      return "InvalidPath"_str;
-    case SysErr::IoErr:
-      return "IoErr"_str;
-    default:
-      return "Unidentified"_str;
-  }
+    switch (err)
+    {
+        case SysErr::OutOfMemory:
+            return "OutOfMemory"_str;
+        case SysErr::DecodeFailed:
+            return "DecodeFailed"_str;
+        case SysErr::FaceNotFound:
+            return "FaceNotFound"_str;
+        case SysErr::UnsupportedFormat:
+            return "UnsupportedFormat"_str;
+        case SysErr::InvalidPath:
+            return "InvalidPath"_str;
+        case SysErr::IoErr:
+            return "IoErr"_str;
+        default:
+            return "Unidentified"_str;
+    }
 }
 
 inline void format(fmt::Sink sink, fmt::Spec, SysErr const & err)
 {
-  sink(to_str(err));
+    sink(to_str(err));
 }
 
 /// @brief Glyph Metrics. expressed on an AU_UNIT scale
@@ -63,21 +62,21 @@ inline void format(fmt::Sink sink, fmt::Spec, SysErr const & err)
 /// @param extent glyph extent
 struct GlyphMetrics
 {
-  i32x2 bearing = {};
-  i32   advance = 0;
-  i32x2 extent  = {};
+    i32x2 bearing = {};
+    i32   advance = 0;
+    i32x2 extent  = {};
 };
 
 struct ResolvedFontMetrics
 {
-  f32 ascent  = 0;
-  f32 descent = 0;
-  f32 advance = 0;
+    f32 ascent  = 0;
+    f32 descent = 0;
+    f32 advance = 0;
 
-  constexpr f32 height() const
-  {
-    return ascent + descent;
-  }
+    constexpr f32 height() const
+    {
+        return ascent + descent;
+    }
 };
 
 /// @brief Normalized font metrics
@@ -86,21 +85,21 @@ struct ResolvedFontMetrics
 /// @param advance maximum advance of the font's glyphs (au)
 struct FontMetrics
 {
-  i32 ascent  = 0;
-  i32 descent = 0;
-  i32 advance = 0;
+    i32 ascent  = 0;
+    i32 descent = 0;
+    i32 advance = 0;
 
-  constexpr i32 height() const
-  {
-    return ascent + descent;
-  }
+    constexpr i32 height() const
+    {
+        return ascent + descent;
+    }
 
-  constexpr ResolvedFontMetrics resolve(f32 font_height) const
-  {
-    return ResolvedFontMetrics{.ascent  = au_to_px(ascent, font_height),
-                               .descent = au_to_px(descent, font_height),
-                               .advance = au_to_px(advance, font_height)};
-  }
+    constexpr ResolvedFontMetrics resolve(f32 font_height) const
+    {
+        return ResolvedFontMetrics{.ascent  = au_to_px(ascent, font_height),
+                                   .descent = au_to_px(descent, font_height),
+                                   .advance = au_to_px(advance, font_height)};
+    }
 };
 
 /// @param later atlas layer this glyph belongs to
@@ -108,44 +107,45 @@ struct FontMetrics
 /// @param uv normalized texture coordinates of this glyph in the layer
 struct AtlasGlyph
 {
-  bool16 has_color = false;
-  u16    layer     = 0;
-  RectU  area      = {};
-  CRect  uv        = {};
+    bool  has_color = false;
+    u16   layer     = 0;
+    RectU area      = {};
+    CRect uv        = {};
 };
 
 struct CpuFontAtlas
 {
-  i32             font_height = 0;
-  u32x2           extent      = {};
-  u32             num_layers  = 0;
-  Vec<AtlasGlyph> glyphs;
-  Vec<u8>         channels;
+    i32             font_height = 0;
+    u32x2           extent      = {};
+    u32             num_layers  = 0;
+    Vec<AtlasGlyph> glyphs;
+    Vec<u8>         channels;
 
-  ImageLayerSpan<u8, 1> span() const
-  {
-    return ImageLayerSpan<u8, 1>{
-      .channels = channels, .extent = extent, .layers = num_layers};
-  }
+    ImageLayerSpan<u8, 1> span() const
+    {
+        return ImageLayerSpan<u8, 1>{
+          .channels = channels, .extent = extent, .layers = num_layers};
+    }
 };
 
 struct GpuFontAtlas
 {
-  Vec<TextureIndex> textures;
-  ImageId           image       = ImageId::None;
-  i32               font_height = 0;
-  u32x2             extent      = {};
-  Vec<AtlasGlyph>   glyphs;
+    Vec<TextureIndex> textures;
+    ImageId           image       = ImageId::None;
+    i32               font_height = 0;
+    u32x2             extent      = {};
+    Vec<AtlasGlyph>   glyphs;
 
-  constexpr u32 num_layers() const
-  {
-    return size32(textures);
-  }
+    constexpr u32 num_layers() const
+    {
+        return size32(textures);
+    }
 };
 
 enum class FontId : u64
 {
-  None = U64_MAX
+    Default = 0,
+    None    = U64_MAX
 };
 
 /// @param postscript_name ASCII. i.e. RobotoBold
@@ -159,26 +159,26 @@ enum class FontId : u64
 /// @param gpu_atlas gpu font atlas if loaded
 struct FontInfo
 {
-  Str                          label             = {};
-  bool                         has_color         = false;
-  Str                          postscript_name   = {};
-  Str                          family_name       = {};
-  Str                          style_name        = {};
-  Span<GlyphMetrics const>     glyphs            = {};
-  u32                          replacement_glyph = 0;
-  u32                          space_glyph       = 0;
-  u32                          ellipsis_glyph    = 0;
-  FontMetrics                  metrics           = {};
-  Option<CpuFontAtlas const &> cpu_atlas         = none;
-  Option<GpuFontAtlas const &> gpu_atlas         = none;
+    Str                          label             = {};
+    bool                         has_color         = false;
+    Str                          postscript_name   = {};
+    Str                          family_name       = {};
+    Str                          style_name        = {};
+    Span<GlyphMetrics const>     glyphs            = {};
+    u32                          replacement_glyph = 0;
+    u32                          space_glyph       = 0;
+    u32                          ellipsis_glyph    = 0;
+    FontMetrics                  metrics           = {};
+    Option<CpuFontAtlas const &> cpu_atlas         = none;
+    Option<GpuFontAtlas const &> gpu_atlas         = none;
 };
 
 typedef struct IFont * Font;
 
 struct IFont
 {
-  virtual ~IFont()        = default;
-  virtual FontInfo info() = 0;
+    virtual ~IFont()        = default;
+    virtual FontInfo info() = 0;
 };
 
 }    // namespace ash

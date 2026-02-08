@@ -19,20 +19,22 @@ typedef struct IVideoSys *     VideoSys;
 typedef struct IAnimationSys * AnimationSys;
 typedef struct IViewSys *      ViewSys;
 
+// TODO: document MT-Safety contracts
+// TODO: document Safety contracts
 struct Systems
 {
-  Logger       logger    = nullptr;
-  Scheduler    sched     = nullptr;
-  GpuSys       gpu       = nullptr;
-  FileSys      file      = nullptr;
-  ImageSys     image     = nullptr;
-  FontSys      font      = nullptr;
-  ShaderSys    shader    = nullptr;
-  WindowSys    win       = nullptr;
-  PipelineSys  pipeline  = nullptr;
-  AudioSys     audio     = nullptr;
-  VideoSys     video     = nullptr;
-  AnimationSys animation = nullptr;
+    Logger       logger    = nullptr;
+    Scheduler    sched     = nullptr;
+    GpuSys       gpu       = nullptr;
+    FileSys      file      = nullptr;
+    ImageSys     image     = nullptr;
+    FontSys      font      = nullptr;
+    ShaderSys    shader    = nullptr;
+    WindowSys    win       = nullptr;
+    PipelineSys  pipeline  = nullptr;
+    AudioSys     audio     = nullptr;
+    VideoSys     video     = nullptr;
+    AnimationSys animation = nullptr;
 };
 
 extern Systems sys;

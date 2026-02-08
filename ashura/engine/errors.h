@@ -8,15 +8,16 @@ namespace ash
 
 enum class [[nodiscard]] SysErr : i32
 {
-  OutOfMemory           = 0,
-  InvalidPath           = 1,
-  IoErr                 = 2,
-  DecodeFailed          = 3,
-  FaceNotFound          = 4,
-  UnsupportedFormat     = 5,
-  CompileFailed         = 6,
-  LinkFailed            = 7,
-  SpirvConversionFailed = 8
+    None                  = 0,
+    OutOfMemory           = 1,
+    InvalidPath           = 2,
+    IoErr                 = 3,
+    DecodeFailed          = 4,
+    FaceNotFound          = 5,
+    UnsupportedFormat     = 6,
+    CompileFailed         = 7,
+    LinkFailed            = 8,
+    SpirvConversionFailed = 9
 };
 
 }    // namespace ash

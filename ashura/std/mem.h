@@ -1,5 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
+#include "ashura/std/span.h"
 #include "ashura/std/traits.h"
 #include "ashura/std/tuple.h"
 #include "ashura/std/types.h"
@@ -27,37 +28,37 @@ inline constexpr usize PAGE_SIZE = PAGE_ALIGNMENT;
 template <typename T>
 constexpr T align_offset_up(T alignment, T offset)
 {
-  return (offset + (alignment - 1)) & ~(alignment - 1);
+    return (offset + (alignment - 1)) & ~(alignment - 1);
 }
 
 template <typename T>
 T * align_up(usize alignment, T * p)
 {
-  return (T *) align_offset_up(alignment, (uptr) p);
+    return (T *) align_offset_up(alignment, (uptr) p);
 }
 
 template <typename T>
 constexpr T align_offset_down(T alignment, T offset)
 {
-  return offset & ~(alignment - 1);
+    return offset & ~(alignment - 1);
 }
 
 template <typename T>
 T * align_down(usize alignment, T * p)
 {
-  return (T *) align_offset_down(alignment, (uptr) p);
+    return (T *) align_offset_down(alignment, (uptr) p);
 }
 
 template <typename T>
 constexpr bool is_aligned(T alignment, T offset)
 {
-  return (offset & (alignment - 1)) == 0;
+    return (offset & (alignment - 1)) == 0;
 }
 
 template <typename T>
 bool is_ptr_aligned(usize alignment, T * p)
 {
-  return is_aligned(alignment, (uptr) p);
+    return is_aligned(alignment, (uptr) p);
 }
 
 namespace mem
@@ -66,89 +67,88 @@ namespace mem
 template <typename T, NonConst U>
 void copy(Span<T> src, U * dst)
 {
-  if (src.is_empty()) [[unlikely]]
-  {
-    return;
-  }
+    if (src.is_empty()) [[unlikely]]
+    {
+        return;
+    }
 
-  std::memcpy(reinterpret_cast<void *>(dst),
-              reinterpret_cast<void const *>(src.data()), src.size_bytes());
+    std::memcpy(reinterpret_cast<void *>(dst),
+                reinterpret_cast<void const *>(src.data()), src.size_bytes());
 }
 
 template <typename T, NonConst U>
 void copy(Span<T> src, Span<U> dst)
 {
-  copy(src, dst.data());
+    copy(src, dst.data());
 }
 
 template <typename T, NonConst U>
 void move(Span<T> src, U * dst)
 {
-  if (src.is_empty()) [[unlikely]]
-  {
-    return;
-  }
+    if (src.is_empty()) [[unlikely]]
+    {
+        return;
+    }
 
-  std::memmove(reinterpret_cast<void *>(dst),
-               reinterpret_cast<void const *>(src.data()), src.size_bytes());
+    std::memmove(reinterpret_cast<void *>(dst),
+                 reinterpret_cast<void const *>(src.data()), src.size_bytes());
 }
 
 template <typename T, NonConst U>
 void move(Span<T> src, Span<U> dst)
 {
-  move(src, dst.data());
+    move(src, dst.data());
 }
 
 template <NonConst T>
 void zero(T * dst, usize n)
 {
-  if (n == 0) [[unlikely]]
-  {
-    return;
-  }
+    if (n == 0) [[unlikely]]
+    {
+        return;
+    }
 
-  std::memset(reinterpret_cast<void *>(dst), 0, sizeof(T) * n);
+    std::memset(reinterpret_cast<void *>(dst), 0, sizeof(T) * n);
 }
 
 template <NonConst T>
 void zero(Span<T> dst)
 {
-  zero(dst.data(), dst.size());
+    zero(dst.data(), dst.size());
 }
 
 template <NonConst T>
 void fill(T * dst, usize n, u8 byte)
 {
-  if (n == 0) [[unlikely]]
-  {
-    return;
-  }
+    if (n == 0) [[unlikely]]
+    {
+        return;
+    }
 
-  std::memset(reinterpret_cast<void *>(dst), byte, sizeof(T) * n);
+    std::memset(reinterpret_cast<void *>(dst), byte, sizeof(T) * n);
 }
 
 template <NonConst T>
 void fill(Span<T> dst, u8 byte)
 {
-  fill(dst.data(), dst.size(), byte);
+    fill(dst.data(), dst.size(), byte);
 }
 
 template <typename T, typename U>
 bool eq(Span<T> a, Span<U> b)
 {
-  return (a.size_bytes() == b.size_bytes()) &&
-         (std::memcmp(reinterpret_cast<void const *>(a.data()),
-                      reinterpret_cast<void const *>(b.data()),
-                      a.size_bytes()) == 0);
+    return (a.size_bytes() == b.size_bytes()) &&
+           (std::memcmp(reinterpret_cast<void const *>(a.data()),
+                        reinterpret_cast<void const *>(b.data()), a.size_bytes()) == 0);
 }
 
 template <typename T>
 ASH_FORCE_INLINE T nontemporal_load(T const & src)
 {
 #if ASH_HAS_BUILTIN(nontemporal_load)
-  return __builtin_nontemporal_load(&src);
+    return __builtin_nontemporal_load(&src);
 #else
-  return src;
+    return src;
 #endif
 }
 
@@ -156,36 +156,38 @@ template <typename T>
 ASH_FORCE_INLINE void nontemporal_store(T & dst, T data)
 {
 #if ASH_HAS_BUILTIN(nontemporal_store)
-  __builtin_nontemporal_store(data, &dst);
+    __builtin_nontemporal_store(data, &dst);
 #else
-  dst = data;
+    dst = data;
 #endif
 }
 
 enum class Locality : i32
 {
-  // 0: None, the data can be removed from the cache after the access.
-  None = 0,
-  // 1: Low, L3 cache, leave the data in the L3 cache level after the access.
-  L1   = 1,
-  // 2: Moderate, L2 cache, leave the data in L2 and L3 cache levels after the access.
-  L2   = 2,
-  // 3: High, L1 cache, leave the data in the L1, L2, and L3 cache levels after the access.
-  L3   = 3
+    // 0: None, the data can be removed from the cache after the access.
+    None = 0,
+    // 1: Low, L3 cache, leave the data in the L3 cache level after the access.
+    L1   = 1,
+    // 2: Moderate, L2 cache, leave the data in L2 and L3 cache levels after the
+    // access.
+    L2   = 2,
+    // 3: High, L1 cache, leave the data in the L1, L2, and L3 cache levels after
+    // the access.
+    L3   = 3
 };
 
 enum class Access : i32
 {
-  Read       = 0,
-  Write      = 1,
-  SharedRead = 2
+    Read       = 0,
+    Write      = 1,
+    SharedRead = 2
 };
 
 template <typename T>
 ASH_FORCE_INLINE void prefetch(T const * src, Access rw, Locality locality)
 {
 #if ASH_HAS_BUILTIN(prefetch)
-  __builtin_prefetch(src, (i32) rw, (i32) locality);
+    __builtin_prefetch(src, (i32) rw, (i32) locality);
 #endif
 }
 
@@ -195,57 +197,57 @@ ASH_FORCE_INLINE void prefetch(T const * src, Access rw, Locality locality)
 template <typename T = usize>
 struct [[nodiscard]] CoreLayout
 {
-  using Type = T;
+    using Type = T;
 
-  /// @brief Non-zero power-of-2 alignment of the type
-  T alignment = 1;
+    /// @brief Non-zero power-of-2 alignment of the type
+    T alignment = 1;
 
-  /// @brief Byte-size of the type
-  T size = 0;
+    /// @brief Byte-size of the type
+    T size = 0;
 
-  /// @warning must call `aligned()` once done appending
-  constexpr CoreLayout append(CoreLayout const & ext) const
-  {
-    return CoreLayout{.alignment = max(alignment, ext.alignment),
-                      .size = align_offset_up(ext.alignment, size) + ext.size};
-  }
+    /// @warning must call `aligned()` once done appending
+    constexpr CoreLayout append(CoreLayout const & ext) const
+    {
+        return CoreLayout{.alignment = max(alignment, ext.alignment),
+                          .size      = align_offset_up(ext.alignment, size) + ext.size};
+    }
 
-  constexpr CoreLayout array(T n) const
-  {
-    return CoreLayout{.alignment = alignment, .size = size * n};
-  }
+    constexpr CoreLayout array(T n) const
+    {
+        return CoreLayout{.alignment = alignment, .size = size * n};
+    }
 
-  constexpr CoreLayout aligned() const
-  {
-    return CoreLayout{.alignment = alignment,
-                      .size      = align_offset_up(alignment, size)};
-  }
+    constexpr CoreLayout aligned() const
+    {
+        return CoreLayout{.alignment = alignment,
+                          .size      = align_offset_up(alignment, size)};
+    }
 
-  constexpr CoreLayout align_to(T align) const
-  {
-    return CoreLayout{.alignment = align, .size = align_offset_up(align, size)};
-  }
+    constexpr CoreLayout align_to(T align) const
+    {
+        return CoreLayout{.alignment = align, .size = align_offset_up(align, size)};
+    }
 
-  constexpr CoreLayout lanes(T n) const
-  {
-    return CoreLayout{.alignment = alignment * n, .size = size * n};
-  }
+    constexpr CoreLayout lanes(T n) const
+    {
+        return CoreLayout{.alignment = alignment * n, .size = size * n};
+    }
 
-  constexpr CoreLayout unioned(CoreLayout const & other) const
-  {
-    return CoreLayout{.alignment = max(alignment, other.alignment),
-                      .size      = max(size, other.size)};
-  }
+    constexpr CoreLayout unioned(CoreLayout const & other) const
+    {
+        return CoreLayout{.alignment = max(alignment, other.alignment),
+                          .size      = max(size, other.size)};
+    }
 
-  constexpr CoreLayout with_alignment(T align)
-  {
-    return CoreLayout{.alignment = align, .size = size};
-  }
+    constexpr CoreLayout with_alignment(T align)
+    {
+        return CoreLayout{.alignment = align, .size = size};
+    }
 
-  constexpr CoreLayout with_size(T size)
-  {
-    return CoreLayout{.alignment = alignment, .size = size};
-  }
+    constexpr CoreLayout with_size(T size)
+    {
+        return CoreLayout{.alignment = alignment, .size = size};
+    }
 };
 
 using Layout   = CoreLayout<usize>;
@@ -264,52 +266,52 @@ constexpr Layout layout_of = Layout{.alignment = alignof(T), .size = sizeof(T)};
 template <typename... T>
 struct Flex
 {
-  Layout members[sizeof...(T)]{};
+    Layout members[sizeof...(T)]{};
 
-  constexpr Layout layout() const
-  {
-    Layout l;
-    for (Layout const & m : members)
+    constexpr Layout layout() const
     {
-      l = l.append(m);
+        Layout l;
+        for (Layout const & m : members)
+        {
+            l = l.append(m);
+        }
+        return l.aligned();
     }
-    return l.aligned();
-  }
 
-  template <usize I>
-  auto unpack_at_(void const *& stack) const
-  {
-    using M           = index_pack<I, T...>;
-    stack             = align_up(members[I].alignment, stack);
-    usize const count = members[I].size / sizeof(M);
-    Span<M>     span{(M *) stack, count};
-    stack = ((u8 const *) stack) + members[I].size;
-    return span;
-  }
+    template <usize I>
+    auto unpack_at_(void const *& stack) const
+    {
+        using M           = index_pack<I, T...>;
+        stack             = align_up(members[I].alignment, stack);
+        usize const count = members[I].size / sizeof(M);
+        Span<M>     span{(M *) stack, count};
+        stack = ((u8 const *) stack) + members[I].size;
+        return span;
+    }
 
-  Tuple<Span<T>...> unpack(void const * stack) const
-  {
-    return index_apply<sizeof...(T)>(
-      [&]<usize... I>() { return Tuple<Span<T>...>{unpack_at_<I>(stack)...}; });
-  }
+    Tuple<Span<T>...> unpack(void const * stack) const
+    {
+        return index_apply<sizeof...(T)>(
+          [&]<usize... I>() { return Tuple<Span<T>...>{unpack_at_<I>(stack)...}; });
+    }
 };
 
 struct BitEq
 {
-  template <typename T>
-  bool operator()(T const & a, T const & b) const
-  {
-    return mem::eq(Span{&a, 1}, Span{&b, 1});
-  }
+    template <typename T>
+    bool operator()(T const & a, T const & b) const
+    {
+        return mem::eq(Span{&a, 1}, Span{&b, 1});
+    }
 };
 
 struct SpanBitEq
 {
-  template <typename T>
-  static constexpr bool operator()(Span<T const> a, Span<T const> b)
-  {
-    return mem::eq(a, b);
-  }
+    template <typename T>
+    static constexpr bool operator()(Span<T const> a, Span<T const> b)
+    {
+        return mem::eq(a, b);
+    }
 };
 
 constexpr SpanBitEq span_bit_eq;

@@ -10,57 +10,54 @@ namespace ash
 
 struct PBRPipelineParams
 {
-  Framebuffer             framebuffer;
-  Option<PipelineStencil> stencil;
-  RectU                   scissor;
-  gpu::Viewport           viewport;
-  gpu::PolygonMode        polygon_mode;
-  gpu::DescriptorSet      samplers;
-  gpu::DescriptorSet      textures;
-  GpuBufferSpan           vertices;
-  GpuBufferSpan           indices;
-  GpuBufferSpan           items;
-  GpuBufferSpan           lights;
-  u32                     num_indices;
-  gpu::CullMode           cull_mode;
-  gpu::FrontFace          front_face;
-  PipelineVariantId       variant;
+    Framebuffer             framebuffer;
+    Option<PipelineStencil> stencil;
+    RectU                   scissor;
+    gpu::Viewport           viewport;
+    gpu::PolygonMode        polygon_mode;
+    gpu::DescriptorSet      samplers;
+    gpu::DescriptorSet      textures;
+    shader::PbrShaderParams params;
+    u32                     num_indices;
+    gpu::CullMode           cull_mode;
+    gpu::FrontFace          front_face;
+    PipelineVariantId       variant;
 };
 
 struct PBRPipeline final : IPipeline
 {
-  struct Pipeline
-  {
-    gpu::GraphicsPipeline fill  = nullptr;
-    gpu::GraphicsPipeline line  = nullptr;
-    gpu::GraphicsPipeline point = nullptr;
-  };
+    struct Pipeline
+    {
+        gpu::GraphicsPipeline fill  = nullptr;
+        gpu::GraphicsPipeline line  = nullptr;
+        gpu::GraphicsPipeline point = nullptr;
+    };
 
-  SparseVec<PipelineVariantId, Tuple<Str, Pipeline>> variants_;
+    SparseVec<PipelineVariantId, Tuple<Str, Pipeline>> variants_;
 
-  PBRPipeline(Allocator);
+    PBRPipeline(Allocator);
 
-  PBRPipeline(PBRPipeline const &)             = delete;
-  PBRPipeline(PBRPipeline &&)                  = delete;
-  PBRPipeline & operator=(PBRPipeline const &) = delete;
-  PBRPipeline & operator=(PBRPipeline &&)      = delete;
+    PBRPipeline(PBRPipeline const &)             = delete;
+    PBRPipeline(PBRPipeline &&)                  = delete;
+    PBRPipeline & operator=(PBRPipeline const &) = delete;
+    PBRPipeline & operator=(PBRPipeline &&)      = delete;
 
-  virtual ~PBRPipeline() override = default;
+    virtual ~PBRPipeline() override = default;
 
-  virtual Str label() override;
+    virtual Str label() override;
 
-  virtual void acquire(GpuFramePlan plan) override;
+    virtual void acquire(GpuFramePlan plan, Allocator allocator) override;
 
-  virtual void release(GpuFramePlan plan) override;
+    virtual void release(GpuFramePlan plan, Allocator allocator) override;
 
-  PipelineVariantId add_variant(GpuFramePlan plan, Str label,
-                                gpu::Shader shader);
+    PipelineVariantId add_variant(GpuFramePlan plan, Str label, gpu::Shader shader,
+                                  Allocator allocator);
 
-  void remove_variant(GpuFramePlan plan, PipelineVariantId id);
+    void remove_variant(GpuFramePlan plan, PipelineVariantId id);
 
-  PipelineVariantId get_variant_id(GpuFramePlan plan, Str label);
+    PipelineVariantId get_variant_id(GpuFramePlan plan, Str label);
 
-  void encode(gpu::CommandEncoder encoder, PBRPipelineParams const & params);
+    void encode(gpu::CommandEncoder encoder, PBRPipelineParams const & params);
 };
 
 }    // namespace ash

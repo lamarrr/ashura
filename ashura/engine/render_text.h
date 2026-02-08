@@ -3,11 +3,89 @@
 
 #include "ashura/engine/text.h"
 #include "ashura/std/math.h"
-#include "ashura/std/piece_table.h"
 #include "ashura/std/types.h"
 
 namespace ash
 {
+
+struct [[nodiscard]] TextRunsStyle
+{
+    static auto default_run_indices(Allocator allocator = noop_allocator)
+    {
+        static constexpr usize data[] = {0uz, USIZE_MAX};
+        return small_vec::copy<2, 0>(allocator, span(data)).unwrap();
+    }
+
+    static auto default_styles(Allocator allocator = noop_allocator)
+    {
+        static constexpr TextStyle data[] = {{}};
+        return small_vec::copy<1, 0>(allocator, span(data)).unwrap();
+    }
+
+    static auto default_fonts(Allocator allocator = noop_allocator)
+    {
+        static constexpr FontStyle data[] = {{}};
+        return small_vec::copy<1, 0>(allocator, span(data)).unwrap();
+    }
+
+    SmallVec<usize, 2, 0>     run_indices_;
+    SmallVec<TextStyle, 1, 0> styles_;
+    SmallVec<FontStyle, 1, 0> fonts_;
+
+    TextRunsStyle(SmallVec<usize, 2, 0> run_indices, SmallVec<TextStyle, 1, 0> styles,
+                  SmallVec<FontStyle, 1, 0> fonts) :
+      run_indices_{std::move(run_indices)},
+      styles_{std::move(styles)},
+      fonts_{std::move(fonts)}
+    {
+    }
+
+    TextRunsStyle(Allocator allocator) :
+      run_indices_{default_run_indices(allocator)},
+      styles_{default_styles(allocator)},
+      fonts_{default_fonts(allocator)}
+    {
+    }
+
+    static TextRunsStyle all(TextStyle const & style, FontStyle const & font);
+
+    /// @brief Creates a TextRunsStyle from run sizes, styles, and fonts.
+    /// @param allocator allocator to use for memory allocations
+    /// @param run_sizes sizes of each run of text the styles and fonts correspond
+    /// to
+    /// @param styles styles for each run
+    /// @param fonts fonts for each run
+    static TextRunsStyle make_sized(Allocator allocator, Span<usize const> run_sizes,
+                                    Span<TextStyle const> styles,
+                                    Span<FontStyle const> fonts);
+
+    /// @brief Creates a TextRunsStyle from run end indices, styles, and fonts.
+    /// @param allocator allocator to use for memory allocations
+    /// @param run_indices run end indices of each run of text the styles and
+    /// fonts correspond to
+    /// @param styles styles for each run
+    static TextRunsStyle make_indexed(Allocator             allocator,
+                                      Span<usize const>     run_indices,
+                                      Span<TextStyle const> styles,
+                                      Span<FontStyle const> fonts);
+
+    TextRunsStyle copy(Allocator allocator) const;
+
+    Span<usize const> run_indices() const
+    {
+        return run_indices_.view();
+    }
+
+    Span<TextStyle const> styles() const
+    {
+        return styles_.view();
+    }
+
+    Span<FontStyle const> fonts() const
+    {
+        return fonts_.view();
+    }
+};
 
 /// @brief Controls and manages GUI text state for rendering
 /// - manages runs and run styling
@@ -15,426 +93,283 @@ namespace ash
 /// - recalculates text layout when it changes and if necessary
 /// - renders the text using the computed style information
 /// @param runs  Run-End encoded sequences of the runs
-struct RenderText
+struct [[nodiscard]] RenderText
 {
-  static constexpr usize HASH_CLEAN = USIZE_MAX;
-  static constexpr usize HASH_DIRTY = 0;
+    static constexpr usize HASH_CLEAN = USIZE_MAX;
+    static constexpr usize HASH_DIRTY = 0z;
 
-  Allocator allocator_;
+    usize hash_;
 
-  usize hash_;
+    bool wrap_ : 1;
 
-  bool wrap_;
+    bool use_kerning_ : 1;
 
-  bool use_kerning_ : 1;
+    bool use_ligatures_ : 1;
 
-  bool use_ligatures_ : 1;
+    TextDirection direction_ : 2;
 
-  TextDirection direction_ : 2;
+    f32 alignment_;
 
-  f32 alignment_;
+    f32 font_scale_;
 
-  f32 font_scale_;
+    f32 max_width_;
 
-  Rc<Str32> text_;
+    f32 align_width_;
 
-  Vec<usize> run_indices_;
+    Rc<Str32> str_;
 
-  Vec<TextStyle> styles_;
+    TextRunsStyle runs_style_;
 
-  Vec<FontStyle> fonts_;
+    Str language_;
 
-  Str language_;
+    TextLayout layout_;
 
-  TextLayout layout_;
+    void * user_data_;
 
-  constexpr RenderText(Allocator allocator) :
-    allocator_{allocator},
-    hash_{HASH_DIRTY},
-    wrap_{true},
-    use_kerning_{true},
-    use_ligatures_{true},
-    direction_{TextDirection::LeftToRight},
-    alignment_{ALIGNMENT_LEFT},
-    font_scale_{1},
-    text_{},
-    run_indices_{allocator},
-    styles_{allocator},
-    fonts_{allocator},
-    language_{},
-    layout_{.glyphs{allocator},
-            .runs{allocator},
-            .lines{allocator},
-            .paragraphs{allocator}}
-  {
-  }
-
-  constexpr RenderText(RenderText const &)             = delete;
-  constexpr RenderText & operator=(RenderText const &) = delete;
-  constexpr RenderText(RenderText &&)                  = default;
-  constexpr RenderText & operator=(RenderText &&)      = default;
-  constexpr ~RenderText()                              = default;
-
-  /// @brief  Styles specified runs of text, performing run merging and
-  /// splitting in the process. If there's previously no runs, the first added
-  /// run will be the default and span the whole of the text.
-  /// @param first first codepoint index to be patched
-  /// @param count range of the number of codepoints to be patched
-  /// @param style font style to be applied
-  /// @param font font configuration to be applied
-  RenderText & run(TextStyle const & style, FontStyle const & font,
-                   usize first = 0, usize count = USIZE_MAX);
-
-  RenderText & flush_text();
-
-  RenderText & wrap(bool wrap);
-
-  RenderText & font_scale(f32 scale);
-
-  RenderText & direction(TextDirection direction);
-
-  RenderText & language(Str language);
-
-  RenderText & alignment(f32 alignment);
-
-  Str32 get_text() const;
-
-  RenderText & text(Rc<Str32> utf32, TextStyle const & style,
-                    FontStyle const & font);
-
-  RenderText & text(Rc<Str32> utf32);
-
-  RenderText & text(Str8 utf8, TextStyle const & style, FontStyle const & font);
-
-  RenderText & text(Str8 utf8);
-
-  usize size() const;
-
-  TextBlock block() const;
-
-  TextBlockStyle block_style(f32                        aligned_width,
-                             TextHighlightStyle const & highlight_style,
-                             CaretStyle const &         caret_style) const;
-
-  TextLayout const & get_layout() const;
-
-  void layout(f32 max_width, TextLayoutBuffer buffer, Allocator scratch);
-
-  /// @brief Render the laid out text
-  /// @param center canvas-space region of the text to place the text on
-  /// @param align_width the width to align the text to
-  /// @param clip the canvas-space clip rectangle
-  /// @param zoom the zoom to apply to the text
-  void render(TextRenderer renderer, f32x2 center, f32 align_width,
-              f32x4x4 const & transform, CRect const & clip,
-              TextHighlightStyle const & highlight_style,
-              CaretStyle const & caret_style, Span<usize const> carets,
-              Span<Slice const> highlights, Allocator scratch_allocator) const;
-
-  /// @brief Perform hit test on the laid-out text
-  /// @param center canvas-space region the text was placed on
-  /// @param align_width the width the text was aligned to
-  /// @param zoom the zoom that was applied to the text
-  /// @param pos the canvas-space text position to hit
-  /// @returns .v0: caret index, .v1: caret location
-  Tuple<isize, CaretAlignment> hit(f32x2 center, f32 align_width,
-                                   f32x4x4 const & transform,
-                                   f32x2           transformed_pos) const;
-};
-
-struct EditHistoryBuffer
-{
-  struct Record
-  {
-    enum class Type : u8
+    constexpr RenderText(Allocator allocator) :
+      hash_{HASH_DIRTY},
+      wrap_{true},
+      use_kerning_{true},
+      use_ligatures_{true},
+      direction_{TextDirection::LeftToRight},
+      alignment_{ALIGNMENT_LEFT},
+      font_scale_{1},
+      max_width_{1024.0F},
+      align_width_{1024.0F},
+      str_{static_rc(U""_str)},
+      runs_style_{noop_allocator},
+      language_{},
+      layout_{.glyphs{allocator},
+              .runs{allocator},
+              .lines{allocator},
+              .paragraphs{allocator}},
+      user_data_{nullptr}
     {
-      Erase  = 0,
-      Insert = 1
-    };
-
-    usize pos = 0;
-
-    Rc<Str32> str = static_rc(U""_str);
-
-    Type type = Type::Insert;
-
-    constexpr usize size() const
-    {
-      return str.get().size();
     }
-  };
 
-  Vec<Record> records_;
+    constexpr RenderText(RenderText const &)             = delete;
+    constexpr RenderText & operator=(RenderText const &) = delete;
+    constexpr RenderText(RenderText &&)                  = default;
+    constexpr RenderText & operator=(RenderText &&)      = default;
+    constexpr ~RenderText()                              = default;
 
-  /// @brief Record representing the current text composition state;
-  /// the base state is index 0
-  usize current_record_;
+    RenderText & runs_style(TextRunsStyle style);
 
-  explicit constexpr EditHistoryBuffer(Vec<Record> buffer) :
-    records_{std::move(buffer)},
-    current_record_{0}
-  {
-  }
+    TextRunsStyle const & runs_style() const;
 
-  constexpr EditHistoryBuffer(EditHistoryBuffer const &)             = delete;
-  constexpr EditHistoryBuffer & operator=(EditHistoryBuffer const &) = delete;
-  constexpr EditHistoryBuffer(EditHistoryBuffer &&)                  = default;
-  constexpr EditHistoryBuffer & operator=(EditHistoryBuffer &&)      = default;
-  constexpr ~EditHistoryBuffer()                                     = default;
+    RenderText & flush_text();
 
-  static EditHistoryBuffer create(Allocator allocator, usize records_capacity);
+    RenderText & wrap(bool wrap);
 
-  /// @brief Apply changes of next record
-  /// @param str  piece table to apply the redo changes to
-  /// @returns selection slice after redo, if any
-  Option<Slice> redo(PieceTable32 & str);
+    RenderText & use_kerning(bool use_kerning);
 
-  /// @brief Undo changes of current record
-  /// @param str  piece table to apply the undo changes to
-  /// @returns selection slice after undo, if any
-  Option<Slice> undo(PieceTable32 & str);
+    RenderText & use_ligatures(bool use_ligatures);
 
-  void add_record(Record::Type type, usize pos, Rc<Str32> str);
+    RenderText & font_scale(f32 scale);
 
-  void insert(usize pos, PieceTable32 & str, Rc<Str32> insert_str);
+    RenderText & direction(TextDirection direction);
 
-  void erase(Slice selection, PieceTable32 & str);
+    RenderText & language(Str language);
+
+    RenderText & alignment(f32 alignment);
+
+    Str32 str() const;
+
+    RenderText & str(Rc<Str32> utf32, TextStyle const & style, FontStyle const & font);
+
+    RenderText & str(Rc<Str32> utf32);
+
+    RenderText & str_copy(Str32 utf32, Allocator allocator);
+
+    RenderText & str_copy(Str32 utf32, TextStyle const & style, FontStyle const & font,
+                          Allocator allocator);
+
+    RenderText & str_copy(Str8 utf8, TextStyle const & style, FontStyle const & font,
+                          Allocator allocator);
+
+    RenderText & str_copy(Str8 utf8, Allocator allocator);
+
+    RenderText & user_data(void * data);
+
+    RenderText & width(f32 max_width, f32 align_width);
+
+    usize size() const;
+
+    TextBlock block() const;
+
+    TextBlockStyle block_style() const;
+
+    TextLayout const & layout() const;
+
+    void perform_layout();
+
+    /// @brief Generate the placement rectangles for the laid-out text
+    /// @param center canvas-space region of the text to place the text on
+    /// @param transform the canvas-space transform to apply to the text block
+    /// @param clip the canvas-space clip rectangle
+    /// @param highlights text highlights to render
+    /// @param highlight_styles styles for each of the highlights
+    /// @param carets carets to render
+    /// @param caret_styles styles for each of the carets
+    /// @param allocator allocator to use for the placement allocations
+    Tuple<TextRenderInfo, TextPlacement>
+      place(f32x2 center, f32x4x4 const & transform, CRect const & clip,
+            Span<Slice const>              highlights,
+            Span<TextHighlightStyle const> highlight_styles, Span<usize const> carets,
+            Span<CaretStyle const> caret_styles, Allocator allocator) const;
+
+    /// @brief Perform hit test on the laid-out text
+    /// @param center canvas-space region used as the center of the text block
+    /// @param align_width the width the text block was aligned to
+    /// @param transform the canvas-space transform applied to the text block
+    /// @param transformed_pos the canvas-space position to hit test
+    /// @returns .v0: caret index, .v1: caret location
+    Tuple<isize, CaretAlignment> hit(f32x2 center, f32x4x4 const & transform,
+                                     f32x2 transformed_pos) const;
 };
 
-struct EditText
+static constexpr c32 DEFAULT_WORD_SYMBOLS[] = {U' ', U'\t'};
+
+/// @brief Model for interactive text views
+struct [[nodiscard]] TextModel
 {
-  struct Cursor
-  {
-    u64 id = 0;
+    // TODO: type-erased undo/redo
 
-    TextCursor v = {};
-  };
+    Allocator allocator_;
 
-  struct State
-  {
-    RenderText text;
+    RenderText text_;
 
-    EditHistoryBuffer history;
-  };
+    Option<TextCursor> cursor_;
 
-  struct ActionResult
-  {
-    Option<RenderText> text;
+    CaretXAlignment caret_alignment_;
 
-    EditHistoryBuffer history;
+    TextHighlightStyle highlight_style_;
 
-    SmallVec<Cursor, 8> cursors;
-  };
+    CaretStyle caret_style_;
 
-  using Renderer = Rc<Fn<RenderText(Allocator, Rc<Str32>)>>;
+    constexpr TextModel(Allocator allocator) :
+      allocator_{allocator},
+      text_{allocator},
+      cursor_{none},
+      caret_alignment_{CaretXAlignment::Start},
+      highlight_style_{},
+      caret_style_{}
+    {
+    }
 
-  struct InsertAction
-  {
-    u64 id = 0;
+    constexpr TextModel(TextModel const &)             = delete;
+    constexpr TextModel(TextModel &&)                  = default;
+    constexpr TextModel & operator=(TextModel const &) = delete;
+    constexpr TextModel & operator=(TextModel &&)      = default;
+    constexpr ~TextModel()                             = default;
 
-    f32 max_width = 0.0f;
+    Str32 str() const;
 
-    Renderer renderer;
+    TextLayout const & layout() const;
 
-    TextCursor cursor = {};
+    RenderText const & get_render_text() const;
 
-    Rc<Str32> str = static_rc(U""_str);
-  };
+    RenderText & get_render_text();
 
-  struct EraseAction
-  {
-    u64 id = 0;
+    void text(RenderText text);
 
-    f32 max_width = 0.0f;
+    void str(Rc<Str32> str);
 
-    Renderer renderer;
+    void str(Str32 str);
 
-    TextCursor cursor = {};
-  };
+    void str(Str8 str);
 
-  struct UndoAction
-  {
-    u64 id = 0;
+    void runs_style(TextRunsStyle runs_style);
 
-    f32 max_width = 0.0f;
+    StrVec32 copy(Allocator allocator);
 
-    Renderer renderer;
-  };
+    void add_cursor(TextCursor value);
 
-  struct RedoAction
-  {
-    u64 id = 0;
+    TextCursor & touch_cursor();
 
-    f32 max_width = 0.0f;
+    void set_cursor_style(TextHighlightStyle highlight_style, CaretStyle caret_style);
 
-    Renderer renderer;
-  };
+    void remove_cursor();
 
-  struct RelayoutAction
-  {
-    u64 id = 0;
+    void update_cursor(TextCursor value);
 
-    f32 max_width = 0.0f;
+    void unselect();
 
-    Renderer renderer;
-  };
+    void left();
 
-  struct CopyAction
-  {
-    u64 id = 0;
+    void right();
 
-    f32 max_width = 0.0f;
+    void word_start(Span<c32 const> word_symbols);
 
-    Renderer renderer;
+    void word_end(Span<c32 const> word_symbols);
 
-    TextCursor cursor = {};
+    void line_start();
 
-    Future<Vec<c32>> output;
-  };
+    void line_end();
 
-  using Edit = Enum<InsertAction, EraseAction, UndoAction, RedoAction,
-                    RelayoutAction, CopyAction>;
+    void up();
 
-  static constexpr usize DEFAULT_RECORDS_SIZE = 2'048;
+    void down();
 
-  static constexpr c32 DEFAULT_WORD_SYMBOLS[] = {U' ', U'\t'};
+    void page_up(usize lines_per_page);
 
-  Allocator allocator_;
+    void page_down(usize lines_per_page);
 
-  Rc<State *> state_;
+    void select_left();
 
-  Option<Future<Rc<ActionResult *>>> pending_result_;
+    void select_right();
 
-  Renderer renderer_;
+    void select_up();
 
-  /// @brief action queue of mutations to be performed on the text.
-  /// this is queued up whilst an async text edit is being performed.
-  /// after each edit action, the text is re-laid out.
-  SmallVec<Edit, 8> action_queue_;
+    void select_down();
 
-  Cursor cursor_;
+    void select_to_word_start(Span<c32 const> word_symbols);
 
-  CaretXAlignment caret_alignment_;
+    void select_to_word_end(Span<c32 const> word_symbols);
 
-  f32 max_width_;
+    void select_to_line_start();
 
-  u64 action_id_;
+    void select_to_line_end();
 
-  constexpr EditText(Allocator allocator, Rc<State *> state,
-                     Renderer renderer) :
-    allocator_{allocator},
-    state_{std::move(state)},
-    pending_result_{none},
-    renderer_{std::move(renderer)},
-    action_queue_{allocator},
-    cursor_{},
-    caret_alignment_{CaretXAlignment::Start},
-    max_width_{0},
-    action_id_{0}
-  {
-  }
+    void select_page_up(usize lines_per_page);
 
-  constexpr EditText(EditText const &)             = delete;
-  constexpr EditText(EditText &&)                  = default;
-  constexpr EditText & operator=(EditText const &) = delete;
-  constexpr EditText & operator=(EditText &&)      = default;
-  constexpr ~EditText()                            = default;
+    void select_page_down(usize lines_per_page);
 
-  static Renderer default_renderer();
+    void select_codepoint();
 
-  static EditText create(Allocator allocator);
+    void select_word(Span<c32 const> word_symbols);
 
-  bool has_pending_edit() const;
+    void select_line();
 
-  Str32 get_text() const;
+    void select_all();
 
-  Rc<Span<c32 const>> create_copy(Span<c32 const> str);
+    void hit(f32x2 center, f32x4x4 const & transform, f32x2 pos);
 
-  Rc<Span<c32 const>> create_copy(Span<c8 const> str);
+    void hit_select(f32x2 center, f32x4x4 const & transform, f32x2 pos);
 
-  TextLayout const & get_layout() const;
+    void erase_at(Slice selection);
 
-  RenderText const & get_render_text() const;
+    void insert_at(usize pos, Str32 str);
 
-  void set_renderer(Renderer renderer);
+    void backspace();
 
-  Future<Vec<c32>> copy();
+    void del();
 
-  void unselect();
+    void insert(Str32 input);
 
-  void left();
+    void insert(Str8 input);
 
-  void right();
+    void new_line();
 
-  void word_start(Span<c32 const> word_symbols);
+    void tab();
 
-  void word_end(Span<c32 const> word_symbols);
+    StrVec32 copy_cut(Allocator allocator);
 
-  void line_start();
+    void cut();
 
-  void line_end();
+    void width(f32 max_width, f32 align_width);
 
-  void up();
-
-  void down();
-
-  void page_up(usize lines_per_page);
-
-  void page_down(usize lines_per_page);
-
-  void select_left();
-
-  void select_right();
-
-  void select_up();
-
-  void select_down();
-
-  void select_to_word_start(Span<c32 const> word_symbols);
-
-  void select_to_word_end(Span<c32 const> word_symbols);
-
-  void select_to_line_start();
-
-  void select_to_line_end();
-
-  void select_page_up(usize lines_per_page);
-
-  void select_page_down(usize lines_per_page);
-
-  void select_codepoint();
-
-  void select_word(Span<c32 const> word_symbols);
-
-  void select_line();
-
-  void select_all();
-
-  void hit(f32x2 center, f32 aligned_width, f32x2 pos,
-           f32x4x4 const & transform);
-
-  void hit_select(f32x2 center, f32 aligned_width, f32x2 pos,
-                  f32x4x4 const & transform);
-
-  void backspace();
-
-  void del();
-
-  void insert(Rc<Str32> input);
-
-  void new_line();
-
-  Future<Vec<c32>> copy_cut();
-
-  void cut();
-
-  void undo();
-
-  void redo();
-
-  void layout(f32 max_width);
-
-  void tick(nanoseconds dt);
+    void perform_layout();
 };
 
 }    // namespace ash

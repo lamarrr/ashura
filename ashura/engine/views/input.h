@@ -12,7 +12,7 @@ namespace ash
 namespace ui
 {
 
-// [ ] scroll and clip text if region isn't large enough
+// TODO: scroll and clip text if region isn't large enough
 // -  wrapping to the next line if not large enough
 // -  no wrap
 // -  max-len
@@ -20,119 +20,182 @@ namespace ui
 // -  secret text input
 struct InputCfg
 {
-  bool wrappable     : 1 = false;
-  bool submittable   : 1 = false;
-  bool multiline     : 1 = false;
-  bool enter_submits : 1 = false;
-  bool tab_input     : 1 = false;
+    bool wrappable     : 1 = false;
+    bool submittable   : 1 = false;
+    bool multiline     : 1 = false;
+    bool enter_submits : 1 = false;
+    bool tab_input     : 1 = false;
 
-  Fn<void(Vec<c32> &, Str32)> insert;
+    Fn<void(Vec<c32> &, Str32)> insert;
 };
 
-// [ ] renderer hooks for regions
+// TODO: renderer hooks for regions
 struct Input : View
 {
-  struct State
-  {
-    bool disabled : 1 = false;
+    enum class Cmd : u8
+    {
+        None = 0,
 
-    bool editing : 1 = false;
+        Escape = 1,
 
-    bool submit : 1 = false;
+        /// Cursor State
+        Unselect = 2,
 
-    bool multiline : 1 = false;
+        /// Editing
+        BackSpace = 3,
+        Delete    = 4,
+        InputText = 5,
 
-    bool enter_submits : 1 = false;
+        /// Cursor Positioning
+        Left      = 6,
+        Right     = 7,
+        WordStart = 8,
+        WordEnd   = 9,
+        LineStart = 10,
+        LineEnd   = 11,
+        Up        = 12,
+        Down      = 13,
+        PageUp    = 14,
+        PageDown  = 15,
 
-    bool tab_input : 1 = false;
-  } state_;
+        /// Cursor Selection
+        SelectLeft        = 16,
+        SelectRight       = 17,
+        SelectUp          = 18,
+        SelectDown        = 19,
+        SelectToWordStart = 20,
+        SelectToWordEnd   = 21,
+        SelectToLineStart = 22,
+        SelectToLineEnd   = 23,
+        SelectPageUp      = 24,
+        SelectPageDown    = 25,
 
-  struct Style
-  {
-    TextHighlightStyle highlight = {.color        = theme.highlight,
-                                    .corner_radii = f32x4::splat(0)};
-    CaretStyle         caret{.color = theme.caret, .thickness = 1.0F};
-    usize              lines_per_page = 40;
-    usize              tab_width      = 1;
-  } style_;
+        /// Semantic Selection
+        SelectCodepoint = 26,
+        SelectWord      = 27,
+        SelectLine      = 28,
+        SelectAll       = 29,
 
-  struct Callbacks
-  {
-    Fn<void()> edit = noop;
+        /// ClipBoard
+        Cut   = 30,
+        Copy  = 31,
+        Paste = 32,
 
-    Fn<void()> submit = noop;
+        /// Redo/Undo
+        Undo = 33,
+        Redo = 34,
 
-    Fn<void()> focus_in = noop;
+        /// Mouse Selection (Visual)
+        Hit       = 35,
+        HitSelect = 36,
 
-    Fn<void()> focus_out = noop;
-  } cb;
+        /// Insert new line
+        NewLine = 37,
+        Tab     = 38,
 
-  Allocator allocator_;
+        Submit = 39
+    };
 
-  RenderText content_;
+    struct State
+    {
+        bool disabled : 1 = false;
 
-  RenderText stub_;
+        bool editing : 1 = false;
 
-  TextCompositor compositor_;
+        bool submit : 1 = false;
 
-  Input(Str32             stub      = U""_str,
-        TextStyle const & style     = TextStyle{.color = theme.on_surface},
-        FontStyle const & font      = FontStyle{.font   = theme.body_font,
-                                                .height = theme.body_font_height,
-                                                .line_height = theme.line_height},
-        Allocator         allocator = default_allocator);
+        bool multiline : 1 = false;
 
-  Input(Str8              stub,
-        TextStyle const & style     = TextStyle{.color = theme.on_surface},
-        FontStyle const & font      = FontStyle{.font   = theme.body_font,
-                                                .height = theme.body_font_height,
-                                                .line_height = theme.line_height},
-        Allocator         allocator = default_allocator);
+        bool enter_submits : 1 = false;
 
-  Input(Input const &)             = delete;
-  Input(Input &&)                  = default;
-  Input & operator=(Input const &) = delete;
-  Input & operator=(Input &&)      = default;
-  virtual ~Input() override        = default;
+        bool tab_input : 1 = false;
+    } state_;
 
-  Input & disable(bool disable);
+    struct Style
+    {
+        TextHighlightStyle highlight = {.color        = theme.highlight,
+                                        .corner_radii = f32x4::splat(0)};
+        CaretStyle         caret{.color = theme.caret, .thickness = 1.0F};
+        usize              lines_per_page = 40;
+        usize              tab_width      = 1;
+    } style_;
 
-  Input & multiline(bool enable);
+    struct Callbacks
+    {
+        Fn<void()> edit = noop;
 
-  Input & enter_submits(bool enable);
+        Fn<void()> submit = noop;
 
-  Input & tab_input(bool enable);
+        Fn<void()> focus_in = noop;
 
-  Input & on_edit(Fn<void()> fn);
+        Fn<void()> focus_out = noop;
+    } cb;
 
-  Input & on_submit(Fn<void()> fn);
+    Allocator allocator_;
 
-  Input & on_focus_in(Fn<void()> fn);
+    RenderText content_;
 
-  Input & on_focus_out(Fn<void()> fn);
+    RenderText stub_;
 
-  Input & content(Str8 text);
+    TextCompositor compositor_;
 
-  Input & content(Str32 text);
+    Input(Str32             stub      = U""_str,
+          TextStyle const & style     = TextStyle{.color = theme.on_surface},
+          FontStyle const & font      = FontStyle{.font        = theme.body_font,
+                                                  .height      = theme.body_font_height,
+                                                  .line_height = theme.line_height},
+          Allocator         allocator = default_allocator);
 
-  Input & content_run(TextStyle const & style, FontStyle const & font,
-                      usize first = 0, usize count = USIZE_MAX);
+    Input(Str8 stub, TextStyle const & style = TextStyle{.color = theme.on_surface},
+          FontStyle const & font      = FontStyle{.font        = theme.body_font,
+                                                  .height      = theme.body_font_height,
+                                                  .line_height = theme.line_height},
+          Allocator         allocator = default_allocator);
 
-  Input & stub(Str8 text);
+    Input(Input const &)             = delete;
+    Input(Input &&)                  = default;
+    Input & operator=(Input const &) = delete;
+    Input & operator=(Input &&)      = default;
+    virtual ~Input() override        = default;
 
-  Input & stub(Str32 text);
+    Input & disable(bool disable);
 
-  Input & stub_run(TextStyle const & style, FontStyle const & font,
-                   usize first = 0, usize count = USIZE_MAX);
+    Input & multiline(bool enable);
 
-  virtual ui::State tick(Ctx const & ctx, Events const & events,
-                         Fn<void(View &)> build) override;
+    Input & enter_submits(bool enable);
 
-  virtual Layout fit(f32x2 allocated, Span<f32x2 const>, Span<f32x2>) override;
+    Input & tab_input(bool enable);
 
-  virtual void render(Canvas & canvas, RenderInfo const & info) override;
+    Input & on_edit(Fn<void()> fn);
 
-  virtual Cursor cursor(f32x2 extent, f32x2 position) override;
+    Input & on_submit(Fn<void()> fn);
+
+    Input & on_focus_in(Fn<void()> fn);
+
+    Input & on_focus_out(Fn<void()> fn);
+
+    Input & content(Str8 text);
+
+    Input & content(Str32 text);
+
+    Input & content_run(TextStyle const & style, FontStyle const & font,
+                        auto first = 0uz, usize count = USIZE_MAX);
+
+    Input & stub(Str8 text);
+
+    Input & stub(Str32 text);
+
+    Input & stub_run(TextStyle const & style, FontStyle const & font, auto first = 0uz,
+                     usize count = USIZE_MAX);
+
+    virtual ui::State tick(Scope const & scope, Events const & events,
+                           Fn<void(View &)> build) override;
+
+    virtual Layout fit(f32x2 allocated, Span<f32x2 const>, Span<f32x2>) override;
+
+    virtual void render(Canvas & canvas, RenderInfo const & info) override;
+
+    virtual Cursor cursor(f32x2 extent, f32x2 position) override;
 };
 
 }    // namespace ui

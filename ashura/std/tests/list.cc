@@ -19,14 +19,12 @@ TEST(ListTest, Insertion)
   List<Node> l;
   Node *     x;
   Node *     y;
-  CHECK(arena.nalloc(1, x), "");
-  CHECK(arena.nalloc(1, y), "");
+  ASH_CHECK(arena.nalloc(1, x), "");
+  ASH_CHECK(arena.nalloc(1, y), "");
 
-  EXPECT_EQ(l.head(), nullptr);
+  EXPECT_EQ(l.head(), &l.head_);
   l.push_front(x);
-  EXPECT_NE(l.head(), nullptr);
 
-  EXPECT_EQ(l.head(), x);
   EXPECT_EQ(l.pop_back(), x);
   EXPECT_EQ(l.pop_back(), nullptr);
   l.push_front(x);
@@ -53,14 +51,10 @@ TEST(ListTest, ReverseView)
   Node *     y;
   Node *     z;
   Node *     w;
-  CHECK(arena.nalloc(1, x), "");
-  CHECK(arena.nalloc(1, y), "");
-  CHECK(arena.nalloc(1, z), "");
-  CHECK(arena.nalloc(1, w), "");
-
-  {
-    EXPECT_EQ(l.rbegin().iter_, nullptr);
-  }
+  ASH_CHECK(arena.nalloc(1, x), "");
+  ASH_CHECK(arena.nalloc(1, y), "");
+  ASH_CHECK(arena.nalloc(1, z), "");
+  ASH_CHECK(arena.nalloc(1, w), "");
 
   l.push_back(x);
   {

@@ -1,9 +1,8 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 
-#include "ashura/engine/render_text.h"
-#include "ashura/engine/text_compositor.h"
 #include "ashura/engine/view.h"
+#include "ashura/engine/views/model/text.h"
 #include "ashura/std/types.h"
 
 namespace ash
@@ -14,65 +13,93 @@ namespace ui
 
 struct Text : View
 {
-  struct State
-  {
-    bool copyable = false;
-  } state_;
+    Allocator  allocator_;
+    txt::State state_;
+    txt::Cfg   cfg_;
+    Frame      frame_;
 
-  struct Style
-  {
-    TextHighlightStyle highlight{.color        = theme.highlight,
-                                 .corner_radii = f32x4::splat(0)};
-  } style_;
+    explicit Text(Allocator allocator);
 
-  RenderText text_;
+    Text(Allocator allocator, Rc<Str32> text, TextStyle const & style,
+         FontStyle const & font);
 
-  TextCompositor compositor_;
+    Text(Allocator allocator, Str32 text, TextStyle const & style,
+         FontStyle const & font);
 
-  Text(Str32             text      = U""_str,
-       TextStyle const & style     = TextStyle{.color = theme.on_surface},
-       FontStyle const & font      = FontStyle{.font        = theme.body_font,
-                                               .height      = theme.body_font_height,
-                                               .line_height = theme.line_height},
-       Allocator         allocator = default_allocator);
+    Text(Allocator allocator, Str8 text, TextStyle const & style,
+         FontStyle const & font);
 
-  Text(Str8              text,
-       TextStyle const & style     = TextStyle{.color = theme.on_surface},
-       FontStyle const & font      = FontStyle{.font        = theme.body_font,
-                                               .height      = theme.body_font_height,
-                                               .line_height = theme.line_height},
-       Allocator         allocator = default_allocator);
+    Text(Text const &)             = delete;
+    Text(Text &&)                  = default;
+    Text & operator=(Text const &) = delete;
+    Text & operator=(Text &&)      = default;
+    virtual ~Text() override       = default;
 
-  Text(Text const &)             = delete;
-  Text(Text &&)                  = default;
-  Text & operator=(Text const &) = delete;
-  Text & operator=(Text &&)      = default;
-  virtual ~Text() override       = default;
+    Text & copyable(bool v);
 
-  Text & copyable(bool allow);
+    Text & highlightable(bool v);
 
-  Text & highlight_style(TextHighlightStyle highlight);
+    Text & enable_cursor(bool v);
 
-  Text & clear_highlights();
+    Text & editable(bool v);
 
-  Text & run(TextStyle const & style, FontStyle const & font, usize first = 0,
-             usize count = USIZE_MAX);
+    Text & enable_undo_redo(bool v);
 
-  Text & text(Str32 text);
+    Text & enable_multiline_input(bool v);
 
-  Text & text(Str8 text);
+    Text & accept_tab_input(bool v);
 
-  Str32 text() const;
+    Text & enter_submits(bool v);
 
-  virtual ui::State tick(Ctx const & ctx, Events const & events,
-                         Fn<void(View &)> build) override;
+    Text & lines_per_page(u16 v);
 
-  virtual Layout fit(f32x2 allocated, Span<f32x2 const> sizes,
-                     Span<f32x2> centers) override;
+    Text & input_to_actions_map(Rc<txt::InputToActionsMap> map);
 
-  virtual void render(Canvas & canvas, RenderInfo const & info) override;
+    Text & renderer(Rc<txt::Renderer> renderer);
 
-  virtual Cursor cursor(f32x2 extent, f32x2 position) override;
+    Text & highlights(Span<Slice const>              highlights,
+                      Span<TextHighlightStyle const> highlight_styles);
+
+    Text & clear_highlights();
+
+    Text & style_runs(TextRunsStyle style);
+
+    Text & wrap(bool v);
+
+    Text & use_kerning(bool v);
+
+    Text & use_ligatures(bool v);
+
+    Text & font_scale(f32 v);
+
+    Text & direction(TextDirection v);
+
+    Text & language(Str v);
+
+    Text & alignment(f32 v);
+
+    Str32 str() const;
+
+    Text & str(Str32 str);
+
+    Text & str(Str8 str);
+
+    Text & str(Rc<Str32> v);
+
+    Text & user_data(void * v);
+
+    Text & frame(Frame frame);
+
+    virtual ViewState tick(Scope const & scope, Events const & events,
+                           Fn<void(View &)> build) override;
+
+    virtual Layout fit(Scope const & scope, f32x2 allocated, Span<f32x2 const> sizes,
+                       Span<f32x2> centers) override;
+
+    virtual void render(Scope const & scope, Canvas canvas,
+                        RenderInfo const & info) override;
+
+    virtual Cursor cursor(Scope const & scope, f32x2 extent, f32x2 position) override;
 };
 }    // namespace ui
 

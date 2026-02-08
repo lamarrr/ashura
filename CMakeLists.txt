@@ -1,16 +1,19 @@
 # SPDX-License-Identifier: MIT
 cmake_minimum_required(VERSION 3.20)
 
-project(Ashura LANGUAGES C CXX ASM)
+project(
+    Ashura
+    VERSION 0.1.0
+    LANGUAGES C CXX ASM)
 
 option(ASH_WERROR "Make all ASH's compilation warnings manifest as errors" OFF)
 option(ASH_SANITIZE "Sanitize address and memory" OFF)
-option(ASH_EXCLUDE_GPU "" OFF)
-option(ASH_EXCLUDE_ENGINE "" OFF)
-option(ASH_EXCLUDE_EDITOR "" OFF)
-option(ASH_EXCLUDE_TESTS "" OFF)
-option(ASH_EXCLUDE_BENCHMARKS "" OFF)
-option(ASH_BUILD_DOC "Build documentation" OFF)
+option(ASH_BUILD_GPU "" ON)
+option(ASH_BUILD_ENGINE "" ON)
+option(ASH_BUILD_TESTS "" ON)
+option(ASH_BUILD_SAMPLES "" ON)
+option(ASH_BUILD_BENCHMARKS "" ON)
+option(ASH_BUILD_DOC "Build documentation" ON)
 
 set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -128,105 +131,103 @@ set(SIMDJSON_BUILD_STATIC_LIB
 include(FetchContent)
 include(ExternalProject)
 
-set(ASH_VULKAN_VERSION "1.4.328.1")
+set(ASH_VULKAN_VERSION "1.4.335.0")
 set(ASH_VULKAN_SDK_VERSION "vulkan-sdk-${ASH_VULKAN_VERSION}")
 
 FetchContent_Declare(
-  VulkanHeaders
-  GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Headers.git
-  GIT_TAG ${ASH_VULKAN_SDK_VERSION}
-  OVERRIDE_FIND_PACKAGE)
+    VulkanHeaders
+    GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Headers.git
+    GIT_TAG ${ASH_VULKAN_SDK_VERSION}
+    OVERRIDE_FIND_PACKAGE)
 
 FetchContent_Declare(
-  VulkanUtilityLibraries
-  GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Utility-Libraries.git
-  GIT_TAG ${ASH_VULKAN_SDK_VERSION}
-  OVERRIDE_FIND_PACKAGE)
+    VulkanUtilityLibraries
+    GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Utility-Libraries.git
+    GIT_TAG ${ASH_VULKAN_SDK_VERSION}
+    OVERRIDE_FIND_PACKAGE)
 
 FetchContent_Declare(
-  VulkanLoader
-  GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Loader.git
-  GIT_TAG ${ASH_VULKAN_SDK_VERSION}
-  OVERRIDE_FIND_PACKAGE)
+    VulkanLoader
+    GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Loader.git
+    GIT_TAG ${ASH_VULKAN_SDK_VERSION}
+    OVERRIDE_FIND_PACKAGE)
 
 FetchContent_Declare(
-  slang
-  GIT_REPOSITORY https://github.com/shader-slang/slang.git
-  GIT_TAG v2025.18)
+    VulkanMemoryAllocator
+    GIT_REPOSITORY https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
+    GIT_TAG v3.3.0
+    OVERRIDE_FIND_PACKAGE)
 
 FetchContent_Declare(
-  VulkanMemoryAllocator
-  GIT_REPOSITORY
-    https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
-  GIT_TAG v3.3.0
-  OVERRIDE_FIND_PACKAGE)
+    SDL3
+    GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
+    GIT_TAG release-3.4.0)
 
 FetchContent_Declare(
-  SDL3
-  GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
-  GIT_TAG release-3.2.26)
+    harfbuzz
+    GIT_REPOSITORY https://github.com/harfbuzz/harfbuzz.git
+    GIT_TAG bb7dbc2)
 
 FetchContent_Declare(
-  harfbuzz
-  GIT_REPOSITORY https://github.com/harfbuzz/harfbuzz.git
-  GIT_TAG 12.2.0)
+    Freetype
+    GIT_REPOSITORY https://github.com/freetype/freetype.git
+    GIT_TAG VER-2-14-1)
 
 FetchContent_Declare(
-  Freetype
-  GIT_REPOSITORY https://github.com/freetype/freetype.git
-  GIT_TAG VER-2-14-1)
+    SheenBidi
+    GIT_REPOSITORY https://github.com/lamarrr/SheenBidi.git
+    # GIT_TAG v2.9.0
+    GIT_TAG sballocator
+    CONFIGURE_COMMAND "" BUILD_COMMAND "")
 
 FetchContent_Declare(
-  SheenBidi
-  GIT_REPOSITORY https://github.com/Tehreer/SheenBidi.git
-  GIT_TAG v2.9.0
-  CONFIGURE_COMMAND "" BUILD_COMMAND ""
-  PATCH_COMMAND git apply --ignore-whitespace
-                ${CMAKE_CURRENT_SOURCE_DIR}/patches/SheenBidi/SBAllocator.patch)
+    WebP
+    GIT_REPOSITORY https://chromium.googlesource.com/webm/libwebp
+    GIT_TAG v1.6.0)
 
 FetchContent_Declare(
-  WebP
-  GIT_REPOSITORY https://chromium.googlesource.com/webm/libwebp
-  GIT_TAG v1.6.0)
+    CURL
+    GIT_REPOSITORY https://github.com/curl/curl.git
+    GIT_TAG curl-8_11_0)
 
 FetchContent_Declare(
-  CURL
-  GIT_REPOSITORY https://github.com/curl/curl.git
-  GIT_TAG curl-8_11_0)
+    xxHash
+    GIT_REPOSITORY https://github.com/Cyan4973/xxHash.git
+    GIT_TAG 136cc1f
+    CONFIGURE_COMMAND "" BUILD_COMMAND "")
 
 FetchContent_Declare(
-  xxHash
-  GIT_REPOSITORY https://github.com/Cyan4973/xxHash.git
-  GIT_TAG 136cc1f
-  CONFIGURE_COMMAND "" BUILD_COMMAND "")
+    fast_float
+    GIT_REPOSITORY https://github.com/fastfloat/fast_float.git
+    GIT_TAG v8.1.0
+    CONFIGURE_COMMAND "" BUILD_COMMAND "")
 
 FetchContent_Declare(
-  fast_float
-  GIT_REPOSITORY https://github.com/fastfloat/fast_float.git
-  GIT_TAG v8.1.0
-  CONFIGURE_COMMAND "" BUILD_COMMAND "")
+    simdjson
+    GIT_REPOSITORY https://github.com/simdjson/simdjson.git
+    GIT_TAG v4.2.1)
 
 FetchContent_Declare(
-  simdjson
-  GIT_REPOSITORY https://github.com/simdjson/simdjson.git
-  GIT_TAG v4.2.1)
+    libpng
+    GIT_REPOSITORY https://git.code.sf.net/p/libpng/code
+    GIT_TAG 44f97f)
 
 FetchContent_Declare(
-  libpng
-  GIT_REPOSITORY https://git.code.sf.net/p/libpng/code
-  GIT_TAG 44f97f)
+    gtest
+    GIT_REPOSITORY https://github.com/google/googletest.git
+    GIT_TAG 0bdccf4)
 
 FetchContent_Declare(
-  gtest
-  GIT_REPOSITORY https://github.com/google/googletest.git
-  GIT_TAG 0bdccf4)
+    lz4
+    GIT_REPOSITORY https://github.com/lz4/lz4.git
+    GIT_TAG 92c3963)
 
 find_package(FFMPEG REQUIRED)
 find_package(JPEG REQUIRED)
 find_package(Threads REQUIRED)
 
 if(ASH_BUILD_DOC)
-  find_package(Doxygen REQUIRED)
+    find_package(Doxygen REQUIRED)
 endif()
 
 FetchContent_MakeAvailable(VulkanHeaders)
@@ -244,127 +245,136 @@ FetchContent_MakeAvailable(fast_float)
 FetchContent_MakeAvailable(simdjson)
 FetchContent_MakeAvailable(libpng)
 FetchContent_MakeAvailable(gtest)
-FetchContent_MakeAvailable(slang)
+FetchContent_MakeAvailable(lz4)
 
+file(GLOB xxHash_SOURCES ${xxhash_SOURCE_DIR}/*.c)
 set(xxHash_INCLUDE_DIR ${xxhash_SOURCE_DIR})
+add_library(xxHash STATIC ${xxHash_SOURCES})
+target_include_directories(xxHash PUBLIC ${xxHash_INCLUDE_DIR})
+
 set(fast_float_INCLUDE_DIR ${fast_float_SOURCE_DIR}/include)
 
 file(GLOB SHEENBIDI_SOURCES ${sheenbidi_SOURCE_DIR}/Source/*.c)
 
 add_library(sheenbidi STATIC ${SHEENBIDI_SOURCES})
 target_include_directories(
-  sheenbidi
-  PUBLIC ${sheenbidi_SOURCE_DIR}/Headers
-  PRIVATE ${sheenbidi_SOURCE_DIR}/Source)
+    sheenbidi
+    PUBLIC ${sheenbidi_SOURCE_DIR}/Headers
+    PRIVATE ${sheenbidi_SOURCE_DIR}/Source)
 add_library(sheenbidi::sheenbidi ALIAS sheenbidi)
+
+file(GLOB LZ4_SOURCES ${lz4_SOURCE_DIR}/lib/*.c)
+set(LZ4_INCLUDE_DIR ${lz4_SOURCE_DIR}/lib)
+add_library(lz4 STATIC ${LZ4_SOURCES})
+target_include_directories(lz4 PUBLIC ${LZ4_INCLUDE_DIR})
 
 list(APPEND ASH_COMPILE_OPTIONS)
 list(APPEND ASH_COMPILE_DEFINITIONS)
 list(APPEND ASH_LINK_OPTIONS)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-  list(APPEND ASH_COMPILE_OPTIONS -Wall -Wextra -Wpedantic
-       --embed-dir=${CMAKE_CURRENT_LIST_DIR})
-
-  if(ASH_WERROR)
-    list(APPEND ASH_COMPILE_OPTIONS -Werror)
-  endif()
-
-else()
-  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    list(
-      APPEND
-      ASH_COMPILE_OPTIONS
-      -Wall
-      -Wextra
-      -Wpedantic
-      -Wno-nullability-completeness
-      -Wno-nullability-extension
-      -Wno-bitwise-instead-of-logical
-      -Wno-c23-extensions
-      --embed-dir=${CMAKE_CURRENT_LIST_DIR})
+    list(APPEND ASH_COMPILE_OPTIONS -Wall -Wextra -Wpedantic
+         --embed-dir=${CMAKE_CURRENT_LIST_DIR})
 
     if(ASH_WERROR)
-      list(APPEND ASH_COMPILE_OPTIONS -Werror)
+        list(APPEND ASH_COMPILE_OPTIONS -Werror)
     endif()
 
-    if(ASH_SANITIZE)
-      list(APPEND ASH_LINK_OPTIONS -fsanitize=address)
+else()
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        list(
+            APPEND
+            ASH_COMPILE_OPTIONS
+            -Wall
+            -Wextra
+            -Wpedantic
+            -Wno-nullability-completeness
+            -Wno-nullability-extension
+            -Wno-bitwise-instead-of-logical
+            -Wno-c23-extensions
+            --embed-dir=${CMAKE_CURRENT_LIST_DIR})
+
+        if(ASH_WERROR)
+            list(APPEND ASH_COMPILE_OPTIONS -Werror)
+        endif()
+
+        if(ASH_SANITIZE)
+            list(APPEND ASH_LINK_OPTIONS -fsanitize=address)
+        endif()
+
+    else()
+        if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
+            list(APPEND ASH_COMPILE_OPTIONS /W3 /Zc:preprocessor /permissive)
+
+            if(ASH_WERROR)
+                list(APPEND ASH_COMPILE_OPTIONS /Wx)
+            endif()
+
+        endif()
     endif()
-
-  else()
-    if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
-      list(APPEND ASH_COMPILE_OPTIONS /W3 /Zc:preprocessor /permissive)
-
-      if(ASH_WERROR)
-        list(APPEND ASH_COMPILE_OPTIONS /Wx)
-      endif()
-
-    endif()
-  endif()
 endif()
 
 if(WIN32)
-  list(APPEND ASH_COMPILE_DEFINITIONS _CRT_SECURE_NO_WARNINGS)
+    list(APPEND ASH_COMPILE_DEFINITIONS _CRT_SECURE_NO_WARNINGS)
 endif()
 
 # ASHURA STD
 
 add_library(
-  ashura_std STATIC
-  ashura/std/allocator.cc
-  ashura/std/allocators.cc
-  ashura/std/async.cc
-  ashura/std/format.cc
-  ashura/std/fs.cc
-  ashura/std/hash.cc
-  ashura/std/log.cc
-  ashura/std/panic.cc
-  ashura/std/thread.cc
-  ashura/std/trace.cc)
-target_include_directories(
-  ashura_std
-  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
-  PRIVATE ${xxHash_INCLUDE_DIR})
-target_link_libraries(ashura_std PUBLIC Threads::Threads)
+    ashura_std STATIC
+    ashura/std/allocator.cc
+    ashura/std/allocators.cc
+    ashura/std/async.cc
+    ashura/std/format.cc
+    ashura/std/fs.cc
+    ashura/std/hash.cc
+    ashura/std/log.cc
+    ashura/std/log_sinks.cc
+    ashura/std/panic.cc
+    ashura/std/thread.cc
+    ashura/std/trace.cc)
+target_include_directories(ashura_std PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(
+    ashura_std
+    PUBLIC Threads::Threads
+    PRIVATE xxHash lz4)
 target_compile_options(ashura_std PUBLIC ${ASH_COMPILE_OPTIONS})
 target_compile_definitions(ashura_std PUBLIC ${ASH_COMPILE_DEFINITIONS})
 target_link_options(ashura_std PUBLIC ${ASH_LINK_OPTIONS})
 
 # ASHURA STD - TESTS
 
-if(NOT ASH_EXCLUDE_TESTS)
-  add_executable(
-    ashura_std_tests
-    ashura/std/tests/allocators.cc
-    ashura/std/tests/async.cc
-    ashura/std/tests/buffer.cc
-    ashura/std/tests/constraint.cc
-    ashura/std/tests/dyn.cc
-    ashura/std/tests/dict.cc
-    ashura/std/tests/enum.cc
-    ashura/std/tests/format.cc
-    ashura/std/tests/lambda.cc
-    ashura/std/tests/list.cc
-    ashura/std/tests/main.cc
-    ashura/std/tests/math.cc
-    ashura/std/tests/option.cc
-    ashura/std/tests/option_span.cc
-    ashura/std/tests/panic.cc
-    ashura/std/tests/piece_table.cc
-    ashura/std/tests/range.cc
-    ashura/std/tests/result.cc
-    ashura/std/tests/sformat.cc
-    ashura/std/tests/sparse_vec.cc
-    ashura/std/tests/str.cc
-    ashura/std/tests/super.cc
-    ashura/std/tests/text.cc
-    ashura/std/tests/types.cc
-    ashura/std/tests/uri.cc
-    ashura/std/tests/vec.cc)
+if(ASH_BUILD_TESTS)
+    add_executable(
+        ashura_std_tests
+        ashura/std/tests/allocators.cc
+        ashura/std/tests/async.cc
+        ashura/std/tests/buffer.cc
+        ashura/std/tests/constraint.cc
+        ashura/std/tests/dyn.cc
+        ashura/std/tests/dict.cc
+        ashura/std/tests/enum.cc
+        ashura/std/tests/format.cc
+        ashura/std/tests/lambda.cc
+        ashura/std/tests/list.cc
+        ashura/std/tests/main.cc
+        ashura/std/tests/math.cc
+        ashura/std/tests/option.cc
+        ashura/std/tests/option_span.cc
+        ashura/std/tests/panic.cc
+        ashura/std/tests/piece_table.cc
+        ashura/std/tests/range.cc
+        ashura/std/tests/result.cc
+        ashura/std/tests/sformat.cc
+        ashura/std/tests/sparse_vec.cc
+        ashura/std/tests/str.cc
+        ashura/std/tests/super.cc
+        ashura/std/tests/text.cc
+        ashura/std/tests/types.cc
+        ashura/std/tests/uri.cc
+        ashura/std/tests/vec.cc)
 
-  target_link_libraries(ashura_std_tests ashura_std GTest::gtest
-                        GTest::gtest_main)
+    target_link_libraries(ashura_std_tests ashura_std GTest::gtest GTest::gtest_main)
 
 endif()
 
@@ -372,134 +382,123 @@ endif()
 
 # add_executable(ashura_std_bench ashura/std/bench/dict.cc)
 
-# target_link_libraries(ashura_std_bench benchmark::benchmark
-# benchmark::benchmark_main ashura_std)
+# target_link_libraries(ashura_std_bench benchmark::benchmark benchmark::benchmark_main
+# ashura_std)
 
 # ASHURA GPU
 
-if(NOT ASH_EXCLUDE_GPU)
-  add_library(ashura_gpu STATIC ashura/gpu/gpu.cc ashura/gpu/vma_def.cc
-                                ashura/gpu/vulkan.cc)
-  target_link_libraries(
-    ashura_gpu
-    PUBLIC ashura_std
-    PUBLIC Vulkan-Headers Vulkan::UtilityHeaders Vulkan::Loader
-           GPUOpen::VulkanMemoryAllocator)
+if(ASH_BUILD_GPU)
+    add_library(ashura_gpu STATIC ashura/gpu/format.cc ashura/gpu/gpu.cc
+                                  ashura/gpu/vma_def.cc ashura/gpu/vulkan.cc)
+    target_link_libraries(
+        ashura_gpu
+        PUBLIC ashura_std
+        PUBLIC Vulkan-Headers Vulkan::UtilityHeaders Vulkan::Loader
+               GPUOpen::VulkanMemoryAllocator)
 
-  target_include_directories(ashura_gpu PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-  target_compile_options(ashura_gpu PUBLIC ${ASH_COMPILE_OPTIONS})
-  target_compile_definitions(ashura_gpu PUBLIC ${ASH_COMPILE_DEFINITIONS})
-  target_link_options(ashura_gpu PUBLIC ${ASH_LINK_OPTIONS})
+    target_include_directories(ashura_gpu PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_compile_options(ashura_gpu PUBLIC ${ASH_COMPILE_OPTIONS})
+    target_compile_definitions(ashura_gpu PUBLIC ${ASH_COMPILE_DEFINITIONS})
+    target_link_options(ashura_gpu PUBLIC ${ASH_LINK_OPTIONS})
 endif()
 
 # ASHURA ENGINE
 
-if(NOT ASH_EXCLUDE_ENGINE)
-  add_library(
-    ashura_engine STATIC
-    # ENGINE CORE
-    ashura/engine/animation_system.cc
-    ashura/engine/animation.cc
-    ashura/engine/audio_system.cc
-    ashura/engine/canvas.cc
-    ashura/engine/encoders.cc
-    ashura/engine/engine.cc
-    ashura/engine/file_system.cc
-    ashura/engine/font_system_impl.cc
-    ashura/engine/font_system.cc
-    ashura/engine/font.cc
-    ashura/engine/gpu_system.cc
-    ashura/engine/image_decoder.cc
-    ashura/engine/input.cc
-    ashura/engine/pipeline_system.cc
-    ashura/engine/pipeline.cc
-    ashura/engine/render_text.cc
-    ashura/engine/scene.cc
-    ashura/engine/shader_system.cc
-    ashura/engine/systems.cc
-    ashura/engine/text.cc
-    ashura/engine/video_system.cc
-    ashura/engine/view_system.cc
-    ashura/engine/view.cc
-    ashura/engine/window_system.cc
-    # PIPELINES
-    ashura/engine/pipelines/bezier_stencil.cc
-    ashura/engine/pipelines/bloom.cc
-    ashura/engine/pipelines/blur.cc
-    ashura/engine/pipelines/fill_stencil.cc
-    ashura/engine/pipelines/pbr.cc
-    ashura/engine/pipelines/quad.cc
-    ashura/engine/pipelines/sdf.cc
-    ashura/engine/pipelines/triangle_fill.cc
-    ashura/engine/pipelines/vector_path.cc
-    # VIEWS
-    ashura/engine/views/button.cc
-    ashura/engine/views/check_box.cc
-    ashura/engine/views/color_picker.cc
-    ashura/engine/views/combo.cc
-    ashura/engine/views/flex.cc
-    ashura/engine/views/focus_view.cc
-    ashura/engine/views/icon.cc
-    ashura/engine/views/image.cc
-    ashura/engine/views/input.cc
-    ashura/engine/views/list.cc
-    ashura/engine/views/modal.cc
-    ashura/engine/views/plot.cc
-    ashura/engine/views/radio.cc
-    ashura/engine/views/scalar_box.cc
-    ashura/engine/views/scroll_view.cc
-    ashura/engine/views/slider.cc
-    ashura/engine/views/space.cc
-    ashura/engine/views/stack.cc
-    ashura/engine/views/switch.cc
-    ashura/engine/views/table.cc
-    ashura/engine/views/text.cc)
+if(ASH_BUILD_ENGINE)
+    add_library(
+        ashura_engine STATIC
+        # ENGINE CORE
+        ashura/engine/animation_system.cc
+        ashura/engine/animation.cc
+        ashura/engine/audio_system.cc
+        ashura/engine/canvas.cc
+        ashura/engine/encoders.cc
+        ashura/engine/engine.cc
+        ashura/engine/file_system.cc
+        ashura/engine/font_system_impl.cc
+        ashura/engine/font_system.cc
+        ashura/engine/font.cc
+        ashura/engine/gpu_system.cc
+        ashura/engine/image_decoder.cc
+        ashura/engine/image_system.cc
+        ashura/engine/input.cc
+        ashura/engine/pipeline_system.cc
+        ashura/engine/pipeline.cc
+        ashura/engine/render_text.cc
+        ashura/engine/shader_system.cc
+        ashura/engine/systems.cc
+        ashura/engine/text.cc
+        ashura/engine/video_system.cc
+        ashura/engine/view_system.cc
+        ashura/engine/view.cc
+        ashura/engine/window_system.cc
+        # PIPELINES
+        ashura/engine/pipelines/bezier_stencil.cc
+        ashura/engine/pipelines/bloom.cc
+        ashura/engine/pipelines/blur.cc
+        ashura/engine/pipelines/fill_stencil.cc
+        ashura/engine/pipelines/pbr.cc
+        ashura/engine/pipelines/quad.cc
+        ashura/engine/pipelines/sdf.cc
+        ashura/engine/pipelines/triangle_fill.cc
+        ashura/engine/pipelines/vector_path.cc
+        # VIEWS
+        ashura/engine/views/model/text.cc
+        # ashura/engine/views/button.cc
+        # ashura/engine/views/check_box.cc
+        # ashura/engine/views/color_picker.cc
+        # ashura/engine/views/combo.cc
+        # ashura/engine/views/flex.cc
+        # ashura/engine/views/focus_view.cc
+        # ashura/engine/views/icon.cc
+        # ashura/engine/views/image.cc
+        # ashura/engine/views/input.cc
+        # ashura/engine/views/list.cc
+        # ashura/engine/views/modal.cc
+        # ashura/engine/views/plot.cc
+        # ashura/engine/views/radio.cc
+        # ashura/engine/views/scalar_box.cc
+        # ashura/engine/views/scroll_view.cc
+        # ashura/engine/views/slider.cc
+        # ashura/engine/views/space.cc
+        # ashura/engine/views/stack.cc
+        # ashura/engine/views/switch.cc
+        # ashura/engine/views/table.cc
+        ashura/engine/views/text.cc)
 
-  target_link_libraries(
-    ashura_engine
-    PUBLIC ashura_std ashura_gpu
-    PRIVATE slang
-            SDL3::SDL3-static
-            harfbuzz
-            CURL::libcurl
-            freetype
-            simdjson::simdjson_static
-            webp
-            webpdecoder
-            JPEG::JPEG
-            png_static
-            sheenbidi::sheenbidi
-            ${FFMPEG_LIBRARIES})
+    target_link_libraries(
+        ashura_engine
+        PUBLIC ashura_std ashura_gpu
+        PRIVATE SDL3::SDL3-static
+                harfbuzz
+                CURL::libcurl
+                freetype
+                simdjson::simdjson_static
+                webp
+                webpdecoder
+                JPEG::JPEG
+                png_static
+                sheenbidi::sheenbidi
+                ${FFMPEG_LIBRARIES})
 
-  target_include_directories(
-    ashura_engine
-    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
-    PRIVATE ${FFMPEG_INCLUDE_DIRS} ${FFMPEG_LIBRARY_DIRS}
-            ${fast_float_INCLUDE_DIR})
-  target_compile_options(ashura_engine PUBLIC ${ASH_COMPILE_OPTIONS})
-  target_compile_definitions(ashura_engine PUBLIC ${ASH_COMPILE_DEFINITIONS})
-  target_link_options(ashura_engine PUBLIC ${ASH_LINK_OPTIONS})
+    target_include_directories(
+        ashura_engine
+        PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
+        PRIVATE ${FFMPEG_INCLUDE_DIRS} ${FFMPEG_LIBRARY_DIRS} ${fast_float_INCLUDE_DIR})
+    target_compile_options(ashura_engine PUBLIC ${ASH_COMPILE_OPTIONS})
+    target_compile_definitions(ashura_engine PUBLIC ${ASH_COMPILE_DEFINITIONS})
+    target_link_options(ashura_engine PUBLIC ${ASH_LINK_OPTIONS})
 
-  # ASHURA ENGINE - TESTS
+    # ASHURA ENGINE - TESTS
 
-  if(NOT ASH_EXCLUDE_TESTS)
-    add_executable(
-      ashura_engine_tests
-      ashura/engine/tests/main.cc ashura/engine/tests/animation.cc
-      ashura/engine/tests/render_text.cc ashura/engine/tests/views.cc)
-    target_link_libraries(ashura_engine_tests ashura_std ashura_engine
-                          GTest::gtest)
-  endif()
+    if(ASH_BUILD_TESTS)
+        add_executable(
+            ashura_engine_tests
+            ashura/engine/tests/main.cc ashura/engine/tests/animation.cc
+            ashura/engine/tests/views.cc)
+        target_link_libraries(ashura_engine_tests ashura_std ashura_engine GTest::gtest)
+    endif()
 
-endif()
-
-# ASHURA EDITOR
-
-if(NOT ASH_EXCLUDE_EDITOR)
-  add_executable(ashura_editor ashura/editor/editor.cc)
-  target_link_libraries(ashura_editor ashura_std ashura_engine)
-  target_compile_definitions(ashura_editor PUBLIC ${ASH_COMPILE_DEFINITIONS})
-  target_link_options(ashura_editor PUBLIC ${ASH_LINK_OPTIONS})
 endif()
 
 # Ashura Engine's Core Shaders
@@ -508,18 +507,18 @@ set(SLANGC_PATH
     ""
     CACHE PATH "Path to the Slang installation (must contain 'bin/slangc')")
 if(SLANGC_PATH)
-  set(SLANGC_EXECUTABLE "${SLANGC_PATH}/bin/slangc")
+    set(SLANGC_EXECUTABLE "${SLANGC_PATH}/bin/slangc")
 else()
-  find_program(SLANGC_EXECUTABLE slangc)
+    find_program(SLANGC_EXECUTABLE slangc)
 endif()
 
 if(NOT SLANGC_EXECUTABLE OR NOT EXISTS "${SLANGC_EXECUTABLE}")
-  message(
-    FATAL_ERROR
-      "slangc not found. Please install Slang or set SLANGC_PATH to the correct location. Currently set to ${SLANGC_EXECUTABLE}"
-  )
+    message(
+        FATAL_ERROR
+            "slangc not found. Please install Slang or set SLANGC_PATH to the correct location. Currently set to ${SLANGC_EXECUTABLE}"
+    )
 else()
-  message(STATUS "Using slangc: ${SLANGC_EXECUTABLE}")
+    message(STATUS "Using slangc: ${SLANGC_EXECUTABLE}")
 endif()
 
 set(SLANG_SRC_DIR "${CMAKE_SOURCE_DIR}/ashura/engine/shaders")
@@ -528,7 +527,9 @@ set(SLANG_OUT_DIR "${CMAKE_SOURCE_DIR}/assets/shaders")
 
 set(SLANG_FEATURE_LIST
     SPV_EXT_descriptor_indexing
+    SPV_EXT_physical_storage_buffer
     SPV_KHR_non_semantic_info
+    spvRayTracingKHR
     spvImageQuery
     spvImageGatherExtended
     spvShaderNonUniformEXT
@@ -542,69 +543,79 @@ string(JOIN "+" SLANG_FEATURES ${SLANG_FEATURE_LIST})
 
 set(SLANG_FLAGS
     -profile
-    "spirv_1_3+${SLANG_FEATURES}"
+    "spirv_1_4+${SLANG_FEATURES}"
     -emit-spirv-directly
-    -preserve-params
     -matrix-layout-row-major
     -fvk-use-gl-layout
     -fvk-use-entrypoint-name
     -O3)
 
 add_custom_target(
-  ashura_shaders
-  COMMENT "Building Ashura Engine core shaders"
-  VERBATIM)
+    ashura_shaders
+    COMMENT "Building Ashura Engine core shaders"
+    VERBATIM)
 
-function(add_shader_target target_name shader_file)
-  set(input "${SLANG_SRC_DIR}/${shader_file}")
-  set(output_spv "${SLANG_OUT_DIR}/${target_name}.spv")
-  set(output_asm "${SLANG_OUT_DIR}/${target_name}.spv-asm")
-  set(compile_options ${ARGN})
+function(add_shader target_name shader_file)
+    set(input "${SLANG_SRC_DIR}/${shader_file}")
+    set(output_spv "${SLANG_OUT_DIR}/${target_name}.spv")
+    set(output_asm "${SLANG_OUT_DIR}/${target_name}.spv-asm")
+    set(compile_options ${ARGN})
 
-  add_custom_command(
-    OUTPUT ${output_spv}
-    COMMAND ${SLANGC_EXECUTABLE} -target spirv ${SLANG_FLAGS} ${input} -o
-            ${output_spv} -I ${SLANG_INCLUDE_DIR} ${compile_options}
-    DEPENDS ${input}
-    COMMENT "Compiling ${target_name} -> ${shader_file}.spv")
+    add_custom_command(
+        OUTPUT ${output_spv}
+        COMMAND ${SLANGC_EXECUTABLE} -target spirv ${SLANG_FLAGS} ${input} -o
+                ${output_spv} -I ${SLANG_INCLUDE_DIR} ${compile_options}
+        DEPENDS ${input}
+        COMMENT "Compiling ${target_name} -> ${shader_file}.spv")
 
-  add_custom_command(
-    OUTPUT ${output_asm}
-    COMMAND ${SLANGC_EXECUTABLE} -target spirv-asm ${SLANG_FLAGS} ${input} -o
-            ${output_asm} -I ${SLANG_INCLUDE_DIR} ${compile_options}
-    DEPENDS ${input}
-    COMMENT "Compiling ${target_name} -> ${shader_file}.spv-asm")
+    add_custom_command(
+        OUTPUT ${output_asm}
+        COMMAND ${SLANGC_EXECUTABLE} -target spirv-asm ${SLANG_FLAGS} ${input} -o
+                ${output_asm} -I ${SLANG_INCLUDE_DIR} ${compile_options}
+        DEPENDS ${input}
+        COMMENT "Compiling ${target_name} -> ${shader_file}.spv-asm")
 
-  add_custom_target(${target_name}_shaders ALL DEPENDS ${output_spv}
-                                                       ${output_asm})
+    add_custom_target(${target_name}_shaders ALL DEPENDS ${output_spv} ${output_asm})
 
-  add_dependencies(ashura_shaders ${target_name}_shaders)
+    add_dependencies(ashura_shaders ${target_name}_shaders)
 endfunction()
 
-add_shader_target(bezier_stencil bezier_stencil.slang)
-add_shader_target(blur_downsample blur.slang "-DDOWNSAMPLE=1")
-add_shader_target(blur_upsample blur.slang "-DDOWNSAMPLE=0")
-add_shader_target(composite_sdf composite_sdf.slang)
-add_shader_target(fill_stencil fill_stencil.slang)
-add_shader_target(pbr_base pbr.slang)
-add_shader_target(quad_base quad.slang)
-add_shader_target(sdf_gradient sdf.slang "-DITEM_TYPE=SdfGradientItem")
-add_shader_target(sdf_noise sdf.slang "-DITEM_TYPE=SdfNoiseItem")
-add_shader_target(sdf_mesh_gradient sdf.slang "-DITEM_TYPE=SdfMeshGradientItem")
-add_shader_target(triangle_fill triangle_fill.slang)
-add_shader_target(vector_path_coverage vector_path_coverage.slang)
-add_shader_target(vector_path_fill vector_path_fill.slang)
+if(ASH_BUILD_ENGINE)
+    add_shader(bezier_stencil bezier_stencil.slang)
+    add_shader(blur_downsample blur.slang "-DDOWNSAMPLE=1")
+    add_shader(blur_upsample blur.slang "-DDOWNSAMPLE=0")
+    add_shader(composite_sdf composite_sdf.slang)
+    add_shader(fill_stencil fill_stencil.slang)
+    add_shader(pbr_base pbr.slang)
+    add_shader(quad_base quad.slang)
+    add_shader(sdf_gradient sdf.slang "-DITEM_TYPE=SdfGradientItem")
+    add_shader(sdf_noise sdf.slang "-DITEM_TYPE=SdfNoiseItem")
+    add_shader(sdf_mesh_gradient sdf.slang "-DITEM_TYPE=SdfMeshGradientItem")
+    add_shader(triangle_fill triangle_fill.slang)
+    add_shader(vector_path_coverage vector_path_coverage.slang)
+    add_shader(vector_path_fill vector_path_fill.slang)
+endif()
 
 if(ASH_BUILD_DOC)
-  set(DOXYGEN_IN ${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in)
-  set(DOXYGEN_OUT ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile)
+    set(DOXYGEN_IN ${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in)
+    set(DOXYGEN_OUT ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile)
 
-  configure_file(${DOXYGEN_IN} ${DOXYGEN_OUT} @ONLY)
+    configure_file(${DOXYGEN_IN} ${DOXYGEN_OUT} @ONLY)
 
-  add_custom_target(
-    ashura_docs ALL
-    COMMAND ${DOXYGEN_EXECUTABLE} ${DOXYGEN_OUT}
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    COMMENT "Generating API documentation with Doxygen"
-    VERBATIM)
+    add_custom_target(
+        ashura_docs ALL
+        COMMAND ${DOXYGEN_EXECUTABLE} ${DOXYGEN_OUT}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+        COMMENT "Generating API documentation with Doxygen"
+        VERBATIM)
+endif()
+
+# ASHURA ENGINE SAMPLES
+
+if(ASH_BUILD_SAMPLES)
+    add_executable(ashura_text_sample ashura/engine/samples/views/text.cc)
+    target_link_libraries(ashura_text_sample ashura_std ashura_engine)
+    target_compile_definitions(ashura_text_sample PUBLIC ${ASH_COMPILE_DEFINITIONS})
+    target_compile_options(ashura_text_sample PUBLIC ${ASH_COMPILE_OPTIONS})
+    target_link_options(ashura_text_sample PUBLIC ${ASH_LINK_OPTIONS})
 endif()

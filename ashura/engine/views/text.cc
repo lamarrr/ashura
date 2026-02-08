@@ -1,322 +1,224 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/engine/views/text.h"
-#include "ashura/engine/engine.h"
+#include "ashura/std/text.h"
 
 namespace ash
 {
-
 namespace ui
 {
 
-struct TextCfg
+Text::Text(Allocator allocator) :
+  Text{allocator, static_rc(U""_str), TextStyle{}, FontStyle{}}
 {
-  bool multiline_input : 1 = false;
-  bool enter_submits   : 1 = false;
-  bool tab_input       : 1 = false;
-  bool copyable        : 1 = false;
-  bool editable        : 1 = false;
-  bool highlightable   : 1 = false;
-};
-
-TextCommand text_command(Ctx const & ctx, Events const & events,
-                         TextCfg const & cfg)
-{
-  if (events.focus_out())
-  {
-    return TextCommand::Escape;
-  }
-
-  if (cfg.editable && events.text_input())
-  {
-    return TextCommand::InputText;
-  }
-
-  auto const shift = ctx.key.held(KeyModifiers::LeftShift) ||
-                     ctx.key.held(KeyModifiers::RightShift);
-  auto const ctrl = ctx.key.held(KeyModifiers::LeftCtrl) ||
-                    ctx.key.held(KeyModifiers::RightCtrl);
-
-  if (events.key_down())
-  {
-    if (cfg.highlightable)
-    {
-      if (shift && ctx.key.down(KeyCode::Left))
-      {
-        return TextCommand::SelectLeft;
-      }
-
-      if (shift && ctx.key.down(KeyCode::Right))
-      {
-        return TextCommand::SelectRight;
-      }
-
-      if (shift && ctx.key.down(KeyCode::Up))
-      {
-        return TextCommand::SelectUp;
-      }
-
-      if (shift && ctx.key.down(KeyCode::Down))
-      {
-        return TextCommand::SelectDown;
-      }
-
-      if (shift && ctx.key.down(KeyCode::Home))
-      {
-        return TextCommand::SelectToLineStart;
-      }
-
-      if (shift && ctx.key.down(KeyCode::End))
-      {
-        return TextCommand::SelectToLineEnd;
-      }
-
-      if (shift && ctx.key.down(KeyCode::PageUp))
-      {
-        return TextCommand::SelectPageUp;
-      }
-
-      if (shift && ctx.key.down(KeyCode::PageDown))
-      {
-        return TextCommand::SelectPageDown;
-      }
-
-      if (ctrl && ctx.key.down(KeyCode::A))
-      {
-        return TextCommand::SelectAll;
-      }
-
-      if (ctx.key.down(KeyCode::Escape))
-      {
-        return TextCommand::Unselect;
-      }
-    }
-
-    if (cfg.editable)
-    {
-      if (ctrl && ctx.key.down(KeyCode::X))
-      {
-        return TextCommand::Cut;
-      }
-
-      if (cfg.copyable && ctrl && ctx.key.down(KeyCode::C))
-      {
-        return TextCommand::Copy;
-      }
-
-      if (ctrl && ctx.key.down(KeyCode::V))
-      {
-        return TextCommand::Paste;
-      }
-
-      if (ctrl && ctx.key.down(KeyCode::Z))
-      {
-        return TextCommand::Undo;
-      }
-
-      if (ctrl && ctx.key.down(KeyCode::Y))
-      {
-        return TextCommand::Redo;
-      }
-
-      if (cfg.multiline_input && !cfg.enter_submits &&
-          ctx.key.down(KeyCode::Return))
-      {
-        return TextCommand::NewLine;
-      }
-
-      if (cfg.tab_input && ctx.key.down(KeyCode::Tab))
-      {
-        return TextCommand::Tab;
-      }
-
-      if (ctx.key.down(KeyCode::Backspace))
-      {
-        return TextCommand::BackSpace;
-      }
-
-      if (ctx.key.down(KeyCode::Delete))
-      {
-        return TextCommand::Delete;
-      }
-
-      if (ctx.key.down(KeyCode::Left))
-      {
-        return TextCommand::Left;
-      }
-
-      if (ctx.key.down(KeyCode::Right))
-      {
-        return TextCommand::Right;
-      }
-
-      if (ctx.key.down(KeyCode::Home))
-      {
-        return TextCommand::LineStart;
-      }
-
-      if (ctx.key.down(KeyCode::End))
-      {
-        return TextCommand::LineEnd;
-      }
-
-      if (ctx.key.down(KeyCode::Up))
-      {
-        return TextCommand::Up;
-      }
-
-      if (ctx.key.down(KeyCode::Down))
-      {
-        return TextCommand::Down;
-      }
-
-      if (ctx.key.down(KeyCode::PageUp))
-      {
-        return TextCommand::PageUp;
-      }
-
-      if (ctx.key.down(KeyCode::PageDown))
-      {
-        return TextCommand::PageDown;
-      }
-    }
-
-    if (cfg.enter_submits && ctx.key.down(KeyCode::Return))
-    {
-      return TextCommand::Submit;
-    }
-  }
-
-  if (cfg.highlightable)
-  {
-    if (events.drag_update())
-    {
-      if (ctx.mouse.clicks(MouseButton::Primary) == 2)
-      {
-        return TextCommand::SelectWord;
-      }
-
-      if (ctx.mouse.clicks(MouseButton::Primary) == 3)
-      {
-        return TextCommand::SelectLine;
-      }
-
-      if (ctx.mouse.clicks(MouseButton::Primary) == 4)
-      {
-        return TextCommand::SelectAll;
-      }
-    }
-
-    if (events.drag_start())
-    {
-      return TextCommand::Hit;
-    }
-
-    if (events.drag_update())
-    {
-      return TextCommand::HitSelect;
-    }
-
-    // [ ] unselect logic; also needs to unfocus when focus out
-  }
-
-  return TextCommand::None;
 }
 
-Text::Text(Str32 t, TextStyle const & style, FontStyle const & font,
-           Allocator allocator) :
-  text_{allocator},
-  compositor_{TextCompositor::create(allocator)}
+Text::Text(Allocator allocator, Rc<Str32> t, TextStyle const & style,
+           FontStyle const & font) :
+  allocator_{allocator},
+  state_{allocator},
+  cfg_{},
+  frame_{Frame{}.rel(1, 1)}
 {
-  text(t).run(style, font);
+    state_.text_.str(std::move(t));
+    state_.text_.runs_style(TextRunsStyle::all(style, font));
 }
 
-Text::Text(Str8 t, TextStyle const & style, FontStyle const & font,
-           Allocator allocator) :
-  text_{allocator},
-  compositor_{TextCompositor::create(allocator)}
+Text::Text(Allocator allocator, Str32 t, TextStyle const & style,
+           FontStyle const & font) :
+  allocator_{allocator},
+  state_{allocator},
+  cfg_{},
+  frame_{Frame{}.rel(1, 1)}
 {
-  text(t).run(style, font);
+    // TODO: empty states? cursor behaviours? around 0 carets
+    state_.text_.str(t);
+    state_.text_.runs_style(TextRunsStyle::all(style, font));
 }
 
-Text & Text::copyable(bool allow)
+Text::Text(Allocator allocator, Str8 t, TextStyle const & style,
+           FontStyle const & font) :
+  allocator_{allocator},
+  state_{allocator},
+  cfg_{},
+  frame_{Frame{}.rel(1, 1)}
 {
-  state_.copyable = allow;
-  return *this;
+    state_.text_.str(t);
+    state_.text_.runs_style(TextRunsStyle::all(style, font));
 }
 
-Text & Text::highlight_style(TextHighlightStyle highlight)
+Text & Text::copyable(bool v)
 {
-  style_.highlight = highlight;
-  return *this;
+    cfg_.copyable = v;
+    return *this;
 }
 
-Text & Text::run(TextStyle const & style, FontStyle const & font, usize first,
-                 usize count)
+Text & Text::highlightable(bool v)
 {
-  text_.run(style, font, first, count);
-  return *this;
+    cfg_.highlightable = v;
+    return *this;
 }
 
-Text & Text::text(Str32 t)
+Text & Text::enable_cursor(bool v)
 {
-  text_.text(t);
-  return *this;
+    cfg_.enable_cursor = v;
+    return *this;
 }
 
-Text & Text::text(Str8 t)
+Text & Text::editable(bool v)
 {
-  text_.text(t);
-  return *this;
+    cfg_.editable = v;
+    return *this;
 }
 
-Str32 Text::text() const
+Text & Text::enable_undo_redo(bool v)
 {
-  return text_.get_text();
+    cfg_.enable_undo_redo = v;
+    return *this;
 }
 
-ui::State Text::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
+Text & Text::enable_multiline_input(bool v)
 {
-  TextCommand cmd = text_command(ctx, events,
-                                 TextCfg{.multiline_input = false,
-                                         .enter_submits   = false,
-                                         .tab_input       = false,
-                                         .copyable        = state_.copyable,
-                                         .editable        = false,
-                                         .highlightable   = state_.copyable});
-
-  auto hit_info = events.hit_info.map([](auto s) { return s; }).unwrap_or();
-
-  compositor_.command(
-    text_, cmd, {}, engine->clipboard, 1, 1, hit_info.viewport_region.center,
-    hit_info.viewport_region.extent.x, hit_info.canvas_hit,
-    transform2d_to_3d(hit_info.canvas_transform), default_allocator);
-
-  // [ ] copyable for input
-  text_.clear_highlights()
-    .add_highlight(compositor_.cursor().selection())
-    .highlight_style(style_.highlight);
-
-  return ui::State{.draggable = state_.copyable};
+    cfg_.enable_multiline_input = v;
+    return *this;
 }
 
-Layout Text::fit(f32x2 allocated, Span<f32x2 const>, Span<f32x2>)
+Text & Text::accept_tab_input(bool v)
 {
-  text_.layout(allocated.x);
-  return {.extent = text_.layout_.extent};
+    cfg_.accept_tab_input = v;
+    return *this;
 }
 
-void Text::render(Canvas & canvas, RenderInfo const & info)
+Text & Text::enter_submits(bool v)
 {
-  text_.render(canvas.text_renderer(), info.viewport_region.center,
-               info.viewport_region.extent.x,
-               transform2d_to_3d(info.canvas_transform), info.clip);
+    cfg_.enter_submits = v;
+    return *this;
 }
 
-Cursor Text::cursor(f32x2, f32x2)
+Text & Text::lines_per_page(u16 v)
 {
-  return state_.copyable ? Cursor::Text : Cursor::Default;
+    cfg_.lines_per_page = v;
+    return *this;
+}
+
+Text & Text::input_to_actions_map(Rc<txt::InputToActionsMap> map)
+{
+    cfg_.input_to_actions_map = std::move(map);
+    return *this;
+}
+
+Text & Text::renderer(Rc<txt::Renderer> renderer)
+{
+    cfg_.renderer = std::move(renderer);
+    return *this;
+}
+
+Text & Text::highlights(Span<Slice const>              highlights,
+                        Span<TextHighlightStyle const> highlight_styles)
+{
+    state_.highlights_       = vec::copy(state_.allocator_, highlights).unwrap();
+    state_.highlight_styles_ = vec::copy(state_.allocator_, highlight_styles).unwrap();
+    return *this;
+}
+
+Text & Text::clear_highlights()
+{
+    state_.highlights_.clear();
+    state_.highlight_styles_.clear();
+    return *this;
+}
+
+Text & Text::style_runs(TextRunsStyle style)
+{
+    state_.text_.runs_style(std::move(style));
+    return *this;
+}
+
+Text & Text::wrap(bool v)
+{
+    state_.text_.get_render_text().wrap(v);
+    return *this;
+}
+
+Text & Text::use_kerning(bool v)
+{
+    state_.text_.get_render_text().use_kerning(v);
+    return *this;
+}
+
+Text & Text::use_ligatures(bool v)
+{
+    state_.text_.get_render_text().use_ligatures(v);
+    return *this;
+}
+
+Text & Text::font_scale(f32 v)
+{
+    state_.text_.get_render_text().font_scale(v);
+    return *this;
+}
+
+Text & Text::direction(TextDirection v)
+{
+    state_.text_.get_render_text().direction(v);
+    return *this;
+}
+
+Text & Text::language(Str v)
+{
+    state_.text_.get_render_text().language(v);
+    return *this;
+}
+
+Text & Text::alignment(f32 v)
+{
+    state_.text_.get_render_text().alignment(v);
+    return *this;
+}
+
+Str32 Text::str() const
+{
+    return state_.text_.str();
+}
+
+Text & Text::str(Str32 v)
+{
+    state_.text_.str(v);
+    return *this;
+}
+
+Text & Text::str(Str8 v)
+{
+    state_.text_.str(v);
+    return *this;
+}
+
+Text & Text::str(Rc<Str32> v)
+{
+    state_.text_.str(std::move(v));
+    return *this;
+}
+
+ViewState Text::tick(Scope const & scope, Events const & events, Fn<void(View &)>)
+{
+    state_.tick(scope, cfg_, events);
+
+    return ViewState{.draggable = cfg_.copyable || cfg_.highlightable};
+}
+
+Layout Text::fit(Scope const & scope, f32x2 allocated, Span<f32x2 const>, Span<f32x2>)
+{
+    return state_.fit(scope, frame_(allocated), {}, {});
+}
+
+void Text::render(Scope const & scope, Canvas canvas, RenderInfo const & info)
+{
+    state_.render(scope, cfg_, canvas, info);
+}
+
+Cursor Text::cursor(Scope const &, f32x2, f32x2)
+{
+    return cfg_.copyable ? Cursor::Text : Cursor::Default;
 }
 
 }    // namespace ui
-
 }    // namespace ash
