@@ -826,6 +826,7 @@ void IEngine::run()
             if (w.state_.extent_.all_nonzero() &&
                 w.state_.surface_extent_.all_nonzero())
             {
+                // [ ] swapchain would have been destroyed at start of frame if resize happens
                 plan->add_pass([swapchain = &w.swapchain_.v()](
                                  GpuFrame frame, gpu::CommandEncoder enc) {
                     auto * dev   = frame->dev();

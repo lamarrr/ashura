@@ -16,132 +16,132 @@ List::List(Generator generator, Allocator allocator) :
 
 List & List::generator(Generator generator)
 {
-  state_.total_translation = 0;
-  state_.view_extent       = 0;
-  state_.first_item        = 0;
-  state_.max_count         = USIZE_MAX;
-  state_.num_loaded        = 0;
-  state_.item_size         = none;
-  state_.generator         = generator;
-  state_.items.clear();
-  return *this;
+    state_.total_translation = 0;
+    state_.view_extent       = 0;
+    state_.first_item        = 0;
+    state_.max_count         = USIZE_MAX;
+    state_.num_loaded        = 0;
+    state_.item_size         = none;
+    state_.generator         = generator;
+    state_.items.clear();
+    return *this;
 }
 
 List & List::axis(Axis axis)
 {
-  style_.axis = axis;
-  return *this;
+    style_.axis = axis;
+    return *this;
 }
 
 List & List::frame(Frame frame)
 {
-  style_.frame = frame;
-  return *this;
+    style_.frame = frame;
+    return *this;
 }
 
 List & List::item_frame(Frame frame)
 {
-  style_.item_frame = frame;
-  return *this;
+    style_.item_frame = frame;
+    return *this;
 }
 
-ui::State List::tick(Ctx const &, Events const & events, Fn<void(View &)> build)
+ui::State List::tick(Scope const &, Events const & events, Fn<void(View &)> build)
 {
-  u32 const axis = style_.axis == Axis::X ? 0 : 1;
+    u32 const axis = style_.axis == Axis::X ? 0 : 1;
 
-  if (events.scroll())
-  {
-    auto info                = events.scroll_info.unwrap();
-    state_.total_translation = info.center[axis];
-  }
-
-  Slice visible = state_.visible().unwrap_or(Slice{0, 1})(state_.max_count);
-
-  if (visible != state_.range())
-  {
-    auto old_range = state_.range();
-    auto i         = visible.begin();
-
-    for (; i < visible.end(); i++)
+    if (events.scroll())
     {
-      if (old_range.contains(i))
-      {
-        state_.items.push(std::move(state_.items[i])).unwrap();
-      }
-      else
-      {
-        if (auto item = state_.generator(allocator_, i); item.is_some())
-        {
-          state_.items.push(item.unwrap()).unwrap();
-        }
-        else
-        {
-          state_.max_count = i;
-          break;
-        }
-      }
+        auto info                = events.scroll_info.unwrap();
+        state_.total_translation = info.center[axis];
     }
 
-    state_.items.erase(0, old_range.span);
-    state_.first_item = visible.begin();
-    state_.num_loaded = max(state_.range().end(), state_.num_loaded);
-  }
+    Slice visible = state_.visible().unwrap_or(Slice{0, 1})(state_.max_count);
 
-  // [ ] ScrollBar: NEED TO GET SIZE INFO
+    if (visible != state_.range())
+    {
+        auto old_range = state_.range();
+        auto i         = visible.begin();
 
-  for (auto const & item : state_.items)
-  {
-    build(*item);
-  }
+        for (; i < visible.end(); i++)
+        {
+            if (old_range.contains(i))
+            {
+                state_.items.push(std::move(state_.items[i])).unwrap();
+            }
+            else
+            {
+                if (auto item = state_.generator(allocator_, i); item.is_some())
+                {
+                    state_.items.push(item.unwrap()).unwrap();
+                }
+                else
+                {
+                    state_.max_count = i;
+                    break;
+                }
+            }
+        }
 
-  return ui::State{.scrollable = true, .viewport = true};
+        state_.items.erase(0, old_range.span);
+        state_.first_item = visible.begin();
+        state_.num_loaded = max(state_.range().end(), state_.num_loaded);
+    }
+
+    // TODO: ScrollBar: NEED TO GET SIZE INFO
+
+    for (auto const & item : state_.items)
+    {
+        build(*item);
+    }
+
+    return ui::State{.scrollable = true, .viewport = true};
 }
 
 void List::size(f32x2 allocated, Span<f32x2> sizes)
 {
-  fill(sizes, style_.item_frame(style_.frame(allocated)));
+    fill(sizes, style_.item_frame(style_.frame(allocated)));
 }
 
 Layout List::fit(f32x2 allocated, Span<f32x2 const> sizes, Span<f32x2> centers)
 {
-  auto      frame      = style_.frame(allocated);
-  f32x2     extent     = {};
-  u32 const axis       = style_.axis == Axis::X ? 0 : 1;
-  u32 const cross_axis = style_.axis == Axis::X ? 1 : 0;
+    auto      frame      = style_.frame(allocated);
+    f32x2     extent     = {};
+    u32 const axis       = style_.axis == Axis::X ? 0 : 1;
+    u32 const cross_axis = style_.axis == Axis::X ? 1 : 0;
 
-  // Calculate total extent along main axis
-  for (auto const size : sizes)
-  {
-    extent[cross_axis] = max(extent[cross_axis], size[cross_axis]);
-    extent[axis] += size[axis];
-  }
+    // Calculate total extent along main axis
+    for (auto const size : sizes)
+    {
+        extent[cross_axis] = max(extent[cross_axis], size[cross_axis]);
+        extent[axis] += size[axis];
+    }
 
-  // Position items along main axis with translation
-  auto first_item_offset = state_.first_item * state_.item_size.unwrap_or();
+    // Position items along main axis with translation
+    auto first_item_offset = state_.first_item * state_.item_size.unwrap_or();
 
-  f32 cursor = -0.5F * extent[axis];
-  cursor += state_.total_translation;
-  cursor -= first_item_offset;
+    f32 cursor = -0.5F * extent[axis];
+    cursor += state_.total_translation;
+    cursor -= first_item_offset;
 
-  for (auto [center, size] : zip(centers, sizes))
-  {
-    center[axis]       = cursor + size[axis] * 0.5F;
-    center[cross_axis] = 0;
-    cursor += size[axis];
-  }
+    for (auto [center, size] : zip(centers, sizes))
+    {
+        center[axis]       = cursor + size[axis] * 0.5F;
+        center[cross_axis] = 0;
+        cursor += size[axis];
+    }
 
-  if (!sizes.is_empty())
-  {
-    state_.item_size = sizes[0][axis];
-  }
+    if (!sizes.is_empty())
+    {
+        state_.item_size = sizes[0][axis];
+    }
 
-  state_.view_extent = frame[axis];
+    state_.view_extent = frame[axis];
 
-  return {
-    .extent          = frame,
-    .viewport_extent = extent,
-    .viewport_center = {-state_.total_translation, 0}
-  };
+    return {
+      .extent          = frame,
+      .viewport_extent = extent,
+      .viewport_center = {-state_.total_translation, 0}
+    };
 }
 }    // namespace ui
 

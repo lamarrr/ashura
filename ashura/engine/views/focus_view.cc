@@ -10,35 +10,34 @@ namespace ash
 namespace ui
 {
 
-ui::State FocusView::tick(Ctx const & ctx, Events const &, Fn<void(View &)>)
+ui::State FocusView::tick(Scope const & scope, Events const &, Fn<void(View &)>)
 {
-  canvas_region_ =
-    ctx.focused.map([](FocusRect r) { return r.area; }).unwrap_or();
-  return ui::State{};
+    canvas_region_ = ctx.focused.map([](FocusRect r) { return r.area; }).unwrap_or();
+    return ui::State{};
 }
 
 Layout FocusView::fit(f32x2, Span<f32x2 const>, Span<f32x2>)
 {
-  return Layout{
-    .extent{0.01F, 0.01F},
-    .fixed_center = {}
-  };
+    return Layout{
+      .extent{0.01F, 0.01F},
+      .fixed_center = {}
+    };
 }
 
 void FocusView::render(Canvas & canvas, RenderInfo const & info)
 {
-  // [ ] fix-up
-  canvas.rrect(ShapeInfo{
-    .area      = canvas_region_,
-    .stroke    = 1,
-    .thickness = f32x2::splat(0.5F),
-    .tint      = ColorGradient{colors::CYAN},
-  });
+    // TODO: fix-up
+    canvas.rrect(ShapeInfo{
+      .area      = canvas_region_,
+      .stroke    = 1,
+      .thickness = f32x2::splat(0.5F),
+      .tint      = ColorGradient{colors::CYAN},
+    });
 }
 
 i32 FocusView::layer(i32, Span<i32>)
 {
-  return LAYERS.overlays;
+    return LAYERS.overlays;
 }
 }    // namespace ui
 }    // namespace ash

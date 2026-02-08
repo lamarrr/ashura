@@ -16,53 +16,56 @@ namespace ui
 /// the cross axis
 struct Flex : View
 {
-  struct Style
-  {
-    Axis axis : 2 = Axis::X;
+    struct Style
+    {
+        Axis axis : 2 = Axis::X;
 
-    bool wrap : 1 = true;
+        bool wrap : 1 = true;
 
-    MainAlign main_align : 3 = MainAlign::Start;
+        MainAlign main_align : 3 = MainAlign::Start;
 
-    f32 cross_align = 0;
+        f32 cross_align = 0;
 
-    Frame frame = Frame{}.rel(1, 1);
+        Frame frame = Frame{}.rel(1, 1);
 
-    Frame item_frame = Frame{}.rel(1, 1);
-  } style_;
+        Frame item_frame = Frame{}.rel(1, 1);
+    } style_;
 
-  Vec<ref<View>> items_;
+    // TODO: constrained
+    // TODO: more customization options
 
-  Flex(Allocator allocator = default_allocator);
-  Flex(Flex const &)             = delete;
-  Flex(Flex &&)                  = default;
-  Flex & operator=(Flex const &) = delete;
-  Flex & operator=(Flex &&)      = default;
-  virtual ~Flex() override       = default;
+    Vec<ref<View>> items_;
 
-  Flex & axis(Axis axis);
+    Flex(Allocator allocator = default_allocator);
+    Flex(Flex const &)             = delete;
+    Flex(Flex &&)                  = default;
+    Flex & operator=(Flex const &) = delete;
+    Flex & operator=(Flex &&)      = default;
+    virtual ~Flex() override       = default;
 
-  Flex & wrap(bool wrap);
+    Flex & axis(Axis axis);
 
-  Flex & main_align(MainAlign align);
+    Flex & wrap(bool wrap);
 
-  Flex & cross_align(f32 align);
+    Flex & main_align(MainAlign align);
 
-  Flex & frame(Frame frame);
+    Flex & cross_align(f32 align);
 
-  Flex & item_frame(Frame frame);
+    Flex & frame(Frame frame);
 
-  Flex & items(InitList<ref<View>> list);
+    Flex & item_frame(Frame frame);
 
-  Flex & items(Span<ref<View> const> list);
+    Flex & items(InitList<ref<View>> list);
 
-  virtual State tick(Ctx const & ctx, Events const & events,
-                     Fn<void(View &)> build) override;
+    Flex & items(Span<ref<View> const> list);
 
-  virtual void size(f32x2 allocated, Span<f32x2> sizes) override;
+    virtual State tick(Scope const & scope, Events const & events,
+                       Fn<void(View &)> build) override;
 
-  virtual Layout fit(f32x2 allocated, Span<f32x2 const> sizes,
-                     Span<f32x2> centers) override;
+    virtual void size(f32x2 allocated, Span<f32x2> sizes) override;
+
+    virtual Layout fit(f32x2 allocated, Span<f32x2 const> sizes,
+                       Span<f32x2> centers) override;
 };
 
 }    // namespace ui

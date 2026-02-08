@@ -10,7 +10,7 @@ namespace ash
 namespace ui
 {
 
-// [ ] implement
+// TODO: implement
 // - coloring specific rows/columns/cells
 // - large columns and rows
 struct Table : View

@@ -9,7 +9,7 @@ namespace ash
 namespace ui
 {
 
-// [ ] implement
+// TODO: implement
 struct Modal;
 
 }    // namespace ui

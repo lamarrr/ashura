@@ -1087,7 +1087,7 @@ GpuBufferSpan IGpuFrame::get(GpuBufferId id)
     ASH_CHECK(state_ == GpuFrameState::Recording || state_ == GpuFrameState::Recorded,
               "");
     Slice64 slice = current_plan_->gpu_buffer_entries_.get((usize) id);
-    return {resources_.buffer, slice};
+    return GpuBufferSpan{.buffer = resources_.buffer, .slice = slice};
 }
 
 Span<u8> IGpuFrame::get(CpuBufferId id)
