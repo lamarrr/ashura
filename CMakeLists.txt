@@ -176,7 +176,6 @@ FetchContent_Declare(
 FetchContent_Declare(
     SheenBidi
     GIT_REPOSITORY https://github.com/lamarrr/SheenBidi.git
-    # GIT_TAG v2.9.0
     GIT_TAG sballocator
     CONFIGURE_COMMAND "" BUILD_COMMAND "")
 
@@ -220,7 +219,29 @@ FetchContent_Declare(
 FetchContent_Declare(
     lz4
     GIT_REPOSITORY https://github.com/lz4/lz4.git
-    GIT_TAG 92c3963)
+    GIT_TAG 92c3963
+    CONFIGURE_COMMAND "" BUILD_COMMAND "")
+
+FetchContent_Declare(
+    zstd
+    GIT_REPOSITORY https://github.com/facebook/zstd.git
+    GIT_TAG 1168da0
+    CONFIGURE_COMMAND "" BUILD_COMMAND "")
+
+
+if(LINUX)
+FetchContent_Declare(
+    AfterMathSDK
+    URL https://developer.nvidia.com/downloads/assets/tools/secure/nsight-aftermath-sdk/2025_5_0/linux/NVIDIA_Nsight_Aftermath_SDK_2025.5.0.25317.tgz
+    CONFIGURE_COMMAND "" BUILD_COMMAND "")
+else 
+if(WIN32)
+FetchContent_Declare(
+    AfterMathSDK
+    URL https://developer.nvidia.com/downloads/assets/tools/secure/nsight-aftermath-sdk/2025_5_0/windows/NVIDIA_Nsight_Aftermath_SDK_2025.5.0.25317.zip
+    CONFIGURE_COMMAND "" BUILD_COMMAND "")
+endif()
+endif()
 
 find_package(FFMPEG REQUIRED)
 find_package(JPEG REQUIRED)
@@ -246,17 +267,22 @@ FetchContent_MakeAvailable(simdjson)
 FetchContent_MakeAvailable(libpng)
 FetchContent_MakeAvailable(gtest)
 FetchContent_MakeAvailable(lz4)
+FetchContent_MakeAvailable(zstd)
+
+if(LINUX OR WIN32)
+FetchContent_MakeAvailable(AfterMathSDK)
+endif()
 
 file(GLOB xxHash_SOURCES ${xxhash_SOURCE_DIR}/*.c)
 set(xxHash_INCLUDE_DIR ${xxhash_SOURCE_DIR})
-add_library(xxHash STATIC ${xxHash_SOURCES})
+add_library(xxHash OBJECT ${xxHash_SOURCES})
 target_include_directories(xxHash PUBLIC ${xxHash_INCLUDE_DIR})
 
 set(fast_float_INCLUDE_DIR ${fast_float_SOURCE_DIR}/include)
 
 file(GLOB SHEENBIDI_SOURCES ${sheenbidi_SOURCE_DIR}/Source/*.c)
 
-add_library(sheenbidi STATIC ${SHEENBIDI_SOURCES})
+add_library(sheenbidi OBJECT ${SHEENBIDI_SOURCES})
 target_include_directories(
     sheenbidi
     PUBLIC ${sheenbidi_SOURCE_DIR}/Headers
@@ -265,7 +291,7 @@ add_library(sheenbidi::sheenbidi ALIAS sheenbidi)
 
 file(GLOB LZ4_SOURCES ${lz4_SOURCE_DIR}/lib/*.c)
 set(LZ4_INCLUDE_DIR ${lz4_SOURCE_DIR}/lib)
-add_library(lz4 STATIC ${LZ4_SOURCES})
+add_library(lz4 OBJECT ${LZ4_SOURCES})
 target_include_directories(lz4 PUBLIC ${LZ4_INCLUDE_DIR})
 
 list(APPEND ASH_COMPILE_OPTIONS)

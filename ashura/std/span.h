@@ -223,7 +223,6 @@ struct [[nodiscard]] Span
         return data()[index];
     }
 
-
     constexpr T & get(usize index) const
     {
         return data()[index];
@@ -513,7 +512,6 @@ struct BitSpan
     {
         return impl::get_bit(storage_, index);
     }
-
 
     constexpr bool get(usize index) const
     {

@@ -530,16 +530,16 @@ void IGpuFramePlan::reset()
     ASH_CHECK(state_ != GpuFramePlanState::Submitted, "");
     // these buffers are expected to be very large so we reset them on every frame
     // when they aren't being used Target at least 75% utilization
-    pre_frame_tasks_.shrink_clear().unwrap();
-    post_frame_tasks_.shrink_clear().unwrap();
-    frame_completed_tasks_.shrink_clear().unwrap();
-    gpu_buffer_data_.shrink_clear().unwrap();
-    gpu_buffer_entries_.shrink_clear().unwrap();
-    cpu_buffer_data_.shrink_clear().unwrap();
-    cpu_buffer_entries_.shrink_clear().unwrap();
-    scratch_buffer_sizes_.shrink_clear().unwrap();
+    pre_frame_tasks_.reset();
+    post_frame_tasks_.reset();
+    frame_completed_tasks_.reset();
+    gpu_buffer_data_.reset();
+    gpu_buffer_entries_.reset();
+    cpu_buffer_data_.reset();
+    cpu_buffer_entries_.reset();
+    scratch_buffer_sizes_.reset();
     num_scratch_images_ = 0;
-    passes_.shrink_clear().unwrap();
+    passes_.reset();
     target_ = {};
     arena_.reclaim();
     state_ = GpuFramePlanState::Reset;

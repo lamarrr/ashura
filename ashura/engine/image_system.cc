@@ -192,31 +192,41 @@ Result<ImageInfo, SysErr> IImageSys::upload_(Str                            labe
 }
 
 Future<Result<ImageInfo, SysErr>>
-  IImageSys::load_from_memory(Str label_span, gpu::ImageInfo const & info,
-                              Span<gpu::ImageViewInfo const> view_infos,
+  IImageSys::load_from_memory(Str label_, gpu::ImageInfo const & info_,
+                              Span<gpu::ImageViewInfo const> view_infos_,
                               RcBlob8                        channels)
 {
     StrVec label{allocator_};
-    label.append(label_span).unwrap();
+    label.append(label_).unwrap();
 
-    Vec<gpu::ImageViewInfo> view_infos_vec{allocator_};
-    view_infos_vec.append(view_infos).unwrap();
+    Vec<StrVec> view_info_labels{allocator_};
+
+    Vec<gpu::ImageViewInfo> view_infos{allocator_};
+
+    for (gpu::ImageViewInfo view_info_ : view_infos_)
+    {
+        StrVec view_label{allocator_};
+        view_label.append(view_info_.label).unwrap();
+        view_info_labels.push(std::move(view_label)).unwrap();
+        view_info_.label = view_info_labels.last();
+        view_infos.push(view_info_).unwrap();
+    }
 
     auto info_copy = gpu::ImageInfo{.label        = label,
-                                    .type         = info.type,
-                                    .format       = info.format,
-                                    .usage        = info.usage,
-                                    .aspects      = info.aspects,
-                                    .extent       = info.extent,
-                                    .mip_levels   = info.mip_levels,
-                                    .array_layers = info.array_layers,
-                                    .sample_count = info.sample_count};
+                                    .type         = info_.type,
+                                    .format       = info_.format,
+                                    .usage        = info_.usage,
+                                    .aspects      = info_.aspects,
+                                    .extent       = info_.extent,
+                                    .mip_levels   = info_.mip_levels,
+                                    .array_layers = info_.array_layers,
+                                    .sample_count = info_.sample_count};
 
     return scheduler_
       ->run(allocator_, MainThread::Main,
-            [label = std::move(label), info = info_copy,
-             view_infos = std::move(view_infos_vec), channels = std::move(channels),
-             this]() mutable {
+            [label = std::move(label), view_info_labels = std::move(view_info_labels),
+             info = info_copy, view_infos = std::move(view_infos),
+             channels = std::move(channels), this]() mutable {
                 return upload_(label, info, view_infos.view(), channels.get());
             })
       .unwrap();

@@ -737,7 +737,7 @@ void ICanvas::reset()
     ndc_to_viewport_     = affinef32x4::identity();
     viewport_to_fb_      = affinef32x4::identity();
     world_to_fb_         = affinef32x4::identity();
-    encoders_.shrink_clear().unwrap();
+    encoders_.reset();
     encoder_arena_.reclaim();
     tmp_arena_.reclaim();
 

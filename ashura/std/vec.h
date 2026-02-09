@@ -308,14 +308,6 @@ struct [[nodiscard]] Vec
         return shrink_to_(HalfGrowth::grow(size_));
     }
 
-    constexpr Result<> shrink_clear()
-    {
-        obj::destruct(view());
-        auto old_size = size_;
-        size_         = 0;
-        return shrink_to_(old_size);
-    }
-
     constexpr Result<> fit()
     {
         return shrink_to_(size_);
@@ -1069,14 +1061,6 @@ struct [[nodiscard]] SmallVec
     constexpr Result<> shrink()
     {
         return shrink_to_(HalfGrowth::grow(size_));
-    }
-
-    constexpr Result<> shrink_clear()
-    {
-        obj::destruct(view());
-        auto old_size = size_;
-        size_         = 0;
-        return shrink_to_(old_size);
     }
 
     constexpr Result<> fit()
@@ -2129,11 +2113,6 @@ struct [[nodiscard]] CoreBitVec
     constexpr Result<> shrink()
     {
         return repr_.shrink();
-    }
-
-    constexpr Result<> shrink_clear()
-    {
-        return repr_.shrink_clear();
     }
 
     constexpr Result<> grow(usize target_capacity)
