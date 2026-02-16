@@ -174,10 +174,9 @@ FetchContent_Declare(
     GIT_TAG VER-2-14-1)
 
 FetchContent_Declare(
-    SheenBidi
+    AshSheenBidi
     GIT_REPOSITORY https://github.com/lamarrr/SheenBidi.git
-    GIT_TAG sballocator
-    CONFIGURE_COMMAND "" BUILD_COMMAND "")
+    GIT_TAG sballocator)
 
 FetchContent_Declare(
     WebP
@@ -192,14 +191,12 @@ FetchContent_Declare(
 FetchContent_Declare(
     xxHash
     GIT_REPOSITORY https://github.com/Cyan4973/xxHash.git
-    GIT_TAG 136cc1f
-    CONFIGURE_COMMAND "" BUILD_COMMAND "")
+    GIT_TAG 136cc1f)
 
 FetchContent_Declare(
     fast_float
     GIT_REPOSITORY https://github.com/fastfloat/fast_float.git
-    GIT_TAG v8.1.0
-    CONFIGURE_COMMAND "" BUILD_COMMAND "")
+    GIT_TAG v8.1.0)
 
 FetchContent_Declare(
     simdjson
@@ -219,29 +216,22 @@ FetchContent_Declare(
 FetchContent_Declare(
     lz4
     GIT_REPOSITORY https://github.com/lz4/lz4.git
-    GIT_TAG 92c3963
-    CONFIGURE_COMMAND "" BUILD_COMMAND "")
+    GIT_TAG 92c3963)
 
 FetchContent_Declare(
     zstd
     GIT_REPOSITORY https://github.com/facebook/zstd.git
-    GIT_TAG 1168da0
-    CONFIGURE_COMMAND "" BUILD_COMMAND "")
+    GIT_TAG 1168da0)
 
-
-if(LINUX)
 FetchContent_Declare(
-    AfterMathSDK
+    AfterMathSDK_Linux
     URL https://developer.nvidia.com/downloads/assets/tools/secure/nsight-aftermath-sdk/2025_5_0/linux/NVIDIA_Nsight_Aftermath_SDK_2025.5.0.25317.tgz
-    CONFIGURE_COMMAND "" BUILD_COMMAND "")
-else 
-if(WIN32)
+)
+
 FetchContent_Declare(
-    AfterMathSDK
+    AfterMathSDK_Windows
     URL https://developer.nvidia.com/downloads/assets/tools/secure/nsight-aftermath-sdk/2025_5_0/windows/NVIDIA_Nsight_Aftermath_SDK_2025.5.0.25317.zip
-    CONFIGURE_COMMAND "" BUILD_COMMAND "")
-endif()
-endif()
+)
 
 find_package(FFMPEG REQUIRED)
 find_package(JPEG REQUIRED)
@@ -257,42 +247,76 @@ FetchContent_MakeAvailable(VulkanLoader)
 FetchContent_MakeAvailable(VulkanMemoryAllocator)
 FetchContent_MakeAvailable(harfbuzz)
 FetchContent_MakeAvailable(Freetype)
-FetchContent_MakeAvailable(SheenBidi)
+
+if(NOT AshSheenBidi_POPULATED)
+    FetchContent_Populate(AshSheenBidi)
+endif()
+
 FetchContent_MakeAvailable(SDL3)
 FetchContent_MakeAvailable(WebP)
 FetchContent_MakeAvailable(CURL)
-FetchContent_MakeAvailable(xxHash)
-FetchContent_MakeAvailable(fast_float)
+
+if(NOT xxHash_POPULATED)
+    FetchContent_Populate(xxHash)
+endif()
+
+if(NOT fast_float_POPULATED)
+    FetchContent_Populate(fast_float)
+endif()
+
 FetchContent_MakeAvailable(simdjson)
 FetchContent_MakeAvailable(libpng)
 FetchContent_MakeAvailable(gtest)
-FetchContent_MakeAvailable(lz4)
-FetchContent_MakeAvailable(zstd)
 
-if(LINUX OR WIN32)
-FetchContent_MakeAvailable(AfterMathSDK)
+if(NOT lz4_POPULATED)
+    FetchContent_Populate(lz4)
 endif()
 
-file(GLOB xxHash_SOURCES ${xxhash_SOURCE_DIR}/*.c)
+if(NOT zstd_POPULATED)
+    FetchContent_Populate(zstd)
+endif()
+
+if(NOT AfterMathSDK_Linux_POPULATED)
+    FetchContent_Populate(AfterMathSDK_Linux)
+endif()
+
+if(NOT AfterMathSDK_Windows_POPULATED)
+    FetchContent_Populate(AfterMathSDK_Windows)
+endif()
+
 set(xxHash_INCLUDE_DIR ${xxhash_SOURCE_DIR})
-add_library(xxHash OBJECT ${xxHash_SOURCES})
-target_include_directories(xxHash PUBLIC ${xxHash_INCLUDE_DIR})
+add_library(AshxxHash OBJECT ${xxhash_SOURCE_DIR}/xxh_x86dispatch.c
+                             ${xxhash_SOURCE_DIR}/xxhash.c)
+target_include_directories(AshxxHash PUBLIC ${xxHash_INCLUDE_DIR})
 
 set(fast_float_INCLUDE_DIR ${fast_float_SOURCE_DIR}/include)
 
-file(GLOB SHEENBIDI_SOURCES ${sheenbidi_SOURCE_DIR}/Source/*.c)
-
-add_library(sheenbidi OBJECT ${SHEENBIDI_SOURCES})
+add_library(AshSheenBidi OBJECT ${ashsheenbidi_SOURCE_DIR}/Source/SheenBidi.c)
 target_include_directories(
-    sheenbidi
-    PUBLIC ${sheenbidi_SOURCE_DIR}/Headers
-    PRIVATE ${sheenbidi_SOURCE_DIR}/Source)
-add_library(sheenbidi::sheenbidi ALIAS sheenbidi)
+    AshSheenBidi
+    PUBLIC ${ashsheenbidi_SOURCE_DIR}/Headers
+    PRIVATE ${ashsheenbidi_SOURCE_DIR}/Source)
+target_compile_definitions(AshSheenBidi PRIVATE SB_CONFIG_UNITY)
 
-file(GLOB LZ4_SOURCES ${lz4_SOURCE_DIR}/lib/*.c)
 set(LZ4_INCLUDE_DIR ${lz4_SOURCE_DIR}/lib)
-add_library(lz4 OBJECT ${LZ4_SOURCES})
-target_include_directories(lz4 PUBLIC ${LZ4_INCLUDE_DIR})
+add_library(
+    AshLZ4 OBJECT
+    ${lz4_SOURCE_DIR}/lib/lz4.c ${lz4_SOURCE_DIR}/lib/lz4file.c
+    ${lz4_SOURCE_DIR}/lib/lz4frame.c ${lz4_SOURCE_DIR}/lib/lz4hc.c
+    ${lz4_SOURCE_DIR}/lib/xxhash.c)
+target_include_directories(AshLZ4 PUBLIC ${LZ4_INCLUDE_DIR})
+
+if(LINUX)
+    find_library(LibAfterMath libGFSDK_Aftermath_Lib.x64.so
+                 HINTS ${aftermathsdk_linux_SOURCE_DIR}/lib/x64 REQUIRED)
+    list(APPEND AFTERMATH_INCLUDE_DIRS ${aftermathsdk_linux_SOURCE_DIR}/include)
+elseif(WIN32)
+    find_library(LibAfterMath libGFSDK_Aftermath_Lib.x64.lib
+                 HINTS ${aftermathsdk_windows_SOURCE_DIR}/lib/x64 REQUIRED)
+    list(APPEND AFTERMATH_INCLUDE_DIRS ${aftermathsdk_windows_SOURCE_DIR}/include)
+else()
+    message(CONFIGURE_LOG "Unsupported platform for AfterMath SDK")
+endif()
 
 list(APPEND ASH_COMPILE_OPTIONS)
 list(APPEND ASH_COMPILE_DEFINITIONS)
@@ -363,7 +387,7 @@ target_include_directories(ashura_std PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(
     ashura_std
     PUBLIC Threads::Threads
-    PRIVATE xxHash lz4)
+    PRIVATE AshxxHash AshLZ4)
 target_compile_options(ashura_std PUBLIC ${ASH_COMPILE_OPTIONS})
 target_compile_definitions(ashura_std PUBLIC ${ASH_COMPILE_DEFINITIONS})
 target_link_options(ashura_std PUBLIC ${ASH_LINK_OPTIONS})
@@ -420,9 +444,9 @@ if(ASH_BUILD_GPU)
         ashura_gpu
         PUBLIC ashura_std
         PUBLIC Vulkan-Headers Vulkan::UtilityHeaders Vulkan::Loader
-               GPUOpen::VulkanMemoryAllocator)
+               GPUOpen::VulkanMemoryAllocator PRIVATE ${LibAfterMath})
 
-    target_include_directories(ashura_gpu PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_include_directories(ashura_gpu PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} PRIVATE ${AFTERMATH_INCLUDE_DIRS})
     target_compile_options(ashura_gpu PUBLIC ${ASH_COMPILE_OPTIONS})
     target_compile_definitions(ashura_gpu PUBLIC ${ASH_COMPILE_DEFINITIONS})
     target_link_options(ashura_gpu PUBLIC ${ASH_LINK_OPTIONS})
@@ -504,7 +528,7 @@ if(ASH_BUILD_ENGINE)
                 webpdecoder
                 JPEG::JPEG
                 png_static
-                sheenbidi::sheenbidi
+                AshSheenBidi
                 ${FFMPEG_LIBRARIES})
 
     target_include_directories(
