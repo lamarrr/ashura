@@ -1697,9 +1697,13 @@ void IGpuSys::init(Allocator allocator, gpu::Device device,
     initialized_          = true;
     num_frames_in_flight_ = buffering_;
 
-    current_plan()->begin();
+    auto * plan = current_plan();
+    plan->begin();
     create_default_textures(this);
     create_default_samplers(this);
+    plan->end();
+    // TODO: select color and depth format and extents
+    submit_frame();
 }
 
 SamplerIndex IGpuSys::create_cached_sampler(gpu::SamplerInfo const & info_)
