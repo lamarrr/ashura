@@ -498,7 +498,7 @@ Future<Result<GpuFontAtlas, SysErr>>
                      .type   = gpu::ImageType::Type2D,
                      .format = format,
                      .usage  = gpu::ImageUsage::Sampled | gpu::ImageUsage::TransferDst |
-                              gpu::ImageUsage::TransferSrc,
+                               gpu::ImageUsage::TransferSrc,
                      .aspects      = gpu::ImageAspects::Color,
                      .extent       = atlas->extent.append(1),
                      .mip_levels   = 1,
@@ -580,7 +580,7 @@ Future<Result<FontId, SysErr>> FontSysImpl::load_from_memory(Str     label_span,
                     auto   upload_fut = upload_atlas_to_gpu_(
                       label,
                       transmute(rc_atlas.alias(),
-                                  static_cast<CpuFontAtlas const *>(rc_atlas.get())));
+                                static_cast<CpuFontAtlas const *>(rc_atlas.get())));
                     return Ok{std::move(upload_fut)};
                 },
                 [](SysErr err) -> R { return Err{err}; });
@@ -878,10 +878,10 @@ static inline void insert_run(TextLayout & l, FontStyle const & s, Slice codepoi
         hb_glyph_info_t const &     info  = infos[i];
         hb_glyph_position_t const & pos   = positions[i];
         auto                        shape = GlyphShape{
-                                 .glyph   = info.codepoint,
-                                 .cluster = base_cluster + info.cluster,
-                                 .advance = pos.x_advance,
-                                 .offset  = {pos.x_offset, -pos.y_offset}
+          .glyph   = info.codepoint,
+          .cluster = base_cluster + info.cluster,
+          .advance = pos.x_advance,
+          .offset  = {pos.x_offset, -pos.y_offset}
         };
 
         l.glyphs[first_glyph + i] = shape;
@@ -1083,14 +1083,14 @@ void layout_paragraph(Paragraph & paragraph, f32 max_width, TextBlock const & bl
         auto num_carets = codepoints.span + 1;
         auto carets     = Slice{caret_iter, num_carets};
         auto line       = Line{
-                .codepoints = codepoints,
-                .carets     = carets,
-                .runs       = runs,
-                .metrics{.width   = width,
-                         .height  = line_height,
-                         .ascent  = ascent,
-                         .descent = descent,
-                         .level   = base_level}
+          .codepoints = codepoints,
+          .carets     = carets,
+          .runs       = runs,
+          .metrics{.width   = width,
+                   .height  = line_height,
+                   .ascent  = ascent,
+                   .descent = descent,
+                   .level   = base_level}
         };
 
         layout.lines.push(line).unwrap();
@@ -1132,8 +1132,7 @@ TextLayout FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
                                     f32 align_width)
 {
     tracing::ScopeTrace trace;
-    ASH_SCRATCH_SCOPE(scratch, allocator_);
-    auto scratch_allocator = Allocator{scratch};
+    ScratchScope        scratch{allocator_};
 
     auto       str      = block.str;
     auto const str_size = block.str.size();
@@ -1143,17 +1142,17 @@ TextLayout FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
               "Text runs need to span the entire text");
 
     SBAllocator sb_allocator_impl{
-      .user_data = scratch_allocator.self,
+      .user_data = &scratch,
       .allocate  = [](void * user_data, usize alignment, usize size,
-                     void ** out_ptr) -> SBBoolean {
-          auto allocator = (IAllocator *) user_data;
+                      void ** out_ptr) -> SBBoolean {
+          auto allocator = (ScratchScope *) user_data;
           auto layout    = Layout{.alignment = alignment, .size = size};
           return allocator->alloc(layout.aligned(), *((u8 **) out_ptr)) ? SBTrue :
-                                                                           SBFalse;
+                                                                          SBFalse;
       },
       .deallocate =
         [](void * user_data, void * mem, usize alignment, usize size) {
-            auto allocator = (IAllocator *) user_data;
+            auto allocator = (ScratchScope *) user_data;
             auto layout    = Layout{.alignment = alignment, .size = size};
             allocator->dealloc(layout.aligned(), (u8 *) mem);
         }};

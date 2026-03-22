@@ -38,13 +38,13 @@ struct IArena final : IAllocator
     }
 
     /// @brief Create arena using pre-allocated memory block
-    /// @param buffer memory to block to use
+    /// @param memory memory block to use
     constexpr IArena(Span<u8> memory) : IArena{memory.pbegin(), memory.pend()}
     {
     }
 
     /// @brief Create arena using pre-allocated memory block
-    /// @param buffer memory to block to use
+    /// @param memory memory block to use
     template <usize N>
     constexpr IArena(u8 (&memory)[N]) : IArena{memory, memory + N}
     {
@@ -638,11 +638,50 @@ Layout get_thread_arena_layout();
 
 Arena get_thread_arena();
 
+struct ScratchScope final : IAllocator
+{
+    ArenaScope         scope_;
+    IFallbackAllocator fallback_;
+
+    ScratchScope(Arena arena, Allocator upstream) :
+      scope_{arena},
+      fallback_{arena, upstream}
+    {
+    }
+
+    ScratchScope(Allocator upstream) : ScratchScope(get_thread_arena(), upstream)
+    {
+    }
+
+    ScratchScope(ScratchScope const &)             = delete;
+    ScratchScope & operator=(ScratchScope const &) = delete;
+    ScratchScope(ScratchScope &&)                  = delete;
+    ScratchScope & operator=(ScratchScope &&)      = delete;
+    ~ScratchScope()                                = default;
+
+    /// @copydoc IAllocator::alloc
+    virtual bool alloc(Layout layout, u8 *& mem) override
+    {
+        return fallback_.alloc(layout, mem);
+    }
+
+    /// @copydoc IAllocator::zalloc
+    virtual bool zalloc(Layout layout, u8 *& mem) override
+    {
+        return fallback_.zalloc(layout, mem);
+    }
+
+    /// @copydoc IAllocator::realloc
+    virtual bool realloc(Layout layout, usize new_size, u8 *& mem) override
+    {
+        return fallback_.realloc(layout, new_size, mem);
+    }
+
+    /// @copydoc IAllocator::dealloc
+    virtual void dealloc(Layout layout, u8 * mem) override
+    {
+        fallback_.dealloc(layout, mem);
+    }
+};
+
 }    // namespace ash
-
-#define ASH_ARENA_SCRATCH_SCOPE(id, arena_expr, upstream_expr) \
-    ::ash::ArenaScope         __##id##_scope{(arena_expr)};    \
-    ::ash::IFallbackAllocator id{(__##id##_scope).arena(), (upstream_expr)};
-
-#define ASH_SCRATCH_SCOPE(id, upstream_expr) \
-    ASH_ARENA_SCRATCH_SCOPE(id, ::ash::get_thread_arena(), upstream_expr)

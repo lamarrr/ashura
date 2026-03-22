@@ -1111,7 +1111,7 @@ ViewSysState IViewSys::tick(Engine engine, ui::InputScope const & input, Canvas 
                             Fn<ui::View &(Engine, ui::Scope const &)> loop)
 {
     tracing::ScopeTrace trace;
-    ASH_SCRATCH_SCOPE(scratch, allocator_);
+    ScratchScope        scratch{allocator_};
 
     auto & base      = loop(engine, prev_frame_scope_);
     root_view_.next_ = base;

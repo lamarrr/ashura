@@ -577,7 +577,7 @@ struct [[nodiscard]] ITimelineSemaphore
     /// @brief Signal the semaphore to move to stage `next`. This implies a
     /// sequence ordering of the semaphore stages.
     ///
-    /// @param next stage of the semaphore to move to. stage >=
+    /// @param complete_stage stage of the semaphore to move to. stage >=
     /// num_stages or U64_MAX means completion of the last stage of the operation.
     /// must be monotonically increasing for each call.
     ///
@@ -620,7 +620,6 @@ struct [[nodiscard]] ITimelineSemaphore
     /// @brief Poll completion of this semaphore at stage `stage` for `timeout`
     /// duration
     /// @param stage stage to wait for
-    /// @param timeout duration to wait for
     [[nodiscard]] bool poll(u64 stage);
 };
 
@@ -638,11 +637,10 @@ namespace impl
 {
 
 /// @brief Poll semaphores at the specified stages.
-/// @param sems semaphores to wait for
+/// @param semaphores semaphores to wait for
 /// @param stages stages of the semaphores to wait for completion of. must be <
 /// semaphore.num_stages or == U64_MAX. U64_MAX meaning waiting for all stages'
 /// completion.
-/// @param any if to wait for all semaphores or atleast 1 semaphore.
 /// @returns returns true if the semaphore poll operation completed successfully
 template <typename Sem, typename Stage, typename SemaphoreKey, typename StageKey>
 [[nodiscard]] bool poll_semaphores(Span<Sem> semaphores, Span<Stage> stages,

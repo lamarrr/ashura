@@ -17,7 +17,7 @@ Str TriangleFillPipeline::label()
 static gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
                                              gpu::Shader shader, Allocator allocator)
 {
-    ASH_SCRATCH_SCOPE(scratch, allocator);
+    ScratchScope scratch{allocator};
 
     auto & gpu = *plan->sys();
 
@@ -102,7 +102,7 @@ TriangleFillPipeline::TriangleFillPipeline(Allocator allocator) : pipelines_{all
 
 void TriangleFillPipeline::acquire(GpuFramePlan plan, Allocator allocator)
 {
-    ASH_SCRATCH_SCOPE(scratch, allocator);
+    ScratchScope scratch{allocator};
 
     auto id = add_variant(plan, "base"_str,
                           sys.shader->get("defaults/triangle_fill"_str).unwrap().shader,

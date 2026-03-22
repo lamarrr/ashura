@@ -13,7 +13,7 @@ namespace txt
 void Cfg::default_clipboard_setter(Str32 str)
 {
     auto * clipboard = sys.win->get_clipboard();
-    ASH_SCRATCH_SCOPE(scratch, default_allocator);
+    ScratchScope scratch{default_allocator};
     auto str8 = Vec<c8>::make(str.size() * 4, scratch).unwrap();
     utf8_encode(str, str8).unwrap();
     clipboard->set(MIME_TEXT_UTF8, str8.view().as_u8()).unwrap();
@@ -22,7 +22,7 @@ void Cfg::default_clipboard_setter(Str32 str)
 StrVec32 Cfg::default_clipboard_getter(Allocator allocator)
 {
     auto * clipboard = sys.win->get_clipboard();
-    ASH_SCRATCH_SCOPE(scratch, allocator);
+    ScratchScope scratch{allocator};
     auto str8 = Vec<u8>{scratch};
     clipboard->get(MIME_TEXT_UTF8, str8).unwrap();
     auto str32 = Vec<c32>::make(str8.size(), allocator).unwrap();
@@ -153,21 +153,21 @@ static void apply_action(Cfg const & cfg, CursorAction a, State & s)
         break;
         case CursorActionType::Cut:
         {
-            ASH_SCRATCH_SCOPE(scratch, default_allocator);
+            ScratchScope scratch{default_allocator};
             auto cut = s.text_.copy_cut(scratch);
             cfg.clipboard_setter(cut);
         }
         break;
         case CursorActionType::Copy:
         {
-            ASH_SCRATCH_SCOPE(scratch, default_allocator);
+            ScratchScope scratch{default_allocator};
             auto copied = s.text_.copy(scratch);
             cfg.clipboard_setter(copied);
         }
         break;
         case CursorActionType::Paste:
         {
-            ASH_SCRATCH_SCOPE(scratch, default_allocator);
+            ScratchScope scratch{default_allocator};
             auto text = cfg.clipboard_getter(scratch);
             s.text_.insert(text);
         }
@@ -487,7 +487,7 @@ ui::Layout State::fit(ui::Scope const &, f32x2 allocated, Span<f32x2 const>,
 void State::render(ui::Scope const & scope, Cfg const & cfg, Canvas canvas,
                    ui::RenderInfo const & info)
 {
-    ASH_SCRATCH_SCOPE(scratch, allocator_);
+    ScratchScope scratch{allocator_};
 
     auto highlights = Vec<Slice>{scratch};
     highlights.append(highlights_).unwrap();

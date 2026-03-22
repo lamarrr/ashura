@@ -25,7 +25,7 @@ namespace ash
 
 Result<EngineCfg> EngineCfg::parse_json(Span<u8 const> json, Allocator allocator)
 {
-    ASH_SCRATCH_SCOPE(scratch, allocator);
+    ScratchScope scratch{allocator};
 
     EngineCfg out{.window{.title{allocator}},
                   .font_paths{allocator},
@@ -446,26 +446,26 @@ Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
 
     engine->allocator_ = allocator;
     engine->sys_       = Systems{
-            .logger   = std::move(logger),
-            .sched    = std::move(scheduler),
-            .file     = std::move(file_sys),
-            .gpu      = std::move(gpu_sys),
-            .image    = std::move(image_sys),
-            .font     = std::move(font_sys),
-            .shader   = std::move(shader_sys),
-            .win      = std::move(window_sys),
-            .pipeline = std::move(pipeline_sys),
-            .audio{nullptr, dyn_noop},
-            .video{nullptr, dyn_noop},
-            .animation{nullptr, dyn_noop}
+      .logger   = std::move(logger),
+      .sched    = std::move(scheduler),
+      .file     = std::move(file_sys),
+      .gpu      = std::move(gpu_sys),
+      .image    = std::move(image_sys),
+      .font     = std::move(font_sys),
+      .shader   = std::move(shader_sys),
+      .win      = std::move(window_sys),
+      .pipeline = std::move(pipeline_sys),
+      .audio{nullptr, dyn_noop},
+      .video{nullptr, dyn_noop},
+      .animation{nullptr, dyn_noop}
     };
     engine->gpu_instance_ = std::move(gpu_instance);
     engine->gpu_device_   = std::move(gpu_device);
     engine->buffering_    = cfg.gpu.buffering;
     engine->state_        = SystemState{};
     engine->paths_        = Paths{
-             .working_dir    = vec::copy(allocator, cfg.working_dir_path.view()).unwrap(),
-             .pipeline_cache = vec::copy(allocator, cfg.pipeline_cache_path.view()).unwrap()};
+      .working_dir    = vec::copy(allocator, cfg.working_dir_path.view()).unwrap(),
+      .pipeline_cache = vec::copy(allocator, cfg.pipeline_cache_path.view()).unwrap()};
     engine->callbacks_ = std::move(callbacks);
 
     hook_engine(engine.get());
@@ -725,11 +725,11 @@ Option<gpu::SwapchainInfo> IEngine::create_swapchain_info_(WindowEntry const & w
         }
     }
 
-    return gpu::SwapchainInfo{.label   = "Window Swapchain"_str,
-                              .surface = w.surface_,
-                              .format  = format,
-                              .usage   = gpu::ImageUsage::TransferDst |
-                                       gpu::ImageUsage::ColorAttachment,
+    return gpu::SwapchainInfo{.label               = "Window Swapchain"_str,
+                              .surface             = w.surface_,
+                              .format              = format,
+                              .usage               = gpu::ImageUsage::TransferDst |
+                                                     gpu::ImageUsage::ColorAttachment,
                               .preferred_buffering = buffering_,
                               .present_mode        = present_mode,
                               .preferred_extent    = surface_extent,
@@ -756,6 +756,7 @@ void IEngine::run()
         poll_inputs_(frame_end, frame_start);
         auto * plan = sys_.gpu->current_plan();
 
+        // TODO: pre-frame tasks were not executed before reset
         plan->await();
         plan->reset();
         plan->begin();
@@ -843,7 +844,7 @@ void IEngine::run()
                     };
 
                     state.current_image.match([&](u32 i) {
-                        auto image = frame->get_scratch_images()[0];
+                        auto & image = frame->get_scratch_images()[0];
                         enc->copy_image(image.color.image, state.images[i], copies);
                         enc->present(swapchain);
                     });

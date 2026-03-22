@@ -109,7 +109,7 @@ static gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
 
 void BlurPipeline::acquire(GpuFramePlan plan, Allocator allocator)
 {
-    ASH_SCRATCH_SCOPE(scratch, allocator);
+    ScratchScope scratch{allocator};
 
     downsample_pipeline_ =
       create_pipeline(plan, "Downsample"_str,

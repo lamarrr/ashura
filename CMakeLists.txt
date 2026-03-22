@@ -13,7 +13,7 @@ option(ASH_BUILD_ENGINE "" ON)
 option(ASH_BUILD_TESTS "" ON)
 option(ASH_BUILD_SAMPLES "" ON)
 option(ASH_BUILD_BENCHMARKS "" ON)
-option(ASH_BUILD_DOC "Build documentation" ON)
+option(ASH_BUILD_DOC "Build documentation" OFF)
 
 set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -444,9 +444,13 @@ if(ASH_BUILD_GPU)
         ashura_gpu
         PUBLIC ashura_std
         PUBLIC Vulkan-Headers Vulkan::UtilityHeaders Vulkan::Loader
-               GPUOpen::VulkanMemoryAllocator PRIVATE ${LibAfterMath})
+               GPUOpen::VulkanMemoryAllocator
+        PRIVATE ${LibAfterMath})
 
-    target_include_directories(ashura_gpu PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} PRIVATE ${AFTERMATH_INCLUDE_DIRS})
+    target_include_directories(
+        ashura_gpu
+        PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
+        PRIVATE ${AFTERMATH_INCLUDE_DIRS})
     target_compile_options(ashura_gpu PUBLIC ${ASH_COMPILE_OPTIONS})
     target_compile_definitions(ashura_gpu PUBLIC ${ASH_COMPILE_DEFINITIONS})
     target_link_options(ashura_gpu PUBLIC ${ASH_LINK_OPTIONS})

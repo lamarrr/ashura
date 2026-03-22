@@ -1,6 +1,10 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/std/log.h"
+#include "ashura/std/allocators.h"
 #include "ashura/std/list.h"
+#include "ashura/std/sformat.h"
+#include "ashura/std/vec.h"
+// #include <stacktrace>
 
 namespace ash
 {
@@ -48,6 +52,26 @@ void ILogger::write_to_sinks(LogLevel level, Str str, Buffer<char> & buffer)
             }
         }
     }
+}
+
+void dump_stacktrace()
+{
+    /*
+    TODO: needs libstdbacktrace
+    auto st = std::stacktrace::current();
+    ScratchScope scratch{default_allocator};
+
+    Vec<char> formatted{scratch};
+
+    for (auto & entry : st)
+    {
+        sformat_to(formatted, "{} {}: {}\n"_str, entry.description(),
+                   entry.source_file(), entry.source_line())
+          .unwrap();
+    }
+
+    error("Stacktrace:\n{}"_str, formatted.view().as_const());
+    */
 }
 
 void ILogger::flush_buffer(LogLevel level, Buffer<char> & buffer)

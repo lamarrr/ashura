@@ -24,20 +24,29 @@ typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
 
+#if ASH_CFG(COMPILER, GCC) || ASH_CFG(COMPILER, CLANG)
+typedef __uint128_t u128;
+#else
 struct alignas(16) u128
 {
     u64 repr_[2];
 };
+#endif
 
 typedef int8_t  i8;
 typedef int16_t i16;
 typedef int32_t i32;
 typedef int64_t i64;
 
+#if ASH_CFG(COMPILER, GCC) || ASH_CFG(COMPILER, CLANG)
+typedef __int128_t i128;
+#else
+
 struct alignas(16) i128
 {
     u64 repr_[2];
 };
+#endif
 
 typedef size_t    usize;
 typedef ptrdiff_t isize;

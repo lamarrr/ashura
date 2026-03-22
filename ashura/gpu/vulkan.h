@@ -1165,13 +1165,20 @@ struct ICommandEncoder final : gpu::ICommandEncoder
         Render  = 2
     };
 
-    Device               dev_;
-    IArenaPool           arena_;
-    Status               status_;
-    CommandBufferState   state_;
-    Pass                 pass_;
-    CommandTracker       tracker_;
-    PassContext          ctx_;
+    Device dev_;
+
+    IArenaPool arena_;
+
+    Status status_;
+
+    CommandBufferState state_;
+
+    Pass pass_;
+
+    CommandTracker tracker_;
+
+    PassContext ctx_;
+
     Option<ISwapchain &> swapchain_;
 
     ICommandEncoder(IDevice & dev, Allocator allocator) :
@@ -1305,14 +1312,21 @@ struct ICommandEncoder final : gpu::ICommandEncoder
 
 struct ICommandBuffer final : gpu::ICommandBuffer
 {
-    Device                dev_;
-    VkCommandPool         vk_pool_;
-    VkCommandBuffer       vk_;
-    Option<ISwapchain &>  swapchain_;
-    Status                status_;
-    CommandBufferState    state_;
+    Device dev_;
+
+    VkCommandPool vk_pool_;
+
+    VkCommandBuffer vk_;
+
+    Option<ISwapchain &> swapchain_;
+
+    Status status_;
+
+    CommandBufferState state_;
+
     EncoderResourceStates resource_states_;
-    IArenaPool            arena_;
+
+    IArenaPool arena_;
 
     ICommandBuffer(IDevice & dev, VkCommandPool vk_pool, VkCommandBuffer vk_buffer,
                    Allocator allocator) :
@@ -1346,9 +1360,12 @@ struct ICommandBuffer final : gpu::ICommandBuffer
 
 struct IQueueScope
 {
-    u64                     buffering_;
-    u64                     frame_;
-    u64                     ring_index_;
+    u64 buffering_;
+
+    u64 frame_;
+
+    u64 ring_index_;
+
     SmallVec<VkFence, 4, 0> submit_fences_;
 
     IQueueScope(u64 buffering, SmallVec<VkFence, 4, 0> submit_fences) :
@@ -1366,22 +1383,66 @@ struct IQueueScope
     ~IQueueScope()                               = default;
 };
 
+typedef struct IAfterMathCrashTracker * AfterMathCrashTracker;
+
+struct IAfterMathCrashTracker
+{
+    StrVec working_dir_;
+
+    IPanicHandler panic_handler_;
+
+    IAfterMathCrashTracker(StrVec working_dir) :
+      working_dir_{
+        std::move(working_dir)
+    },
+      panic_handler_{.fn{this, handle_panic}}
+    {
+    }
+
+    IAfterMathCrashTracker(IAfterMathCrashTracker const &)             = delete;
+    IAfterMathCrashTracker(IAfterMathCrashTracker &&)                  = delete;
+    IAfterMathCrashTracker & operator=(IAfterMathCrashTracker const &) = delete;
+    IAfterMathCrashTracker & operator=(IAfterMathCrashTracker &&)      = delete;
+
+    ~IAfterMathCrashTracker();
+
+    static Dyn<AfterMathCrashTracker> make(Allocator allocator, Str working_dir);
+
+    static void handle_panic(AfterMathCrashTracker tracker);
+
+    void crash_dump(void const * data, u32 size);
+
+    void shader_debug_info(void const * data, u32 size);
+};
+
 struct IDevice final : gpu::IDevice
 {
-    Allocator            allocator_;
-    Instance             instance_;
-    IPhysicalDevice      phy_;
-    DeviceTable          table_;
-    VmaVulkanFunctions   vma_table_;
-    VkDevice             vk_dev_;
-    u32                  queue_family_;
-    VkQueue              vk_queue_;
-    VmaAllocator         vma_allocator_;
+    Allocator allocator_;
+
+    Instance instance_;
+
+    IPhysicalDevice phy_;
+
+    DeviceTable table_;
+
+    VmaVulkanFunctions vma_table_;
+
+    VkDevice vk_dev_;
+
+    u32 queue_family_;
+
+    VkQueue vk_queue_;
+
+    VmaAllocator vma_allocator_;
+
     DeviceResourceStates resource_states_;
+
+    Option<Dyn<AfterMathCrashTracker>> crash_tracker_;
 
     IDevice(Allocator allocator, IInstance & instance, IPhysicalDevice phy_dev,
             DeviceTable vk_table, VmaVulkanFunctions vma_table, VkDevice vk_dev,
-            u32 queue_family, VkQueue vk_queue, VmaAllocator vma_allocator) :
+            u32 queue_family, VkQueue vk_queue, VmaAllocator vma_allocator,
+            Option<Dyn<AfterMathCrashTracker>> crash_tracker) :
       allocator_{allocator},
       instance_{&instance},
       phy_{phy_dev},
@@ -1391,7 +1452,8 @@ struct IDevice final : gpu::IDevice
       queue_family_{queue_family},
       vk_queue_{vk_queue},
       vma_allocator_{vma_allocator},
-      resource_states_{allocator}
+      resource_states_{allocator},
+      crash_tracker_{std::move(crash_tracker)}
     {
     }
 

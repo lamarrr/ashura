@@ -319,8 +319,9 @@ void VectorPathEncoder::submit(GpuFramePlan plan)
         auto images              = frame->get_scratch_images();
 
         auto scratch_stencil = images[attachments.scratch_depth_stencil].depth_stencil;
-        auto scratch_alpha_masks_buffer = images[attachments.scratch_alpha_mask].texel;
-        auto scratch_fill_ids_buffer    = images[attachments.scratch_fill_id].texel;
+        auto & scratch_alpha_masks_buffer =
+          images[attachments.scratch_alpha_mask].texel;
+        auto & scratch_fill_ids_buffer = images[attachments.scratch_fill_id].texel;
 
         auto scratch_alpha_masks =
           scratch_alpha_masks_buffer.interpret(gpu::Format::R32_SFLOAT);

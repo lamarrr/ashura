@@ -21,7 +21,7 @@ FillStencilPipeline::FillStencilPipeline(Allocator)
 
 void FillStencilPipeline::acquire(GpuFramePlan plan, Allocator allocator)
 {
-    ASH_SCRATCH_SCOPE(scratch, allocator);
+    ScratchScope scratch{allocator};
 
     auto & gpu = *plan->sys();
 

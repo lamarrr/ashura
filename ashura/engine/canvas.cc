@@ -1210,10 +1210,10 @@ void ICanvas::render_blur_(Shape const & info_)
 
             plan->add_pass([blur_id, src = src_image, dst = dst_image, padded_area,
                             viewport](GpuFrame frame, gpu::CommandEncoder enc) {
-                auto blur      = frame->get(blur_id);
-                auto images    = frame->get_scratch_images();
-                auto src_image = images[src];
-                auto dst_image = images[dst];
+                auto   blur      = frame->get(blur_id);
+                auto   images    = frame->get_scratch_images();
+                auto & src_image = images[src];
+                auto & dst_image = images[dst];
 
                 sys.pipeline->blur().encode(
                   enc,
@@ -1253,10 +1253,10 @@ void ICanvas::render_blur_(Shape const & info_)
 
             plan->add_pass([blur_id, src = src_image, dst = dst_image, padded_area,
                             viewport](GpuFrame frame, gpu::CommandEncoder enc) {
-                auto blur      = frame->get(blur_id);
-                auto images    = frame->get_scratch_images();
-                auto src_image = images[src];
-                auto dst_image = images[dst];
+                auto   blur      = frame->get(blur_id);
+                auto   images    = frame->get_scratch_images();
+                auto & src_image = images[src];
+                auto & dst_image = images[dst];
 
                 sys.pipeline->blur().encode(
                   enc,

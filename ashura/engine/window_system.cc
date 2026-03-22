@@ -10,7 +10,8 @@
 namespace ash
 {
 
-#define CHECK_SDL(cond_expr) ASH_CHECK(cond_expr, "SDL Error: {}", SDL_GetError())
+#define CHECK_SDL(cond_expr) \
+    ASH_CHECK(cond_expr, "SDL Error: {}", ::ash::cstr(SDL_GetError()))
 
 struct WindowImpl
 {

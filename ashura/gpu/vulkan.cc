@@ -17,6 +17,17 @@
 #include "vulkan/vk_enum_string_helper.h"
 
 // clang-format on
+#define ASH_AFTERMATH_SUPPORTED (ASH_OS_WINDOWS || ASH_OS_LINUX)
+
+#if ASH_AFTERMATH_SUPPORTED
+
+#    include "GFSDK_Aftermath.h"
+#    include "GFSDK_Aftermath_Defines.h"
+#    include "GFSDK_Aftermath_GpuCrashDump.h"
+#    include "GFSDK_Aftermath_GpuCrashDumpDecoding.h"
+#    include "GFSDK_Aftermath_GpuCrashDumpEditing.h"
+
+#endif
 
 namespace ash
 {
@@ -1448,9 +1459,9 @@ constexpr bool is_valid_image_access(gpu::ImageAspects aspects, u32 num_mip_leve
 
     bool is_valid_offset = access_mip_levels.offset < num_mip_levels &&
                            access_array_layers.offset < num_array_layers;
-    bool is_valid_span = access_mip_levels.span > 0 && access_array_layers.span > 0;
-    bool is_valid_end  = access_mip_levels.end() <= num_mip_levels &&
-                        access_array_layers.end() <= num_array_layers;
+    bool is_valid_span   = access_mip_levels.span > 0 && access_array_layers.span > 0;
+    bool is_valid_end    = access_mip_levels.end() <= num_mip_levels &&
+                           access_array_layers.end() <= num_array_layers;
 
     return is_valid_offset && is_valid_span && is_valid_end &&
            has_bits(aspects, access_aspects) &&
@@ -1480,7 +1491,7 @@ static VkBool32 VKAPI_ATTR VKAPI_CALL
         level = LogLevel::Trace;
     }
 
-    ASH_SCRATCH_SCOPE(scratch, *static_cast<IAllocator *>(pUserData));
+    ScratchScope scratch{*static_cast<IAllocator *>(pUserData)};
 
     auto msg = StrVec{scratch};
 
@@ -1544,7 +1555,7 @@ static VkBool32 VKAPI_ATTR VKAPI_CALL
 Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
                                                    bool      enable_validation)
 {
-    ASH_SCRATCH_SCOPE(scratch, allocator);
+    ScratchScope scratch{allocator};
 
     u32  num_exts;
     auto result = vkEnumerateInstanceExtensionProperties(nullptr, &num_exts, nullptr);
@@ -1726,9 +1737,9 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
                          VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
                          VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
                          VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
-      .messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-                     VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-                     VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
+      .messageType     = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+                         VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+                         VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
       .pfnUserCallback = debug_callback,
       .pUserData       = allocator.self};
 
@@ -1871,7 +1882,7 @@ Result<gpu::Device, Status>
   IInstance::create_device(Allocator                   allocator,
                            Span<gpu::DeviceType const> preferred_types)
 {
-    ASH_SCRATCH_SCOPE(scratch, allocator);
+    ScratchScope scratch{allocator};
 
     u32  num_devs;
     auto result = table_.EnumeratePhysicalDevices(vk_, &num_devs, nullptr);
@@ -2092,6 +2103,8 @@ Result<gpu::Device, Status>
 
     check_device_features(selected_dev);
 
+    auto aftermath_crash_tracker = IAfterMathCrashTracker::make(allocator, "/tmp"_str);
+
     trace("Selected Device {}"_str, selected_dev_idx);
 
     u32 num_extensions;
@@ -2190,7 +2203,9 @@ Result<gpu::Device, Status>
     optional_extensions
       .append(span<Str>({cstr(VK_EXT_DEBUG_MARKER_EXTENSION_NAME),
                          cstr(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME),
-                         cstr(VK_KHR_SAMPLER_MIRROR_CLAMP_TO_EDGE_EXTENSION_NAME)}))
+                         cstr(VK_KHR_SAMPLER_MIRROR_CLAMP_TO_EDGE_EXTENSION_NAME),
+                         cstr(VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME),
+                         cstr(VK_NV_DEVICE_DIAGNOSTICS_CONFIG_EXTENSION_NAME)}))
       .unwrap();
 
     Vec<Str> load_extensions{scratch};
@@ -2378,10 +2393,24 @@ Result<gpu::Device, Status>
       .pNext = nullptr,
       .scalarBlockLayout = VK_TRUE};
 
+    VkDeviceDiagnosticsConfigCreateInfoNV aftermath_features{
+      .sType = VK_STRUCTURE_TYPE_DEVICE_DIAGNOSTICS_CONFIG_CREATE_INFO_NV,
+      .pNext = nullptr,
+      .flags =
+        VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_AUTOMATIC_CHECKPOINTS_BIT_NV |    // Enable automatic call stack checkpoints.
+        VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_RESOURCE_TRACKING_BIT_NV |    // Enable tracking of resources.
+        VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_SHADER_DEBUG_INFO_BIT_NV |    // Generate debug information for shaders.
+        VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_SHADER_ERROR_REPORTING_BIT_NV    // Enable additional runtime shader error reporting.
+    };
+
     extended_dynamic_state_features.pNext = &dynamic_rendering_features;
     dynamic_rendering_features.pNext      = &descriptor_indexing_features;
     descriptor_indexing_features.pNext    = &buffer_device_address_features;
     buffer_device_address_features.pNext  = &scalar_block_layout_features;
+
+#if ASH_AFTERMATH_SUPPORTED
+    scalar_block_layout_features.pNext = &aftermath_features;
+#endif
 
     VkDeviceCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
                                    .pNext = &extended_dynamic_state_features,
@@ -2420,17 +2449,17 @@ Result<gpu::Device, Status>
     vk_dev_table.GetDeviceQueue(vk_dev, selected_queue_family, 0, &vk_queue);
 
     VmaAllocatorCreateInfo vma_create_info{
-      .flags = VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT |
-               VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
-      .physicalDevice                 = selected_dev.vk,
-      .device                         = vk_dev,
-      .preferredLargeHeapBlockSize    = 0,
-      .pAllocationCallbacks           = nullptr,
-      .pDeviceMemoryCallbacks         = nullptr,
-      .pHeapSizeLimit                 = nullptr,
-      .pVulkanFunctions               = &vma_table,
-      .instance                       = vk_,
-      .vulkanApiVersion               = ENGINE_VULKAN_VERSION,
+      .flags                       = VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT |
+                                     VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
+      .physicalDevice              = selected_dev.vk,
+      .device                      = vk_dev,
+      .preferredLargeHeapBlockSize = 0,
+      .pAllocationCallbacks        = nullptr,
+      .pDeviceMemoryCallbacks      = nullptr,
+      .pHeapSizeLimit              = nullptr,
+      .pVulkanFunctions            = &vma_table,
+      .instance                    = vk_,
+      .vulkanApiVersion            = ENGINE_VULKAN_VERSION,
       .pTypeExternalMemoryHandleTypes = nullptr};
 
     VmaAllocator vma_allocator;
@@ -2455,9 +2484,16 @@ Result<gpu::Device, Status>
         return Err{Status::OutOfHostMemory};
     }
 
-    new (dev) IDevice{allocator,    *this,  selected_dev,          vk_dev_table,
-                      vma_table,    vk_dev, selected_queue_family, vk_queue,
-                      vma_allocator};
+    new (dev) IDevice{allocator,
+                      *this,
+                      selected_dev,
+                      vk_dev_table,
+                      vma_table,
+                      vk_dev,
+                      selected_queue_family,
+                      vk_queue,
+                      vma_allocator,
+                      std::move(aftermath_crash_tracker)};
 
     vma_allocator = nullptr;
     vk_dev        = nullptr;
@@ -2492,10 +2528,137 @@ void IInstance::uninit(gpu::Surface surface)
     table_.DestroySurfaceKHR(vk_, (Surface) surface, nullptr);
 }
 
+IAfterMathCrashTracker::~IAfterMathCrashTracker()
+{
+    remove_panic_handler(&panic_handler_);
+
+    ASH_CHECK(GFSDK_Aftermath_DisableGpuCrashDumps() == GFSDK_Aftermath_Result_Success,
+              "");
+}
+
+static void aftermath_gpu_crash_dump_thunk(void const * pGpuCrashDump,
+                                           u32 const gpuCrashDumpSize, void * pUserData)
+{
+    auto tracker = reinterpret_cast<AfterMathCrashTracker>(pUserData);
+    tracker->crash_dump(pGpuCrashDump, gpuCrashDumpSize);
+}
+
+static void aftermath_shader_debug_info_thunk(void const * pShaderDebugInfo,
+                                              u32 shaderDebugInfoSize, void * pUserData)
+{
+    auto tracker = reinterpret_cast<AfterMathCrashTracker>(pUserData);
+    tracker->shader_debug_info(pShaderDebugInfo, shaderDebugInfoSize);
+}
+
+static void aftermath_crash_dump_description_thunk(
+  [[maybe_unused]] PFN_GFSDK_Aftermath_AddGpuCrashDumpDescription addDescription,
+  [[maybe_unused]] void *                                         pUserData)
+{
+}
+
+static void aftermath_resolve_marker_thunk(
+  [[maybe_unused]] void const * pMarkerData, [[maybe_unused]] u32 markerDataSize,
+  [[maybe_unused]] void *                            pUserData,
+  [[maybe_unused]] PFN_GFSDK_Aftermath_ResolveMarker resolveMarker)
+{
+}
+
+// TODO: only create files when a crash actually happens
+Dyn<AfterMathCrashTracker> IAfterMathCrashTracker::make(Allocator allocator,
+                                                        Str       working_dir_s)
+{
+    ScratchScope scratch{allocator};
+
+    auto working_dir = vec::copy(allocator, working_dir_s).unwrap();
+
+    auto tracker =
+      dyn<IAfterMathCrashTracker>(inplace, allocator, std::move(working_dir)).unwrap();
+
+    // Enable GPU crash dumps and register callbacks.
+    ASH_CHECK(GFSDK_Aftermath_EnableGpuCrashDumps(
+                GFSDK_Aftermath_Version_API,
+                GFSDK_Aftermath_GpuCrashDumpWatchedApiFlags_Vulkan,
+                GFSDK_Aftermath_GpuCrashDumpFeatureFlags_Default,
+                aftermath_gpu_crash_dump_thunk, aftermath_shader_debug_info_thunk,
+                aftermath_crash_dump_description_thunk, aftermath_resolve_marker_thunk,
+                tracker.get()) == GFSDK_Aftermath_Result_Success,
+              "");
+
+    add_panic_handler(&tracker->panic_handler_);
+
+    return tracker;
+}
+
+void IAfterMathCrashTracker::handle_panic(AfterMathCrashTracker)
+{
+    GFSDK_Aftermath_CrashDump_Status status = GFSDK_Aftermath_CrashDump_Status_Unknown;
+    ASH_CHECK(GFSDK_Aftermath_GetCrashDumpStatus(&status) ==
+                GFSDK_Aftermath_Result_Success,
+              "");
+
+    auto tStart            = std::chrono::steady_clock::now();
+    auto tElapsed          = std::chrono::milliseconds::zero();
+    auto deviceLostTimeout = std::chrono::milliseconds(5'000);
+
+    // Loop while Aftermath crash dump data collection has not finished or
+    // the application is still processing the crash dump data.
+    while (status != GFSDK_Aftermath_CrashDump_Status_CollectingDataFailed &&
+           status != GFSDK_Aftermath_CrashDump_Status_Finished &&
+           tElapsed < deviceLostTimeout)
+    {
+        // Sleep a couple of milliseconds and poll the status again.
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        ASH_CHECK(GFSDK_Aftermath_GetCrashDumpStatus(&status) ==
+                    GFSDK_Aftermath_Result_Success,
+                  "");
+
+        tElapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+          std::chrono::steady_clock::now() - tStart);
+    }
+
+    if (status == GFSDK_Aftermath_CrashDump_Status_Finished)
+    {
+        trace("Aftermath finished processing the crash dump. ({})\n"_str, (int) status);
+    }
+    else
+    {
+        error("Unexpected crash dump status after timeout: {}\n"_str, (int) status);
+    }
+}
+
+static void dump_file(Str dir, Str name, Str extension, Span<u8 const> data)
+{
+    static i64      write_count_ = 0;
+    std::atomic_ref write_count{write_count_};
+    ScratchScope    scratch{heap_allocator};
+
+    auto count = write_count.fetch_add(1, std::memory_order_relaxed);
+    auto path  = sformat(scratch, "{}/{}-{}.{}", dir, name, count, extension).unwrap();
+    path.push('\0').unwrap();
+
+    std::FILE * file = std::fopen(path.data(), "wb");
+    ASH_CHECK(file != nullptr, "");
+    defer _file{[&] { ASH_CHECK(std::fclose(file) != -1, ""); }};
+    ASH_CHECK(std::fwrite(data.data(), 1, data.size_bytes(), file) == data.size_bytes(),
+              "");
+}
+
+void IAfterMathCrashTracker::crash_dump(void const * data, u32 size)
+{
+    dump_file(working_dir_, "crash_dump"_str, "nv-gpudmp"_str,
+              Span{static_cast<u8 const *>(data), size});
+}
+
+void IAfterMathCrashTracker::shader_debug_info(void const * data, u32 size)
+{
+    dump_file(working_dir_, "shader_debug_info"_str, "nv-gpudmp"_str,
+              Span{static_cast<u8 const *>(data), size});
+}
+
 void IDevice::set_resource_name(Str label, void const * resource, VkObjectType type,
                                 VkDebugReportObjectTypeEXT debug_type)
 {
-    ASH_SCRATCH_SCOPE(scratch, allocator_);
+    ScratchScope scratch{allocator_};
 
     Vec<char> label_c_str{scratch};
 
@@ -3186,7 +3349,7 @@ bool is_readonly_set(Span<gpu::DescriptorBindingInfo const> bindings)
 Result<gpu::DescriptorSetLayout, Status>
   IDevice::create_descriptor_set_layout(gpu::DescriptorSetLayoutInfo const & info)
 {
-    ASH_SCRATCH_SCOPE(scratch, allocator_);
+    ScratchScope scratch{allocator_};
 
     u32                                   num_descriptors     = 0;
     u32                                   num_variable_length = 0;
@@ -3318,7 +3481,7 @@ Result<gpu::DescriptorSetLayout, Status>
 Result<gpu::DescriptorSet, Status>
   IDevice::create_descriptor_set(gpu::DescriptorSetInfo const & info)
 {
-    ASH_SCRATCH_SCOPE(scratch, allocator_);
+    ScratchScope scratch{allocator_};
 
     auto * layout = (DescriptorSetLayout) info.layout;
     ASH_CHECK(info.variable_lengths.size() == layout->num_variable_length, "");
@@ -3379,10 +3542,10 @@ Result<gpu::DescriptorSet, Status>
     }
 
     VkDescriptorPoolCreateInfo create_info{
-      .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-      .pNext = nullptr,
-      .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT |
-               VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
+      .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+      .pNext         = nullptr,
+      .flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT |
+                       VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
       .maxSets       = 1,
       .poolSizeCount = size32(pool_sizes),
       .pPoolSizes    = pool_sizes.data()};
@@ -3521,7 +3684,7 @@ Result<gpu::PipelineCache, Status>
 Result<gpu::ComputePipeline, Status>
   IDevice::create_compute_pipeline(gpu::ComputePipelineInfo const & info)
 {
-    ASH_SCRATCH_SCOPE(scratch, allocator_);
+    ScratchScope scratch{allocator_};
 
     ASH_CHECK(info.descriptor_set_layouts.size() <=
                 phy_.vk_properties.limits.maxBoundDescriptorSets,
@@ -3544,9 +3707,9 @@ Result<gpu::ComputePipeline, Status>
     VkSpecializationInfo vk_specialization{
       .mapEntryCount = size32(info.compute_shader.specialization_constants),
       .pMapEntries   = (VkSpecializationMapEntry const *)
-                       info.compute_shader.specialization_constants.data(),
-      .dataSize = info.compute_shader.specialization_constants_data.size_bytes(),
-      .pData    = info.compute_shader.specialization_constants_data.data()};
+                         info.compute_shader.specialization_constants.data(),
+      .dataSize      = info.compute_shader.specialization_constants_data.size_bytes(),
+      .pData         = info.compute_shader.specialization_constants_data.data()};
 
     Vec<char> entry_point{scratch};
     entry_point.append(info.compute_shader.entry_point).unwrap();
@@ -3628,7 +3791,7 @@ Result<gpu::ComputePipeline, Status>
 Result<gpu::GraphicsPipeline, Status>
   IDevice::create_graphics_pipeline(gpu::GraphicsPipelineInfo const & info)
 {
-    ASH_SCRATCH_SCOPE(scratch, allocator_);
+    ScratchScope scratch{allocator_};
 
     ASH_CHECK(!(info.rasterization_state.polygon_mode != gpu::PolygonMode::Fill &&
                 !phy_.vk_features.fillModeNonSolid),
@@ -3658,16 +3821,16 @@ Result<gpu::GraphicsPipeline, Status>
     VkSpecializationInfo vk_vs_specialization{
       .mapEntryCount = size32(info.vertex_shader.specialization_constants),
       .pMapEntries   = (VkSpecializationMapEntry const *)
-                       info.vertex_shader.specialization_constants.data(),
-      .dataSize = info.vertex_shader.specialization_constants_data.size_bytes(),
-      .pData    = info.vertex_shader.specialization_constants_data.data()};
+                         info.vertex_shader.specialization_constants.data(),
+      .dataSize      = info.vertex_shader.specialization_constants_data.size_bytes(),
+      .pData         = info.vertex_shader.specialization_constants_data.data()};
 
     VkSpecializationInfo vk_fs_specialization{
       .mapEntryCount = size32(info.fragment_shader.specialization_constants),
       .pMapEntries   = (VkSpecializationMapEntry const *)
-                       info.fragment_shader.specialization_constants.data(),
-      .dataSize = info.fragment_shader.specialization_constants_data.size_bytes(),
-      .pData    = info.fragment_shader.specialization_constants_data.data()};
+                         info.fragment_shader.specialization_constants.data(),
+      .dataSize      = info.fragment_shader.specialization_constants_data.size_bytes(),
+      .pData         = info.fragment_shader.specialization_constants_data.data()};
 
     Vec<char> vs_entry_point{scratch};
     vs_entry_point.append(info.vertex_shader.entry_point).unwrap();
@@ -3972,7 +4135,7 @@ Result<gpu::GraphicsPipeline, Status>
 
 Result<Void, Status> IDevice::recreate_swapchain(Swapchain swapchain)
 {
-    ASH_SCRATCH_SCOPE(scratch, allocator_);
+    ScratchScope scratch{allocator_};
 
     auto info = std::move(swapchain->preference);
     ASH_CHECK(info.preferred_extent.x() > 0, "");
@@ -4271,7 +4434,7 @@ Result<gpu::Swapchain, Status>
 Result<gpu::TimestampQuery, Status>
   IDevice::create_timestamp_query(gpu::TimestampQueryInfo const & info)
 {
-    ASH_SCRATCH_SCOPE(scratch, allocator_);
+    ScratchScope scratch{allocator_};
 
     ASH_CHECK(info.count > 0, "");
 
@@ -4298,7 +4461,7 @@ Result<gpu::TimestampQuery, Status>
 Result<gpu::StatisticsQuery, Status>
   IDevice::create_statistics_query(gpu::StatisticsQueryInfo const & info)
 {
-    ASH_SCRATCH_SCOPE(scratch, allocator_);
+    ScratchScope scratch{allocator_};
 
     ASH_CHECK(info.count > 0, "");
 
@@ -4354,7 +4517,7 @@ Result<gpu::CommandEncoder, Status>
 Result<gpu::CommandBuffer, Status>
   IDevice::create_command_buffer(gpu::CommandBufferInfo const & info)
 {
-    ASH_SCRATCH_SCOPE(scratch, allocator_);
+    ScratchScope scratch{allocator_};
 
     VkCommandPoolCreateInfo pool_create_info{
       .sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
@@ -4443,8 +4606,8 @@ Result<gpu::QueueScope, Status>
 
     for (auto i : range(info.buffering))
     {
-        ASH_SCRATCH_SCOPE(scratch, allocator_);
-        auto sbm_fnc_label =
+        ScratchScope scratch{allocator_};
+        auto         sbm_fnc_label =
           sformat(scratch, "{} / SubmitFence {}"_str, info.label, i).unwrap();
 
         VkSemaphore acquire_sem;
@@ -5070,7 +5233,7 @@ void IDevice::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
             ASH_CHECK_UNREACHABLE();
     }
 
-    ASH_SCRATCH_SCOPE(scratch, allocator_);
+    ScratchScope scratch{allocator_};
 
     Vec<VkDescriptorBufferInfo> buffer_infos{scratch};
     Vec<VkDescriptorImageInfo>  image_infos{scratch};
@@ -5111,9 +5274,9 @@ void IDevice::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
                 auto * view    = (ImageView) b.image_view;
                 auto * sampler = (Sampler) b.sampler;
                 vk             = VkDescriptorImageInfo{
-                              .sampler     = sampler,
-                              .imageView   = (view == nullptr) ? nullptr : view->vk,
-                              .imageLayout = descriptor_image_layout(binding.type)};
+                  .sampler     = sampler,
+                  .imageView   = (view == nullptr) ? nullptr : view->vk,
+                  .imageLayout = descriptor_image_layout(binding.type)};
             }
         }
         break;
@@ -5209,7 +5372,7 @@ Result<Void, Status> IDevice::await_queue_idle()
 Result<Void, Status> IDevice::get_surface_formats(gpu::Surface              surface_,
                                                   Vec<gpu::SurfaceFormat> & formats)
 {
-    ASH_SCRATCH_SCOPE(scratch, allocator_);
+    ScratchScope scratch{allocator_};
 
     auto surface = (VkSurfaceKHR) surface_;
 
@@ -5258,7 +5421,7 @@ Result<Void, Status> IDevice::get_surface_formats(gpu::Surface              surf
 Result<Void, Status> IDevice::get_surface_present_modes(gpu::Surface surface_,
                                                         Vec<gpu::PresentMode> & modes)
 {
-    ASH_SCRATCH_SCOPE(scratch, allocator_);
+    ScratchScope scratch{allocator_};
 
     auto surface = (VkSurfaceKHR) surface_;
 
@@ -6003,8 +6166,8 @@ void ICommandEncoder::copy_image(gpu::Image src_, gpu::Image dst_,
           .baseArrayLayer = copy.src_layers.array_layers.offset,
           .layerCount     = copy.src_layers.array_layers.span};
         VkOffset3D               src_offset{(i32) copy.src_area.offset.x(),
-                              (i32) copy.src_area.offset.y(),
-                              (i32) copy.src_area.offset.z()};
+                                            (i32) copy.src_area.offset.y(),
+                                            (i32) copy.src_area.offset.z()};
         VkImageSubresourceLayers dst_subresource{
           .aspectMask     = (VkImageAspectFlags) copy.dst_layers.aspects,
           .mipLevel       = copy.dst_layers.mip_level,
@@ -6179,17 +6342,17 @@ void ICommandEncoder::blit_image(gpu::Image src_, gpu::Image dst_,
         vk = VkImageBlit{
           .srcSubresource = src_subresource,
           .srcOffsets     = {VkOffset3D{(i32) blit.src_area.offset.x(),
-                                    (i32) blit.src_area.offset.y(),
-                                    (i32) blit.src_area.offset.z()},
+                                        (i32) blit.src_area.offset.y(),
+                                        (i32) blit.src_area.offset.z()},
                              VkOffset3D{(i32) blit.src_area.end().x(),
-                                    (i32) blit.src_area.end().y(),
-                                    (i32) blit.src_area.end().z()}},
+                                        (i32) blit.src_area.end().y(),
+                                        (i32) blit.src_area.end().z()}},
           .dstSubresource = dst_subresource,
           .dstOffsets     = {
                              VkOffset3D{(i32) blit.dst_area.offset.x(), (i32) blit.dst_area.offset.y(),
                        (i32) blit.dst_area.offset.z()},
                              VkOffset3D{(i32) blit.dst_area.end().x(), (i32) blit.dst_area.end().y(),
-                       (i32) blit.dst_area.end().z()}             }
+                       (i32) blit.dst_area.end().z()}                 }
         };
     }
 
@@ -6272,8 +6435,8 @@ void ICommandEncoder::resolve_image(gpu::Image src_, gpu::Image dst_,
           .baseArrayLayer = resolve.src_layers.array_layers.offset,
           .layerCount     = resolve.src_layers.array_layers.span};
         VkOffset3D               src_offset{(i32) resolve.src_area.offset.x(),
-                              (i32) resolve.src_area.offset.y(),
-                              (i32) resolve.src_area.offset.z()};
+                                            (i32) resolve.src_area.offset.y(),
+                                            (i32) resolve.src_area.offset.z()};
         VkImageSubresourceLayers dst_subresource{
           .aspectMask     = (VkImageAspectFlags) resolve.dst_layers.aspects,
           .mipLevel       = resolve.dst_layers.mip_level,
@@ -6595,8 +6758,8 @@ void ICommandEncoder::begin_rendering(gpu::RenderingInfo const & info)
 
     for (auto & attachment : info.depth_attachment)
     {
-        VkAccessFlags access = depth_stencil_attachment_access(attachment) |
-                               RESOLVE_DEPTH_STENCIL_SRC_ACCESS;
+        VkAccessFlags        access = depth_stencil_attachment_access(attachment) |
+                                      RESOLVE_DEPTH_STENCIL_SRC_ACCESS;
         VkPipelineStageFlags stages = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
                                       VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT |
                                       RESOLVE_STAGE;
@@ -6628,9 +6791,9 @@ void ICommandEncoder::begin_rendering(gpu::RenderingInfo const & info)
     {
         VkAccessFlags access = depth_stencil_attachment_access(attachment) |
                                RESOLVE_DEPTH_STENCIL_SRC_ACCESS;
-        VkImageLayout        layout = has_write_access(access) ?
-                                        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL :
-                                        VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+        VkImageLayout layout = has_write_access(access) ?
+                                 VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL :
+                                 VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
         VkPipelineStageFlags stages = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
                                       VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT |
                                       RESOLVE_STAGE;
@@ -6779,7 +6942,7 @@ void ICommandEncoder::bind_descriptor_sets(
             bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS;
             layout     = ctx_.graphics_pipeline->vk_layout;
             stages     = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
-                     VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+                         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
         }
         break;
         case Pass::Compute:

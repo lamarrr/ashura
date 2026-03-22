@@ -18,7 +18,7 @@ static gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
                                              gpu::PolygonMode polygon_mode,
                                              Allocator        allocator)
 {
-    ASH_SCRATCH_SCOPE(scratch, allocator);
+    ScratchScope scratch{allocator};
 
     auto & gpu = *plan->sys();
 

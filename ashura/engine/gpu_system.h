@@ -468,6 +468,7 @@ struct IGpuFramePlan
     void await();
 };
 
+// TODO: make them all non-trivially copyable?
 struct TexelBufferUnion
 {
     static constexpr gpu::BufferUsage USAGE =
@@ -521,12 +522,14 @@ struct TexelBufferUnion
     u32x2                                       extent           = {0, 0};
     u32                                         sample_count     = 1;
     InplaceVec<View, std::size(ALL_FORMATS), 0> views            = {};
+    StrVec                                      label{noop_allocator};
+    Vec<gpu::Format>                            formats{noop_allocator};
 
     View interpret(gpu::Format format) const;
 
     void uninit(gpu::Device device);
 
-    void update_descriptors(gpu::Device device);
+    void init_views(GpuSys sys);
 
     static TexelBufferUnion create(GpuSys sys, u32x2 target_extent, u32 sample_count,
                                    u32x2                   tile_texel_count,
@@ -539,10 +542,11 @@ struct ImageUnion
     DepthStencilImage depth_stencil = {};
     TexelBufferUnion  texel         = {};
     gpu::Alias        alias         = nullptr;
+    StrVec            label{noop_allocator};
 
     void uninit(gpu::Device device);
 
-    void update_descriptors(gpu::Device device);
+    void init_views(GpuSys sys);
 
     static ImageUnion create(GpuSys sys, u32x2 target_extent, gpu::Format color_format,
                              gpu::Format depth_stencil_format, Str label);

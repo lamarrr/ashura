@@ -19,8 +19,8 @@ static gpu::GraphicsPipeline create_coverage_pipeline(GpuFramePlan plan, Str lab
                                                       gpu::Shader shader,
                                                       Allocator   allocator)
 {
-    ASH_SCRATCH_SCOPE(scratch, allocator);
-    auto & gpu = *plan->sys();
+    ScratchScope scratch{allocator};
+    auto &       gpu = *plan->sys();
 
     auto tagged_label =
       sformat(scratch, "VectorPath Coverage Graphics Pipeline: {}"_str, label).unwrap();
@@ -91,7 +91,7 @@ static gpu::GraphicsPipeline create_fill_pipeline(GpuFramePlan plan, Str label,
                                                   gpu::Shader shader,
                                                   Allocator   allocator)
 {
-    ASH_SCRATCH_SCOPE(scratch, allocator);
+    ScratchScope scratch{allocator};
 
     auto & gpu = *plan->sys();
 

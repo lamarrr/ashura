@@ -819,8 +819,8 @@ void TextModel::insert(Str32 input)
 
 void TextModel::insert(Str8 input)
 {
-    ASH_SCRATCH_SCOPE(scratch, allocator_);
-    Vec<c32> utf32{scratch};
+    ScratchScope scratch{allocator_};
+    Vec<c32>     utf32{scratch};
     utf8_decode(input, utf32).unwrap();
     insert(utf32);
 }

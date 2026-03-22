@@ -12,13 +12,13 @@ u32x3 ColorImage::extent() const
     return info.extent;
 }
 
-void ColorImage::uninit(gpu::Device device)
+void ColorImage::uninit(gpu::Device d)
 {
-    device->uninit(sampled_textures);
-    device->uninit(storage_textures);
-    device->uninit(input_attachments);
-    device->uninit(view);
-    device->uninit(image);
+    d->uninit(sampled_textures);
+    d->uninit(storage_textures);
+    d->uninit(input_attachments);
+    d->uninit(view);
+    d->uninit(image);
 }
 
 gpu::SampleCount ColorMsaaImage::sample_count() const
@@ -31,10 +31,10 @@ u32x3 ColorMsaaImage::extent() const
     return info.extent;
 }
 
-void ColorMsaaImage::uninit(gpu::Device device)
+void ColorMsaaImage::uninit(gpu::Device d)
 {
-    device->uninit(view);
-    device->uninit(image);
+    d->uninit(view);
+    d->uninit(image);
 }
 
 u32x3 DepthStencilImage::extent() const
@@ -42,13 +42,13 @@ u32x3 DepthStencilImage::extent() const
     return info.extent;
 }
 
-void DepthStencilImage::uninit(gpu::Device device)
+void DepthStencilImage::uninit(gpu::Device d)
 {
-    device->uninit(depth_sampled_textures);
-    device->uninit(depth_input_attachments);
-    device->uninit(depth_view);
-    device->uninit(stencil_view);
-    device->uninit(image);
+    d->uninit(depth_sampled_textures);
+    d->uninit(depth_input_attachments);
+    d->uninit(depth_view);
+    d->uninit(stencil_view);
+    d->uninit(image);
 }
 
 u32x3 Framebuffer::extent() const
@@ -56,25 +56,25 @@ u32x3 Framebuffer::extent() const
     return color.extent();
 }
 
-void Framebuffer::uninit(gpu::Device device)
+void Framebuffer::uninit(gpu::Device d)
 {
-    color.uninit(device);
-    color_msaa.match([&](auto & c) { c.uninit(device); });
-    depth_stencil.match([&](auto & s) { s.uninit(device); });
+    color.uninit(d);
+    color_msaa.match([&](auto & c) { c.uninit(d); });
+    depth_stencil.match([&](auto & s) { s.uninit(d); });
 }
 
-void GpuBuffer::uninit(gpu::Device device)
+void GpuBuffer::uninit(gpu::Device d)
 {
-    device->uninit(uniform_buffer);
-    device->uninit(read_storage_buffer);
-    device->uninit(read_write_storage_buffer);
-    device->uninit(buffer);
+    d->uninit(uniform_buffer);
+    d->uninit(read_storage_buffer);
+    d->uninit(read_write_storage_buffer);
+    d->uninit(buffer);
 }
 
 GpuBuffer GpuBuffer::create(GpuSys sys, u64 capacity, gpu::BufferUsage usage, Str label)
 {
-    ASH_SCRATCH_SCOPE(scratch, sys->allocator_);
-    auto & d = *sys->dev_;
+    ScratchScope scratch{sys->allocator_};
+    auto &       d = *sys->dev_;
 
     auto buffer_label = sformat(scratch, "{} / {}"_str, label, "Buffer"_str).unwrap();
     auto buffer =
@@ -89,7 +89,7 @@ GpuBuffer GpuBuffer::create(GpuSys sys, u64 capacity, gpu::BufferUsage usage, St
 
     auto make_set = [&](Str component, gpu::DescriptorSetLayout layout, u64 max_size) {
         auto set_label = sformat(scratch, "{} / {}"_str, label, component).unwrap();
-        auto set       = d
+        auto set = d
                      .create_descriptor_set(gpu::DescriptorSetInfo{
                        .label = set_label, .layout = layout, .variable_lengths = {}})
                      .unwrap();
@@ -130,10 +130,10 @@ GpuBuffer GpuBuffer::create(GpuSys sys, u64 capacity, gpu::BufferUsage usage, St
                      .read_write_storage_buffer = read_write_storage_buffer};
 }
 
-void GpuQueries::uninit(gpu::Device device)
+void GpuQueries::uninit(gpu::Device d)
 {
-    device->uninit(timestamps);
-    device->uninit(statistics);
+    d->uninit(timestamps);
+    d->uninit(statistics);
 }
 
 u32 GpuQueries::timestamps_capacity() const
@@ -150,15 +150,15 @@ GpuQueries GpuQueries::create(Allocator allocator, gpu::Device device,
                               Span<char const> label, u32 timestamps_capacity,
                               u32 statistics_capacity)
 {
-    ASH_SCRATCH_SCOPE(scratch, allocator);
+    ScratchScope scratch{allocator};
     ASH_CHECK(timestamps_capacity > 0, "");
     ASH_CHECK(statistics_capacity > 0, "");
 
     auto timestamp_label = sformat(scratch, "{} / TimestampQuery"_str, label).unwrap();
     auto timestamps      = device
-                        ->create_timestamp_query(gpu::TimestampQueryInfo{
-                          .label = timestamp_label, .count = timestamps_capacity})
-                        .unwrap();
+                             ->create_timestamp_query(gpu::TimestampQueryInfo{
+                               .label = timestamp_label, .count = timestamps_capacity})
+                             .unwrap();
 
     Vec<u64> cpu_timestamps{allocator};
     cpu_timestamps.resize_uninit(timestamps_capacity).unwrap();
@@ -179,26 +179,26 @@ GpuQueries GpuQueries::create(Allocator allocator, gpu::Device device,
                       .cpu_statistics = std::move(cpu_statistics)};
 }
 
-void GpuDescriptorsLayout::uninit(gpu::Device device)
+void GpuDescriptorsLayout::uninit(gpu::Device d)
 {
-    device->uninit(samplers);
-    device->uninit(sampled_textures);
-    device->uninit(storage_textures);
-    device->uninit(uniform_buffer);
-    device->uninit(read_storage_buffer);
-    device->uninit(read_write_storage_buffer);
-    device->uninit(uniform_buffers);
-    device->uninit(read_storage_buffers);
-    device->uninit(read_write_storage_buffers);
-    device->uninit(input_attachments);
+    d->uninit(samplers);
+    d->uninit(sampled_textures);
+    d->uninit(storage_textures);
+    d->uninit(uniform_buffer);
+    d->uninit(read_storage_buffer);
+    d->uninit(read_write_storage_buffer);
+    d->uninit(uniform_buffers);
+    d->uninit(read_storage_buffers);
+    d->uninit(read_write_storage_buffers);
+    d->uninit(input_attachments);
 }
 
 GpuDescriptorsLayout GpuDescriptorsLayout::create(Allocator   allocator,
                                                   gpu::Device device, Str label,
                                                   GpuSysCfg const & cfg)
 {
-    ASH_SCRATCH_SCOPE(scratch, allocator);
-    auto tag = [&](Str component) {
+    ScratchScope scratch{allocator};
+    auto         tag = [&](Str component) {
         return sformat(scratch, "{} / {}"_str, label, component).unwrap();
     };
 
@@ -391,8 +391,8 @@ void GpuDescriptors::uninit(gpu::Device device)
 
 GpuDescriptors GpuDescriptors::create(GpuSys sys, Str label)
 {
-    ASH_SCRATCH_SCOPE(scratch, sys->allocator_);
-    auto tag = [&](Str component) {
+    ScratchScope scratch{sys->allocator_};
+    auto         tag = [&](Str component) {
         return sformat(scratch, "{} / {}"_str, label, component).unwrap();
     };
 
@@ -567,56 +567,26 @@ TexelBufferUnion::View TexelBufferUnion::interpret(gpu::Format format) const
     return view[0];
 }
 
-void TexelBufferUnion::uninit(gpu::Device device)
+void TexelBufferUnion::uninit(gpu::Device d)
 {
     for (auto & view : views)
     {
-        device->uninit(view.uniform_texel_buffers);
-        device->uninit(view.storage_texel_buffers);
-        device->uninit(view.view);
+        d->uninit(view.uniform_texel_buffers);
+        d->uninit(view.storage_texel_buffers);
+        d->uninit(view.view);
     }
-    device->uninit(buffer);
+    d->uninit(buffer);
 }
 
-TexelBufferUnion TexelBufferUnion::create(GpuSys sys, u32x2 target_extent,
-                                          u32 sample_count, u32x2 tile_texel_count,
-                                          Span<gpu::Format const> formats, Str label)
+void TexelBufferUnion::init_views(GpuSys sys)
 {
-    ASH_SCRATCH_SCOPE(scratch, sys->allocator_);
-    ASH_CHECK(!tile_texel_count.any_zero(), "");
-    ASH_CHECK(is_pow2(tile_texel_count.x()) && is_pow2(tile_texel_count.y()), "");
-    ASH_CHECK(sample_count == 1, "");
+    ScratchScope scratch{sys->allocator_};
 
-    for (auto format : formats)
-    {
-        ASH_CHECK(!find(span(ALL_FORMATS), format).is_empty(), "");
-    }
-
-    auto tag = [&](Str component) {
-        return sformat(scratch, "{} / {}"_str, label, component).unwrap();
-    };
+    auto & d = *sys->dev_;
 
     auto itag = [&](Str component, u32 i) {
         return sformat(scratch, "{} / {} / {}"_str, label, component, i).unwrap();
     };
-
-    auto buffer_tag = tag("Texel Buffer"_str);
-
-    auto tiled_size = u32x2{align_offset_up(tile_texel_count.x(), target_extent.x()),
-                            align_offset_up(tile_texel_count.y(), target_extent.y())};
-
-    auto tile_texel_count_log2 = log2(tile_texel_count);
-    auto tile_count            = tiled_size >> tile_texel_count_log2;
-
-    auto & d = *sys->dev_;
-
-    auto buffer =
-      d.create_buffer(gpu::BufferInfo{.label = buffer_tag,
-                                      .size = sizeof(f32x4) * tiled_size.product<u64>(),
-                                      .usage       = TexelBufferUnion::USAGE,
-                                      .memory_type = gpu::MemoryType::Aliased,
-                                      .host_mapped = false})
-        .unwrap();
 
     decltype(TexelBufferUnion::views) views{};
     views.resize_uninit(size32(formats)).unwrap();
@@ -642,14 +612,6 @@ TexelBufferUnion TexelBufferUnion::create(GpuSys sys, u32x2 target_extent,
               .variable_lengths = span({1U})})
             .unwrap();
 
-        d.update_descriptor_set(
-          gpu::DescriptorSetUpdate{.set           = uniform_texel_buffers,
-                                   .binding       = 0,
-                                   .first_element = 0,
-                                   .images        = {},
-                                   .texel_buffers = span({buffer_view}),
-                                   .buffers       = {}});
-
         auto storage_tag =
           sformat(scratch, "{} / {}"_str, buffer_view_tag, "Storage"_str).unwrap();
 
@@ -661,26 +623,82 @@ TexelBufferUnion TexelBufferUnion::create(GpuSys sys, u32x2 target_extent,
               .variable_lengths = span({1U})})
             .unwrap();
 
-        d.update_descriptor_set(
-          gpu::DescriptorSetUpdate{.set           = storage_texel_buffers,
-                                   .binding       = 0,
-                                   .first_element = 0,
-                                   .images        = {},
-                                   .texel_buffers = span({buffer_view}),
-                                   .buffers       = {}});
-
         view = View{.view                  = buffer_view,
                     .format                = format,
                     .uniform_texel_buffers = uniform_texel_buffers,
                     .storage_texel_buffers = storage_texel_buffers};
     }
 
+    for (auto [i, view] : enumerate(views))
+    {
+        d.update_descriptor_set(
+          gpu::DescriptorSetUpdate{.set           = view.uniform_texel_buffers,
+                                   .binding       = 0,
+                                   .first_element = 0,
+                                   .images        = {},
+                                   .texel_buffers = span({view.view}),
+                                   .buffers       = {}});
+
+        d.update_descriptor_set(
+          gpu::DescriptorSetUpdate{.set           = view.storage_texel_buffers,
+                                   .binding       = 0,
+                                   .first_element = 0,
+                                   .images        = {},
+                                   .texel_buffers = span({view.view}),
+                                   .buffers       = {}});
+    }
+
+    this->views = std::move(views);
+}
+
+TexelBufferUnion TexelBufferUnion::create(GpuSys sys, u32x2 target_extent,
+                                          u32 sample_count, u32x2 tile_texel_count,
+                                          Span<gpu::Format const> in_formats,
+                                          Str                     in_label)
+{
+    ScratchScope scratch{sys->allocator_};
+    ASH_CHECK(!tile_texel_count.any_zero(), "");
+    ASH_CHECK(is_pow2(tile_texel_count.x()) && is_pow2(tile_texel_count.y()), "");
+    ASH_CHECK(sample_count == 1, "");
+
+    for (auto format : in_formats)
+    {
+        ASH_CHECK(!find(span(ALL_FORMATS), format).is_empty(), "");
+    }
+
+    auto tag = [&](Str component) {
+        return sformat(scratch, "{} / {}"_str, in_label, component).unwrap();
+    };
+
+    auto buffer_tag = tag("Texel Buffer"_str);
+
+    auto tiled_size = u32x2{align_offset_up(tile_texel_count.x(), target_extent.x()),
+                            align_offset_up(tile_texel_count.y(), target_extent.y())};
+
+    auto tile_texel_count_log2 = log2(tile_texel_count);
+    auto tile_count            = tiled_size >> tile_texel_count_log2;
+
+    auto & d = *sys->dev_;
+
+    auto buffer =
+      d.create_buffer(gpu::BufferInfo{.label = buffer_tag,
+                                      .size = sizeof(f32x4) * tiled_size.product<u64>(),
+                                      .usage       = TexelBufferUnion::USAGE,
+                                      .memory_type = gpu::MemoryType::Aliased,
+                                      .host_mapped = false})
+        .unwrap();
+
+    auto label   = vec::copy(sys->allocator_, in_label).unwrap();
+    auto formats = vec::copy(sys->allocator_, in_formats).unwrap();
+
     return TexelBufferUnion{.buffer           = buffer,
                             .tile_texel_count = tile_texel_count,
                             .tile_count       = tile_count,
                             .extent           = target_extent,
                             .sample_count     = sample_count,
-                            .views            = views};
+                            .views            = {},
+                            .label            = std::move(label),
+                            .formats          = std::move(formats)};
 }
 
 void ImageUnion::uninit(gpu::Device device)
@@ -691,13 +709,149 @@ void ImageUnion::uninit(gpu::Device device)
     device->uninit(alias);
 }
 
-ImageUnion ImageUnion::create(GpuSys sys, u32x2 target_extent, gpu::Format color_format,
-                              gpu::Format depth_stencil_format, Str label)
+void ImageUnion::init_views(GpuSys sys)
 {
-    ASH_SCRATCH_SCOPE(scratch, sys->allocator_);
-    // TODO: MSAA scratch and target textures
+    ScratchScope scratch{sys->allocator_};
+
+    auto & d = *sys->dev_;
+
     auto tag = [&](Str component) {
         return sformat(scratch, "{} / {}"_str, label, component).unwrap();
+    };
+
+    auto color_view_label = tag("Color Image View"_str);
+
+    auto color_view_info = gpu::ImageViewInfo{
+      .label        = color_view_label,
+      .image        = color.image,
+      .view_type    = gpu::ImageViewType::Type2D,
+      .view_format  = color.info.format,
+      .mapping      = {},
+      .aspects      = gpu::ImageAspects::Color,
+      .mip_levels   = {0, 1},
+      .array_layers = {0, 1}
+    };
+
+    auto color_image_view = d.create_image_view(color_view_info).unwrap();
+
+    color_view_info.label = {};
+
+    auto color_sampled_texture_label = tag("Color Sampled Texture"_str);
+    auto color_sampled_texture =
+      d.create_descriptor_set(
+         gpu::DescriptorSetInfo{.label  = color_sampled_texture_label,
+                                .layout = sys->descriptors_layout_.sampled_textures,
+                                .variable_lengths = span({1U})})
+        .unwrap();
+
+    auto color_storage_texture_label = tag("Color Storage Texture"_str);
+    auto color_storage_texture =
+      d.create_descriptor_set(
+         gpu::DescriptorSetInfo{.label  = color_storage_texture_label,
+                                .layout = sys->descriptors_layout_.storage_textures,
+                                .variable_lengths = span({1U})})
+        .unwrap();
+
+    auto color_input_attachment_label = tag("Color Input Attachment"_str);
+    auto color_input_attachment =
+      d.create_descriptor_set(
+         gpu::DescriptorSetInfo{.label  = color_input_attachment_label,
+                                .layout = sys->descriptors_layout_.input_attachments,
+                                .variable_lengths = span({1U})})
+        .unwrap();
+
+    color.view_info         = color_view_info;
+    color.view              = color_image_view;
+    color.sampled_textures  = color_sampled_texture;
+    color.storage_textures  = color_storage_texture;
+    color.input_attachments = color_input_attachment;
+
+    auto depth_stencil_label = tag("Depth Stencil Image"_str);
+
+    auto depth_view_label = tag("Depth Image View"_str);
+    auto depth_view_info  = gpu::ImageViewInfo{
+      .label        = depth_view_label,
+      .image        = depth_stencil.image,
+      .view_type    = gpu::ImageViewType::Type2D,
+      .view_format  = depth_stencil.info.format,
+      .mapping      = {},
+      .aspects      = gpu::ImageAspects::Depth,
+      .mip_levels   = {0, 1},
+      .array_layers = {0, 1}
+    };
+
+    auto depth_image_view = d.create_image_view(depth_view_info).unwrap();
+
+    depth_view_info.label = {};
+
+    auto stencil_view_label = tag("Stencil Image View"_str);
+    auto stencil_view_info  = gpu::ImageViewInfo{
+      .label        = stencil_view_label,
+      .image        = depth_stencil.image,
+      .view_type    = gpu::ImageViewType::Type2D,
+      .view_format  = depth_stencil.info.format,
+      .mapping      = {},
+      .aspects      = gpu::ImageAspects::Stencil,
+      .mip_levels   = {0, 1},
+      .array_layers = {0, 1}
+    };
+
+    auto stencil_image_view = d.create_image_view(stencil_view_info).unwrap();
+
+    stencil_view_info.label = {};
+
+    auto depth_sampled_texture_label = tag("Depth Sampled Texture"_str);
+    auto depth_sampled_texture =
+      d.create_descriptor_set(
+         gpu::DescriptorSetInfo{.label  = depth_sampled_texture_label,
+                                .layout = sys->descriptors_layout_.sampled_textures,
+                                .variable_lengths = span({1U})})
+        .unwrap();
+
+    auto depth_input_attachment_label = tag("Depth Input Attachment"_str);
+    auto depth_input_attachment =
+      d.create_descriptor_set(
+         gpu::DescriptorSetInfo{.label  = depth_input_attachment_label,
+                                .layout = sys->descriptors_layout_.input_attachments,
+                                .variable_lengths = span({1U})})
+        .unwrap();
+
+    depth_stencil.depth_view              = depth_image_view;
+    depth_stencil.depth_view_info         = depth_view_info;
+    depth_stencil.stencil_view            = stencil_image_view;
+    depth_stencil.stencil_view_info       = stencil_view_info;
+    depth_stencil.depth_sampled_textures  = depth_sampled_texture;
+    depth_stencil.depth_input_attachments = depth_input_attachment;
+
+    Tuple<gpu::DescriptorSet, gpu::ImageView> bindings[] = {
+      {color.sampled_textures,                color.view              },
+      {color.storage_textures,                color.view              },
+      {color.input_attachments,               color.view              },
+      {depth_stencil.depth_sampled_textures,  depth_stencil.depth_view},
+      {depth_stencil.depth_input_attachments, depth_stencil.depth_view}
+    };
+
+    for (auto [set, view] : bindings)
+    {
+        d.update_descriptor_set(gpu::DescriptorSetUpdate{
+          .set           = set,
+          .binding       = 0,
+          .first_element = 0,
+          .images        = span({gpu::ImageBinding{.image_view = view}}),
+          .texel_buffers = {},
+          .buffers       = {}});
+    }
+
+    texel.init_views(sys);
+}
+
+ImageUnion ImageUnion::create(GpuSys sys, u32x2 target_extent, gpu::Format color_format,
+                              gpu::Format depth_stencil_format, Str in_label)
+{
+    ScratchScope scratch{sys->allocator_};
+    // TODO: MSAA scratch and target textures
+    auto         tag = [&](Str component) {
+        return sformat(scratch, "{} / {}"_str, in_label, component).unwrap();
     };
 
     auto color_label = tag("Color Image"_str);
@@ -718,78 +872,13 @@ ImageUnion ImageUnion::create(GpuSys sys, u32x2 target_extent, gpu::Format color
 
     color_info.label = {};
 
-    auto color_view_label = tag("Color Image View"_str);
-
-    auto color_view_info = gpu::ImageViewInfo{
-      .label        = color_view_label,
-      .image        = color_image,
-      .view_type    = gpu::ImageViewType::Type2D,
-      .view_format  = color_format,
-      .mapping      = {},
-      .aspects      = gpu::ImageAspects::Color,
-      .mip_levels   = {0, 1},
-      .array_layers = {0, 1}
-    };
-
-    auto color_image_view = d.create_image_view(color_view_info).unwrap();
-
-    color_view_info.label = {};
-
-    auto color_sampled_texture_label = tag("Color Sampled Texture"_str);
-    auto color_sampled_texture =
-      d.create_descriptor_set(
-         gpu::DescriptorSetInfo{.label  = color_sampled_texture_label,
-                                .layout = sys->descriptors_layout_.sampled_textures,
-                                .variable_lengths = span({1U})})
-        .unwrap();
-
-    d.update_descriptor_set(gpu::DescriptorSetUpdate{
-      .set           = color_sampled_texture,
-      .binding       = 0,
-      .first_element = 0,
-      .images        = span({gpu::ImageBinding{.image_view = color_image_view}}),
-      .texel_buffers = {},
-      .buffers       = {}});
-
-    auto color_storage_texture_label = tag("Color Storage Texture"_str);
-    auto color_storage_texture =
-      d.create_descriptor_set(
-         gpu::DescriptorSetInfo{.label  = color_storage_texture_label,
-                                .layout = sys->descriptors_layout_.storage_textures,
-                                .variable_lengths = span({1U})})
-        .unwrap();
-
-    d.update_descriptor_set(gpu::DescriptorSetUpdate{
-      .set           = color_storage_texture,
-      .binding       = 0,
-      .first_element = 0,
-      .images        = span({gpu::ImageBinding{.image_view = color_image_view}}),
-      .texel_buffers = {},
-      .buffers       = {}});
-
-    auto color_input_attachment_label = tag("Color Input Attachment"_str);
-    auto color_input_attachment =
-      d.create_descriptor_set(
-         gpu::DescriptorSetInfo{.label  = color_input_attachment_label,
-                                .layout = sys->descriptors_layout_.input_attachments,
-                                .variable_lengths = span({1U})})
-        .unwrap();
-
-    d.update_descriptor_set(gpu::DescriptorSetUpdate{
-      .set           = color_input_attachment,
-      .binding       = 0,
-      .first_element = 0,
-      .images        = span({gpu::ImageBinding{.image_view = color_image_view}}),
-      .texel_buffers = {},
-      .buffers       = {}});
-
     auto color = ColorImage{.info              = color_info,
-                            .view_info         = color_view_info,
+                            .view_info         = {},
                             .image             = color_image,
-                            .view              = color_image_view,
-                            .sampled_textures  = color_sampled_texture,
-                            .storage_textures  = color_storage_texture,
-                            .input_attachments = color_input_attachment};
+                            .view              = nullptr,
+                            .sampled_textures  = nullptr,
+                            .storage_textures  = nullptr,
+                            .input_attachments = nullptr};
 
     auto depth_stencil_label = tag("Depth Stencil Image"_str);
     auto depth_stencil_info =
@@ -808,79 +897,14 @@ ImageUnion ImageUnion::create(GpuSys sys, u32x2 target_extent, gpu::Format color
 
     depth_stencil_info.label = {};
 
-    auto depth_view_label = tag("Depth Image View"_str);
-    auto depth_view_info  = gpu::ImageViewInfo{
-       .label        = depth_view_label,
-       .image        = depth_stencil_image,
-       .view_type    = gpu::ImageViewType::Type2D,
-       .view_format  = depth_stencil_format,
-       .mapping      = {},
-       .aspects      = gpu::ImageAspects::Depth,
-       .mip_levels   = {0, 1},
-       .array_layers = {0, 1}
-    };
-
-    auto depth_image_view = d.create_image_view(depth_view_info).unwrap();
-
-    depth_view_info.label = {};
-
-    auto stencil_view_label = tag("Stencil Image View"_str);
-    auto stencil_view_info  = gpu::ImageViewInfo{
-       .label        = stencil_view_label,
-       .image        = depth_stencil_image,
-       .view_type    = gpu::ImageViewType::Type2D,
-       .view_format  = depth_stencil_format,
-       .mapping      = {},
-       .aspects      = gpu::ImageAspects::Stencil,
-       .mip_levels   = {0, 1},
-       .array_layers = {0, 1}
-    };
-
-    auto stencil_image_view = d.create_image_view(stencil_view_info).unwrap();
-
-    stencil_view_info.label = {};
-
-    auto depth_sampled_texture_label = tag("Depth Sampled Texture"_str);
-    auto depth_sampled_texture =
-      d.create_descriptor_set(
-         gpu::DescriptorSetInfo{.label  = depth_sampled_texture_label,
-                                .layout = sys->descriptors_layout_.sampled_textures,
-                                .variable_lengths = span({1U})})
-        .unwrap();
-
-    d.update_descriptor_set(gpu::DescriptorSetUpdate{
-      .set           = depth_sampled_texture,
-      .binding       = 0,
-      .first_element = 0,
-      .images        = span({gpu::ImageBinding{.image_view = depth_image_view}}),
-      .texel_buffers = {},
-      .buffers       = {}});
-
-    auto depth_input_attachment_label = tag("Depth Input Attachment"_str);
-    auto depth_input_attachment =
-      d.create_descriptor_set(
-         gpu::DescriptorSetInfo{.label  = depth_input_attachment_label,
-                                .layout = sys->descriptors_layout_.input_attachments,
-                                .variable_lengths = span({1U})})
-        .unwrap();
-
-    d.update_descriptor_set(gpu::DescriptorSetUpdate{
-      .set           = depth_input_attachment,
-      .binding       = 0,
-      .first_element = 0,
-      .images        = span({gpu::ImageBinding{.image_view = depth_image_view}}),
-      .texel_buffers = {},
-      .buffers       = {}});
-
-    auto depth_stencil =
-      DepthStencilImage{.info                    = depth_stencil_info,
-                        .depth_view_info         = depth_view_info,
-                        .stencil_view_info       = stencil_view_info,
-                        .image                   = depth_stencil_image,
-                        .depth_view              = depth_image_view,
-                        .stencil_view            = stencil_image_view,
-                        .depth_sampled_textures  = depth_sampled_texture,
-                        .depth_input_attachments = depth_input_attachment};
+    auto depth_stencil = DepthStencilImage{.info              = depth_stencil_info,
+                                           .depth_view_info   = {},
+                                           .stencil_view_info = {},
+                                           .image             = depth_stencil_image,
+                                           .depth_view        = nullptr,
+                                           .stencil_view      = nullptr,
+                                           .depth_sampled_textures  = nullptr,
+                                           .depth_input_attachments = nullptr};
 
     // only enable support for the 32-bit formats to minimize memory waste.
     // enabling support for f32x4 formats for example would consume 4x the memory
@@ -898,8 +922,8 @@ ImageUnion ImageUnion::create(GpuSys sys, u32x2 target_extent, gpu::Format color
 
     static constexpr u32x2 TILE_TEXEL_COUNT = u32x2{32, 32};
 
-    auto texel_union =
-      TexelBufferUnion::create(sys, target_extent, 1, TILE_TEXEL_COUNT, FORMATS, label);
+    auto texel_union = TexelBufferUnion::create(sys, target_extent, 1, TILE_TEXEL_COUNT,
+                                                FORMATS, in_label);
 
     auto alias_label = tag("Alias"_str);
     auto alias =
@@ -909,10 +933,14 @@ ImageUnion ImageUnion::create(GpuSys sys, u32x2 target_extent, gpu::Format color
                           {color_image, depth_stencil_image, texel_union.buffer})})
         .unwrap();
 
-    return ImageUnion{.color         = color,
-                      .depth_stencil = depth_stencil,
-                      .texel         = texel_union,
-                      .alias         = alias};
+    auto res = ImageUnion{.color         = color,
+                          .depth_stencil = depth_stencil,
+                          .texel         = std::move(texel_union),
+                          .alias         = alias};
+
+    res.init_views(sys);
+
+    return res;
 }
 
 void ScratchImages::uninit(gpu::Device device)
@@ -929,7 +957,7 @@ ScratchImages ScratchImages::create(GpuSys sys, u32 num_scratch, u32x2 target_ex
                                     gpu::Format depth_stencil_format, Str label,
                                     Allocator allocator)
 {
-    ASH_SCRATCH_SCOPE(scratch, sys->allocator_);
+    ScratchScope    scratch{sys->allocator_};
     Vec<ImageUnion> images{allocator};
 
     for (auto i : range(num_scratch))
@@ -937,7 +965,7 @@ ScratchImages ScratchImages::create(GpuSys sys, u32 num_scratch, u32x2 target_ex
         auto union_label = sformat(scratch, "{} / {}"_str, label, i).unwrap();
         auto union_image = ImageUnion::create(sys, target_extent, color_format,
                                               depth_stencil_format, union_label);
-        images.push(union_image).unwrap();
+        images.push(std::move(union_image)).unwrap();
     }
 
     return ScratchImages{.images = std::move(images)};
@@ -954,7 +982,7 @@ void ScratchBuffers::uninit(gpu::Device device)
 ScratchBuffers ScratchBuffers::create(GpuSys sys, Span<u64 const> sizes, Str label,
                                       Allocator allocator)
 {
-    ASH_SCRATCH_SCOPE(scratch, sys->allocator_);
+    ScratchScope   scratch{sys->allocator_};
     Vec<GpuBuffer> buffers{allocator};
     for (auto [i, size] : enumerate(sizes))
     {
@@ -1103,7 +1131,7 @@ gpu::DescriptorSet IGpuFrame::get(TextureSet tex)
 {
     return tex.match(
       [&](ScratchTexture s) {
-          auto img = get_scratch_images()[s.image];
+          auto & img = get_scratch_images()[s.image];
 
           switch (s.type)
           {
@@ -1153,8 +1181,8 @@ void IGpuFrame::submit()
     ASH_CHECK(state_ == GpuFrameState::Recorded, "");
 
     {
-        ASH_SCRATCH_SCOPE(scratch, allocator_);
-        auto label = sformat(scratch, "GpuFrame {} / Buffer"_str, id_).unwrap();
+        ScratchScope scratch{allocator_};
+        auto         label = sformat(scratch, "GpuFrame {} / Buffer"_str, id_).unwrap();
         ASH_CHECK(current_plan_->gpu_buffer_data_.size() <= cfg_.max_buffer_size, "");
         auto size = clamp(current_plan_->gpu_buffer_data_.size(), cfg_.min_buffer_size,
                           cfg_.max_buffer_size);
@@ -1164,7 +1192,7 @@ void IGpuFrame::submit()
     }
 
     {
-        ASH_SCRATCH_SCOPE(scratch, allocator_);
+        ScratchScope scratch{allocator_};
 
         auto label =
           sformat(scratch, "GpuFrame {} / Scratch Buffers"_str, id_).unwrap();
@@ -1202,7 +1230,7 @@ void IGpuFrame::submit()
     if (target_info_ != current_plan_->target_ ||
         resources_.scratch_images.images.size() != num_scratch_images)
     {
-        ASH_SCRATCH_SCOPE(scratch, allocator_);
+        ScratchScope scratch{allocator_};
         resources_.scratch_images.uninit(dev_);
         auto label = sformat(scratch, "GpuFrame {} / Scratch Images"_str, id_).unwrap();
         resources_.scratch_images = ScratchImages::create(
@@ -1218,7 +1246,7 @@ void IGpuFrame::submit()
         sys_->cfg_.frame_statistics_capacity !=
           resources_.queries.statistics_capacity())
     {
-        ASH_SCRATCH_SCOPE(scratch, allocator_);
+        ScratchScope scratch{allocator_};
         auto label = sformat(scratch, "GpuFrame {} / Queries"_str, id_).unwrap();
         resources_.queries.uninit(dev_);
         resources_.queries = GpuQueries::create(allocator_, dev_, label,
@@ -1405,7 +1433,7 @@ static void create_default_samplers(GpuSys sys)
         {
             for (auto [color_name, color] : colors)
             {
-                ASH_SCRATCH_SCOPE(scratch, sys->allocator_);
+                ScratchScope scratch{sys->allocator_};
 
                 auto label = sformat(scratch, "Sampler: {} + {} + {}"_str,
                                      mip_map_mode_name, address_mode_name, color_name)
@@ -1437,11 +1465,11 @@ static void create_default_textures(GpuSys sys)
     gpu::Image default_image =
       sys->dev_
         ->create_image(gpu::ImageInfo{
-          .label  = "Default Image"_str,
-          .type   = gpu::ImageType::Type2D,
-          .format = gpu::Format::B8G8R8A8_UNORM,
-          .usage  = gpu::ImageUsage::Sampled | gpu::ImageUsage::TransferDst |
-                   gpu::ImageUsage::Storage | gpu::ImageUsage::Storage,
+          .label        = "Default Image"_str,
+          .type         = gpu::ImageType::Type2D,
+          .format       = gpu::Format::B8G8R8A8_UNORM,
+          .usage        = gpu::ImageUsage::Sampled | gpu::ImageUsage::TransferDst |
+                          gpu::ImageUsage::Storage | gpu::ImageUsage::Storage,
           .aspects      = gpu::ImageAspects::Color,
           .extent       = {1, 1, 1},
           .mip_levels   = 1,
@@ -1624,7 +1652,7 @@ void IGpuSys::init(Allocator allocator, gpu::Device device,
 
     for (auto i : range(buffering_))
     {
-        ASH_SCRATCH_SCOPE(scratch, allocator_);
+        ScratchScope scratch{allocator_};
 
         // start as signaled wait token
         auto wait_token = dyn<IWaitToken>(inplace, allocator_, NOT_IN_USE).unwrap();
@@ -1659,7 +1687,7 @@ void IGpuSys::init(Allocator allocator, gpu::Device device,
         auto wait_token = dyn<IWaitToken>(inplace, allocator_, NOT_IN_USE).unwrap();
         auto plan       = dyn<IGpuFramePlan>(inplace, allocator_, allocator_, this,
                                              std::move(wait_token))
-                      .unwrap();
+                            .unwrap();
         plans.push(std::move(plan)).unwrap();
     }
 

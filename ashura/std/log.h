@@ -59,6 +59,8 @@ struct ILogSink
     }
 };
 
+void dump_stacktrace();
+
 /// @brief Logger needs to use fixed-size memory as malloc can fail and make
 /// logging unreliable. This means each log statement's content/payload is
 /// limited to `BUFFER_CAPACITY`.
@@ -174,6 +176,7 @@ struct ILogger
             (void) std::fputs("ran out of log buffer memory while panicking.", stderr);
         }
         flush();
+        dump_stacktrace();
         handle_panic();
         std::abort();
     }

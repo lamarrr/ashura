@@ -6,7 +6,6 @@
 namespace ash
 {
 
-// TODO: add backtrace support
 
 struct PanicException
 {

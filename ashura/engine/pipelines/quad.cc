@@ -21,7 +21,7 @@ Str QuadPipeline::label()
 static gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
                                              gpu::Shader shader, Allocator allocator)
 {
-    ASH_SCRATCH_SCOPE(scratch, allocator);
+    ScratchScope scratch{allocator};
 
     auto & gpu = *plan->sys();
 
