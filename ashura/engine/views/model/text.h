@@ -53,7 +53,7 @@ struct CursorAction
 {
     CursorActionType type = CursorActionType::None;
 
-    Rc<Str32> text = static_rc(U""_str);
+    Rc<Str32> text = static_rc(U""_s);
 
     f32x2 center = f32x2::zero();
 

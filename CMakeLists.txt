@@ -131,7 +131,7 @@ set(SIMDJSON_BUILD_STATIC_LIB
 include(FetchContent)
 include(ExternalProject)
 
-set(ASH_VULKAN_VERSION "1.4.335.0")
+set(ASH_VULKAN_VERSION "1.4.341.0")
 set(ASH_VULKAN_SDK_VERSION "vulkan-sdk-${ASH_VULKAN_VERSION}")
 
 FetchContent_Declare(
@@ -311,7 +311,7 @@ if(LINUX)
                  HINTS ${aftermathsdk_linux_SOURCE_DIR}/lib/x64 REQUIRED)
     list(APPEND AFTERMATH_INCLUDE_DIRS ${aftermathsdk_linux_SOURCE_DIR}/include)
 elseif(WIN32)
-    find_library(LibAfterMath libGFSDK_Aftermath_Lib.x64.lib
+    find_library(LibAfterMath GFSDK_Aftermath_Lib.x64.lib
                  HINTS ${aftermathsdk_windows_SOURCE_DIR}/lib/x64 REQUIRED)
     list(APPEND AFTERMATH_INCLUDE_DIRS ${aftermathsdk_windows_SOURCE_DIR}/include)
 else()
@@ -323,8 +323,7 @@ list(APPEND ASH_COMPILE_DEFINITIONS)
 list(APPEND ASH_LINK_OPTIONS)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-    list(APPEND ASH_COMPILE_OPTIONS -Wall -Wextra -Wpedantic
-         --embed-dir=${CMAKE_CURRENT_LIST_DIR})
+    list(APPEND ASH_COMPILE_OPTIONS -Wall -Wextra -Wpedantic)
 
     if(ASH_WERROR)
         list(APPEND ASH_COMPILE_OPTIONS -Werror)
@@ -341,8 +340,7 @@ else()
             -Wno-nullability-completeness
             -Wno-nullability-extension
             -Wno-bitwise-instead-of-logical
-            -Wno-c23-extensions
-            --embed-dir=${CMAKE_CURRENT_LIST_DIR})
+            -Wno-c23-extensions)
 
         if(ASH_WERROR)
             list(APPEND ASH_COMPILE_OPTIONS -Werror)
@@ -543,6 +541,18 @@ if(ASH_BUILD_ENGINE)
     target_compile_definitions(ashura_engine PUBLIC ${ASH_COMPILE_DEFINITIONS})
     target_link_options(ashura_engine PUBLIC ${ASH_LINK_OPTIONS})
 
+    
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+    target_compile_options(ashura_engine PRIVATE
+         --embed-dir=${CMAKE_CURRENT_LIST_DIR}/ashura/engine/assets)
+else()
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    target_compile_options(ashura_engine PRIVATE
+         --embed-dir=${CMAKE_CURRENT_LIST_DIR}/ashura/engine/assets)
+    endif()
+endif()
+
+
     # ASHURA ENGINE - TESTS
 
     if(ASH_BUILD_TESTS)
@@ -577,7 +587,7 @@ endif()
 
 set(SLANG_SRC_DIR "${CMAKE_SOURCE_DIR}/ashura/engine/shaders")
 set(SLANG_INCLUDE_DIR "${SLANG_SRC_DIR}")
-set(SLANG_OUT_DIR "${CMAKE_SOURCE_DIR}/assets/shaders")
+set(SLANG_OUT_DIR "${CMAKE_SOURCE_DIR}/ashura/engine/assets/shaders")
 
 set(SLANG_FEATURE_LIST
     SPV_EXT_descriptor_indexing
@@ -672,4 +682,14 @@ if(ASH_BUILD_SAMPLES)
     target_compile_definitions(ashura_text_sample PUBLIC ${ASH_COMPILE_DEFINITIONS})
     target_compile_options(ashura_text_sample PUBLIC ${ASH_COMPILE_OPTIONS})
     target_link_options(ashura_text_sample PUBLIC ${ASH_LINK_OPTIONS})
+    
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+    target_compile_options(ashura_text_sample PRIVATE
+         --embed-dir=${CMAKE_CURRENT_LIST_DIR}/ashura/engine/assets)
+else()
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    target_compile_options(ashura_text_sample PRIVATE
+         --embed-dir=${CMAKE_CURRENT_LIST_DIR}/ashura/engine/assets)
+    endif()
+endif()
 endif()

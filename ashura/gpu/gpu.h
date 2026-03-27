@@ -104,37 +104,37 @@ constexpr Str to_str(Status status)
     switch (status)
     {
         case Status::Success:
-            return "Success"_str;
+            return "Success"_s;
         case Status::NotReady:
-            return "NotReady"_str;
+            return "NotReady"_s;
         case Status::TimeOut:
-            return "TimeOut"_str;
+            return "TimeOut"_s;
         case Status::Incomplete:
-            return "Incomplete"_str;
+            return "Incomplete"_s;
         case Status::OutOfHostMemory:
-            return "OutOfHostMemory"_str;
+            return "OutOfHostMemory"_s;
         case Status::OutOfDeviceMemory:
-            return "OutOfDeviceMemory"_str;
+            return "OutOfDeviceMemory"_s;
         case Status::InitializationFailed:
-            return "InitializationFailed"_str;
+            return "InitializationFailed"_s;
         case Status::DeviceLost:
-            return "DeviceLost"_str;
+            return "DeviceLost"_s;
         case Status::MemoryMapFailed:
-            return "MemoryMapFailed"_str;
+            return "MemoryMapFailed"_s;
         case Status::LayerNotPresent:
-            return "LayerNotPresent"_str;
+            return "LayerNotPresent"_s;
         case Status::ExtensionNotPresent:
-            return "ExtensionNotPresent"_str;
+            return "ExtensionNotPresent"_s;
         case Status::FeatureNotPresent:
-            return "FeatureNotPresent"_str;
+            return "FeatureNotPresent"_s;
         case Status::TooManyObjects:
-            return "TooManyObjects"_str;
+            return "TooManyObjects"_s;
         case Status::FormatNotSupported:
-            return "FormatNotSupported"_str;
+            return "FormatNotSupported"_s;
         case Status::SurfaceLost:
-            return "SurfaceLost"_str;
+            return "SurfaceLost"_s;
         default:
-            return "<Unrecognized Status>"_str;
+            return "<Unrecognized Status>"_s;
     }
 }
 

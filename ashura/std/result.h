@@ -302,14 +302,14 @@ struct [[nodiscard]] Result
         return T{static_cast<U &&>(alt)...};
     }
 
-    constexpr T unwrap(Str msg = ""_str, SourceLocation loc = SourceLocation::current())
+    constexpr T unwrap(Str msg = ""_s, SourceLocation loc = SourceLocation::current())
     {
         ASH_CHECK_SLOC(loc, is_ok(), "Expected Value in Result but got Err = {}. {}",
                        v1_, msg);
         return static_cast<T &&>(v0_);
     }
 
-    constexpr E unwrap_err(Str            msg = ""_str,
+    constexpr E unwrap_err(Str            msg = ""_s,
                            SourceLocation loc = SourceLocation::current())
     {
         ASH_CHECK_SLOC(loc, is_err(), "Expected Err in Result but got Value = {}. {}",

@@ -12,55 +12,55 @@ AwaitFuturesVec IShaderSys::init(Allocator allocator)
 {
     tracing::ScopeTrace trace;
     static constexpr u8 BEZIER_STENCIL_SHADER[] = {
-#embed "assets/shaders/bezier_stencil.spv"
+#embed "shaders/bezier_stencil.spv"
     };
 
     static constexpr u8 BLUR_DOWNSAMPLE_SHADER[] = {
-#embed "assets/shaders/blur_downsample.spv"
+#embed "shaders/blur_downsample.spv"
     };
 
     static constexpr u8 BLUR_UPSAMPLE_SHADER[] = {
-#embed "assets/shaders/blur_upsample.spv"
+#embed "shaders/blur_upsample.spv"
     };
 
     static constexpr u8 COMPOSITE_SDF_SHADER[] = {
-#embed "assets/shaders/composite_sdf.spv"
+#embed "shaders/composite_sdf.spv"
     };
 
     static constexpr u8 FILL_STENCIL_SHADER[] = {
-#embed "assets/shaders/fill_stencil.spv"
+#embed "shaders/fill_stencil.spv"
     };
 
     static constexpr u8 PBR_BASE_SHADER[] = {
-#embed "assets/shaders/pbr_base.spv"
+#embed "shaders/pbr_base.spv"
     };
 
     static constexpr u8 QUAD_SHADER[] = {
-#embed "assets/shaders/quad_base.spv"
+#embed "shaders/quad_base.spv"
     };
 
     static constexpr u8 SDF_GRADIENT_SHADER[] = {
-#embed "assets/shaders/sdf_gradient.spv"
+#embed "shaders/sdf_gradient.spv"
     };
 
     static constexpr u8 SDF_NOISE_SHADER[] = {
-#embed "assets/shaders/sdf_noise.spv"
+#embed "shaders/sdf_noise.spv"
     };
 
     static constexpr u8 SDF_MESH_GRADIENT_SHADER[] = {
-#embed "assets/shaders/sdf_mesh_gradient.spv"
+#embed "shaders/sdf_mesh_gradient.spv"
     };
 
     static constexpr u8 TRIANGLE_FILL_SHADER[] = {
-#embed "assets/shaders/triangle_fill.spv"
+#embed "shaders/triangle_fill.spv"
     };
 
     static constexpr u8 VECTOR_PATH_COVERAGE_SHADER[] = {
-#embed "assets/shaders/vector_path_coverage.spv"
+#embed "shaders/vector_path_coverage.spv"
     };
 
     static constexpr u8 VECTOR_PATH_FILL_SHADER[] = {
-#embed "assets/shaders/vector_path_fill.spv"
+#embed "shaders/vector_path_fill.spv"
     };
 
     allocator_ = allocator;
@@ -69,19 +69,19 @@ AwaitFuturesVec IShaderSys::init(Allocator allocator)
     Vec<AnyFuture> load_futs{allocator_};
 
     Tuple<Str, Span<u8 const>> const shaders[] = {
-      {"defaults/bezier_stencil"_str,       BEZIER_STENCIL_SHADER      },
-      {"defaults/blur_downsample"_str,      BLUR_DOWNSAMPLE_SHADER     },
-      {"defaults/blur_upsample"_str,        BLUR_UPSAMPLE_SHADER       },
-      {"defaults/composite_sdf"_str,        COMPOSITE_SDF_SHADER       },
-      {"defaults/fill_stencil"_str,         FILL_STENCIL_SHADER        },
-      {"defaults/pbr_base"_str,             PBR_BASE_SHADER            },
-      {"defaults/quad_base"_str,            QUAD_SHADER                },
-      {"defaults/sdf_gradient"_str,         SDF_GRADIENT_SHADER        },
-      {"defaults/sdf_noise"_str,            SDF_NOISE_SHADER           },
-      {"defaults/sdf_mesh_gradient"_str,    SDF_MESH_GRADIENT_SHADER   },
-      {"defaults/triangle_fill"_str,        TRIANGLE_FILL_SHADER       },
-      {"defaults/vector_path_coverage"_str, VECTOR_PATH_COVERAGE_SHADER},
-      {"defaults/vector_path_fill"_str,     VECTOR_PATH_FILL_SHADER    }
+      {"defaults/bezier_stencil"_s,       BEZIER_STENCIL_SHADER      },
+      {"defaults/blur_downsample"_s,      BLUR_DOWNSAMPLE_SHADER     },
+      {"defaults/blur_upsample"_s,        BLUR_UPSAMPLE_SHADER       },
+      {"defaults/composite_sdf"_s,        COMPOSITE_SDF_SHADER       },
+      {"defaults/fill_stencil"_s,         FILL_STENCIL_SHADER        },
+      {"defaults/pbr_base"_s,             PBR_BASE_SHADER            },
+      {"defaults/quad_base"_s,            QUAD_SHADER                },
+      {"defaults/sdf_gradient"_s,         SDF_GRADIENT_SHADER        },
+      {"defaults/sdf_noise"_s,            SDF_NOISE_SHADER           },
+      {"defaults/sdf_mesh_gradient"_s,    SDF_MESH_GRADIENT_SHADER   },
+      {"defaults/triangle_fill"_s,        TRIANGLE_FILL_SHADER       },
+      {"defaults/vector_path_coverage"_s, VECTOR_PATH_COVERAGE_SHADER},
+      {"defaults/vector_path_fill"_s,     VECTOR_PATH_FILL_SHADER    }
     };
 
     for (auto [label, spirv] : shaders)

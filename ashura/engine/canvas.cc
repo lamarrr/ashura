@@ -818,8 +818,8 @@ void ICanvas::clear_depth_stencil(u32 image, gpu::DepthStencil value)
             enc->clear_depth_stencil_image(
               ds, value,
               span({
-                gpu::ImageSubresourceRange{.aspects = gpu::ImageAspects::Depth |
-                                                      gpu::ImageAspects::Stencil,
+                gpu::ImageSubresourceRange{.aspects      = gpu::ImageAspects::Depth |
+                                                           gpu::ImageAspects::Stencil,
                                            .mip_levels   = Slice32::all(),
                                            .array_layers = Slice32::all()}
             }));
@@ -907,14 +907,14 @@ void ICanvas::render_(TextureSet const & texture_set, Shape const & shape,
       .feather          = shape.feather,
       .shade_type       = shape.shade,
       .type             = type,
-      .material         = shader::SdfGradientMaterial{.top             = shape.tint.top(),
-                                                      .bottom          = shape.tint.bottom(),
-                                                      .gradient_angle  = shape.tint.angle(),
-                                                      .gradient_center = shape.tint.center(),
-                                                      .sampler         = shape.sampler,
-                                                      .texture         = shape.map,
-                                                      .sdf_sampler     = shape.sdf_sampler,
-                                                      .sdf_map         = shape.sdf_map}
+      .material = shader::SdfGradientMaterial{.top             = shape.tint.top(),
+                                              .bottom          = shape.tint.bottom(),
+                                              .gradient_angle  = shape.tint.angle(),
+                                              .gradient_center = shape.tint.center(),
+                                              .sampler         = shape.sampler,
+                                              .texture         = shape.map,
+                                              .sdf_sampler     = shape.sdf_sampler,
+                                              .sdf_map         = shape.sdf_map}
     };
 
     return encode_(SdfEncoder::Item{.stencil_op   = stencil_op_,
@@ -1708,7 +1708,7 @@ void ICanvas::render_paths_vector_feathering_(Span<PathInfo const> paths,
                 u32 const num_segments = feather_segments;
                 f32 const step         = (2 * PI) / (num_segments - 1);
                 f32 const signed_step  = signed_area <= 0 ? step :    // CW rotation
-                                                           -step;                     // CCW rotation
+                                                            -step;    // CCW rotation
 
                 auto first = size32(path_vertices);
                 path_vertices.extend_uninit(num_segments + 1).unwrap();
@@ -1721,7 +1721,7 @@ void ICanvas::render_paths_vector_feathering_(Span<PathInfo const> paths,
                 {
                     f32x2 pos = rotor(i * signed_step) * 0.5F * feather + vtx2;
                     v         = shader::VectorPathVertex{
-                              .position = pos, .alpha_mask = 1, .fill_id = ((id << 2) | 1)};
+                      .position = pos, .alpha_mask = 1, .fill_id = ((id << 2) | 1)};
                 }
 
                 path_indices.extend_uninit((num_segments - 1) * 3).unwrap();

@@ -14,9 +14,9 @@ using ContainerDataType =
   std::remove_pointer_t<decltype(data(std::declval<Container &>()))>;
 
 template <typename Container>
-concept SpanContainer = requires (Container cont) {
-    { data(cont) };
-    { size(cont) };
+concept SpanContainer = requires (Container c) {
+    { data(c) };
+    { size(c) };
 };
 
 template <typename Container, typename T>
@@ -387,22 +387,22 @@ typedef Span<c32>       MutStr32;
 inline namespace str_literal
 {
 
-constexpr Str operator""_str(char const * lit, usize n)
+constexpr Str operator""_s(char const * lit, usize n)
 {
     return Str{lit, n};
 }
 
-constexpr Str8 operator""_str(c8 const * lit, usize n)
+constexpr Str8 operator""_s(c8 const * lit, usize n)
 {
     return Str8{lit, n};
 }
 
-constexpr Str16 operator""_str(c16 const * lit, usize n)
+constexpr Str16 operator""_s(c16 const * lit, usize n)
 {
     return Str16{lit, n};
 }
 
-constexpr Str32 operator""_str(c32 const * lit, usize n)
+constexpr Str32 operator""_s(c32 const * lit, usize n)
 {
     return Str32{lit, n};
 }

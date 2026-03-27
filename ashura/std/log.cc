@@ -4,6 +4,7 @@
 #include "ashura/std/list.h"
 #include "ashura/std/sformat.h"
 #include "ashura/std/vec.h"
+
 // #include <stacktrace>
 
 namespace ash
@@ -65,12 +66,12 @@ void dump_stacktrace()
 
     for (auto & entry : st)
     {
-        sformat_to(formatted, "{} {}: {}\n"_str, entry.description(),
+        sformat_to(formatted, "{} {}: {}\n"_s, entry.description(),
                    entry.source_file(), entry.source_line())
           .unwrap();
     }
 
-    error("Stacktrace:\n{}"_str, formatted.view().as_const());
+    error("Stacktrace:\n{}"_s, formatted.view().as_const());
     */
 }
 

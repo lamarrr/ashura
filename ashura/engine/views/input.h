@@ -139,7 +139,7 @@ struct Input : View
 
     TextCompositor compositor_;
 
-    Input(Str32             stub      = U""_str,
+    Input(Str32             stub      = U""_s,
           TextStyle const & style     = TextStyle{.color = theme.on_surface},
           FontStyle const & font      = FontStyle{.font        = theme.body_font,
                                                   .height      = theme.body_font_height,

@@ -312,9 +312,8 @@ Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
       dyn<ILogger>(inplace, default_allocator, span<LogSink>({&stdio_sink})).unwrap();
     hook_logger(logger.get());
 
-    trace("Initializing Engine Core Systems"_str);
-    trace("Loading Graphics Pipeline Cache From {}"_str,
-          cfg.pipeline_cache_path.view());
+    trace("Initializing Engine Core Systems"_s);
+    trace("Loading Graphics Pipeline Cache From {}"_s, cfg.pipeline_cache_path.view());
 
     std::filesystem::path path{
       std::string_view{cfg.pipeline_cache_path.data(), cfg.pipeline_cache_path.size()}
@@ -328,9 +327,9 @@ Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
              });
 
     constexpr Str const dedicated_thread_names[] = {
-      "Gpu Thread"_str,
-      "Audio Thread"_str,
-      "Video Thread"_str,
+      "Gpu Thread"_s,
+      "Audio Thread"_s,
+      "Video Thread"_s,
     };
     constexpr DedicatedThread                  gpu_thread   = DedicatedThread{0};
     [[maybe_unused]] constexpr DedicatedThread audio_thread = DedicatedThread{1};
@@ -358,7 +357,7 @@ Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
 
     for (auto i : range(num_worker_threads))
     {
-        worker_thread_names.push(sformat(allocator, "Worker Thread {}", i).unwrap())
+        worker_thread_names.push(sformat(allocator, "Worker Thread {}"_s, i).unwrap())
           .unwrap();
         worker_thread_infos
           .push(SchedulerThreadInfo{.name = worker_thread_names.last()})
@@ -440,7 +439,7 @@ Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
 
     pipeline_sys->init(allocator);
 
-    trace("All Core Systems Initialized"_str);
+    trace("All Core Systems Initialized"_s);
 
     Dyn<Engine> engine = dyn<IEngine>(inplace, allocator).unwrap();
 
@@ -471,7 +470,7 @@ Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
     hook_engine(engine.get());
 
     engine->sys_.win->listen({engine.get(), system_event_listener});
-    trace("Creating Root Window"_str);
+    trace("Creating Root Window"_s);
 
     engine->window_ = engine->add_window_(cfg.window, std::move(loop));
 
@@ -591,7 +590,7 @@ void IEngine::shutdown()
 {
     tracing::ScopeTrace _;
 
-    trace("Shutting down engine"_str);
+    trace("Shutting down engine"_s);
     callbacks_.pre_shutdown(this);
 
     scheduler->shutdown();
@@ -617,10 +616,10 @@ void IEngine::shutdown()
         write_to_file(paths_.pipeline_cache, pipeline_cache, false, allocator_)
           .match(
             [&](Void) {
-                trace("Saved pipeline cache to: {}"_str, paths_.pipeline_cache);
+                trace("Saved pipeline cache to: {}"_s, paths_.pipeline_cache);
             },
             [&](IoErr err) {
-                error("Error {} writing pipeline cache to {}"_str, err,
+                error("Error {} writing pipeline cache to {}"_s, err,
                       paths_.pipeline_cache);
             });
     }
@@ -632,7 +631,7 @@ void IEngine::shutdown()
 
     callbacks_.post_shutdown(this);
 
-    trace("Engine Uninitialized"_str);
+    trace("Engine Uninitialized"_s);
 }
 
 Option<gpu::SwapchainInfo> IEngine::create_swapchain_info_(WindowEntry const & w)
@@ -725,7 +724,7 @@ Option<gpu::SwapchainInfo> IEngine::create_swapchain_info_(WindowEntry const & w
         }
     }
 
-    return gpu::SwapchainInfo{.label               = "Window Swapchain"_str,
+    return gpu::SwapchainInfo{.label               = "Window Swapchain"_s,
                               .surface             = w.surface_,
                               .format              = format,
                               .usage               = gpu::ImageUsage::TransferDst |
@@ -739,7 +738,7 @@ Option<gpu::SwapchainInfo> IEngine::create_swapchain_info_(WindowEntry const & w
 void IEngine::run()
 {
     tracing::ScopeTrace _;
-    trace("Starting Engine Run Loop"_str);
+    trace("Starting Engine Run Loop"_s);
 
     bool                  running            = true;
     Option<Cursor>        cursor             = Cursor::Default;
@@ -750,7 +749,7 @@ void IEngine::run()
 
     while (running)
     {
-        tracing::ScopeTrace frame_trace{"frame"_str};
+        tracing::ScopeTrace frame_trace{"frame"_s};
 
         auto const frame_start = steady_clock::now();
         poll_inputs_(frame_end, frame_start);
@@ -802,7 +801,7 @@ void IEngine::run()
         }
 
         {
-            tracing::ScopeTrace record_trace{"frame.record"_str};
+            tracing::ScopeTrace record_trace{"frame.record"_s};
 
             auto & w = *window_;
 
@@ -875,7 +874,7 @@ void IEngine::run()
         sys_.sched->run_main_loop(milliseconds{10}, nanoseconds{500});
     }
 
-    trace("Ended Engine Run Loop");
+    trace("Ended Engine Run Loop"_s);
 }
 
 void hook_engine(Engine instance)

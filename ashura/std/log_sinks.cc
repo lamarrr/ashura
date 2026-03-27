@@ -17,29 +17,29 @@ constexpr Str get_level_str(LogLevel level)
         case LogLevel::Debug:
             return "\x1b[94;20m"
                    "DEBUG"
-                   "\x1b[0m"_str;
+                   "\x1b[0m"_s;
         case LogLevel::Trace:
             return "\x1b[35;20m"
                    "TRACE"
-                   "\x1b[0m"_str;
+                   "\x1b[0m"_s;
         case LogLevel::Info:
             return "\x1b[32;20m"
                    "INFO"
-                   "\x1b[0m"_str;
+                   "\x1b[0m"_s;
         case LogLevel::Warning:
             return "\x1b[33;20m"
                    "WARNING"
-                   "\x1b[0m"_str;
+                   "\x1b[0m"_s;
         case LogLevel::Error:
             return "\x1b[31;20m"
                    "ERROR"
-                   "\x1b[0m"_str;
+                   "\x1b[0m"_s;
         case LogLevel::Fatal:
             return "\x1b[31;1m"
                    "FATAL"
-                   "\x1b[0m"_str;
+                   "\x1b[0m"_s;
         default:
-            return ""_str;
+            return ""_s;
     }
 }
 

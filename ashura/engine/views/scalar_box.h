@@ -127,7 +127,7 @@ struct ScalarDragBox : View
 
         f32 thickness = 0.5F;
 
-        Str format = "{}"_str;
+        Str format = "{}"_s;
     } style_;
 
     Input input_;
@@ -137,10 +137,10 @@ struct ScalarDragBox : View
         Fn<void(Scalar)> update = noop;
     } cb;
 
-    ScalarDragBox(TextStyle const & style     = TextStyle{.color = theme.on_surface},
-                  FontStyle const & font      = FontStyle{.font   = theme.body_font,
-                                                          .height = theme.body_font_height,
-                                                          .line_height = theme.line_height},
+    ScalarDragBox(TextStyle const & style = TextStyle{.color = theme.on_surface},
+                  FontStyle const & font  = FontStyle{.font   = theme.body_font,
+                                                      .height = theme.body_font_height,
+                                                      .line_height = theme.line_height},
                   Allocator         allocator = default_allocator);
 
     ScalarDragBox(ScalarDragBox const &)             = delete;
@@ -183,7 +183,7 @@ struct ScalarBox : Flex
     ScalarDragBox drag_;
 
     ScalarBox(
-      Str32 decrease_text = U"minus"_str, Str32 increase_text = U"plus"_str,
+      Str32 decrease_text = U"minus"_s, Str32 increase_text = U"plus"_s,
       TextStyle const & button_text_style = TextStyle{.color = theme.on_primary},
       TextStyle const & drag_text_style   = TextStyle{.color = theme.on_primary},
       FontStyle const & icon_font         = FontStyle{.font        = theme.icon_font,

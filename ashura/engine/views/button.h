@@ -105,18 +105,18 @@ struct TextButton : Button
 {
     Text text_;
 
-    TextButton(Str32             text      = U""_str,
-               TextStyle const & style     = TextStyle{.color = theme.on_surface},
-               FontStyle const & font      = FontStyle{.font        = theme.body_font,
-                                                       .height      = theme.body_font_height,
-                                                       .line_height = theme.line_height},
+    TextButton(Str32             text  = U""_s,
+               TextStyle const & style = TextStyle{.color = theme.on_surface},
+               FontStyle const & font  = FontStyle{.font        = theme.body_font,
+                                                   .height      = theme.body_font_height,
+                                                   .line_height = theme.line_height},
                Allocator         allocator = default_allocator);
 
     TextButton(Str8              text,
-               TextStyle const & style     = TextStyle{.color = theme.on_surface},
-               FontStyle const & font      = FontStyle{.font        = theme.body_font,
-                                                       .height      = theme.body_font_height,
-                                                       .line_height = theme.line_height},
+               TextStyle const & style = TextStyle{.color = theme.on_surface},
+               FontStyle const & font  = FontStyle{.font        = theme.body_font,
+                                                   .height      = theme.body_font_height,
+                                                   .line_height = theme.line_height},
                Allocator         allocator = default_allocator);
 
     TextButton(TextButton const &)             = delete;

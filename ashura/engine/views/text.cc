@@ -8,7 +8,7 @@ namespace ui
 {
 
 Text::Text(Allocator allocator) :
-  Text{allocator, static_rc(U""_str), TextStyle{}, FontStyle{}}
+  Text{allocator, static_rc(U""_s), TextStyle{}, FontStyle{}}
 {
 }
 

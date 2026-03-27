@@ -75,17 +75,17 @@ struct TextComboItem : ComboItem
     Text text_;
 
     TextComboItem(Str32             text,
-                  TextStyle const & style     = TextStyle{.color = theme.on_surface},
-                  FontStyle const & font      = FontStyle{.font   = theme.body_font,
-                                                          .height = theme.body_font_height,
-                                                          .line_height = theme.line_height},
+                  TextStyle const & style = TextStyle{.color = theme.on_surface},
+                  FontStyle const & font  = FontStyle{.font   = theme.body_font,
+                                                      .height = theme.body_font_height,
+                                                      .line_height = theme.line_height},
                   Allocator         allocator = default_allocator);
 
     TextComboItem(Str8              text,
-                  TextStyle const & style     = TextStyle{.color = theme.on_surface},
-                  FontStyle const & font      = FontStyle{.font   = theme.body_font,
-                                                          .height = theme.body_font_height,
-                                                          .line_height = theme.line_height},
+                  TextStyle const & style = TextStyle{.color = theme.on_surface},
+                  FontStyle const & font  = FontStyle{.font   = theme.body_font,
+                                                      .height = theme.body_font_height,
+                                                      .line_height = theme.line_height},
                   Allocator         allocator = default_allocator);
 
     TextComboItem(TextComboItem const &)             = delete;

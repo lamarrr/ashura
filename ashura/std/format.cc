@@ -86,7 +86,7 @@ void format_float(fmt::Sink sink, fmt::Spec spec, f64 value)
 
 void ash::format(fmt::Sink sink, fmt::Spec, bool const & value)
 {
-    sink(value ? "true"_str : "false"_str);
+    sink(value ? "true"_s : "false"_s);
 }
 
 void ash::format(fmt::Sink sink, fmt::Spec spec, u8 const & value)
@@ -141,101 +141,101 @@ void ash::format(fmt::Sink sink, fmt::Spec spec, f64 const & value)
 
 void ash::format(fmt::Sink sink, fmt::Spec spec, f32x2 const & value)
 {
-    sink("f32x2{"_str);
+    sink("f32x2{"_s);
     format(sink, spec, value.x());
-    sink(", "_str);
+    sink(", "_s);
     format(sink, spec, value.y());
-    sink("}"_str);
+    sink("}"_s);
 }
 
 void ash::format(fmt::Sink sink, fmt::Spec spec, f32x3 const & value)
 {
-    sink("f32x3{"_str);
+    sink("f32x3{"_s);
     format(sink, spec, value.x());
-    sink(", "_str);
+    sink(", "_s);
     format(sink, spec, value.y());
-    sink(", "_str);
+    sink(", "_s);
     format(sink, spec, value.z());
-    sink("}"_str);
+    sink("}"_s);
 }
 
 void ash::format(fmt::Sink sink, fmt::Spec spec, f32x4 const & value)
 {
-    sink("f32x4{"_str);
+    sink("f32x4{"_s);
     format(sink, spec, value.x());
-    sink(", "_str);
+    sink(", "_s);
     format(sink, spec, value.y());
-    sink(", "_str);
+    sink(", "_s);
     format(sink, spec, value.z());
-    sink(", "_str);
+    sink(", "_s);
     format(sink, spec, value.w());
-    sink("}"_str);
+    sink("}"_s);
 }
 
 void ash::format(fmt::Sink sink, fmt::Spec spec, i32x2 const & value)
 {
-    sink("i32x2{"_str);
+    sink("i32x2{"_s);
     format(sink, spec, value.x());
-    sink(", "_str);
+    sink(", "_s);
     format(sink, spec, value.y());
-    sink("}"_str);
+    sink("}"_s);
 }
 
 void ash::format(fmt::Sink sink, fmt::Spec spec, i32x3 const & value)
 {
-    sink("i32x3{"_str);
+    sink("i32x3{"_s);
     format(sink, spec, value.x());
-    sink(", "_str);
+    sink(", "_s);
     format(sink, spec, value.y());
-    sink(", "_str);
+    sink(", "_s);
     format(sink, spec, value.z());
-    sink("}"_str);
+    sink("}"_s);
 }
 
 void ash::format(fmt::Sink sink, fmt::Spec spec, i32x4 const & value)
 {
-    sink("i32x4{"_str);
+    sink("i32x4{"_s);
     format(sink, spec, value.x());
-    sink(", "_str);
+    sink(", "_s);
     format(sink, spec, value.y());
-    sink(", "_str);
+    sink(", "_s);
     format(sink, spec, value.z());
-    sink(", "_str);
+    sink(", "_s);
     format(sink, spec, value.w());
-    sink("}"_str);
+    sink("}"_s);
 }
 
 void ash::format(fmt::Sink sink, fmt::Spec spec, u32x2 const & value)
 {
-    sink("u32x2{"_str);
+    sink("u32x2{"_s);
     format(sink, spec, value.x());
-    sink(", "_str);
+    sink(", "_s);
     format(sink, spec, value.y());
-    sink("}"_str);
+    sink("}"_s);
 }
 
 void ash::format(fmt::Sink sink, fmt::Spec spec, u32x3 const & value)
 {
-    sink("u32x3{"_str);
+    sink("u32x3{"_s);
     format(sink, spec, value.x());
-    sink(", "_str);
+    sink(", "_s);
     format(sink, spec, value.y());
-    sink(", "_str);
+    sink(", "_s);
     format(sink, spec, value.z());
-    sink("}"_str);
+    sink("}"_s);
 }
 
 void ash::format(fmt::Sink sink, fmt::Spec spec, u32x4 const & value)
 {
-    sink("u32x4{"_str);
+    sink("u32x4{"_s);
     format(sink, spec, value.x());
-    sink(", "_str);
+    sink(", "_s);
     format(sink, spec, value.y());
-    sink(", "_str);
+    sink(", "_s);
     format(sink, spec, value.z());
-    sink(", "_str);
+    sink(", "_s);
     format(sink, spec, value.w());
-    sink("}"_str);
+    sink("}"_s);
 }
 
 void ash::format(fmt::Sink sink, fmt::Spec, Span<char const> const & str)

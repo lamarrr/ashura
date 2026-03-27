@@ -52,7 +52,7 @@ struct Record
 {
     u64            variant = 0;
     SourceLocation loc     = {};
-    Str            label   = ""_str;
+    Str            label   = ""_s;
     Data           data    = {};
 };
 
@@ -63,14 +63,14 @@ using F64RangeRecord = Record<F64Range>;
 
 struct EventData
 {
-    Str label = ""_str;
+    Str label = ""_s;
 
-    Str type = ""_str;
+    Str type = ""_s;
 
-    Str unit = ""_str;
+    Str unit = ""_s;
 
     /// @brief encoded with "property0=value0;property1=value1;"
-    Str attributes = ""_str;
+    Str attributes = ""_s;
 };
 
 template <typename Record>

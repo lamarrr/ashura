@@ -20,7 +20,7 @@ struct Icon : View
 
     RenderText text_;
 
-    Icon(Str32             text      = U""_str,
+    Icon(Str32             text      = U""_s,
          TextStyle const & style     = TextStyle{.color = theme.on_surface},
          FontStyle const & font      = FontStyle{.font        = theme.icon_font,
                                                  .height      = theme.body_font_height,

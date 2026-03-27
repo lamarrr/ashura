@@ -825,9 +825,9 @@ Dyn<Scheduler> IScheduler::create(SchedulerInfo const & info)
 
     for (auto thread_info : info.dedicated_threads)
     {
-        auto thread = dyn<TaskThread>(inplace, info.allocator, info.allocator,
-                                      ThreadType::Dedicated)
-                        .unwrap();
+        auto thread      = dyn<TaskThread>(inplace, info.allocator, info.allocator,
+                                           ThreadType::Dedicated)
+                             .unwrap();
         auto thread_name = vec::copy(info.allocator, thread_info.name).unwrap();
         thread->thread =
           std::thread{[t = thread.get(), thread_name = std::move(thread_name)] mutable {
@@ -846,11 +846,11 @@ Dyn<Scheduler> IScheduler::create(SchedulerInfo const & info)
             .unwrap();
         auto thread_name = vec::copy(info.allocator, thread_info.name).unwrap();
         thread->thread   = std::thread{[t = thread.get(), q = &impl->worker_queue_,
-                                      thread_name = std::move(thread_name)] mutable {
+                                        thread_name = std::move(thread_name)] mutable {
             set_thread_name(thread_name);
             thread_name.reset();
             SchedulerImpl::thread_loop(q->allocator, *q, &t->shutdown_token,
-                                         t->stop_token);
+                                       t->stop_token);
         }};
         impl->worker_threads_.push(std::move(thread)).unwrap();
     }

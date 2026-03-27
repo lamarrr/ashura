@@ -34,19 +34,19 @@ constexpr Str to_str(SysErr err)
     switch (err)
     {
         case SysErr::OutOfMemory:
-            return "OutOfMemory"_str;
+            return "OutOfMemory"_s;
         case SysErr::DecodeFailed:
-            return "DecodeFailed"_str;
+            return "DecodeFailed"_s;
         case SysErr::FaceNotFound:
-            return "FaceNotFound"_str;
+            return "FaceNotFound"_s;
         case SysErr::UnsupportedFormat:
-            return "UnsupportedFormat"_str;
+            return "UnsupportedFormat"_s;
         case SysErr::InvalidPath:
-            return "InvalidPath"_str;
+            return "InvalidPath"_s;
         case SysErr::IoErr:
-            return "IoErr"_str;
+            return "IoErr"_s;
         default:
-            return "Unidentified"_str;
+            return "Unidentified"_s;
     }
 }
 

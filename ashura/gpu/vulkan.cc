@@ -34,7 +34,7 @@ namespace ash
 namespace vk
 {
 
-constexpr auto DEBUG_LAYER_EXTENSION_NAME = "VK_LAYER_KHRONOS_validation"_str;
+constexpr auto DEBUG_LAYER_EXTENSION_NAME = "VK_LAYER_KHRONOS_validation"_s;
 
 VkResult DebugMarkerSetObjectTagEXT_Stub(VkDevice,
                                          const VkDebugMarkerObjectTagInfoEXT *)
@@ -1497,57 +1497,56 @@ static VkBool32 VKAPI_ATTR VKAPI_CALL
 
     auto message_type_s = string_VkDebugUtilsMessageTypeFlagsEXT(message_type);
 
-    sformat_to(msg, "(Type: {}, Id: {}, Name: {}) {}"_str, span(message_type_s),
+    sformat_to(msg, "(Type: {}, Id: {}, Name: {}) {}"_s, span(message_type_s),
                data->messageIdNumber, cstr(data->pMessageIdName),
-               data->pMessage == nullptr ? "(empty message)"_str : cstr(data->pMessage))
+               data->pMessage == nullptr ? "(empty message)"_s : cstr(data->pMessage))
       .unwrap();
 
-    sformat_to(msg, "\n"_str).unwrap();
+    sformat_to(msg, "\n"_s).unwrap();
 
     if (data->objectCount > 0)
     {
-        sformat_to(msg, "Objects Involved:\n"_str).unwrap();
+        sformat_to(msg, "Objects Involved:\n"_s).unwrap();
     }
 
     for (auto obj : Span{data->pObjects, data->objectCount})
     {
-        sformat_to(msg, "\t(Type: {}) {}\n"_str,
+        sformat_to(msg, "\t(Type: {}) {}\n"_s,
                    cstr(string_VkObjectType(obj.objectType)),
-                   obj.pObjectName == nullptr ? "(unnamed)"_str : cstr(obj.pObjectName))
+                   obj.pObjectName == nullptr ? "(unnamed)"_s : cstr(obj.pObjectName))
           .unwrap();
     }
 
-    sformat_to(msg, "\n"_str).unwrap();
+    sformat_to(msg, "\n"_s).unwrap();
 
     if (data->queueLabelCount > 0)
     {
-        sformat_to(msg, "Command Queues Involved:\n"_str).unwrap();
+        sformat_to(msg, "Command Queues Involved:\n"_s).unwrap();
     }
 
     for (auto queue : Span{data->pQueueLabels, data->queueLabelCount})
     {
-        sformat_to(msg, "\t{}"_str,
-                   queue.pLabelName == nullptr ? "(unnamed)"_str :
-                                                 cstr(queue.pLabelName))
+        sformat_to(msg, "\t{}"_s,
+                   queue.pLabelName == nullptr ? "(unnamed)"_s : cstr(queue.pLabelName))
           .unwrap();
     }
 
-    sformat_to(msg, "\n"_str).unwrap();
+    sformat_to(msg, "\n"_s).unwrap();
 
     if (data->cmdBufLabelCount > 0)
     {
-        sformat_to(msg, "Command Buffers Involved:\n"_str).unwrap();
+        sformat_to(msg, "Command Buffers Involved:\n"_s).unwrap();
     }
 
     for (auto cmdbuf : Span{data->pCmdBufLabels, data->cmdBufLabelCount})
     {
-        sformat_to(msg, "\t{}\n"_str,
-                   cmdbuf.pLabelName == nullptr ? "(unnamed)"_str :
+        sformat_to(msg, "\t{}\n"_s,
+                   cmdbuf.pLabelName == nullptr ? "(unnamed)"_s :
                                                   cstr(cmdbuf.pLabelName))
           .unwrap();
     }
 
-    logger->log(level, "{}"_str, msg);
+    logger->log(level, "{}"_s, msg);
 
     return VK_FALSE;
 }
@@ -1606,24 +1605,24 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
 
     ASH_CHECK(layers.size() == num_layers, "");
 
-    trace("Available Instance Extensions:"_str);
+    trace("Available Instance Extensions:"_s);
 
     for (auto const & ext : extensions)
     {
-        trace("\t\t{} (spec version {}.{}.{} variant {})"_str, cstr(ext.extensionName),
+        trace("\t\t{} (spec version {}.{}.{} variant {})"_s, cstr(ext.extensionName),
               VK_API_VERSION_MAJOR(ext.specVersion),
               VK_API_VERSION_MINOR(ext.specVersion),
               VK_API_VERSION_PATCH(ext.specVersion),
               VK_API_VERSION_VARIANT(ext.specVersion));
     }
 
-    trace("Available Instance Layers:"_str);
+    trace("Available Instance Layers:"_s);
 
     for (auto const & layer : layers)
     {
         trace("\t\t{} (spec version {}.{}.{} variant {}, implementation "
               "version: "
-              "{}.{}.{} variant {})"_str,
+              "{}.{}.{} variant {})"_s,
               cstr(layer.layerName), VK_API_VERSION_MAJOR(layer.specVersion),
               VK_API_VERSION_MINOR(layer.specVersion),
               VK_API_VERSION_PATCH(layer.specVersion),
@@ -1652,9 +1651,9 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
               cstr(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME),
               cstr(VK_MVK_IOS_SURFACE_EXTENSION_NAME),
               cstr(VK_MVK_MACOS_SURFACE_EXTENSION_NAME),
-              cstr(VK_EXT_METAL_SURFACE_EXTENSION_NAME), "VK_NN_vi_surface"_str,
-              cstr(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME), "VK_KHR_win32_surface"_str,
-              "VK_KHR_xcb_surface"_str, "VK_KHR_xlib_surface"_str}))
+              cstr(VK_EXT_METAL_SURFACE_EXTENSION_NAME), "VK_NN_vi_surface"_s,
+              cstr(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME), "VK_KHR_win32_surface"_s,
+              "VK_KHR_xcb_surface"_s, "VK_KHR_xlib_surface"_s}))
       .unwrap();
 
     if (enable_validation)
@@ -1680,7 +1679,7 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
                 return mem::eq(cstr(a.extensionName), b);
             }).is_empty())
         {
-            trace("Optional Instance Extension: {} is not supported"_str, ext);
+            trace("Optional Instance Extension: {} is not supported"_s, ext);
         }
         else
         {
@@ -1703,7 +1702,7 @@ Result<Dyn<gpu::Instance>, Status> create_instance(Allocator allocator,
                 return mem::eq(cstr(a.layerName), b);
             }).is_empty())
         {
-            trace("Optional Instance Layer: {} is not supported"_str, layer);
+            trace("Optional Instance Layer: {} is not supported"_s, layer);
         }
         else
         {
@@ -1995,13 +1994,13 @@ Result<gpu::Device, Status>
         dev.vk_buffer_device_address_features = buffer_device_address_features;
     }
 
-    trace("Available Devices:"_str);
+    trace("Available Devices:"_s);
     for (auto [i, dev] : enumerate(physical_devs))
     {
         auto const & properties = dev.vk_properties;
         trace("[Device: {}] {} {} Vulkan API version {}.{}.{} variant "
               "{}, Driver "
-              "Version: {}, Vendor ID: {}, Device ID: {}"_str,
+              "Version: {}, Vendor ID: {}, Device ID: {}"_s,
               i, cstr(string_VkPhysicalDeviceType(properties.deviceType)),
               properties.deviceName, VK_API_VERSION_MAJOR(properties.apiVersion),
               VK_API_VERSION_MINOR(properties.apiVersion),
@@ -2031,7 +2030,7 @@ Result<gpu::Device, Status>
 
         for (auto [i, prop] : enumerate<u32>(queue_family_properties))
         {
-            trace("\t\tQueue Family: {}, Count: {}, Flags: {}"_str, i,
+            trace("\t\tQueue Family: {}, Count: {}, Flags: {}"_s, i,
                   prop.queueFamilyProperties.queueCount,
                   string_VkQueueFlags(prop.queueFamilyProperties.queueFlags));
         }
@@ -2095,7 +2094,7 @@ Result<gpu::Device, Status>
 
     if (selected_dev_idx == U32_MAX)
     {
-        trace("No Suitable Device Found"_str);
+        trace("No Suitable Device Found"_s);
         return Err{Status::DeviceLost};
     }
 
@@ -2103,9 +2102,9 @@ Result<gpu::Device, Status>
 
     check_device_features(selected_dev);
 
-    auto aftermath_crash_tracker = IAfterMathCrashTracker::make(allocator, "/tmp"_str);
+    auto aftermath_crash_tracker = IAfterMathCrashTracker::make(allocator, "/tmp"_s);
 
-    trace("Selected Device {}"_str, selected_dev_idx);
+    trace("Selected Device {}"_s, selected_dev_idx);
 
     u32 num_extensions;
     result = table_.EnumerateDeviceExtensionProperties(selected_dev.vk, nullptr,
@@ -2157,24 +2156,24 @@ Result<gpu::Device, Status>
 
     ASH_CHECK(layers.size() == num_layers, "");
 
-    trace("Available Device Extensions:"_str);
+    trace("Available Device Extensions:"_s);
 
     for (auto & ext : extensions)
     {
-        trace("\t\t{} (spec version: {}.{}.{} variant {})"_str, cstr(ext.extensionName),
+        trace("\t\t{} (spec version: {}.{}.{} variant {})"_s, cstr(ext.extensionName),
               VK_API_VERSION_MAJOR(ext.specVersion),
               VK_API_VERSION_MINOR(ext.specVersion),
               VK_API_VERSION_PATCH(ext.specVersion),
               VK_API_VERSION_VARIANT(ext.specVersion));
     }
 
-    trace("Available Device Layers:"_str);
+    trace("Available Device Layers:"_s);
 
     for (auto & layer : layers)
     {
         trace("\t\t{} (spec version: {}.{}.{} variant {}, "
               "implementation version: "
-              "{}.{}.{} variant {})"_str,
+              "{}.{}.{} variant {})"_s,
               cstr(layer.layerName), VK_API_VERSION_MAJOR(layer.specVersion),
               VK_API_VERSION_MINOR(layer.specVersion),
               VK_API_VERSION_PATCH(layer.specVersion),
@@ -2228,7 +2227,7 @@ Result<gpu::Device, Status>
                 return mem::eq(cstr(a.extensionName), b);
             }).is_empty())
         {
-            trace("Optional Device Extension: {} is not supported"_str, ext);
+            trace("Optional Device Extension: {} is not supported"_s, ext);
         }
         else
         {
@@ -2256,7 +2255,7 @@ Result<gpu::Device, Status>
                 return mem::eq(cstr(a.layerName), b);
             }).is_empty())
         {
-            trace("Optional Device Layer: {} is not supported"_str, layer);
+            trace("Optional Device Layer: {} is not supported"_s, layer);
         }
         else
         {
@@ -2498,7 +2497,7 @@ Result<gpu::Device, Status>
     vma_allocator = nullptr;
     vk_dev        = nullptr;
 
-    auto queue_label = "CommandQueue 0"_str;
+    auto queue_label = "CommandQueue 0"_s;
     dev->set_resource_name(queue_label, dev->vk_queue_, VK_OBJECT_TYPE_QUEUE,
                            VK_DEBUG_REPORT_OBJECT_TYPE_QUEUE_EXT);
 
@@ -2618,11 +2617,11 @@ void IAfterMathCrashTracker::handle_panic(AfterMathCrashTracker)
 
     if (status == GFSDK_Aftermath_CrashDump_Status_Finished)
     {
-        trace("Aftermath finished processing the crash dump. ({})\n"_str, (int) status);
+        trace("Aftermath finished processing the crash dump. ({})\n"_s, (int) status);
     }
     else
     {
-        error("Unexpected crash dump status after timeout: {}\n"_str, (int) status);
+        error("Unexpected crash dump status after timeout: {}\n"_s, (int) status);
     }
 }
 
@@ -2633,7 +2632,7 @@ static void dump_file(Str dir, Str name, Str extension, Span<u8 const> data)
     ScratchScope    scratch{heap_allocator};
 
     auto count = write_count.fetch_add(1, std::memory_order_relaxed);
-    auto path  = sformat(scratch, "{}/{}-{}.{}", dir, name, count, extension).unwrap();
+    auto path = sformat(scratch, "{}/{}-{}.{}"_s, dir, name, count, extension).unwrap();
     path.push('\0').unwrap();
 
     std::FILE * file = std::fopen(path.data(), "wb");
@@ -2645,13 +2644,13 @@ static void dump_file(Str dir, Str name, Str extension, Span<u8 const> data)
 
 void IAfterMathCrashTracker::crash_dump(void const * data, u32 size)
 {
-    dump_file(working_dir_, "crash_dump"_str, "nv-gpudmp"_str,
+    dump_file(working_dir_, "crash_dump"_s, "nv-gpudmp"_s,
               Span{static_cast<u8 const *>(data), size});
 }
 
 void IAfterMathCrashTracker::shader_debug_info(void const * data, u32 size)
 {
-    dump_file(working_dir_, "shader_debug_info"_str, "nv-gpudmp"_str,
+    dump_file(working_dir_, "shader_debug_info"_s, "nv-gpudmp"_s,
               Span{static_cast<u8 const *>(data), size});
 }
 
@@ -4294,7 +4293,7 @@ Result<Void, Status> IDevice::recreate_swapchain(Swapchain swapchain)
         ASH_CHECK(result == VK_SUCCESS, "");
     }
 
-    auto swapchain_label = sformat(scratch, "{} / Swapchain"_str, info.label).unwrap();
+    auto swapchain_label = sformat(scratch, "{} / Swapchain"_s, info.label).unwrap();
 
     set_resource_name(swapchain_label, vk, VK_OBJECT_TYPE_SWAPCHAIN_KHR,
                       VK_DEBUG_REPORT_OBJECT_TYPE_SWAPCHAIN_KHR_EXT);
@@ -4302,18 +4301,18 @@ Result<Void, Status> IDevice::recreate_swapchain(Swapchain swapchain)
          enumerate(images, acquire_semaphores, submit_semaphores))
     {
         auto label =
-          sformat(scratch, "{} / SwapchainImage {}"_str, info.label, i).unwrap();
+          sformat(scratch, "{} / SwapchainImage {}"_s, info.label, i).unwrap();
         set_resource_name(label, image->vk, VK_OBJECT_TYPE_IMAGE,
                           VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT);
 
         auto acq_sem_label =
-          sformat(scratch, "{} / AcquireSemaphore {}"_str, info.label, i).unwrap();
+          sformat(scratch, "{} / AcquireSemaphore {}"_s, info.label, i).unwrap();
 
         set_resource_name(acq_sem_label, acquire_semaphore, VK_OBJECT_TYPE_SEMAPHORE,
                           VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT);
 
         auto sbm_sem_label =
-          sformat(scratch, "{} / SubmitSemaphore {}"_str, info.label, i).unwrap();
+          sformat(scratch, "{} / SubmitSemaphore {}"_s, info.label, i).unwrap();
 
         set_resource_name(sbm_sem_label, submit_semaphore, VK_OBJECT_TYPE_SEMAPHORE,
                           VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT);
@@ -4541,7 +4540,7 @@ Result<gpu::CommandBuffer, Status>
         }
     }};
 
-    auto pool_label = sformat(scratch, "{} / CommandPool"_str, info.label).unwrap();
+    auto pool_label = sformat(scratch, "{} / CommandPool"_s, info.label).unwrap();
     set_resource_name(pool_label, vk_pool, VK_OBJECT_TYPE_COMMAND_POOL,
                       VK_DEBUG_REPORT_OBJECT_TYPE_COMMAND_POOL_EXT);
 
@@ -4608,7 +4607,7 @@ Result<gpu::QueueScope, Status>
     {
         ScratchScope scratch{allocator_};
         auto         sbm_fnc_label =
-          sformat(scratch, "{} / SubmitFence {}"_str, info.label, i).unwrap();
+          sformat(scratch, "{} / SubmitFence {}"_s, info.label, i).unwrap();
 
         VkSemaphore acquire_sem;
         auto result = table_.CreateSemaphore(vk_dev_, &sem_info, nullptr, &acquire_sem);

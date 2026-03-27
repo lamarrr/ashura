@@ -48,7 +48,7 @@ struct CheckBox : View
 
     Icon icon_;
 
-    CheckBox(Str32             text      = U"checkmark"_str,
+    CheckBox(Str32             text      = U"checkmark"_s,
              TextStyle const & style     = TextStyle{.color = theme.on_surface},
              FontStyle const & font      = FontStyle{.font        = theme.icon_font,
                                                      .height      = theme.body_font_height,

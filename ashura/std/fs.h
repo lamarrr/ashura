@@ -66,211 +66,211 @@ constexpr Str to_str(IoErr err)
 {
     if (err == IoErr::None)
     {
-        return "None"_str;
+        return "None"_s;
     }
     else if (err == IoErr::PermissionDenied)
     {
-        return "PermissionDenied"_str;
+        return "PermissionDenied"_s;
     }
     else if (err == IoErr::AddressInUse)
     {
-        return "AddressInUse"_str;
+        return "AddressInUse"_s;
     }
     else if (err == IoErr::Again)
     {
-        return "Again"_str;
+        return "Again"_s;
     }
     else if (err == IoErr::Already)
     {
-        return "Already"_str;
+        return "Already"_s;
     }
     else if (err == IoErr::BadFileDescriptor)
     {
-        return "BadFileDescriptor"_str;
+        return "BadFileDescriptor"_s;
     }
     else if (err == IoErr::Busy)
     {
-        return "Busy"_str;
+        return "Busy"_s;
     }
     else if (err == IoErr::Canceled)
     {
-        return "Canceled"_str;
+        return "Canceled"_s;
     }
     else if (err == IoErr::DeadlockAvoided)
     {
-        return "DeadlockAvoided"_str;
+        return "DeadlockAvoided"_s;
     }
     else if (err == IoErr::Exists)
     {
-        return "Exists"_str;
+        return "Exists"_s;
     }
     else if (err == IoErr::BadAddress)
     {
-        return "BadAddress"_str;
+        return "BadAddress"_s;
     }
     else if (err == IoErr::FileTooBig)
     {
-        return "FileTooBig"_str;
+        return "FileTooBig"_s;
     }
     else if (err == IoErr::IllegalCharSequence)
     {
-        return "IllegalCharSequence"_str;
+        return "IllegalCharSequence"_s;
     }
     else if (err == IoErr::OpInProgress)
     {
-        return "OpInProgress"_str;
+        return "OpInProgress"_s;
     }
     else if (err == IoErr::SysCallInterrupted)
     {
-        return "SysCallInterrupted"_str;
+        return "SysCallInterrupted"_s;
     }
     else if (err == IoErr::InvalidArg)
     {
-        return "InvalidArg"_str;
+        return "InvalidArg"_s;
     }
     else if (err == IoErr::IOErr)
     {
-        return "IOErr"_str;
+        return "IOErr"_s;
     }
     else if (err == IoErr::IsDirectory)
     {
-        return "IsDirectory"_str;
+        return "IsDirectory"_s;
     }
     else if (err == IoErr::TooManySymLinks)
     {
-        return "TooManySymLinks"_str;
+        return "TooManySymLinks"_s;
     }
     else if (err == IoErr::TooManyOpenFiles)
     {
-        return "TooManyOpenFiles"_str;
+        return "TooManyOpenFiles"_s;
     }
     else if (err == IoErr::TooManyLinks)
     {
-        return "TooManyLinks"_str;
+        return "TooManyLinks"_s;
     }
     else if (err == IoErr::MsgTooLong)
     {
-        return "MsgTooLong"_str;
+        return "MsgTooLong"_s;
     }
     else if (err == IoErr::FileNameTooLong)
     {
-        return "FileNameTooLong"_str;
+        return "FileNameTooLong"_s;
     }
     else if (err == IoErr::TooManyOpenSysFiles)
     {
-        return "TooManyOpenSysFiles"_str;
+        return "TooManyOpenSysFiles"_s;
     }
     else if (err == IoErr::NoBufferSpace)
     {
-        return "NoBufferSpace"_str;
+        return "NoBufferSpace"_s;
     }
     else if (err == IoErr::NoData)
     {
-        return "NoData"_str;
+        return "NoData"_s;
     }
     else if (err == IoErr::InvalidDev)
     {
-        return "InvalidDev"_str;
+        return "InvalidDev"_s;
     }
     else if (err == IoErr::InvalidFileOrDir)
     {
-        return "InvalidFileOrDir"_str;
+        return "InvalidFileOrDir"_s;
     }
     else if (err == IoErr::ExecFormat)
     {
-        return "ExecFormat"_str;
+        return "ExecFormat"_s;
     }
     else if (err == IoErr::NoLocksAvailable)
     {
-        return "NoLocksAvailable"_str;
+        return "NoLocksAvailable"_s;
     }
     else if (err == IoErr::NoLink)
     {
-        return "NoLink"_str;
+        return "NoLink"_s;
     }
     else if (err == IoErr::OutOfMemory)
     {
-        return "OutOfMemory"_str;
+        return "OutOfMemory"_s;
     }
     else if (err == IoErr::OutOfSpace)
     {
-        return "OutOfSpace"_str;
+        return "OutOfSpace"_s;
     }
     else if (err == IoErr::OutOfStreamRes)
     {
-        return "OutOfStreamRes"_str;
+        return "OutOfStreamRes"_s;
     }
     else if (err == IoErr::NotStream)
     {
-        return "NotStream"_str;
+        return "NotStream"_s;
     }
     else if (err == IoErr::UnImplemented)
     {
-        return "UnImplemented"_str;
+        return "UnImplemented"_s;
     }
     else if (err == IoErr::NotDir)
     {
-        return "NotDir"_str;
+        return "NotDir"_s;
     }
     else if (err == IoErr::DirectoryNotEmpty)
     {
-        return "DirectoryNotEmpty"_str;
+        return "DirectoryNotEmpty"_s;
     }
     else if (err == IoErr::Unsupported)
     {
-        return "Unsupported"_str;
+        return "Unsupported"_s;
     }
     else if (err == IoErr::InvalidDeviceOrAddr)
     {
-        return "InvalidDeviceOrAddr"_str;
+        return "InvalidDeviceOrAddr"_s;
     }
     else if (err == IoErr::OpUnsupported)
     {
-        return "OpUnsupported"_str;
+        return "OpUnsupported"_s;
     }
     else if (err == IoErr::Overflow)
     {
-        return "Overflow"_str;
+        return "Overflow"_s;
     }
     else if (err == IoErr::OwnerDead)
     {
-        return "OwnerDead"_str;
+        return "OwnerDead"_s;
     }
     else if (err == IoErr::UnpermittedOp)
     {
-        return "UnpermittedOp"_str;
+        return "UnpermittedOp"_s;
     }
     else if (err == IoErr::BrokenPipe)
     {
-        return "BrokenPipe"_str;
+        return "BrokenPipe"_s;
     }
     else if (err == IoErr::OutOfRange)
     {
-        return "OutOfRange"_str;
+        return "OutOfRange"_s;
     }
     else if (err == IoErr::ReadOnlyFileSys)
     {
-        return "ReadOnlyFileSys"_str;
+        return "ReadOnlyFileSys"_s;
     }
     else if (err == IoErr::IllegalSeek)
     {
-        return "IllegalSeek"_str;
+        return "IllegalSeek"_s;
     }
     else if (err == IoErr::NoSuchProcess)
     {
-        return "NoSuchProcess"_str;
+        return "NoSuchProcess"_s;
     }
     else if (err == IoErr::TextFileBusy)
     {
-        return "TextFileBusy"_str;
+        return "TextFileBusy"_s;
     }
     else if (err == IoErr::TemporarilyUnavailable)
     {
-        return "TemporarilyUnavailable"_str;
+        return "TemporarilyUnavailable"_s;
     }
     else
     {
-        return "Unidentified Filesystem Error"_str;
+        return "Unidentified Filesystem Error"_s;
     }
 }
 

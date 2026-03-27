@@ -2,8 +2,7 @@
 /.idea
 /build
 /third_party
-*.spv
-*.spv-asm
+/ashura/engine/assets/shaders
 /vcpkg_installed
 /.vs
 /out

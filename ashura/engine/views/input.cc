@@ -231,7 +231,7 @@ Input::Input(Str32 s, TextStyle const & style, FontStyle const & font,
   stub_{allocator},
   compositor_{TextCompositor::create(allocator)}
 {
-    content(U""_str).content_run(style, font).stub(s).stub_run(style, font);
+    content(U""_s).content_run(style, font).stub(s).stub_run(style, font);
 }
 
 Input::Input(Str8 s, TextStyle const & style, FontStyle const & font,
@@ -241,7 +241,7 @@ Input::Input(Str8 s, TextStyle const & style, FontStyle const & font,
   stub_{allocator},
   compositor_{TextCompositor::create(allocator)}
 {
-    content(U""_str).content_run(style, font).stub(s).stub_run(style, font);
+    content(U""_s).content_run(style, font).stub(s).stub_run(style, font);
 }
 
 Input & Input::disable(bool disable)

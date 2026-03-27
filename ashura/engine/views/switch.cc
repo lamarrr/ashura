@@ -109,7 +109,7 @@ void Switch::render(Canvas & canvas, RenderInfo const & info)
     thumb_extent.x *= 0.5F;
     f32x2 const alignment{state_.value ? ALIGNMENT_RIGHT : ALIGNMENT_LEFT,
                           ALIGNMENT_CENTER};
-    auto const thumb_center =
+    auto const  thumb_center =
       info.canvas_region.center +
       space_align(info.canvas_region.extent, thumb_extent, alignment);
 

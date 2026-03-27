@@ -10,7 +10,7 @@ BloomPipeline::BloomPipeline(Allocator)
 
 Str BloomPipeline::label()
 {
-    return "Bloom"_str;
+    return "Bloom"_s;
 }
 
 void BloomPipeline::acquire(GpuFramePlan, Allocator)

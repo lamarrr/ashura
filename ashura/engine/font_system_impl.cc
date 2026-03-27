@@ -28,7 +28,7 @@ Dyn<FontSys> IFontSys::create(Allocator allocator, FileSys file_sys, ImageSys im
 
 FontImpl::~FontImpl()
 {
-    gpu_atlas.unwrap_none("GPU font atlas has not been unloaded"_str);
+    gpu_atlas.unwrap_none("GPU font atlas has not been unloaded"_s);
     hb_font_destroy(hb_font);
     hb_face_destroy(hb_face);
     hb_blob_destroy(hb_blob);
@@ -64,12 +64,12 @@ FontSysImpl::~FontSysImpl()
 AwaitFuturesVec FontSysImpl::init()
 {
     static constexpr u8 ROBOTO_FONT_DATA[] = {
-#embed "assets/fonts/Roboto/Roboto-Regular.ttf"
+#embed "fonts/Roboto/Roboto-Regular.ttf"
     };
     static constexpr u32 FONT_RASTER_HEIGHT = 64U;
     static constexpr u32 FONT_FACE          = 0U;
 
-    auto fut = load_from_memory("Default"_str, static_rc(span(ROBOTO_FONT_DATA)),
+    auto fut = load_from_memory("Default"_s, static_rc(span(ROBOTO_FONT_DATA)),
                                 FONT_RASTER_HEIGHT, FONT_FACE);
 
     Vec<AnyFuture> await_futures{allocator_};
@@ -557,7 +557,7 @@ Future<Result<FontId, SysErr>> FontSysImpl::load_from_memory(Str     label_span,
               using R = Result<CpuFontAtlas, SysErr>;
               return r.match(
                 [&](Dyn<Font> & f) -> R {
-                    trace("Rasterizing font: {} @{}px"_str, label, font_height);
+                    trace("Rasterizing font: {} @{}px"_s, label, font_height);
                     return rasterize_(f.get(), font_height);
                 },
                 [](SysErr err) -> R { return Err{err}; });

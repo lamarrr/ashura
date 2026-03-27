@@ -685,7 +685,7 @@ TextPlacement TextLayout::place(TextRenderInfo const & info, Allocator allocator
                 auto   font        = sys.font->get(font_style.font);
                 auto   font_height = info.block.font_scale * run.font_height;
                 auto   metrics     = run.metrics.resolve(font_height);
-                auto   run_width   = metrics.advance +
+                auto run_width = metrics.advance +
                                  (run.is_spacing() ?
                                     0 :
                                     (info.block.font_scale * font_style.word_spacing));
@@ -785,10 +785,10 @@ TextPlacement TextLayout::place(TextRenderInfo const & info, Allocator allocator
                     auto                 iglyph = run.glyphs.offset + i;
                     GlyphMetrics const & m      = font.glyphs[sh.glyph];
                     f32x2                extent = au_to_px(m.extent, font_height);
-                    f32x2                center = f32x2{glyph_cursor, baseline} +
-                                   au_to_px(m.bearing, font_height) +
-                                   au_to_px(sh.offset, font_height) + 0.5F * extent;
-                    auto advance = au_to_px(sh.advance, font_height);
+                    f32x2 center  = f32x2{glyph_cursor, baseline} +
+                                    au_to_px(m.bearing, font_height) +
+                                    au_to_px(sh.offset, font_height) + 0.5F * extent;
+                    auto  advance = au_to_px(sh.advance, font_height);
 
                     // before and after carets
                     auto glyph_carets =

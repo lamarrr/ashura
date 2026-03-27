@@ -232,12 +232,12 @@ static void apply_action(Cfg const & cfg, CoreAction action, State & s)
 
         case CoreActionType::Undo:
         {
-            warn("Undo action is not implemented yet"_str);
+            warn("Undo action is not implemented yet"_s);
         }
         break;
         case CoreActionType::Redo:
         {
-            warn("Redo action is not implemented yet"_str);
+            warn("Redo action is not implemented yet"_s);
         }
         break;
         case CoreActionType::Submit:

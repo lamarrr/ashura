@@ -10,7 +10,7 @@ namespace ash
 
 Str PBRPipeline::label()
 {
-    return "PBR"_str;
+    return "PBR"_s;
 }
 
 static gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
@@ -22,8 +22,7 @@ static gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
 
     auto & gpu = *plan->sys();
 
-    auto tagged_label =
-      sformat(scratch, "PBR Graphics Pipeline: {}"_str, label).unwrap();
+    auto tagged_label = sformat(scratch, "PBR Graphics Pipeline: {}"_s, label).unwrap();
 
     auto raster_state =
       gpu::RasterizationState{.depth_clamp_enable = false,
@@ -70,19 +69,19 @@ static gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
     };
 
     auto pipeline_info = gpu::GraphicsPipelineInfo{
-      .label                  = tagged_label,
-      .vertex_shader          = gpu::ShaderStageInfo{.shader                        = shader,
-                                                     .entry_point                   = "vert"_str,
-                                                     .specialization_constants      = {},
-                                                     .specialization_constants_data = {}},
-      .fragment_shader        = gpu::ShaderStageInfo{.shader                   = shader,
-                                                     .entry_point              = "frag"_str,
-                                                     .specialization_constants = {},
-                                                     .specialization_constants_data = {}},
-      .color_formats          = span({gpu.color_format()}
-                 ),
-      .depth_format           = gpu.depth_stencil_format(),
-      .stencil_format         = gpu.depth_stencil_format(),
+      .label           = tagged_label,
+      .vertex_shader   = gpu::ShaderStageInfo{.shader                        = shader,
+                                              .entry_point                   = "vert"_s,
+                                              .specialization_constants      = {},
+                                              .specialization_constants_data = {}},
+      .fragment_shader = gpu::ShaderStageInfo{.shader                        = shader,
+                                              .entry_point                   = "frag"_s,
+                                              .specialization_constants      = {},
+                                              .specialization_constants_data = {}},
+      .color_formats   = span({gpu.color_format()}
+          ),
+      .depth_format    = gpu.depth_stencil_format(),
+      .stencil_format  = gpu.depth_stencil_format(),
       .vertex_input_bindings  = {},
       .vertex_attributes      = {},
       .push_constants_size    = sizeof(shader::PbrShaderParams),
@@ -114,8 +113,8 @@ PBRPipeline::PBRPipeline(Allocator allocator) : variants_{allocator}
 void PBRPipeline::acquire(GpuFramePlan plan, Allocator allocator)
 {
     auto id =
-      add_variant(plan, "base"_str,
-                  sys.shader->get("defaults/pbr_base"_str).unwrap().shader, allocator);
+      add_variant(plan, "base"_s,
+                  sys.shader->get("defaults/pbr_base"_s).unwrap().shader, allocator);
     ASH_CHECK(id == PipelineVariantId::Base, "");
 }
 

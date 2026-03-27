@@ -60,9 +60,8 @@ EventSink<I64RangeRecord> & get_scope_trace_sink()
 
     static thread_local EventSinkHook hook{[] {
         return EventSink<I64RangeRecord>{
-          EventData{.label = "ScopeTrace"_str,
-                    .type  = "I64Range"_str,
-                    .unit  = "nanoseconds"_str},
+          EventData{
+                    .label = "ScopeTrace"_s, .type = "I64Range"_s, .unit = "nanoseconds"_s},
           Vec<I64RangeRecord>::make(CFG_BUFFER_SIZE, default_allocator).unwrap()
         };
     }()};

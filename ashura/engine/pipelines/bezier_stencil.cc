@@ -15,14 +15,14 @@ BezierStencilPipeline::BezierStencilPipeline(Allocator)
 
 Str BezierStencilPipeline::label()
 {
-    return "BezierStencil"_str;
+    return "BezierStencil"_s;
 }
 
 void BezierStencilPipeline::acquire(GpuFramePlan plan, Allocator)
 {
     auto & gpu = *plan->sys();
 
-    auto shader = sys.shader->get("defaults/bezier_stencil"_str).unwrap().shader;
+    auto shader = sys.shader->get("defaults/bezier_stencil"_s).unwrap().shader;
 
     auto raster_state =
       gpu::RasterizationState{.depth_clamp_enable = false,
@@ -47,18 +47,18 @@ void BezierStencilPipeline::acquire(GpuFramePlan plan, Allocator)
                              .max_depth_bounds         = 0};
 
     auto pipeline_info = gpu::GraphicsPipelineInfo{
-      .label                  = "Bezier Stencil Graphics Pipeline"_str,
-      .vertex_shader          = gpu::ShaderStageInfo{.shader                        = shader,
-                                                     .entry_point                   = "vert"_str,
-                                                     .specialization_constants      = {},
-                                                     .specialization_constants_data = {}},
-      .fragment_shader        = gpu::ShaderStageInfo{.shader                   = shader,
-                                                     .entry_point              = "frag"_str,
-                                                     .specialization_constants = {},
-                                                     .specialization_constants_data = {}},
-      .color_formats          = {},
-      .depth_format           = {},
-      .stencil_format         = gpu.depth_stencil_format(),
+      .label           = "Bezier Stencil Graphics Pipeline"_s,
+      .vertex_shader   = gpu::ShaderStageInfo{.shader                        = shader,
+                                              .entry_point                   = "vert"_s,
+                                              .specialization_constants      = {},
+                                              .specialization_constants_data = {}},
+      .fragment_shader = gpu::ShaderStageInfo{.shader                        = shader,
+                                              .entry_point                   = "frag"_s,
+                                              .specialization_constants      = {},
+                                              .specialization_constants_data = {}},
+      .color_formats   = {},
+      .depth_format    = {},
+      .stencil_format  = gpu.depth_stencil_format(),
       .vertex_input_bindings  = {},
       .vertex_attributes      = {},
       .push_constants_size    = sizeof(shader::BezierStencilShaderParams),

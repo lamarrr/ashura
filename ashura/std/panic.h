@@ -6,7 +6,6 @@
 namespace ash
 {
 
-
 struct PanicException
 {
 };

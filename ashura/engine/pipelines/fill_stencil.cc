@@ -12,7 +12,7 @@ namespace ash
 
 Str FillStencilPipeline::label()
 {
-    return "FillStencil"_str;
+    return "FillStencil"_s;
 }
 
 FillStencilPipeline::FillStencilPipeline(Allocator)
@@ -25,7 +25,7 @@ void FillStencilPipeline::acquire(GpuFramePlan plan, Allocator allocator)
 
     auto & gpu = *plan->sys();
 
-    auto tagged_label = sformat(scratch, "Fill Stencil Graphics Pipeline"_str).unwrap();
+    auto tagged_label = sformat(scratch, "Fill Stencil Graphics Pipeline"_s).unwrap();
 
     auto raster_state =
       gpu::RasterizationState{.depth_clamp_enable = false,
@@ -61,21 +61,21 @@ void FillStencilPipeline::acquire(GpuFramePlan plan, Allocator allocator)
       layout.read_storage_buffer,    // 3: indices
     };
 
-    auto shader = sys.shader->get("defaults/fill_stencil"_str).unwrap().shader;
+    auto shader = sys.shader->get("defaults/fill_stencil"_s).unwrap().shader;
 
     auto pipeline_info = gpu::GraphicsPipelineInfo{
-      .label                  = tagged_label,
-      .vertex_shader          = gpu::ShaderStageInfo{.shader                        = shader,
-                                                     .entry_point                   = "vert"_str,
-                                                     .specialization_constants      = {},
-                                                     .specialization_constants_data = {}},
-      .fragment_shader        = gpu::ShaderStageInfo{.shader                   = shader,
-                                                     .entry_point              = "frag"_str,
-                                                     .specialization_constants = {},
-                                                     .specialization_constants_data = {}},
-      .color_formats          = {},
-      .depth_format           = {},
-      .stencil_format         = gpu.depth_stencil_format(),
+      .label           = tagged_label,
+      .vertex_shader   = gpu::ShaderStageInfo{.shader                        = shader,
+                                              .entry_point                   = "vert"_s,
+                                              .specialization_constants      = {},
+                                              .specialization_constants_data = {}},
+      .fragment_shader = gpu::ShaderStageInfo{.shader                        = shader,
+                                              .entry_point                   = "frag"_s,
+                                              .specialization_constants      = {},
+                                              .specialization_constants_data = {}},
+      .color_formats   = {},
+      .depth_format    = {},
+      .stencil_format  = gpu.depth_stencil_format(),
       .vertex_input_bindings  = {},
       .vertex_attributes      = {},
       .push_constants_size    = sizeof(shader::FillStencilShaderParams),

@@ -196,14 +196,14 @@ struct [[nodiscard]] Option
         return none;
     }
 
-    constexpr T unwrap(Str msg = ""_str, SourceLocation loc = SourceLocation::current())
+    constexpr T unwrap(Str msg = ""_s, SourceLocation loc = SourceLocation::current())
     {
         ASH_CHECK_SLOC(loc, is_some(), "Expected Value in Option but got None. {}",
                        msg);
         return static_cast<T &&>(v0_);
     }
 
-    constexpr T unwrap(Str            msg = ""_str,
+    constexpr T unwrap(Str            msg = ""_s,
                        SourceLocation loc = SourceLocation::current()) const
     {
         ASH_CHECK_SLOC(loc, is_some(), "Expected Value in Option but got None. {}",
@@ -295,7 +295,7 @@ struct [[nodiscard]] Option
         return OutOption{none};
     }
 
-    constexpr void unwrap_none(Str            msg = ""_str,
+    constexpr void unwrap_none(Str            msg = ""_s,
                                SourceLocation loc = SourceLocation::current())
     {
         ASH_CHECK_SLOC(loc, is_none(), "Expected None in Option but got Value = {}. {}",
@@ -581,7 +581,7 @@ struct [[nodiscard]] Option<T &>
         return *repr_;
     }
 
-    constexpr T & unwrap(Str            msg = ""_str,
+    constexpr T & unwrap(Str            msg = ""_s,
                          SourceLocation loc = SourceLocation::current()) const
     {
         ASH_CHECK_SLOC(loc, is_some(), "Expected Value in Option but got None. {}",
@@ -639,7 +639,7 @@ struct [[nodiscard]] Option<T &>
         return OutOption{none};
     }
 
-    constexpr void unwrap_none(Str            msg = ""_str,
+    constexpr void unwrap_none(Str            msg = ""_s,
                                SourceLocation loc = SourceLocation::current())
     {
         ASH_CHECK_SLOC(loc, is_none(), "Expected None in Option but got Value = {}. {}",
@@ -765,7 +765,7 @@ struct [[nodiscard]] Option<T &&>
         return static_cast<T &&>(*repr_);
     }
 
-    constexpr T && unwrap(Str            msg = ""_str,
+    constexpr T && unwrap(Str            msg = ""_s,
                           SourceLocation loc = SourceLocation::current())
     {
         ASH_CHECK_SLOC(loc, is_some(), "Expected Value in Option but got None. {}",
@@ -823,7 +823,7 @@ struct [[nodiscard]] Option<T &&>
         return OutOption{none};
     }
 
-    constexpr void unwrap_none(Str            msg = ""_str,
+    constexpr void unwrap_none(Str            msg = ""_s,
                                SourceLocation loc = SourceLocation::current())
     {
         ASH_CHECK_SLOC(loc, is_none(), "Expected None in Option but got Value = {}. {}",

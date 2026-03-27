@@ -15,7 +15,7 @@ SdfPipeline::SdfPipeline(Allocator allocator) : variants_{allocator}
 
 Str SdfPipeline::label()
 {
-    return "SDF"_str;
+    return "SDF"_s;
 }
 
 static gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
@@ -69,23 +69,22 @@ static gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
       layout.sampled_textures    // 1: textures
     };
 
-    auto tagged_label =
-      sformat(scratch, "SDF Graphics Pipeline: {}"_str, label).unwrap();
+    auto tagged_label = sformat(scratch, "SDF Graphics Pipeline: {}"_s, label).unwrap();
 
     auto pipeline_info = gpu::GraphicsPipelineInfo{
-      .label                  = tagged_label,
-      .vertex_shader          = gpu::ShaderStageInfo{.shader                        = shader,
-                                                     .entry_point                   = "vert"_str,
-                                                     .specialization_constants      = {},
-                                                     .specialization_constants_data = {}},
-      .fragment_shader        = gpu::ShaderStageInfo{.shader                   = shader,
-                                                     .entry_point              = "frag"_str,
-                                                     .specialization_constants = {},
-                                                     .specialization_constants_data = {}},
-      .color_formats          = span({gpu.color_format()}
-                 ),
-      .depth_format           = {},
-      .stencil_format         = gpu.depth_stencil_format(),
+      .label           = tagged_label,
+      .vertex_shader   = gpu::ShaderStageInfo{.shader                        = shader,
+                                              .entry_point                   = "vert"_s,
+                                              .specialization_constants      = {},
+                                              .specialization_constants_data = {}},
+      .fragment_shader = gpu::ShaderStageInfo{.shader                        = shader,
+                                              .entry_point                   = "frag"_s,
+                                              .specialization_constants      = {},
+                                              .specialization_constants_data = {}},
+      .color_formats   = span({gpu.color_format()}
+          ),
+      .depth_format    = {},
+      .stencil_format  = gpu.depth_stencil_format(),
       .vertex_input_bindings  = {},
       .vertex_attributes      = {},
       .push_constants_size    = sizeof(shader::SdfShaderParams),
@@ -103,16 +102,16 @@ static gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
 void SdfPipeline::acquire(GpuFramePlan plan, Allocator allocator)
 {
     auto gradient_id = add_variant(
-      plan, "gradient"_str,
-      sys.shader->get("defaults/sdf_gradient"_str).unwrap().shader, allocator);
+      plan, "gradient"_s, sys.shader->get("defaults/sdf_gradient"_s).unwrap().shader,
+      allocator);
     ASH_CHECK(gradient_id == GRADIENT, "");
     auto noise_id =
-      add_variant(plan, "noise"_str,
-                  sys.shader->get("defaults/sdf_noise"_str).unwrap().shader, allocator);
+      add_variant(plan, "noise"_s,
+                  sys.shader->get("defaults/sdf_noise"_s).unwrap().shader, allocator);
     ASH_CHECK(noise_id == NOISE, "");
     auto mesh_gradient_id = add_variant(
-      plan, "mesh_gradient"_str,
-      sys.shader->get("defaults/sdf_mesh_gradient"_str).unwrap().shader, allocator);
+      plan, "mesh_gradient"_s,
+      sys.shader->get("defaults/sdf_mesh_gradient"_s).unwrap().shader, allocator);
     ASH_CHECK(mesh_gradient_id == MESH_GRADIENT, "");
 }
 

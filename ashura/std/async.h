@@ -811,7 +811,7 @@ struct [[nodiscard]] Future
 
     T & get(SourceLocation loc = SourceLocation::current()) const
     {
-        return state_->ref().unwrap("Called `Future::get()` on a pending Future"_str,
+        return state_->ref().unwrap("Called `Future::get()` on a pending Future"_s,
                                     loc);
     }
 
@@ -1124,7 +1124,7 @@ typedef struct IScheduler * Scheduler;
 
 struct SchedulerThreadInfo
 {
-    Str name = "SchedulerThread"_str;
+    Str name = "SchedulerThread"_s;
 };
 
 struct SchedulerInfo

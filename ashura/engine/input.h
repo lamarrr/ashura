@@ -870,44 +870,44 @@ enum class Cursor : u8
 constexpr u32 NUM_CURSOR_TYPES = 20;
 
 /// @brief Default charset is ASCII
-inline constexpr Str MIME_TEXT_PLAIN    = "text/plain"_str;
-inline constexpr Str MIME_TEXT_UTF8     = "text/plain;charset=UTF-8"_str;
-inline constexpr Str MIME_TEXT_CSS      = "text/css"_str;
-inline constexpr Str MIME_TEXT_CSV      = "text/csv"_str;
-inline constexpr Str MIME_TEXT_HTML     = "text/html"_str;
-inline constexpr Str MIME_TEXT_JS       = "text/javascript"_str;
-inline constexpr Str MIME_TEXT_MARKDOWN = "text/markdown"_str;
+inline constexpr Str MIME_TEXT_PLAIN    = "text/plain"_s;
+inline constexpr Str MIME_TEXT_UTF8     = "text/plain;charset=UTF-8"_s;
+inline constexpr Str MIME_TEXT_CSS      = "text/css"_s;
+inline constexpr Str MIME_TEXT_CSV      = "text/csv"_s;
+inline constexpr Str MIME_TEXT_HTML     = "text/html"_s;
+inline constexpr Str MIME_TEXT_JS       = "text/javascript"_s;
+inline constexpr Str MIME_TEXT_MARKDOWN = "text/markdown"_s;
 
-inline constexpr Str MIME_IMAGE_AVIF = "image/avif"_str;
-inline constexpr Str MIME_IMAGE_BMP  = "image/bmp"_str;
-inline constexpr Str MIME_IMAGE_HEIF = "image/heif"_str;
-inline constexpr Str MIME_IMAGE_JPEG = "image/jpeg"_str;
-inline constexpr Str MIME_IMAGE_PNG  = "image/png"_str;
-inline constexpr Str MIME_IMAGE_SVG  = "image/svg+xml"_str;
-inline constexpr Str MIME_IMAGE_WEBP = "image/webp"_str;
+inline constexpr Str MIME_IMAGE_AVIF = "image/avif"_s;
+inline constexpr Str MIME_IMAGE_BMP  = "image/bmp"_s;
+inline constexpr Str MIME_IMAGE_HEIF = "image/heif"_s;
+inline constexpr Str MIME_IMAGE_JPEG = "image/jpeg"_s;
+inline constexpr Str MIME_IMAGE_PNG  = "image/png"_s;
+inline constexpr Str MIME_IMAGE_SVG  = "image/svg+xml"_s;
+inline constexpr Str MIME_IMAGE_WEBP = "image/webp"_s;
 
-inline constexpr Str MIME_VIDEO_AV1      = "video/AV1"_str;
-inline constexpr Str MIME_VIDEO_H264     = "video/H264"_str;
-inline constexpr Str MIME_VIDEO_H265     = "video/H265"_str;
-inline constexpr Str MIME_VIDEO_H266     = "video/H266"_str;
-inline constexpr Str MIME_VIDEO_MATROSKA = "video/matroska"_str;
-inline constexpr Str MIME_VIDEO_MP4      = "video/mp4"_str;
-inline constexpr Str MIME_VIDEO_RAW      = "video/raw"_str;
-inline constexpr Str MIME_VIDEO_VP8      = "video/VP8"_str;
-inline constexpr Str MIME_VIDEO_VP9      = "video/VP9"_str;
+inline constexpr Str MIME_VIDEO_AV1      = "video/AV1"_s;
+inline constexpr Str MIME_VIDEO_H264     = "video/H264"_s;
+inline constexpr Str MIME_VIDEO_H265     = "video/H265"_s;
+inline constexpr Str MIME_VIDEO_H266     = "video/H266"_s;
+inline constexpr Str MIME_VIDEO_MATROSKA = "video/matroska"_s;
+inline constexpr Str MIME_VIDEO_MP4      = "video/mp4"_s;
+inline constexpr Str MIME_VIDEO_RAW      = "video/raw"_s;
+inline constexpr Str MIME_VIDEO_VP8      = "video/VP8"_s;
+inline constexpr Str MIME_VIDEO_VP9      = "video/VP9"_s;
 
-inline constexpr Str MIME_MODEL_GLTF_BINARY = "model/gltf+binary"_str;
-inline constexpr Str MIME_MODEL_GLTF_JSON   = "model/gltf+json"_str;
-inline constexpr Str MIME_MODEL_MESH        = "model/mesh"_str;
-inline constexpr Str MIME_MODEL_MTL         = "model/mtl"_str;
-inline constexpr Str MIME_MODEL_OBJ         = "model/obj"_str;
-inline constexpr Str MIME_MODEL_STL         = "model/stl"_str;
+inline constexpr Str MIME_MODEL_GLTF_BINARY = "model/gltf+binary"_s;
+inline constexpr Str MIME_MODEL_GLTF_JSON   = "model/gltf+json"_s;
+inline constexpr Str MIME_MODEL_MESH        = "model/mesh"_s;
+inline constexpr Str MIME_MODEL_MTL         = "model/mtl"_s;
+inline constexpr Str MIME_MODEL_OBJ         = "model/obj"_s;
+inline constexpr Str MIME_MODEL_STL         = "model/stl"_s;
 
-inline constexpr Str MIME_FONT_OTF   = "font/otf"_str;
-inline constexpr Str MIME_FONT_SFNT  = "font/sfnt"_str;
-inline constexpr Str MIME_FONT_TTF   = "font/ttf"_str;
-inline constexpr Str MIME_FONT_WOFF  = "font/woff"_str;
-inline constexpr Str MIME_FONT_WOFF2 = "font/woff2"_str;
+inline constexpr Str MIME_FONT_OTF   = "font/otf"_s;
+inline constexpr Str MIME_FONT_SFNT  = "font/sfnt"_s;
+inline constexpr Str MIME_FONT_TTF   = "font/ttf"_s;
+inline constexpr Str MIME_FONT_WOFF  = "font/woff"_s;
+inline constexpr Str MIME_FONT_WOFF2 = "font/woff2"_s;
 
 typedef struct IClipBoard * ClipBoard;
 

@@ -136,7 +136,7 @@ struct [[nodiscard]] RenderText
       font_scale_{1},
       max_width_{1024.0F},
       align_width_{1024.0F},
-      str_{static_rc(U""_str)},
+      str_{static_rc(U""_s)},
       runs_style_{noop_allocator},
       language_{},
       layout_{.glyphs{allocator},

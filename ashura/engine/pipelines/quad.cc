@@ -15,7 +15,7 @@ QuadPipeline::QuadPipeline(Allocator allocator) : variants_{allocator}
 
 Str QuadPipeline::label()
 {
-    return "Quad"_str;
+    return "Quad"_s;
 }
 
 static gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
@@ -70,22 +70,22 @@ static gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
     };
 
     auto tagged_label =
-      sformat(scratch, "Quad Graphics Pipeline: {}"_str, label).unwrap();
+      sformat(scratch, "Quad Graphics Pipeline: {}"_s, label).unwrap();
 
     auto pipeline_info = gpu::GraphicsPipelineInfo{
-      .label                  = tagged_label,
-      .vertex_shader          = gpu::ShaderStageInfo{.shader                        = shader,
-                                                     .entry_point                   = "vert"_str,
-                                                     .specialization_constants      = {},
-                                                     .specialization_constants_data = {}},
-      .fragment_shader        = gpu::ShaderStageInfo{.shader                   = shader,
-                                                     .entry_point              = "frag"_str,
-                                                     .specialization_constants = {},
-                                                     .specialization_constants_data = {}},
-      .color_formats          = span({gpu.color_format()}
-                 ),
-      .depth_format           = {},
-      .stencil_format         = gpu.depth_stencil_format(),
+      .label           = tagged_label,
+      .vertex_shader   = gpu::ShaderStageInfo{.shader                        = shader,
+                                              .entry_point                   = "vert"_s,
+                                              .specialization_constants      = {},
+                                              .specialization_constants_data = {}},
+      .fragment_shader = gpu::ShaderStageInfo{.shader                        = shader,
+                                              .entry_point                   = "frag"_s,
+                                              .specialization_constants      = {},
+                                              .specialization_constants_data = {}},
+      .color_formats   = span({gpu.color_format()}
+          ),
+      .depth_format    = {},
+      .stencil_format  = gpu.depth_stencil_format(),
       .vertex_input_bindings  = {},
       .vertex_attributes      = {},
       .push_constants_size    = sizeof(shader::QuadShaderParams),
@@ -103,8 +103,8 @@ static gpu::GraphicsPipeline create_pipeline(GpuFramePlan plan, Str label,
 void QuadPipeline::acquire(GpuFramePlan plan, Allocator allocator)
 {
     auto id =
-      add_variant(plan, "base"_str,
-                  sys.shader->get("defaults/quad_base"_str).unwrap().shader, allocator);
+      add_variant(plan, "base"_s,
+                  sys.shader->get("defaults/quad_base"_s).unwrap().shader, allocator);
     ASH_CHECK(id == PipelineVariantId::Base, "");
 }
 

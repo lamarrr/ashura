@@ -265,15 +265,15 @@ Future<Result<ImageInfo, SysErr>> IImageSys::load_from_path(Str label_span, Str 
             using R = Result<ImageInfo, SysErr>;
             return r.match(
               [&](Tuple<Vec<u8>, DecodedImageInfo> & t) -> R {
-                  gpu::ImageInfo image_info{.label  = label,
-                                            .type   = gpu::ImageType::Type2D,
-                                            .format = t.v1.format,
-                                            .usage  = gpu::ImageUsage::Sampled |
-                                                     gpu::ImageUsage::TransferDst |
-                                                     gpu::ImageUsage::TransferSrc,
-                                            .aspects      = gpu::ImageAspects::Color,
-                                            .extent       = t.v1.extent.append(1),
-                                            .mip_levels   = 1,
+                  gpu::ImageInfo image_info{.label      = label,
+                                            .type       = gpu::ImageType::Type2D,
+                                            .format     = t.v1.format,
+                                            .usage      = gpu::ImageUsage::Sampled |
+                                                          gpu::ImageUsage::TransferDst |
+                                                          gpu::ImageUsage::TransferSrc,
+                                            .aspects    = gpu::ImageAspects::Color,
+                                            .extent     = t.v1.extent.append(1),
+                                            .mip_levels = 1,
                                             .array_layers = 1,
                                             .sample_count = gpu::SampleCount::C1};
 

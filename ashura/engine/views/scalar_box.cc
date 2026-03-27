@@ -11,7 +11,7 @@ namespace ui
 
 ScalarDragBox::ScalarDragBox(TextStyle const & style, FontStyle const & font,
                              Allocator allocator) :
-  input_{U""_str, style, font, allocator}
+  input_{U""_s, style, font, allocator}
 {
     input_.multiline(false).tab_input(false).enter_submits(false);
 }
@@ -50,7 +50,7 @@ void ScalarDragBox::format_()
 
     sformat(allocator, style_.format, state_.scalar)
       .match([&](auto & text) { input_.content(text.view().as_c8()); },
-             [&](auto &) { input_.content(U"[Truncated]"_str); });
+             [&](auto &) { input_.content(U"[Truncated]"_s); });
 }
 
 ScalarDragBox & ScalarDragBox::on_update(Fn<void(Scalar)> fn)

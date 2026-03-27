@@ -79,12 +79,12 @@ int main()
 
     
     static constexpr u8 JSON_CONFIG[] = {
-#embed "ashura/config.json"
+#embed "config.json"
     };
 
     auto cfg = EngineCfg::parse_json(JSON_CONFIG, default_allocator).unwrap();
 
-    // ui::Text txt{default_allocator, U"Hello, Ashura!"_str, TextStyle{}, FontStyle{}};
+    // ui::Text txt{default_allocator, U"Hello, Ashura!"_s, TextStyle{}, FontStyle{}};
     Sample sample;
 
     auto loop =

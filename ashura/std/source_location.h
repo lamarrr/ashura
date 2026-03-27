@@ -54,8 +54,8 @@ struct SourceLocation
         return SourceLocation{file, function, line, column};
     }
 
-    Str file     = ""_str;
-    Str function = ""_str;
+    Str file     = ""_s;
+    Str function = ""_s;
     u32 line     = 0;
     u32 column   = 0;
 };

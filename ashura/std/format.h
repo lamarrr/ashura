@@ -64,7 +64,7 @@ constexpr auto format(fmt::Sink sink, fmt::Spec spec, T const & obj)
 template <typename T>
 constexpr void format(fmt::Sink sink, fmt::Spec, T const &)
 {
-    sink("[?]"_str);
+    sink("[?]"_s);
 }
 
 namespace fmt
@@ -85,19 +85,19 @@ constexpr Str to_str(Error e)
     switch (e)
     {
         case Error::None:
-            return "None"_str;
+            return "None"_s;
         case Error::OutOfMemory:
-            return "OutOfMemory"_str;
+            return "OutOfMemory"_s;
         case Error::UnexpectedToken:
-            return "UnexpectedToken"_str;
+            return "UnexpectedToken"_s;
         case Error::ItemsMismatch:
-            return "ItemsMismatch"_str;
+            return "ItemsMismatch"_s;
         case Error::UnmatchedToken:
-            return "UnmatchedToken"_str;
+            return "UnmatchedToken"_s;
         case Error::InvalidEscape:
-            return "InvalidEscape"_str;
+            return "InvalidEscape"_s;
         default:
-            return "Unrecognized"_str;
+            return "Unrecognized"_s;
     }
 }
 

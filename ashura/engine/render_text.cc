@@ -827,12 +827,12 @@ void TextModel::insert(Str8 input)
 
 void TextModel::new_line()
 {
-    return insert(U"\n"_str);
+    return insert(U"\n"_s);
 }
 
 void TextModel::tab()
 {
-    return insert(U"\t"_str);
+    return insert(U"\t"_s);
 }
 
 StrVec32 TextModel::copy_cut(Allocator allocator)
