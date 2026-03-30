@@ -1,14 +1,14 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
-#include "ashura/std/allocator.h"
-#include "ashura/std/dyn.h"
-#include "ashura/std/enum.h"
-#include "ashura/std/math.h"
-#include "ashura/std/option.h"
-#include "ashura/std/result.h"
-#include "ashura/std/time.h"
-#include "ashura/std/types.h"
-#include "ashura/std/vec.h"
+#include "ashura/std/allocator.hpp"
+#include "ashura/std/dyn.hpp"
+#include "ashura/std/enum.hpp"
+#include "ashura/std/math.hpp"
+#include "ashura/std/option.hpp"
+#include "ashura/std/result.hpp"
+#include "ashura/std/time.hpp"
+#include "ashura/std/types.hpp"
+#include "ashura/std/vec.hpp"
 
 namespace ash
 {

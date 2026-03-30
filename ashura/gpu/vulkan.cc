@@ -1,10 +1,10 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/gpu/vulkan.h"
-#include "ashura/std/error.h"
-#include "ashura/std/math.h"
-#include "ashura/std/mem.h"
-#include "ashura/std/range.h"
-#include "ashura/std/sformat.h"
+#include "ashura/std/error.hpp"
+#include "ashura/std/math.hpp"
+#include "ashura/std/mem.hpp"
+#include "ashura/std/range.hpp"
+#include "ashura/std/sformat.hpp"
 
 // clang-format off
 

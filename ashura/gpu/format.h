@@ -1,8 +1,8 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/gpu/gpu.h"
-#include "ashura/std/types.h"
-#include "ashura/std/vec.h"
+#include "ashura/std/types.hpp"
+#include "ashura/std/vec.hpp"
 
 namespace ash
 {

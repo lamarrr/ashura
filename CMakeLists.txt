@@ -370,17 +370,17 @@ endif()
 
 add_library(
     ashura_std STATIC
-    ashura/std/allocator.cc
-    ashura/std/allocators.cc
-    ashura/std/async.cc
-    ashura/std/format.cc
-    ashura/std/fs.cc
-    ashura/std/hash.cc
-    ashura/std/log.cc
-    ashura/std/log_sinks.cc
-    ashura/std/panic.cc
-    ashura/std/thread.cc
-    ashura/std/trace.cc)
+    ashura/std/allocator.cpp
+    ashura/std/allocators.cpp
+    ashura/std/async.cpp
+    ashura/std/format.cpp
+    ashura/std/fs.cpp
+    ashura/std/hash.cpp
+    ashura/std/log.cpp
+    ashura/std/log_sinks.cpp
+    ashura/std/panic.cpp
+    ashura/std/thread.cpp
+    ashura/std/trace.cpp)
 target_include_directories(ashura_std PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(
     ashura_std
@@ -395,32 +395,32 @@ target_link_options(ashura_std PUBLIC ${ASH_LINK_OPTIONS})
 if(ASH_BUILD_TESTS)
     add_executable(
         ashura_std_tests
-        ashura/std/tests/allocators.cc
-        ashura/std/tests/async.cc
-        ashura/std/tests/buffer.cc
-        ashura/std/tests/constraint.cc
-        ashura/std/tests/dyn.cc
-        ashura/std/tests/dict.cc
-        ashura/std/tests/enum.cc
-        ashura/std/tests/format.cc
-        ashura/std/tests/lambda.cc
-        ashura/std/tests/list.cc
-        ashura/std/tests/main.cc
-        ashura/std/tests/math.cc
-        ashura/std/tests/option.cc
-        ashura/std/tests/option_span.cc
-        ashura/std/tests/panic.cc
-        ashura/std/tests/piece_table.cc
-        ashura/std/tests/range.cc
-        ashura/std/tests/result.cc
-        ashura/std/tests/sformat.cc
-        ashura/std/tests/sparse_vec.cc
-        ashura/std/tests/str.cc
-        ashura/std/tests/super.cc
-        ashura/std/tests/text.cc
-        ashura/std/tests/types.cc
-        ashura/std/tests/uri.cc
-        ashura/std/tests/vec.cc)
+        ashura/std/tests/allocators.cpp
+        ashura/std/tests/async.cpp
+        ashura/std/tests/buffer.cpp
+        ashura/std/tests/constraint.cpp
+        ashura/std/tests/dyn.cpp
+        ashura/std/tests/dict.cpp
+        ashura/std/tests/enum.cpp
+        ashura/std/tests/format.cpp
+        ashura/std/tests/lambda.cpp
+        ashura/std/tests/list.cpp
+        ashura/std/tests/main.cpp
+        ashura/std/tests/math.cpp
+        ashura/std/tests/option.cpp
+        ashura/std/tests/option_span.cpp
+        ashura/std/tests/panic.cpp
+        ashura/std/tests/piece_table.cpp
+        ashura/std/tests/range.cpp
+        ashura/std/tests/result.cpp
+        ashura/std/tests/sformat.cpp
+        ashura/std/tests/sparse_vec.cpp
+        ashura/std/tests/str.cpp
+        ashura/std/tests/super.cpp
+        ashura/std/tests/text.cpp
+        ashura/std/tests/types.cpp
+        ashura/std/tests/uri.cpp
+        ashura/std/tests/vec.cpp)
 
     target_link_libraries(ashura_std_tests ashura_std GTest::gtest GTest::gtest_main)
 
@@ -428,7 +428,7 @@ endif()
 
 # ASHURA STD - BENCHMARKS
 
-# add_executable(ashura_std_bench ashura/std/bench/dict.cc)
+# add_executable(ashura_std_bench ashura/std/bench/dict.cpp)
 
 # target_link_libraries(ashura_std_bench benchmark::benchmark benchmark::benchmark_main
 # ashura_std)
@@ -460,63 +460,63 @@ if(ASH_BUILD_ENGINE)
     add_library(
         ashura_engine STATIC
         # ENGINE CORE
-        ashura/engine/animation_system.cc
-        ashura/engine/animation.cc
-        ashura/engine/audio_system.cc
-        ashura/engine/canvas.cc
-        ashura/engine/encoders.cc
-        ashura/engine/engine.cc
-        ashura/engine/file_system.cc
-        ashura/engine/font_system_impl.cc
-        ashura/engine/font_system.cc
-        ashura/engine/font.cc
-        ashura/engine/gpu_system.cc
-        ashura/engine/image_decoder.cc
-        ashura/engine/image_system.cc
-        ashura/engine/input.cc
-        ashura/engine/pipeline_system.cc
-        ashura/engine/pipeline.cc
-        ashura/engine/render_text.cc
-        ashura/engine/shader_system.cc
-        ashura/engine/systems.cc
-        ashura/engine/text.cc
-        ashura/engine/video_system.cc
-        ashura/engine/view_system.cc
-        ashura/engine/view.cc
-        ashura/engine/window_system.cc
+        ashura/engine/animation_system.cpp
+        ashura/engine/animation.cpp
+        ashura/engine/audio_system.cpp
+        ashura/engine/canvas.cpp
+        ashura/engine/encoders.cpp
+        ashura/engine/engine.cpp
+        ashura/engine/file_system.cpp
+        ashura/engine/font_system_impl.cpp
+        ashura/engine/font_system.cpp
+        ashura/engine/font.cpp
+        ashura/engine/gpu_system.cpp
+        ashura/engine/image_decoder.cpp
+        ashura/engine/image_system.cpp
+        ashura/engine/input.cpp
+        ashura/engine/pipeline_system.cpp
+        ashura/engine/pipeline.cpp
+        ashura/engine/render_text.cpp
+        ashura/engine/shader_system.cpp
+        ashura/engine/systems.cpp
+        ashura/engine/text.cpp
+        ashura/engine/video_system.cpp
+        ashura/engine/view_system.cpp
+        ashura/engine/view.cpp
+        ashura/engine/window_system.cpp
         # PIPELINES
-        ashura/engine/pipelines/bezier_stencil.cc
-        ashura/engine/pipelines/bloom.cc
-        ashura/engine/pipelines/blur.cc
-        ashura/engine/pipelines/fill_stencil.cc
-        ashura/engine/pipelines/pbr.cc
-        ashura/engine/pipelines/quad.cc
-        ashura/engine/pipelines/sdf.cc
-        ashura/engine/pipelines/triangle_fill.cc
-        ashura/engine/pipelines/vector_path.cc
+        ashura/engine/pipelines/bezier_stencil.cpp
+        ashura/engine/pipelines/bloom.cpp
+        ashura/engine/pipelines/blur.cpp
+        ashura/engine/pipelines/fill_stencil.cpp
+        ashura/engine/pipelines/pbr.cpp
+        ashura/engine/pipelines/quad.cpp
+        ashura/engine/pipelines/sdf.cpp
+        ashura/engine/pipelines/triangle_fill.cpp
+        ashura/engine/pipelines/vector_path.cpp
         # VIEWS
-        ashura/engine/views/model/text.cc
-        # ashura/engine/views/button.cc
-        # ashura/engine/views/check_box.cc
-        # ashura/engine/views/color_picker.cc
-        # ashura/engine/views/combo.cc
-        # ashura/engine/views/flex.cc
-        # ashura/engine/views/focus_view.cc
-        # ashura/engine/views/icon.cc
-        # ashura/engine/views/image.cc
-        # ashura/engine/views/input.cc
-        # ashura/engine/views/list.cc
-        # ashura/engine/views/modal.cc
-        # ashura/engine/views/plot.cc
-        # ashura/engine/views/radio.cc
-        # ashura/engine/views/scalar_box.cc
-        # ashura/engine/views/scroll_view.cc
-        # ashura/engine/views/slider.cc
-        # ashura/engine/views/space.cc
-        # ashura/engine/views/stack.cc
-        # ashura/engine/views/switch.cc
-        # ashura/engine/views/table.cc
-        ashura/engine/views/text.cc)
+        ashura/engine/views/model/text.cpp
+        # ashura/engine/views/button.cpp
+        # ashura/engine/views/check_box.cpp
+        # ashura/engine/views/color_picker.cpp
+        # ashura/engine/views/combo.cpp
+        # ashura/engine/views/flex.cpp
+        # ashura/engine/views/focus_view.cpp
+        # ashura/engine/views/icon.cpp
+        # ashura/engine/views/image.cpp
+        # ashura/engine/views/input.cpp
+        # ashura/engine/views/list.cpp
+        # ashura/engine/views/modal.cpp
+        # ashura/engine/views/plot.cpp
+        # ashura/engine/views/radio.cpp
+        # ashura/engine/views/scalar_box.cpp
+        # ashura/engine/views/scroll_view.cpp
+        # ashura/engine/views/slider.cpp
+        # ashura/engine/views/space.cpp
+        # ashura/engine/views/stack.cpp
+        # ashura/engine/views/switch.cpp
+        # ashura/engine/views/table.cpp
+        ashura/engine/views/text.cpp)
 
     target_link_libraries(
         ashura_engine
@@ -558,8 +558,8 @@ endif()
     if(ASH_BUILD_TESTS)
         add_executable(
             ashura_engine_tests
-            ashura/engine/tests/main.cc ashura/engine/tests/animation.cc
-            ashura/engine/tests/views.cc)
+            ashura/engine/tests/main.cpp ashura/engine/tests/animation.cpp
+            ashura/engine/tests/views.cpp)
         target_link_libraries(ashura_engine_tests ashura_std ashura_engine GTest::gtest)
     endif()
 
@@ -585,9 +585,9 @@ else()
     message(STATUS "Using slangc: ${SLANGC_EXECUTABLE}")
 endif()
 
-set(SLANG_SRC_DIR "${CMAKE_SOURCE_DIR}/ashura/engine/shaders")
+set(SLANG_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ashura/engine/shaders")
 set(SLANG_INCLUDE_DIR "${SLANG_SRC_DIR}")
-set(SLANG_OUT_DIR "${CMAKE_SOURCE_DIR}/ashura/engine/assets/shaders")
+set(SLANG_OUT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ashura/engine/assets/shaders")
 
 set(SLANG_FEATURE_LIST
     SPV_EXT_descriptor_indexing
@@ -677,7 +677,7 @@ endif()
 # ASHURA ENGINE SAMPLES
 
 if(ASH_BUILD_SAMPLES)
-    add_executable(ashura_text_sample ashura/engine/samples/views/text.cc)
+    add_executable(ashura_text_sample ashura/engine/samples/views/text.cpp)
     target_link_libraries(ashura_text_sample ashura_std ashura_engine)
     target_compile_definitions(ashura_text_sample PUBLIC ${ASH_COMPILE_DEFINITIONS})
     target_compile_options(ashura_text_sample PUBLIC ${ASH_COMPILE_OPTIONS})

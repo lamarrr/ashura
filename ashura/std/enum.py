@@ -16,10 +16,10 @@ out(f"""/// SPDX-License-Identifier: MIT
 /// Meta-Generated Source Code
 // clang-format off
 #pragma once
-#include "ashura/std/v.h"
-#include "ashura/std/error.h"
-#include "ashura/std/log.h"
-#include "ashura/std/tuple.h"
+#include "ashura/std/v.hpp"
+#include "ashura/std/error.hpp"
+#include "ashura/std/log.hpp"
+#include "ashura/std/tuple.hpp"
 
 namespace ash
 {{

@@ -2,10 +2,10 @@
 #pragma once
 
 #include "ashura/gpu/gpu.h"
-#include "ashura/std/allocator.h"
-#include "ashura/std/allocators.h"
-#include "ashura/std/async.h"
-#include "ashura/std/vec.h"
+#include "ashura/std/allocator.hpp"
+#include "ashura/std/allocators.hpp"
+#include "ashura/std/async.hpp"
+#include "ashura/std/vec.hpp"
 
 // clang-format off
 #define VMA_STATIC_VULKAN_FUNCTIONS  0
