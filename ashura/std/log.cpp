@@ -3,6 +3,7 @@
 #include "ashura/std/allocators.hpp"
 #include "ashura/std/list.hpp"
 #include "ashura/std/sformat.hpp"
+#include "ashura/std/stacktrace.hpp"
 #include "ashura/std/vec.hpp"
 
 
@@ -56,6 +57,7 @@ void ILogger::write_to_sinks(LogLevel level, Str str, Buffer<char> & buffer)
 
 void dump_stacktrace()
 {
+    dump_eh_frame_functions();
 }
 
 void ILogger::flush_buffer(LogLevel level, Buffer<char> & buffer)

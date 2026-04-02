@@ -143,7 +143,7 @@ Future<Result<ShaderId, SysErr>> IShaderSys::load_from_path(Str label_span, Str 
             return file_r.match(
               [&, this](Vec<u8> & spirv) -> R {
                   static_assert(spirv.alignment() >= alignof(u32));
-                  static_assert(std::endian::native == std::endian::little);
+                  static_assert(__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__);
                   return load_from_memory(label, spirv.view().reinterpret<u32>());
               },
               [](SysErr err) -> R { return Err{err}; });

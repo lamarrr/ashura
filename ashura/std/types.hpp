@@ -1286,6 +1286,21 @@ constexpr usize find_clear_bit(Atom * p_atom, usize num_atoms)
 
 }    // namespace impl
 
+constexpr u16 byte_swap(u16 x)
+{
+    return __builtin_bswap16(x);
+}
+
+constexpr u32 byte_swap(u32 x)
+{
+    return __builtin_bswap32(x);
+}
+
+constexpr u64 byte_swap(u64 x)
+{
+    return __builtin_bswap64(x);
+}
+
 template <typename Lambda>
 struct defer
 {

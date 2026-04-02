@@ -379,6 +379,7 @@ add_library(
     ashura/std/log.cpp
     ashura/std/log_sinks.cpp
     ashura/std/panic.cpp
+    ashura/std/stacktrace.cpp
     ashura/std/thread.cpp
     ashura/std/trace.cpp)
 target_include_directories(ashura_std PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
