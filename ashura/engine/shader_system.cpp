@@ -11,6 +11,8 @@ namespace ash
 AwaitFuturesVec IShaderSys::init(Allocator allocator)
 {
     tracing::ScopeTrace trace;
+    // TODO: compress spirv binaries and decompress on load
+    
     static constexpr u8 BEZIER_STENCIL_SHADER[] = {
 #embed "shaders/bezier_stencil.spv"
     };
