@@ -323,7 +323,7 @@ list(APPEND ASH_COMPILE_DEFINITIONS)
 list(APPEND ASH_LINK_OPTIONS)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-    list(APPEND ASH_COMPILE_OPTIONS -Wall -Wextra -Wpedantic)
+    list(APPEND ASH_COMPILE_OPTIONS -Wall -Wextra -Wpedantic -fno-omit-frame-pointer)
 
     if(ASH_WERROR)
         list(APPEND ASH_COMPILE_OPTIONS -Werror)
@@ -340,7 +340,7 @@ else()
             -Wno-nullability-completeness
             -Wno-nullability-extension
             -Wno-bitwise-instead-of-logical
-            -Wno-c23-extensions)
+            -fno-omit-frame-pointer)
 
         if(ASH_WERROR)
             list(APPEND ASH_COMPILE_OPTIONS -Werror)
