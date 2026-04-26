@@ -323,7 +323,7 @@ list(APPEND ASH_COMPILE_DEFINITIONS)
 list(APPEND ASH_LINK_OPTIONS)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-    list(APPEND ASH_COMPILE_OPTIONS -Wall -Wextra -Wpedantic)
+    list(APPEND ASH_COMPILE_OPTIONS -Wall -Wextra -Wpedantic -fno-omit-frame-pointer)
 
     if(ASH_WERROR)
         list(APPEND ASH_COMPILE_OPTIONS -Werror)
@@ -340,7 +340,8 @@ else()
             -Wno-nullability-completeness
             -Wno-nullability-extension
             -Wno-bitwise-instead-of-logical
-            -Wno-c23-extensions)
+            -Wno-c23-extensions
+            -fno-omit-frame-pointer)
 
         if(ASH_WERROR)
             list(APPEND ASH_COMPILE_OPTIONS -Werror)
@@ -455,6 +456,104 @@ if(ASH_BUILD_GPU)
     target_link_options(ashura_gpu PUBLIC ${ASH_LINK_OPTIONS})
 endif()
 
+
+
+# Ashura Engine's Core Shaders
+
+set(SLANGC_PATH
+    ""
+    CACHE PATH "Path to the Slang installation (must contain 'bin/slangc')")
+if(SLANGC_PATH)
+    set(SLANGC_EXECUTABLE "${SLANGC_PATH}/bin/slangc")
+else()
+    find_program(SLANGC_EXECUTABLE slangc)
+endif()
+
+if(NOT SLANGC_EXECUTABLE OR NOT EXISTS "${SLANGC_EXECUTABLE}")
+    message(
+        FATAL_ERROR
+            "slangc not found. Please install Slang or set SLANGC_PATH to the correct location. Currently set to ${SLANGC_EXECUTABLE}"
+    )
+else()
+    message(STATUS "Using slangc: ${SLANGC_EXECUTABLE}")
+endif()
+
+set(SLANG_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ashura/engine/shaders")
+set(SLANG_INCLUDE_DIR "${SLANG_SRC_DIR}")
+set(SLANG_OUT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ashura/engine/assets/shaders")
+
+set(SLANG_FEATURE_LIST
+    SPV_EXT_descriptor_indexing
+    SPV_EXT_physical_storage_buffer
+    SPV_KHR_non_semantic_info
+    spvRayTracingKHR
+    spvImageQuery
+    spvImageGatherExtended
+    spvShaderNonUniformEXT
+    spvShaderNonUniform
+    SPV_GOOGLE_user_type
+    spvDerivativeControl
+    spvSparseResidency
+    spvMinLod
+    spvFragmentFullyCoveredEXT)
+string(JOIN "+" SLANG_FEATURES ${SLANG_FEATURE_LIST})
+
+set(SLANG_FLAGS
+    -profile
+    "spirv_1_4+${SLANG_FEATURES}"
+    -emit-spirv-directly
+    -matrix-layout-row-major
+    -fvk-use-gl-layout
+    -fvk-use-entrypoint-name
+    -O3)
+
+add_custom_target(
+    ashura_shaders
+    COMMENT "Building Ashura Engine core shaders"
+    VERBATIM)
+
+function(add_shader target_name shader_file)
+    set(input "${SLANG_SRC_DIR}/${shader_file}")
+    set(output_spv "${SLANG_OUT_DIR}/${target_name}.spv")
+    set(output_asm "${SLANG_OUT_DIR}/${target_name}.spv-asm")
+    set(compile_options ${ARGN})
+
+    add_custom_command(
+        OUTPUT ${output_spv}
+        COMMAND ${SLANGC_EXECUTABLE} -target spirv ${SLANG_FLAGS} ${input} -o
+                ${output_spv} -I ${SLANG_INCLUDE_DIR} ${compile_options}
+        DEPENDS ${input}
+        COMMENT "Compiling ${target_name} -> ${shader_file}.spv")
+
+    add_custom_command(
+        OUTPUT ${output_asm}
+        COMMAND ${SLANGC_EXECUTABLE} -target spirv-asm ${SLANG_FLAGS} ${input} -o
+                ${output_asm} -I ${SLANG_INCLUDE_DIR} ${compile_options}
+        DEPENDS ${input}
+        COMMENT "Compiling ${target_name} -> ${shader_file}.spv-asm")
+
+    add_custom_target(${target_name}_shaders ALL DEPENDS ${output_spv} ${output_asm})
+
+    add_dependencies(ashura_shaders ${target_name}_shaders)
+endfunction()
+
+if(ASH_BUILD_ENGINE)
+    add_shader(bezier_stencil bezier_stencil.slang)
+    add_shader(blur_downsample blur.slang "-DDOWNSAMPLE=1")
+    add_shader(blur_upsample blur.slang "-DDOWNSAMPLE=0")
+    add_shader(composite_sdf composite_sdf.slang)
+    add_shader(fill_stencil fill_stencil.slang)
+    add_shader(pbr_base pbr.slang)
+    add_shader(quad_base quad.slang)
+    add_shader(sdf_gradient sdf.slang "-DITEM_TYPE=SdfGradientItem")
+    add_shader(sdf_noise sdf.slang "-DITEM_TYPE=SdfNoiseItem")
+    add_shader(sdf_mesh_gradient sdf.slang "-DITEM_TYPE=SdfMeshGradientItem")
+    add_shader(triangle_fill triangle_fill.slang)
+    add_shader(vector_path_coverage vector_path_coverage.slang)
+    add_shader(vector_path_fill vector_path_fill.slang)
+endif()
+
+
 # ASHURA ENGINE
 
 if(ASH_BUILD_ENGINE)
@@ -553,6 +652,8 @@ else()
     endif()
 endif()
 
+add_dependencies(ashura_engine ashura_shaders)
+
 
     # ASHURA ENGINE - TESTS
 
@@ -564,101 +665,6 @@ endif()
         target_link_libraries(ashura_engine_tests ashura_std ashura_engine GTest::gtest)
     endif()
 
-endif()
-
-# Ashura Engine's Core Shaders
-
-set(SLANGC_PATH
-    ""
-    CACHE PATH "Path to the Slang installation (must contain 'bin/slangc')")
-if(SLANGC_PATH)
-    set(SLANGC_EXECUTABLE "${SLANGC_PATH}/bin/slangc")
-else()
-    find_program(SLANGC_EXECUTABLE slangc)
-endif()
-
-if(NOT SLANGC_EXECUTABLE OR NOT EXISTS "${SLANGC_EXECUTABLE}")
-    message(
-        FATAL_ERROR
-            "slangc not found. Please install Slang or set SLANGC_PATH to the correct location. Currently set to ${SLANGC_EXECUTABLE}"
-    )
-else()
-    message(STATUS "Using slangc: ${SLANGC_EXECUTABLE}")
-endif()
-
-set(SLANG_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ashura/engine/shaders")
-set(SLANG_INCLUDE_DIR "${SLANG_SRC_DIR}")
-set(SLANG_OUT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ashura/engine/assets/shaders")
-
-set(SLANG_FEATURE_LIST
-    SPV_EXT_descriptor_indexing
-    SPV_EXT_physical_storage_buffer
-    SPV_KHR_non_semantic_info
-    spvRayTracingKHR
-    spvImageQuery
-    spvImageGatherExtended
-    spvShaderNonUniformEXT
-    spvShaderNonUniform
-    SPV_GOOGLE_user_type
-    spvDerivativeControl
-    spvSparseResidency
-    spvMinLod
-    spvFragmentFullyCoveredEXT)
-string(JOIN "+" SLANG_FEATURES ${SLANG_FEATURE_LIST})
-
-set(SLANG_FLAGS
-    -profile
-    "spirv_1_4+${SLANG_FEATURES}"
-    -emit-spirv-directly
-    -matrix-layout-row-major
-    -fvk-use-gl-layout
-    -fvk-use-entrypoint-name
-    -O3)
-
-add_custom_target(
-    ashura_shaders
-    COMMENT "Building Ashura Engine core shaders"
-    VERBATIM)
-
-function(add_shader target_name shader_file)
-    set(input "${SLANG_SRC_DIR}/${shader_file}")
-    set(output_spv "${SLANG_OUT_DIR}/${target_name}.spv")
-    set(output_asm "${SLANG_OUT_DIR}/${target_name}.spv-asm")
-    set(compile_options ${ARGN})
-
-    add_custom_command(
-        OUTPUT ${output_spv}
-        COMMAND ${SLANGC_EXECUTABLE} -target spirv ${SLANG_FLAGS} ${input} -o
-                ${output_spv} -I ${SLANG_INCLUDE_DIR} ${compile_options}
-        DEPENDS ${input}
-        COMMENT "Compiling ${target_name} -> ${shader_file}.spv")
-
-    add_custom_command(
-        OUTPUT ${output_asm}
-        COMMAND ${SLANGC_EXECUTABLE} -target spirv-asm ${SLANG_FLAGS} ${input} -o
-                ${output_asm} -I ${SLANG_INCLUDE_DIR} ${compile_options}
-        DEPENDS ${input}
-        COMMENT "Compiling ${target_name} -> ${shader_file}.spv-asm")
-
-    add_custom_target(${target_name}_shaders ALL DEPENDS ${output_spv} ${output_asm})
-
-    add_dependencies(ashura_shaders ${target_name}_shaders)
-endfunction()
-
-if(ASH_BUILD_ENGINE)
-    add_shader(bezier_stencil bezier_stencil.slang)
-    add_shader(blur_downsample blur.slang "-DDOWNSAMPLE=1")
-    add_shader(blur_upsample blur.slang "-DDOWNSAMPLE=0")
-    add_shader(composite_sdf composite_sdf.slang)
-    add_shader(fill_stencil fill_stencil.slang)
-    add_shader(pbr_base pbr.slang)
-    add_shader(quad_base quad.slang)
-    add_shader(sdf_gradient sdf.slang "-DITEM_TYPE=SdfGradientItem")
-    add_shader(sdf_noise sdf.slang "-DITEM_TYPE=SdfNoiseItem")
-    add_shader(sdf_mesh_gradient sdf.slang "-DITEM_TYPE=SdfMeshGradientItem")
-    add_shader(triangle_fill triangle_fill.slang)
-    add_shader(vector_path_coverage vector_path_coverage.slang)
-    add_shader(vector_path_fill vector_path_fill.slang)
 endif()
 
 if(ASH_BUILD_DOC)
