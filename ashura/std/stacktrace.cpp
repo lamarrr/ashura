@@ -19,26 +19,41 @@ namespace ash
 
 // TODO: add support for macOS
 // TODO: add more debug info: line number, source, file, threadId
+// TODO: demangle symbols
+// TODO: make the stack trace be formatted into a vec before being printed so it can be displayed well
 #if ASH_CFG(OS, LINUX)
+
+struct StackFrame
+{
+    StackFrame * next     = nullptr;
+    void *       ret_addr = nullptr;
+};
 
 void stacktrace(StackTraceFn callback)
 {
-    void ** rbp = (void **) __builtin_frame_address(0);
-    usize   i   = 0;
+    auto * frame_ptr = reinterpret_cast<StackFrame *>(__builtin_frame_address(0));
+    usize  i         = 0;
 
-    while (rbp)
+    while (frame_ptr != nullptr)
     {
-        void *  ret_addr = *(rbp + 1);
         Dl_info info;
-        if (dladdr(ret_addr, &info) != 0)
+        if (dladdr(frame_ptr->ret_addr, &info) != 0)
         {
-            callback(cstr(info.dli_fname), i, cstr(info.dli_sname), info.dli_saddr);
+            callback(
+              info.dli_fname == nullptr ? cstr("<unknown>") : cstr(info.dli_fname), i,
+              info.dli_sname == nullptr ? cstr("<unknown>") : cstr(info.dli_sname),
+              info.dli_saddr);
         }
         else
         {
             callback(cstr("<unknown>"), i, cstr("<unknown>"), nullptr);
         }
-        rbp = (void **) *rbp;
+
+        if (frame_ptr->next <= frame_ptr)
+        {
+            break;
+        }
+        frame_ptr = frame_ptr->next;
         i++;
     }
 }
@@ -74,12 +89,17 @@ void stacktrace(StackTraceFn callback)
             if (SymGetModuleInfo64(process, reinterpret_cast<DWORD64>(ret_addr),
                                    &module_info))
             {
-                callback(cstr(module_info.ModuleName), i, cstr(symbol->Name),
-                         reinterpret_cast<void *>(symbol->Address));
+                callback(
+                  module_info.ModuleName == nullptr ? cstr("<unknown>") :
+                                                      cstr(module_info.ModuleName),
+                  i, symbol->Name == nullptr ? cstr("<unknown>") : cstr(symbol->Name),
+                  reinterpret_cast<void *>(symbol->Address));
             }
             else
             {
-                callback(cstr("<unknown>"), i, cstr(symbol->Name),
+                callback(cstr("<unknown>"), i,
+                         symbol->Name == nullptr ? cstr("<unknown>") :
+                                                   cstr(symbol->Name),
                          reinterpret_cast<void *>(symbol->Address));
             }
         }
