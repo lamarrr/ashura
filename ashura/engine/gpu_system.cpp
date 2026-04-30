@@ -1220,6 +1220,11 @@ void IGpuFrame::submit()
     auto num_scratch_images = clamp(current_plan_->num_scratch_images_,
                                     cfg_.min_scratch_images, cfg_.max_scratch_images);
 
+                                    // TODO: allow unset formats and extents, this is the case when 
+                                    // initializing the Gpu system without the frame image resources being allocated yet.
+                                    //  In this case we can skip the check and creation of the scratch 
+                                    // images until the first frame plan that sets 
+                                    // these fields is submitted.
     ASH_CHECK(current_plan_->target_.color_format != gpu::Format::Undefined, "");
     ASH_CHECK(current_plan_->target_.depth_stencil_format != gpu::Format::Undefined,
               "");
