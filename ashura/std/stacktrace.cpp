@@ -7,12 +7,21 @@
 #    include <dlfcn.h>
 #endif
 
+#if ASH_CFG(OS, WINDOWS)
+// clang-format off
+#    include <windows.h> 
+#    include <dbghelp.h>
+// clang-format on
+#endif
+
 namespace ash
 {
 
+// TODO: add support for macOS
+// TODO: add more debug info: line number, source, file, threadId
 #if ASH_CFG(OS, LINUX)
 
-void walk_stack_linux()
+void stacktrace(StackTraceFn callback)
 {
     void ** rbp = (void **) __builtin_frame_address(0);
     usize   i   = 0;
@@ -23,52 +32,79 @@ void walk_stack_linux()
         Dl_info info;
         if (dladdr(ret_addr, &info) != 0)
         {
-            (void)
-              info.dli_fname;    // file name of shared object that contains the address
-            (void) info.dli_sname;    // name of nearest symbol
-            (void) info.dli_saddr;    // start address of the symbol
-            (void) i;
+            callback(cstr(info.dli_fname), i, cstr(info.dli_sname), info.dli_saddr);
         }
         else
         {
+            callback(cstr("<unknown>"), i, cstr("<unknown>"), nullptr);
         }
         rbp = (void **) *rbp;
         i++;
     }
 }
-#endif
 
-#if ASH_CFG(OS, WINDOWS)
-void walk_stack_windows()
+#else
+#    if ASH_CFG(OS, WINDOWS)
+
+void stacktrace(StackTraceFn callback)
 {
-    void ** rbp = (void **) __builtin_frame_address(0);
+    HANDLE process = GetCurrentProcess();
+    SymSetOptions(SYMOPT_UNDNAME | SYMOPT_LOAD_LINES | SYMOPT_DEFERRED_LOADS);
+    SymInitialize(process, nullptr, TRUE);
 
-    while (rbp)
+    constexpr u32 max_frames = 128;
+    void *        frames[max_frames];
+
+    u16 frame_count = CaptureStackBackTrace(0, max_frames, frames, nullptr);
+
+    for (u16 i = 0; i < frame_count; i++)
     {
-        void * ret_addr = *(rbp + 1);
-
-        HANDLE       process = GetCurrentProcess();
-        char         buffer[sizeof(SYMBOL_INFO) + 256];
-        PSYMBOL_INFO symbol  = (PSYMBOL_INFO) buffer;
+        void *       ret_addr = frames[i];
+        char         symbol_storage[sizeof(SYMBOL_INFO) + 256];
+        PSYMBOL_INFO symbol  = reinterpret_cast<PSYMBOL_INFO>(symbol_storage);
         symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
         symbol->MaxNameLen   = 255;
 
         DWORD64 displacement = 0;
-
-        if (SymFromAddr(process, (DWORD64) ret_addr, &displacement, symbol))
+        if (SymFromAddr(process, reinterpret_cast<DWORD64>(ret_addr), &displacement,
+                        symbol))
         {
-            (void) symbol->Name;       // name of the symbol
-            (void) symbol->Address;    // address of the symbol
-            (void) i;
+            IMAGEHLP_MODULE64 module_info = {};
+            module_info.SizeOfStruct      = sizeof(module_info);
+            if (SymGetModuleInfo64(process, reinterpret_cast<DWORD64>(ret_addr),
+                                   &module_info))
+            {
+                callback(cstr(module_info.ModuleName), i, cstr(symbol->Name),
+                         reinterpret_cast<void *>(symbol->Address));
+            }
+            else
+            {
+                callback(cstr("<unknown>"), i, cstr(symbol->Name),
+                         reinterpret_cast<void *>(symbol->Address));
+            }
         }
         else
         {
+            callback(cstr("<unknown>"), i, cstr("<unknown>"), ret_addr);
         }
-
-        rbp = (void **) *rbp;
-        i++;
     }
 }
+
+#    else
+#        if ASH_CFG(OS, MACOS)
+
+void stacktrace(StackTraceFn callback)
+{
+}
+
+#        else
+
+void stacktrace(StackTraceFn callback)
+{
+}
+
+#        endif
+#    endif
 #endif
 
 }    // namespace ash

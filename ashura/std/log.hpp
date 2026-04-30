@@ -7,6 +7,7 @@
 #include "ashura/std/obj.hpp"
 #include "ashura/std/panic.hpp"
 #include "ashura/std/span.hpp"
+#include "ashura/std/stacktrace.hpp"
 #include "ashura/std/types.hpp"
 #include <atomic>
 #include <cstdlib>
@@ -58,8 +59,6 @@ struct ILogSink
     {
     }
 };
-
-void dump_stacktrace();
 
 /// @brief Logger needs to use fixed-size memory as malloc can fail and make
 /// logging unreliable. This means each log statement's content/payload is
@@ -175,8 +174,12 @@ struct ILogger
         {
             (void) std::fputs("ran out of log buffer memory while panicking.", stderr);
         }
+        auto print_func = [this](Str module_name, usize i, Str function_name,
+                                 void * addr) {
+            trace("{}: {} - {} at {}", module_name, i, function_name, addr);
+        };
+        stacktrace(&print_func);
         flush();
-        dump_stacktrace();
         handle_panic();
         std::abort();
     }
