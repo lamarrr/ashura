@@ -19,7 +19,7 @@ namespace ash
 {
 
 // TODO: add support for macOS
-// TODO: add more debug info: line number, source, file, threadId
+// TODO: add more debug info: line number, source, file, threadId, nominal threadname, system thread name
 // TODO: demangle symbols
 // TODO: make the stack trace be formatted into a vec before being printed so it can be displayed well
 #if ASH_CFG(OS, LINUX)
@@ -32,6 +32,7 @@ struct StackFrame
 
 void stacktrace(StackTraceFn callback)
 {
+    // On Linux, we can use the frame pointer to walk the call stack. This is more accurate than using backtrace, but it requires that the code be compiled with frame pointers (which is the default on x86-64). We can use dladdr to get the symbol information for each return address.
     auto * frame_ptr = reinterpret_cast<StackFrame *>(__builtin_frame_address(0));
     usize  i         = 0;
 
@@ -70,6 +71,10 @@ void stacktrace(StackTraceFn callback)
 
 void stacktrace(StackTraceFn callback)
 {
+    // Windows doesn't generally doesn't have frame pointers for system libraries,
+    // so we use CaptureStackBackTrace to get the return addresses and then use SymFromAddr to get the symbol information for each address. This is less
+    // accurate than using frame pointers, but it works even when frame pointers are not available.
+
     HANDLE process = GetCurrentProcess();
     SymSetOptions(SYMOPT_UNDNAME | SYMOPT_LOAD_LINES | SYMOPT_DEFERRED_LOADS);
     SymInitialize(process, nullptr, TRUE);
