@@ -4,6 +4,7 @@
 #include "ashura/std/cfg.hpp"
 
 #if ASH_CFG(OS, LINUX)
+#    include <cxxabi.h>
 #    include <dlfcn.h>
 #endif
 
@@ -36,17 +37,23 @@ void stacktrace(StackTraceFn callback)
 
     while (frame_ptr != nullptr)
     {
+        void *  ret_addr = frame_ptr->ret_addr;
         Dl_info info;
-        if (dladdr(frame_ptr->ret_addr, &info) != 0)
+        if (dladdr(ret_addr, &info) != 0)
         {
-            callback(
-              info.dli_fname == nullptr ? cstr("<unknown>") : cstr(info.dli_fname), i,
-              info.dli_sname == nullptr ? cstr("<unknown>") : cstr(info.dli_sname),
-              info.dli_saddr);
+            auto sname =
+              info.dli_sname == nullptr ?
+                nullptr :
+                abi::__cxa_demangle(info.dli_sname, nullptr, nullptr, nullptr);
+            callback(info.dli_fname == nullptr ? cstr("<unknown>") :
+                                                 cstr(info.dli_fname),
+                     i, sname == nullptr ? cstr("<unknown>") : cstr(sname),
+                     info.dli_saddr == nullptr ? ret_addr : info.dli_saddr);
+            free(sname);
         }
         else
         {
-            callback(cstr("<unknown>"), i, cstr("<unknown>"), nullptr);
+            callback(cstr("<unknown>"), i, cstr("<unknown>"), ret_addr);
         }
 
         if (frame_ptr->next <= frame_ptr)

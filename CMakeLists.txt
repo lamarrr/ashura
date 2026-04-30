@@ -406,6 +406,9 @@ target_link_options(ashura_std PUBLIC ${ASH_LINK_OPTIONS})
 
 if(WIN32)
  target_link_libraries(ashura_std PRIVATE dbghelp)
+elseif(UNIX AND NOT APPLE)
+    target_link_libraries(ashura_std PRIVATE dl) # <dlfunc.h>
+    target_link_options(ashura_std PUBLIC -rdynamic) # for better stack traces with address resolution
 endif()
 
 # ASHURA STD - TESTS
