@@ -224,13 +224,19 @@ FetchContent_Declare(
     GIT_TAG 1168da0)
 
 FetchContent_Declare(
-    AfterMathSDK_Linux
-    URL https://developer.nvidia.com/downloads/assets/tools/secure/nsight-aftermath-sdk/2025_5_0/linux/NVIDIA_Nsight_Aftermath_SDK_2025.5.0.25317.tgz
+    AfterMathSDK_Linux_X64
+    URL https://developer.nvidia.com/downloads/assets/tools/secure/nsight-aftermath-sdk/2025_5_0/linux_x64/NVIDIA_Nsight_Aftermath_SDK_2025.5.0.25317-linux_x64.tgz
 )
 
 FetchContent_Declare(
-    AfterMathSDK_Windows
-    URL https://developer.nvidia.com/downloads/assets/tools/secure/nsight-aftermath-sdk/2025_5_0/windows/NVIDIA_Nsight_Aftermath_SDK_2025.5.0.25317.zip
+    AfterMathSDK_Linux_Arm64
+    URL https://developer.nvidia.com/downloads/assets/tools/secure/nsight-aftermath-sdk/2025_5_0/linux_arm64/NVIDIA_Nsight_Aftermath_SDK_2025.5.0.25317-linux_arm64.tgz
+)
+
+       
+FetchContent_Declare(
+    AfterMathSDK_Windows_X64
+    URL https://developer.nvidia.com/downloads/assets/tools/secure/nsight-aftermath-sdk/2025_5_0/windows_x64/NVIDIA_Nsight_Aftermath_SDK_2025.5.0.25317-windows_x64.zip
 )
 
 find_package(FFMPEG REQUIRED)
@@ -276,12 +282,17 @@ if(NOT zstd_POPULATED)
     FetchContent_Populate(zstd)
 endif()
 
-if(NOT AfterMathSDK_Linux_POPULATED)
-    FetchContent_Populate(AfterMathSDK_Linux)
+if(NOT AfterMathSDK_Linux_X64_POPULATED)
+    FetchContent_Populate(AfterMathSDK_Linux_X64)
 endif()
 
-if(NOT AfterMathSDK_Windows_POPULATED)
-    FetchContent_Populate(AfterMathSDK_Windows)
+
+if(NOT AfterMathSDK_Linux_Arm64_POPULATED)
+    FetchContent_Populate(AfterMathSDK_Linux_Arm64)
+endif()
+
+if(NOT AfterMathSDK_Windows_X64_POPULATED)
+    FetchContent_Populate(AfterMathSDK_Windows_X64)
 endif()
 
 set(xxHash_INCLUDE_DIR ${xxhash_SOURCE_DIR})
@@ -307,13 +318,14 @@ add_library(
 target_include_directories(AshLZ4 PUBLIC ${LZ4_INCLUDE_DIR})
 
 if(LINUX)
+# TODO: handle arm64
     find_library(LibAfterMath libGFSDK_Aftermath_Lib.x64.so
-                 HINTS ${aftermathsdk_linux_SOURCE_DIR}/lib/x64 REQUIRED)
-    list(APPEND AFTERMATH_INCLUDE_DIRS ${aftermathsdk_linux_SOURCE_DIR}/include)
+                 HINTS ${aftermathsdk_linux_x64_SOURCE_DIR}/lib/x64 REQUIRED)
+    list(APPEND AFTERMATH_INCLUDE_DIRS ${aftermathsdk_linux_x64_SOURCE_DIR}/include)
 elseif(WIN32)
     find_library(LibAfterMath GFSDK_Aftermath_Lib.x64.lib
-                 HINTS ${aftermathsdk_windows_SOURCE_DIR}/lib/x64 REQUIRED)
-    list(APPEND AFTERMATH_INCLUDE_DIRS ${aftermathsdk_windows_SOURCE_DIR}/include)
+                 HINTS ${aftermathsdk_windows_x64_SOURCE_DIR}/lib/x64 REQUIRED)
+    list(APPEND AFTERMATH_INCLUDE_DIRS ${aftermathsdk_windows_x64_SOURCE_DIR}/include)
 else()
     message(CONFIGURE_LOG "Unsupported platform for AfterMath SDK")
 endif()
@@ -391,6 +403,10 @@ target_link_libraries(
 target_compile_options(ashura_std PUBLIC ${ASH_COMPILE_OPTIONS})
 target_compile_definitions(ashura_std PUBLIC ${ASH_COMPILE_DEFINITIONS})
 target_link_options(ashura_std PUBLIC ${ASH_LINK_OPTIONS})
+
+if(WIN32)
+ target_link_libraries(ashura_std PRIVATE dbghelp)
+endif()
 
 # ASHURA STD - TESTS
 
