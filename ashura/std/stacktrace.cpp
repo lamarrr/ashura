@@ -101,17 +101,12 @@ void stacktrace(StackTraceFn callback)
             if (SymGetModuleInfo64(process, reinterpret_cast<DWORD64>(ret_addr),
                                    &module_info))
             {
-                callback(
-                  module_info.ModuleName == nullptr ? cstr("<unknown>") :
-                                                      cstr(module_info.ModuleName),
-                  i, symbol->Name == nullptr ? cstr("<unknown>") : cstr(symbol->Name),
-                  reinterpret_cast<void *>(symbol->Address));
+                callback(cstr(module_info.ModuleName), i, cstr(symbol->Name),
+                         reinterpret_cast<void *>(symbol->Address));
             }
             else
             {
-                callback(cstr("<unknown>"), i,
-                         symbol->Name == nullptr ? cstr("<unknown>") :
-                                                   cstr(symbol->Name),
+                callback(cstr("<unknown>"), i, cstr(symbol->Name),
                          reinterpret_cast<void *>(symbol->Address));
             }
         }

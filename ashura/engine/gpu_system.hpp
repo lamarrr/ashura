@@ -332,6 +332,8 @@ struct GpuFrameTargetInfo
 
     gpu::Format depth_stencil_format = gpu::Format::Undefined;
 
+    u32 num_scratch_images = 0;
+
     constexpr bool operator==(GpuFrameTargetInfo const & rhs) const
     {
         return obj::byte_eq(*this, rhs);
@@ -370,11 +372,9 @@ struct IGpuFramePlan
 
     Vec<u64> scratch_buffer_sizes_;
 
-    u32 num_scratch_images_;
-
     Vec<GpuPass> passes_;
 
-    GpuFrameTargetInfo target_;
+    Option<GpuFrameTargetInfo> target_;
 
     GpuFramePlanState state_;
 
@@ -393,7 +393,6 @@ struct IGpuFramePlan
       cpu_buffer_data_{allocator},
       cpu_buffer_entries_{allocator},
       scratch_buffer_sizes_{allocator},
-      num_scratch_images_{0},
       passes_{allocator},
       target_{},
       state_{GpuFramePlanState::Reset},
@@ -640,7 +639,7 @@ struct IGpuFrame
 
     u64 scope_frame_id_;
 
-    GpuFrameTargetInfo target_info_;
+    Option<GpuFrameTargetInfo> target_info_;
 
     GpuFrameCfg cfg_;
 

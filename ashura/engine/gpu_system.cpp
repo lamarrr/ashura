@@ -452,7 +452,8 @@ void IGpuFramePlan::reserve_scratch_buffers(Span<u64 const> sizes)
 void IGpuFramePlan::reserve_scratch_images(u32 num_scratch_images)
 {
     ASH_CHECK(state_ == GpuFramePlanState::Recording, "");
-    num_scratch_images_ = max(num_scratch_images_, num_scratch_images);
+    target_.v().num_scratch_images =
+      max(target_.v().num_scratch_images, num_scratch_images);
 }
 
 void IGpuFramePlan::add_preframe_task(GpuFrameTask && task)
@@ -537,9 +538,8 @@ void IGpuFramePlan::reset()
     cpu_buffer_data_.reset();
     cpu_buffer_entries_.reset();
     scratch_buffer_sizes_.reset();
-    num_scratch_images_ = 0;
     passes_.reset();
-    target_ = {};
+    target_ = none;
     arena_.reclaim();
     state_ = GpuFramePlanState::Reset;
 }
@@ -1215,31 +1215,28 @@ void IGpuFrame::submit()
         resources_.scratch_buffers.grow(sys_, sizes, label, allocator_);
     }
 
-    ASH_CHECK(current_plan_->num_scratch_images_ <= cfg_.max_scratch_images, "");
+    current_plan_->target_.match([&](auto & target) {
+        ASH_CHECK(target.num_scratch_images <= cfg_.max_scratch_images, "");
+        ASH_CHECK(target.color_format != gpu::Format::Undefined, "");
+        ASH_CHECK(target.depth_stencil_format != gpu::Format::Undefined, "");
+        ASH_CHECK(!target.extent.any_zero(), "");
+    });
 
-    auto num_scratch_images = clamp(current_plan_->num_scratch_images_,
-                                    cfg_.min_scratch_images, cfg_.max_scratch_images);
-
-                                    // TODO: allow unset formats and extents, this is the case when 
-                                    // initializing the Gpu system without the frame image resources being allocated yet.
-                                    //  In this case we can skip the check and creation of the scratch 
-                                    // images until the first frame plan that sets 
-                                    // these fields is submitted.
-    ASH_CHECK(current_plan_->target_.color_format != gpu::Format::Undefined, "");
-    ASH_CHECK(current_plan_->target_.depth_stencil_format != gpu::Format::Undefined,
-              "");
-    ASH_CHECK(!current_plan_->target_.extent.any_zero(), "");
-
-    if (target_info_ != current_plan_->target_ ||
-        resources_.scratch_images.images.size() != num_scratch_images)
+    if (target_info_ != current_plan_->target_)
     {
         ScratchScope scratch{allocator_};
         resources_.scratch_images.uninit(dev_);
-        auto label = sformat(scratch, "GpuFrame {} / Scratch Images"_s, id_).unwrap();
-        resources_.scratch_images = ScratchImages::create(
-          sys_, num_scratch_images, current_plan_->target_.extent,
-          current_plan_->target_.color_format,
-          current_plan_->target_.depth_stencil_format, label, allocator_);
+
+        current_plan_->target_.match([&](auto & target) {
+            auto num_scratch_images =
+              clamp(target.num_scratch_images, cfg_.min_scratch_images,
+                    cfg_.max_scratch_images);
+            auto label =
+              sformat(scratch, "GpuFrame {} / Scratch Images"_s, id_).unwrap();
+            resources_.scratch_images = ScratchImages::create(
+              sys_, num_scratch_images, target.extent, target.color_format,
+              target.depth_stencil_format, label, allocator_);
+        });
     }
 
     target_info_ = current_plan_->target_;
@@ -1705,7 +1702,6 @@ void IGpuSys::init(Allocator allocator, gpu::Device device,
     create_default_textures(this);
     create_default_samplers(this);
     plan->end();
-    // TODO: select color and depth format and extents
     submit_frame();
 }
 
