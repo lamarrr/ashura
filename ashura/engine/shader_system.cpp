@@ -10,57 +10,57 @@ namespace ash
 
 AwaitFuturesVec IShaderSys::init(Allocator allocator)
 {
-    tracing::ScopeTrace trace;
+    ASH_TRACE_SCOPE;
 
-    static constexpr u8 BEZIER_STENCIL_SHADER[] = {
+    alignas(u32) static constexpr u8 BEZIER_STENCIL_SHADER[] = {
 #embed "shaders/bezier_stencil.spv"
     };
 
-    static constexpr u8 BLUR_DOWNSAMPLE_SHADER[] = {
+    alignas(u32) static constexpr u8 BLUR_DOWNSAMPLE_SHADER[] = {
 #embed "shaders/blur_downsample.spv"
     };
 
-    static constexpr u8 BLUR_UPSAMPLE_SHADER[] = {
+    alignas(u32) static constexpr u8 BLUR_UPSAMPLE_SHADER[] = {
 #embed "shaders/blur_upsample.spv"
     };
 
-    static constexpr u8 COMPOSITE_SDF_SHADER[] = {
+    alignas(u32) static constexpr u8 COMPOSITE_SDF_SHADER[] = {
 #embed "shaders/composite_sdf.spv"
     };
 
-    static constexpr u8 FILL_STENCIL_SHADER[] = {
+    alignas(u32) static constexpr u8 FILL_STENCIL_SHADER[] = {
 #embed "shaders/fill_stencil.spv"
     };
 
-    static constexpr u8 PBR_BASE_SHADER[] = {
+    alignas(u32) static constexpr u8 PBR_BASE_SHADER[] = {
 #embed "shaders/pbr_base.spv"
     };
 
-    static constexpr u8 QUAD_SHADER[] = {
+    alignas(u32) static constexpr u8 QUAD_SHADER[] = {
 #embed "shaders/quad_base.spv"
     };
 
-    static constexpr u8 SDF_GRADIENT_SHADER[] = {
+    alignas(u32) static constexpr u8 SDF_GRADIENT_SHADER[] = {
 #embed "shaders/sdf_gradient.spv"
     };
 
-    static constexpr u8 SDF_NOISE_SHADER[] = {
+    alignas(u32) static constexpr u8 SDF_NOISE_SHADER[] = {
 #embed "shaders/sdf_noise.spv"
     };
 
-    static constexpr u8 SDF_MESH_GRADIENT_SHADER[] = {
+    alignas(u32) static constexpr u8 SDF_MESH_GRADIENT_SHADER[] = {
 #embed "shaders/sdf_mesh_gradient.spv"
     };
 
-    static constexpr u8 TRIANGLE_FILL_SHADER[] = {
+    alignas(u32) static constexpr u8 TRIANGLE_FILL_SHADER[] = {
 #embed "shaders/triangle_fill.spv"
     };
 
-    static constexpr u8 VECTOR_PATH_COVERAGE_SHADER[] = {
+    alignas(u32) static constexpr u8 VECTOR_PATH_COVERAGE_SHADER[] = {
 #embed "shaders/vector_path_coverage.spv"
     };
 
-    static constexpr u8 VECTOR_PATH_FILL_SHADER[] = {
+    alignas(u32) static constexpr u8 VECTOR_PATH_FILL_SHADER[] = {
 #embed "shaders/vector_path_fill.spv"
     };
 
@@ -88,12 +88,12 @@ AwaitFuturesVec IShaderSys::init(Allocator allocator)
     for (auto [label, spirv] : shaders)
     {
         load_futs
-          .push(scheduler_
-                  ->run(allocator_, WorkerThread::Any,
-                        [label, spirv, this]() mutable -> Result<ShaderId, SysErr> {
-                            return load_from_memory(label,
-                                                    spirv.reinterpret<u32 const>());
-                        })
+          .push(scheduler()
+                  .run(allocator_, WorkerThread::Any,
+                       [label, spirv, this]() mutable -> Result<ShaderId, SysErr> {
+                           return load_from_memory(label,
+                                                   spirv.reinterpret<u32 const>());
+                       })
                   .unwrap())
           .unwrap();
     }
@@ -113,7 +113,7 @@ void IShaderSys::shutdown()
 Result<ShaderId, SysErr> IShaderSys::load_from_memory(Str             label_span,
                                                       Span<u32 const> spirv)
 {
-    tracing::ScopeTrace trace;
+    ASH_TRACE_SCOPE;
 
     Vec<char> label{allocator_};
     label.append(label_span).unwrap();
@@ -136,8 +136,8 @@ Future<Result<ShaderId, SysErr>> IShaderSys::load_from_path(Str label_span, Str 
     StrVec label{allocator_};
     label.append(label_span).unwrap();
 
-    return scheduler_
-      ->then(
+    return scheduler()
+      .then(
         allocator_, WorkerThread::Any,
         [label = std::move(label), this](Result<Vec<u8>, SysErr> & file_r) {
             using R = Result<ShaderId, SysErr>;

@@ -25,7 +25,7 @@ struct DictEntry
 
     template <typename KeyArg, typename ValueArg>
     DictEntry(KeyArg && key, ValueArg && value) :
-      key{static_cast<Key &&>(key)},
+      key{static_cast<KeyArg &&>(key)},
       value{static_cast<ValueArg &&>(value)}
     {
     }
@@ -291,7 +291,7 @@ struct [[nodiscard]] Dict
 
     [[nodiscard]] constexpr Option<Value &> try_get(auto const & key) const
     {
-        auto const hash = hasher_(key);
+        auto hash = hasher_(key);
         return try_get(key, hash);
     }
 
@@ -407,7 +407,7 @@ struct [[nodiscard]] Dict
 
     constexpr Result<> reserve(usize target_capacity)
     {
-        auto const target_num_probes = target_capacity << 1;
+        auto target_num_probes = target_capacity << 1;
         if (num_probes_ >= target_num_probes)
         {
             return Ok{};
@@ -442,11 +442,11 @@ struct [[nodiscard]] Dict
             return Err{};
         }
 
-        auto const hash       = hasher_(key);
-        auto       probe_idx  = hash & (num_probes_ - 1);
-        auto       insert_idx = USIZE_MAX;
-        Distance   probe_dist = 0;
-        Entry      entry{static_cast<KeyArg &&>(key), static_cast<ValueArg &&>(value)};
+        auto     hash       = hasher_(key);
+        auto     probe_idx  = hash & (num_probes_ - 1);
+        auto     insert_idx = USIZE_MAX;
+        Distance probe_dist = 0;
+        Entry    entry{static_cast<KeyArg &&>(key), static_cast<ValueArg &&>(value)};
 
         while (true)
         {

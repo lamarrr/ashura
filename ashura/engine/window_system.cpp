@@ -2,7 +2,7 @@
 #include "ashura/engine/window_system.hpp"
 #include "SDL3/SDL.h"
 #include "SDL3/SDL_vulkan.h"
-#include "ashura/gpu/vulkan.h"
+#include "ashura/gpu/vulkan.hpp"
 #include "ashura/std/error.hpp"
 #include "ashura/std/vec.hpp"
 #include <cstring>
@@ -451,7 +451,7 @@ struct WindowSysImpl final : IWindowSys
           (WindowImpl *) SDL_GetPointerProperty(props_id, "impl", nullptr);
         ASH_CHECK(impl != nullptr, "");
 
-        for (auto const & listener : impl->listeners.dense.v0)
+        for (auto & listener : impl->listeners.dense.v0)
         {
             listener(event);
         }
@@ -459,7 +459,7 @@ struct WindowSysImpl final : IWindowSys
 
     void push_system_event(SystemEvent const & event)
     {
-        for (auto const & listener : listeners.dense.v0)
+        for (auto & listener : listeners.dense.v0)
         {
             listener(event);
         }
@@ -638,8 +638,8 @@ struct WindowSysImpl final : IWindowSys
 
                 case SDL_EVENT_TEXT_INPUT:
                 {
-                    char const * text = event.text.text;
-                    usize const  size = (text == nullptr) ? 0 : std::strlen(text);
+                    auto * text = event.text.text;
+                    auto   size = (text == nullptr) ? 0 : std::strlen(text);
                     push_window_event(event.text.windowID,
                                       TextInputEvent{
                                         .text{(c8 const *) text, size}
@@ -675,8 +675,8 @@ struct WindowSysImpl final : IWindowSys
 
                 case SDL_EVENT_DROP_FILE:
                 {
-                    char const * text = event.drop.data;
-                    usize const  size = (text == nullptr) ? 0 : std::strlen(text);
+                    auto * text = event.drop.data;
+                    auto   size = (text == nullptr) ? 0 : std::strlen(text);
                     push_window_event(event.drop.windowID,
                                       DropEvent{DropFileEvent{.path{text, size}}});
                 }
@@ -684,8 +684,8 @@ struct WindowSysImpl final : IWindowSys
 
                 case SDL_EVENT_DROP_TEXT:
                 {
-                    c8 const *  text = reinterpret_cast<c8 const *>(event.drop.data);
-                    usize const size =
+                    auto * text = reinterpret_cast<c8 const *>(event.drop.data);
+                    auto   size =
                       (event.drop.data == nullptr) ? 0 : std::strlen(event.drop.data);
                     push_window_event(event.drop.windowID,
                                       DropEvent{DropTextEvent{.text{text, size}}});

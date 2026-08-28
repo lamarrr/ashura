@@ -1,7 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 
-#include "ashura/gpu/gpu.h"
+#include "ashura/gpu/gpu.hpp"
 #include "ashura/std/allocator.hpp"
 #include "ashura/std/allocators.hpp"
 #include "ashura/std/async.hpp"
@@ -1383,38 +1383,6 @@ struct IQueueScope
     ~IQueueScope()                               = default;
 };
 
-typedef struct IAfterMathCrashTracker * AfterMathCrashTracker;
-
-struct IAfterMathCrashTracker
-{
-    StrVec working_dir_;
-
-    IPanicHandler panic_handler_;
-
-    IAfterMathCrashTracker(StrVec working_dir) :
-      working_dir_{
-        std::move(working_dir)
-    },
-      panic_handler_{.fn{this, handle_panic}}
-    {
-    }
-
-    IAfterMathCrashTracker(IAfterMathCrashTracker const &)             = delete;
-    IAfterMathCrashTracker(IAfterMathCrashTracker &&)                  = delete;
-    IAfterMathCrashTracker & operator=(IAfterMathCrashTracker const &) = delete;
-    IAfterMathCrashTracker & operator=(IAfterMathCrashTracker &&)      = delete;
-
-    ~IAfterMathCrashTracker();
-
-    static Dyn<AfterMathCrashTracker> make(Allocator allocator, Str working_dir);
-
-    static void handle_panic(AfterMathCrashTracker tracker);
-
-    void crash_dump(void const * data, u32 size);
-
-    void shader_debug_info(void const * data, u32 size);
-};
-
 struct IDevice final : gpu::IDevice
 {
     Allocator allocator_;
@@ -1437,12 +1405,9 @@ struct IDevice final : gpu::IDevice
 
     DeviceResourceStates resource_states_;
 
-    Option<Dyn<AfterMathCrashTracker>> crash_tracker_;
-
     IDevice(Allocator allocator, IInstance & instance, IPhysicalDevice phy_dev,
             DeviceTable vk_table, VmaVulkanFunctions vma_table, VkDevice vk_dev,
-            u32 queue_family, VkQueue vk_queue, VmaAllocator vma_allocator,
-            Option<Dyn<AfterMathCrashTracker>> crash_tracker) :
+            u32 queue_family, VkQueue vk_queue, VmaAllocator vma_allocator) :
       allocator_{allocator},
       instance_{&instance},
       phy_{phy_dev},
@@ -1452,8 +1417,7 @@ struct IDevice final : gpu::IDevice
       queue_family_{queue_family},
       vk_queue_{vk_queue},
       vma_allocator_{vma_allocator},
-      resource_states_{allocator},
-      crash_tracker_{std::move(crash_tracker)}
+      resource_states_{allocator}
     {
     }
 

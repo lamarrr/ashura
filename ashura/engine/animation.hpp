@@ -354,9 +354,9 @@ struct Timeline
             timestamps_.push(0ns).unwrap();
         }
 
-        auto const times_offset = timestamps_.size();
+        auto times_offset = timestamps_.size();
 
-        auto const run_time = timestamps_.last();
+        auto run_time = timestamps_.last();
 
         timestamps_.extend_uninit(durations.size()).unwrap();
 
@@ -505,31 +505,31 @@ struct AnimationState
 
         /// add 1ns so result of modulo operation would be between 0ns and
         /// timeline-duration
-        auto const timeline_end = timeline.duration() + 1ns;
+        auto timeline_end = timeline.duration() + 1ns;
 
-        auto const time = (timeline.duration() == 0ns) ? 0ns : (time_ % timeline_end);
+        auto time = (timeline.duration() == 0ns) ? 0ns : (time_ % timeline_end);
 
-        auto const timestamps = timeline.timestamps;
+        auto timestamps = timeline.timestamps;
 
         // get current frame segment (timestamps are sorted, perform binary
         // search to get current timepoint in the timeline)
-        Span const span = binary_find(timestamps.slice(1), geq, time);
+        auto span = binary_find(timestamps.slice(1), geq, time);
 
         ASH_CHECK(!span.is_empty(), "");
 
-        u64 const end_idx = static_cast<u64>(span.pbegin() - timestamps.pbegin());
+        auto end_idx = static_cast<u64>(span.pbegin() - timestamps.pbegin());
 
-        u64 const ease_idx  = end_idx - 1;
-        u64 const frame_idx = ease_idx * 2;
+        auto ease_idx  = end_idx - 1;
+        auto frame_idx = ease_idx * 2;
 
-        nanoseconds const start    = timestamps[end_idx - 1];
-        nanoseconds const end      = timestamps[end_idx];
-        nanoseconds const duration = end - start;
-        nanoseconds const offset   = time - start;
+        auto start    = timestamps[end_idx - 1];
+        auto end      = timestamps[end_idx];
+        auto duration = end - start;
+        auto offset   = time - start;
 
-        f32 const t = (f32) (((f64) offset.count()) / (f64) duration.count());
+        auto t = (f32) (((f64) offset.count()) / (f64) duration.count());
 
-        Easing const & easing = timeline.easings[ease_idx];
+        auto & easing = timeline.easings[ease_idx];
 
         return (*timeline.tweener)(timeline.frames[frame_idx],
                                    timeline.frames[frame_idx + 1], easing(t));
@@ -640,13 +640,13 @@ struct GridStagger final : Stagger
 
     constexpr virtual f32 operator()(u64 rows, u64 num_items, u64 item) override
     {
-        rows              = max(rows, (u64) 1);
-        u64 const columns = num_items / rows;
+        rows         = max(rows, (u64) 1);
+        auto columns = num_items / rows;
 
         f32 row_norm    = 1;
         f32 column_norm = 1;
 
-        auto const [row, column] = pos(rows, item);
+        auto [row, column] = pos(rows, item);
 
         if (rows > 1)
         {
@@ -699,13 +699,13 @@ struct RippleStagger final : Stagger
 
     virtual f32 operator()(u64 rows, u64 num_items, u64 item) override
     {
-        rows              = max(rows, (u64) 1);
-        u64 const columns = num_items / rows;
+        rows         = max(rows, (u64) 1);
+        auto columns = num_items / rows;
 
         f32 row_norm    = 0.5F;
         f32 column_norm = 0.5F;
 
-        auto const [row, column] = pos(rows, item);
+        auto [row, column] = pos(rows, item);
 
         if (rows > 1)
         {
@@ -776,8 +776,7 @@ struct StaggeredAnimation
         delay_ = delay;
         for (auto [item, state] : enumerate<u64>(states_))
         {
-            f32 const delay_factor =
-              stagger_.get()(stagger_width_, size64(states_), item);
+            auto delay_factor = stagger_.get()(stagger_width_, size64(states_), item);
             nanoseconds item_delay = nanoseconds{static_cast<nanoseconds::rep>(
               static_cast<f64>(delay.count()) * delay_factor)};
             state.delay(item_delay);

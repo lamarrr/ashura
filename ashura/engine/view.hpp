@@ -335,7 +335,9 @@ struct Events
         /// @brief A key went up whilst this view has focus
         KeyUp       = 18,
         /// @brief The view has received composition text whilst it has focus
-        TextInput   = 19
+        TextInput   = 19,
+        /// @brief The view has received a click event
+        Click       = 20
     };
 
     struct Bits
@@ -362,7 +364,8 @@ struct Events
             FocusOver   = 1U << Events::FocusOver,
             KeyDown     = 1U << Events::KeyDown,
             KeyUp       = 1U << Events::KeyUp,
-            TextInput   = 1U << Events::TextInput
+            TextInput   = 1U << Events::TextInput,
+            Click       = 1U << Events::Click
         };
 
         static constexpr Type at(Events::Type e)
@@ -477,6 +480,11 @@ struct Events
     constexpr bool text_input() const
     {
         return bits_ & Bits::TextInput;
+    }
+
+    constexpr bool click() const
+    {
+        return bits_ & Bits::Click;
     }
 };
 
@@ -784,6 +792,7 @@ struct Layout
 
 enum class ViewId : u64
 {
+    Root = 0,
     None = U64_MAX
 };
 

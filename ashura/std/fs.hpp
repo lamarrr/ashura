@@ -281,9 +281,8 @@ inline void format(fmt::Sink sink, fmt::Spec spec, IoErr const & err)
 
 inline Result<> path_join(Str base, Str ext, Vec<char> & out)
 {
-    usize const max_size = base.size() + ext.size() + 1;
-
-    usize const initial_size = out.size();
+    auto max_size     = base.size() + ext.size() + 1;
+    auto initial_size = out.size();
 
     if (!out.extend_uninit(max_size))
     {

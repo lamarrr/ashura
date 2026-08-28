@@ -1,9 +1,9 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 
+#include "ashura/engine/color.hpp"
 #include "ashura/engine/color_gradient.hpp"
 #include "ashura/engine/font.hpp"
-#include "ashura/std/color.hpp"
 #include "ashura/std/types.hpp"
 #include "ashura/std/vec.hpp"
 
@@ -236,7 +236,7 @@ constexpr TextDirection level_to_direction(u8 level)
 
 struct TextHighlightStyle
 {
-    f32x4 color = norm(colors::BLUE);
+    f32x4 color = norm(colors::BLUE.w(85));
 
     f32x4 corner_radii = f32x4::splat(0);
 
@@ -249,7 +249,7 @@ struct TextHighlightStyle
 
 struct CaretStyle
 {
-    f32x4 color = norm(mdc::GRAY_300);
+    f32x4 color = norm(mdc::GRAY_300.w(128));
 
     f32 thickness = 1;
 
@@ -328,7 +328,7 @@ struct TextCursor
     {
         auto c = right_caret();
         base_  = c;
-        span_  = c;
+        span_  = 0;
         return *this;
     }
 
@@ -838,10 +838,7 @@ struct TextPlacement
 
 struct TextRenderInfo
 {
-    /// @brief carets to draw
-    f32x2 center = {};
-
-    /// @brief carets to draw
+    /// @brief transform to apply to the text block before rendering. This is applied to the text block after the `center` translation.
     f32x4x4 transform = {};
 
     /// @brief clip rect for culling draw commands of the text block
@@ -872,6 +869,8 @@ struct TextRenderInfo
     /// @brief styles for each caret in `carets`
     Span<CaretStyle const> caret_styles = {};
 };
+
+// TODO: paragraph culling
 
 /// @returns the offset and length of the paragraph break
 Slice advance_paragraph(Str32 str);
@@ -943,6 +942,9 @@ struct TextLayout
     /// @param pos relative position in laid-out text to hit
     Tuple<isize, CaretAlignment> hit(TextBlock const &      block,
                                      TextBlockStyle const & style, f32x2 pos) const;
+
+    Vec<TextPlacement::Highlight> place_highlights_(TextRenderInfo const & info,
+                                                    Allocator allocator) const;
 
     /// @brief Render Text using pre-computed layout
     /// @param renderer the renderer to use for rendering the text's regions

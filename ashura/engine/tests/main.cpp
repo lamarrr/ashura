@@ -11,9 +11,6 @@
 int main(int argc, char ** argv)
 {
   using namespace ash;
-  ILogger logger{span<LogSink>({&stdio_sink})};
-  hook_logger(&logger);
-  defer logger_{[&] { hook_logger(nullptr); }};
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

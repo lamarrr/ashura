@@ -12,6 +12,11 @@
 #include <type_traits>
 #include <utility>
 
+#define ASH_CONCAT_IMPL(a, b) a##b
+#define ASH_CONCAT(a, b)      ASH_CONCAT_IMPL(a, b)
+
+#define ASH_UNIQUE_NAME(prefix) ASH_CONCAT(prefix, __COUNTER__)
+
 namespace ash
 {
 
@@ -89,6 +94,33 @@ typedef double f64;
 struct Void
 {
 };
+
+/// @brief In-place type constructor flag. Intended for functions that take
+/// generic types and want to overload with a second type that constructs the
+/// type using the provided arguments.
+struct Inplace
+{
+};
+
+inline constexpr Inplace inplace{};
+
+struct Uninit
+{
+};
+
+inline constexpr Uninit uninit{};
+
+struct FromParts
+{
+};
+
+inline constexpr FromParts from_parts{};
+
+struct WithinCapacity
+{
+};
+
+inline constexpr WithinCapacity within_capacity{};
 
 template <typename T>
 inline constexpr usize bitsizeof = sizeof(T) * 8;
@@ -751,6 +783,10 @@ struct ref
     {
     }
 
+    constexpr ref(Uninit) : repr_{nullptr}
+    {
+    }
+
     constexpr ref(ref const &)             = default;
     constexpr ref(ref &&)                  = default;
     constexpr ref & operator=(ref const &) = default;
@@ -1154,7 +1190,7 @@ template <typename Atom, usize BitWidth>
 constexpr Atom get_bits(Atom s, usize i)
 {
     constexpr auto mask = ((Atom) 1U << BitWidth) - 1;
-    auto const     pos  = i * BitWidth;
+    auto           pos  = i * BitWidth;
     return (s >> pos) & mask;
 }
 
@@ -1162,7 +1198,7 @@ template <typename Atom, usize BitWidth>
 constexpr Atom clear_bits(Atom s, usize i)
 {
     constexpr auto mask = (((Atom) 1U) << BitWidth) - 1;
-    auto const     pos  = i * BitWidth;
+    auto           pos  = i * BitWidth;
     return s & ~(mask << pos);
 }
 
@@ -1170,14 +1206,14 @@ template <typename Atom, usize BitWidth>
 constexpr Atom set_bits(Atom s, usize i)
 {
     constexpr auto mask = ((Atom) 1U << BitWidth) - 1;
-    auto const     pos  = i * BitWidth;
+    auto           pos  = i * BitWidth;
     return s | (mask << pos);
 }
 
 template <typename Atom, usize BitWidth>
 constexpr Atom assign_bits(Atom s, usize i, Atom value)
 {
-    auto const pos = i * BitWidth;
+    auto pos = i * BitWidth;
     return clear_bits<Atom, BitWidth>(s, i) | (value << pos);
 }
 
@@ -1185,7 +1221,7 @@ template <typename Atom, usize BitWidth>
 constexpr Atom flip_bits(Atom s, usize i)
 {
     constexpr auto mask = ((Atom) 1U << BitWidth) - 1;
-    auto const     pos  = i * BitWidth;
+    auto           pos  = i * BitWidth;
     return s ^ (mask << pos);
 }
 
@@ -1194,8 +1230,8 @@ constexpr Atom flip_bits(Atom s, usize i)
 template <typename Atom>
 constexpr Atom get_bit(Atom * p_atoms, usize i)
 {
-    auto const atom_idx = i / bitsizeof<Atom>;
-    auto const bit_idx  = i & (bitsizeof<Atom> - 1);
+    auto atom_idx = i / bitsizeof<Atom>;
+    auto bit_idx  = i & (bitsizeof<Atom> - 1);
 
     return atom::get_bits<Atom, 1>(p_atoms[atom_idx], bit_idx);
 }
@@ -1203,8 +1239,8 @@ constexpr Atom get_bit(Atom * p_atoms, usize i)
 template <typename Atom>
 constexpr void clear_bit(Atom * p_atoms, usize i)
 {
-    auto const atom_idx = i / bitsizeof<Atom>;
-    auto const bit_idx  = i & (bitsizeof<Atom> - 1);
+    auto atom_idx = i / bitsizeof<Atom>;
+    auto bit_idx  = i & (bitsizeof<Atom> - 1);
 
     auto & a = p_atoms[atom_idx];
     a        = atom::clear_bits<Atom, 1>(a, bit_idx);
@@ -1213,8 +1249,8 @@ constexpr void clear_bit(Atom * p_atoms, usize i)
 template <typename Atom>
 constexpr void set_bit(Atom * p_atoms, usize i)
 {
-    auto const atom_idx = i / bitsizeof<Atom>;
-    auto const bit_idx  = i & (bitsizeof<Atom> - 1);
+    auto atom_idx = i / bitsizeof<Atom>;
+    auto bit_idx  = i & (bitsizeof<Atom> - 1);
 
     auto & a = p_atoms[atom_idx];
     a        = atom::set_bits<Atom, 1>(a, bit_idx);
@@ -1223,8 +1259,8 @@ constexpr void set_bit(Atom * p_atoms, usize i)
 template <typename Atom>
 constexpr void assign_bit(Atom * p_atoms, usize i, Atom value)
 {
-    auto const atom_idx = i / bitsizeof<Atom>;
-    auto const bit_idx  = i & (bitsizeof<Atom> - 1);
+    auto atom_idx = i / bitsizeof<Atom>;
+    auto bit_idx  = i & (bitsizeof<Atom> - 1);
 
     auto & a = p_atoms[atom_idx];
     a        = atom::assign_bits<Atom, 1>(a, bit_idx, value);
@@ -1233,8 +1269,8 @@ constexpr void assign_bit(Atom * p_atoms, usize i, Atom value)
 template <typename Atom>
 constexpr void flip_bit(Atom * p_atoms, usize i)
 {
-    auto const atom_idx = i / bitsizeof<Atom>;
-    auto const bit_idx  = i & (bitsizeof<Atom> - 1);
+    auto atom_idx = i / bitsizeof<Atom>;
+    auto bit_idx  = i & (bitsizeof<Atom> - 1);
 
     auto & a = p_atoms[atom_idx];
     a        = atom::flip_bits<Atom, 1>(a, bit_idx);
@@ -1243,16 +1279,16 @@ constexpr void flip_bit(Atom * p_atoms, usize i)
 template <typename Atom>
 constexpr usize find_set_bit(Atom * p_atom, usize num_atoms)
 {
-    auto const begin = p_atom;
-    auto       iter  = p_atom;
-    auto const end   = p_atom + num_atoms;
+    auto begin = p_atom;
+    auto iter  = p_atom;
+    auto end   = p_atom + num_atoms;
 
     while (iter != end && *iter == 0)
     {
         iter++;
     }
 
-    auto const idx = static_cast<usize>(iter - begin) * bitsizeof<Atom>;
+    auto idx = static_cast<usize>(iter - begin) * bitsizeof<Atom>;
 
     if (iter == end)
     {
@@ -1265,16 +1301,16 @@ constexpr usize find_set_bit(Atom * p_atom, usize num_atoms)
 template <typename Atom>
 constexpr usize find_clear_bit(Atom * p_atom, usize num_atoms)
 {
-    auto const begin = p_atom;
-    auto       iter  = p_atom;
-    auto const end   = p_atom + num_atoms;
+    auto begin = p_atom;
+    auto iter  = p_atom;
+    auto end   = p_atom + num_atoms;
 
     while (iter != end && *iter == NumTraits<Atom>::MAX)
     {
         iter++;
     }
 
-    auto const idx = static_cast<usize>(iter - begin) * bitsizeof<Atom>;
+    auto idx = static_cast<usize>(iter - begin) * bitsizeof<Atom>;
 
     if (iter == end)
     {
@@ -1415,27 +1451,6 @@ struct alignas(u64) Version
                     .major   = ASH_MAJOR_VERSION,   \
                     .minor   = ASH_MINOR_VERSION,   \
                     .patch   = ASH_PATCH_VERSION})
-
-/// @brief In-place type constructor flag. Intended for functions that take
-/// generic types and want to overload with a second type that constructs the
-/// type using the provided arguments.
-struct Inplace
-{
-};
-
-inline constexpr Inplace inplace{};
-
-struct FromParts
-{
-};
-
-inline constexpr FromParts from_parts{};
-
-struct WithinCapacity
-{
-};
-
-inline constexpr WithinCapacity within_capacity{};
 
 template <typename T>
 T declval() noexcept

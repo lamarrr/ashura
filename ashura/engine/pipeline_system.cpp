@@ -1,14 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/engine/pipeline_system.hpp"
 #include "ashura/engine/gpu_system.hpp"
-#include "ashura/engine/pipelines/bezier_stencil.hpp"
-#include "ashura/engine/pipelines/blur.hpp"
-#include "ashura/engine/pipelines/fill_stencil.hpp"
-#include "ashura/engine/pipelines/pbr.hpp"
-#include "ashura/engine/pipelines/quad.hpp"
-#include "ashura/engine/pipelines/sdf.hpp"
-#include "ashura/engine/pipelines/triangle_fill.hpp"
-#include "ashura/engine/pipelines/vector_path.hpp"
+#include "ashura/engine/pipelines.hpp"
 #include "ashura/engine/systems.hpp"
 #include "ashura/std/trace.hpp"
 
@@ -17,7 +10,7 @@ namespace ash
 
 void IPipelineSys::init(Allocator allocator)
 {
-    tracing::ScopeTrace trace;
+    ASH_TRACE_SCOPE;
 
     Dyn sdf  = dyn<SdfPipeline>(inplace, allocator, allocator).unwrap();
     Dyn quad = dyn<QuadPipeline>(inplace, allocator, allocator).unwrap();
@@ -117,13 +110,13 @@ VectorPathPipeline & IPipelineSys::vector_path() const
 
 Future<PipelineId> IPipelineSys::add_pipeline(Dyn<Pipeline> pipeline)
 {
-    return scheduler
-      ->run(allocator_, MainThread::Main,
-            [pipeline = std::move(pipeline), this]() mutable {
-                pipeline->acquire(gpu_sys_->current_plan(), allocator_);
-                WriteGuard guard{this->rw_lock_};
-                return this->all_.push(std::move(pipeline)).unwrap();
-            })
+    return scheduler()
+      .run(allocator_, MainThread::Main,
+           [pipeline = std::move(pipeline), this]() mutable {
+               pipeline->acquire(gpu_sys_->current_plan(), allocator_);
+               WriteGuard guard{this->rw_lock_};
+               return this->all_.push(std::move(pipeline)).unwrap();
+           })
       .unwrap();
 }
 

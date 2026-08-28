@@ -4,7 +4,7 @@
 #include "ashura/engine/errors.hpp"
 #include "ashura/engine/gpu_system.hpp"
 #include "ashura/engine/systems.hpp"
-#include "ashura/gpu/gpu.h"
+#include "ashura/gpu/gpu.hpp"
 #include "ashura/std/types.hpp"
 
 namespace ash
@@ -67,16 +67,13 @@ struct IImageSys
     IRWSpinLock               rw_lock_;
     GpuSys                    gpu_sys_;
     FileSys                   file_sys_;
-    Scheduler                 scheduler_;
 
-    explicit IImageSys(Allocator allocator, GpuSys gpu_sys, FileSys file_sys,
-                       Scheduler scheduler) :
+    explicit IImageSys(Allocator allocator, GpuSys gpu_sys, FileSys file_sys) :
       allocator_{allocator},
       images_{allocator},
       rw_lock_{},
       gpu_sys_{gpu_sys},
-      file_sys_{file_sys},
-      scheduler_{scheduler}
+      file_sys_{file_sys}
     {
     }
 

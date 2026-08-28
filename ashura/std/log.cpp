@@ -2,10 +2,10 @@
 #include "ashura/std/log.hpp"
 #include "ashura/std/allocators.hpp"
 #include "ashura/std/list.hpp"
+#include "ashura/std/log_sinks.hpp"
 #include "ashura/std/sformat.hpp"
 #include "ashura/std/stacktrace.hpp"
 #include "ashura/std/vec.hpp"
-
 
 namespace ash
 {
@@ -55,7 +55,6 @@ void ILogger::write_to_sinks(LogLevel level, Str str, Buffer<char> & buffer)
     }
 }
 
-
 void ILogger::flush_buffer(LogLevel level, Buffer<char> & buffer)
 {
     ListView sinks{&head_};
@@ -68,11 +67,15 @@ void ILogger::flush_buffer(LogLevel level, Buffer<char> & buffer)
     buffer.clear();
 }
 
-Logger logger = nullptr;
-
-void hook_logger(Logger instance)
+ILogger & init_logger(Span<LogSink const> sinks)
 {
-    logger = instance;
+    static ILogger logger = [&]() { return ILogger{sinks}; }();
+    return logger;
+}
+
+ILogger & logger()
+{
+    return init_logger(span<LogSink>({&stdio_sink}));
 }
 
 }    // namespace ash

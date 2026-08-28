@@ -1258,7 +1258,7 @@ static void BM_StdMap_AshHasher(benchmark::State & state)
   std::unordered_map<Str, i64, SpanHash, StrEq,
                      std_allocator<std::pair<Str const, i64>>>
             map;
-  i64 const num_inserts = state.range(0);
+  auto num_inserts = state.range(0);
   i64       num_queries = 0;
 
   for (auto _ : state)
@@ -1311,7 +1311,7 @@ static void BM_StdMapDefaultHash(benchmark::State & state)
   std::unordered_map<Str, i64, std::hash<Str>, StrEq,
                      std_allocator<std::pair<Str const, i64>>>
             map;
-  i64 const num_inserts = state.range(0);
+  auto num_inserts = state.range(0);
   i64       num_queries = 0;
 
   for (auto _ : state)
@@ -1341,7 +1341,7 @@ static void BM_StdMapDefaultHashDefaultAlloc(benchmark::State & state)
 {
   std::unordered_map<Str, i64, std::hash<Str>, StrEq>
             map;
-  i64 const num_inserts = state.range(0);
+ auto num_inserts = state.range(0);
   i64       num_queries = 0;
 
   for (auto _ : state)

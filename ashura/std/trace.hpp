@@ -2,6 +2,7 @@
 #pragma once
 
 #include "ashura/std/async.hpp"
+#include "ashura/std/sformat.hpp"
 #include "ashura/std/time.hpp"
 #include "ashura/std/types.hpp"
 #include "ashura/std/vec.hpp"
@@ -146,8 +147,34 @@ struct ScopeTrace
         record_.data.end =
           static_cast<nanoseconds>(steady_clock::now().time_since_epoch()).count();
         get_scope_trace_sink().trace(record_);
+        // trace("[PERF TRACE] function: {}, begin: {} ns, end: {} ns"_s, record_.label,
+        //       record_.data.begin, record_.data.end);
     }
 };
 
 }    // namespace tracing
 }    // namespace ash
+
+#define ASH_TRACE_SCOPE                      \
+    ::ash::tracing::ScopeTrace scope_trace__ \
+    {                                        \
+        cstr(__PRETTY_FUNCTION__)            \
+    }
+
+#define ASH_TRACE_SUBSCOPE_IMPL(id, label)                                            \
+    static ::ash::u8           id##_reserved__[256];                                  \
+    static ::ash::IArena       id##_arena__{id##_reserved__};                         \
+    static ::ash::ScratchScope id##_scratch__{&id##_arena__,                          \
+                                              ::ash::default_allocator};              \
+    static auto id##_label__ = ::ash::sformat(id##_scratch__, "{} -- {}"_s,           \
+                                              cstr(__PRETTY_FUNCTION__), cstr(label)) \
+                                 .unwrap();                                           \
+    ::ash::tracing::ScopeTrace id                                                     \
+    {                                                                                 \
+        id##_label__                                                                  \
+    }
+
+#define ASH_TRACE_SUBSCOPE_DISPATCH(id, label) ASH_TRACE_SUBSCOPE_IMPL(id, label)
+
+#define ASH_TRACE_SUBSCOPE(label) \
+    ASH_TRACE_SUBSCOPE_DISPATCH(ASH_UNIQUE_NAME(scope_subtrace_), label)

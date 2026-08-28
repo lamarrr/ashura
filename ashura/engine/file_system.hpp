@@ -14,9 +14,7 @@ typedef struct IFileSys * FileSys;
 
 struct IFileSys
 {
-    Scheduler scheduler_;
-
-    explicit IFileSys(Scheduler scheduler, Allocator allocator);
+    explicit IFileSys(Allocator allocator);
 
     IFileSys(IFileSys const &)             = delete;
     IFileSys(IFileSys &&)                  = delete;

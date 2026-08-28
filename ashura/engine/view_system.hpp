@@ -31,7 +31,7 @@ struct RootView final : ui::View
                                          Fn<void(View &)> build) override
     {
         next_.match(build);
-        return ui::ViewState{.viewport = true};
+        return ui::ViewState{.clickable = true, .focusable = true, .viewport = true};
     }
 
     constexpr virtual void size(ui::Scope const &, f32x2 allocated,
@@ -113,7 +113,15 @@ struct IViewSys
         Option<u16> tgt = none;
     };
 
-    using HitState = Enum<None, DragState, PointState>;
+    struct PendingPressState
+    {
+        bool        clickable = false;
+        bool        draggable = false;
+        Option<u16> tgt       = none;
+        ui::HitInfo hit       = {};
+    };
+
+    using HitState = Enum<None, PointState, PendingPressState, DragState>;
 
     struct CrossFrameDragState
     {
@@ -131,7 +139,16 @@ struct IViewSys
         Option<ui::ViewId> tgt = none;
     };
 
-    using CrossFrameHitState = Enum<None, CrossFrameDragState, CrossFramePointState>;
+    struct CrossFramePendingPressState
+    {
+        bool               clickable = false;
+        bool               draggable = false;
+        Option<ui::ViewId> tgt       = none;
+        ui::HitInfo        hit       = {};
+    };
+
+    using CrossFrameHitState = Enum<None, CrossFramePointState,
+                                    CrossFramePendingPressState, CrossFrameDragState>;
 
     struct CrossFrameFocusState
     {
@@ -319,23 +336,29 @@ struct IViewSys
 
     u16 navigate_focus_(Tree & tree, u16 from, bool forward) const;
 
-    HitState none_seq_(Tree & tree, ui::InputScope const & input, Vec<Event> & events,
-                       RequestQueue & request_queue);
+    HitState none_sequence_(Tree & tree, ui::InputScope const & input,
+                            Vec<Event> & events);
 
-    HitState drag_start_seq_(Tree & tree, ui::InputScope const & input, Option<u16> src,
+    HitState drag_start_sequence_(Tree & tree, ui::InputScope const & input,
+                                  Option<u16> src, Vec<Event> & events);
+
+    HitState drag_update_sequence_(Tree & tree, ui::InputScope const & input,
+                                   Option<u16> src, Option<u16> tgt,
+                                   Vec<Event> & events);
+
+    HitState point_sequence_(Tree & tree, ui::InputScope const & input, Option<u16> tgt,
                              Vec<Event> & events);
 
-    HitState drag_update_seq_(Tree & tree, ui::InputScope const & input,
-                              Option<u16> src, Option<u16> tgt, Vec<Event> & events);
+    HitState pending_press_sequence_(Tree & tree, ui::InputScope const & input,
+                                     bool clickable, bool draggable, Option<u16> tgt,
+                                     ui::HitInfo const & hit, Vec<Event> & events,
+                                     RequestQueue & request_queue);
 
-    HitState point_seq_(Tree & tree, ui::InputScope const & input, Option<u16> tgt,
-                        Vec<Event> & events, RequestQueue & request_queue);
+    void hit_sequence_(Tree & tree, ui::InputScope const & input, Vec<Event> & events,
+                       RequestQueue & request_queue);
 
-    void hit_seq_(Tree & tree, ui::InputScope const & input, Vec<Event> & events,
-                  RequestQueue & request_queue);
-
-    void focus_seq_(Tree & tree, ui::InputScope const & input, Vec<Event> & events,
-                    RequestQueue & request_queue);
+    void focus_sequence_(Tree & tree, ui::InputScope const & input, Vec<Event> & events,
+                         RequestQueue & request_queue);
 
     void compose_event_(Tree & tree, ui::ViewId id, ui::Events::Type event,
                         Option<ui::HitInfo> hit, Option<ui::ScrollInfo> scroll);

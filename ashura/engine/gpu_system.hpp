@@ -1,7 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/engine/shaders/items.gen.hpp"
-#include "ashura/gpu/gpu.h"
+#include "ashura/gpu/gpu.hpp"
 #include "ashura/std/allocators.hpp"
 #include "ashura/std/async.hpp"
 #include "ashura/std/dict.hpp"
@@ -334,10 +334,7 @@ struct GpuFrameTargetInfo
 
     u32 num_scratch_images = 0;
 
-    constexpr bool operator==(GpuFrameTargetInfo const & rhs) const
-    {
-        return obj::byte_eq(*this, rhs);
-    }
+    constexpr bool operator==(GpuFrameTargetInfo const & rhs) const = default;
 };
 
 enum class GpuFramePlanState : u8
@@ -598,10 +595,16 @@ struct ScratchTexture
 {
     u32               image = 0;
     ScratchTexureType type  = ScratchTexureType::SampledColor;
+
+    constexpr bool operator==(ScratchTexture const &) const = default;
 };
 
 struct SampledTextures
 {
+    constexpr bool operator==(SampledTextures const &) const
+    {
+        return true;
+    }
 };
 
 inline constexpr SampledTextures sampled_textures;
@@ -803,8 +806,6 @@ struct IGpuSys
 
     Vec<Dyn<GpuFramePlan>> plans_;
 
-    Scheduler scheduler_;
-
     Option<Thread> thread_;
 
     IGpuSys() :
@@ -828,7 +829,6 @@ struct IGpuSys
       frame_index_{0},
       frames_{noop_allocator},
       plans_{noop_allocator},
-      scheduler_{nullptr},
       thread_{}
     {
     }
@@ -847,7 +847,7 @@ struct IGpuSys
     ///
     void init(Allocator allocator, gpu::Device device,
               Span<u8 const> pipeline_cache_data, GpuSysPreferences const & preferences,
-              Scheduler scheduler, Thread thread);
+              Thread thread);
 
     SamplerIndex create_cached_sampler(gpu::SamplerInfo const & info);
 

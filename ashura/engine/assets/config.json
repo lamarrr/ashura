@@ -1,7 +1,7 @@
 {
   "$schema": "./config.schema.json",
   "version": "0.0.1",
-  "gpu.validation": true,
+  "gpu.validation": false,
   "gpu.preferences": [
     "dgpu",
     "igpu",
@@ -17,7 +17,7 @@
   "window.full_screen": false,
   "window.maximized": false,
   "window.borderless": false,
-  "window.vsync": true,
+  "window.vsync": false,
   "window.width": 1920,
   "window.height": 1080,
   "fonts.height": 32,

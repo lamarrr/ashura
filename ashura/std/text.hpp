@@ -15,9 +15,9 @@ namespace ash
 /// utf8-validation
 [[nodiscard]] constexpr usize count_utf8_codepoints(Str8 text)
 {
-    c8 const * in    = text.data();
-    c8 const * end   = text.pend();
-    usize      count = 0;
+    auto * in    = text.data();
+    auto * end   = text.pend();
+    usize  count = 0;
     while (in != end)
     {
         if ((*in & 0xc0) != 0x80)
@@ -32,30 +32,30 @@ namespace ash
 template <typename Iter>
 [[nodiscard]] constexpr Tuple<c32, usize> seek_utf8_codepoint(Iter & iter)
 {
-    c32 const c0 = static_cast<c32>(*iter);
+    auto c0 = static_cast<c32>(*iter);
     iter++;
 
     if ((c0 & 0xF8) == 0xF0)
     {
-        c32 const c1 = static_cast<c32>(*iter);
+        auto c1 = static_cast<c32>(*iter);
         iter++;
-        c32 const c2 = static_cast<c32>(*iter);
+        auto c2 = static_cast<c32>(*iter);
         iter++;
-        c32 const c3 = static_cast<c32>(*iter);
+        auto c3 = static_cast<c32>(*iter);
         iter++;
         return {((c0 & 0x07) << 18) | ((c1 & 0x3F) << 12) | ((c2 & 0x3F) << 6) | c3, 4};
     }
     else if ((c0 & 0xF0) == 0xE0)
     {
-        c32 const c1 = static_cast<c32>(*iter);
+        auto c1 = static_cast<c32>(*iter);
         iter++;
-        c32 const c2 = static_cast<c32>(*iter);
+        auto c2 = static_cast<c32>(*iter);
         iter++;
         return {((c0 & 0x0F) << 12) | ((c1 & 0x3F) << 6) | (c2 & 0X3F), 3};
     }
     else if ((c0 & 0xE0) == 0xC0)
     {
-        c32 const c1 = static_cast<c32>(*iter);
+        auto c1 = static_cast<c32>(*iter);
         iter++;
         return {((c0 & 0x1F) << 6) | (c1 & 0x3F), 2};
     }
@@ -89,9 +89,9 @@ constexpr u8 codepoint_width(c32 c)
 /// @brief `decoded.size()` must be at least `encoded.size()`
 [[nodiscard]] constexpr usize utf8_decode(Str8 text, MutStr32 decoded)
 {
-    c8 const * in  = text.data();
-    c8 const * end = text.pend();
-    c32 *      out = decoded.data();
+    auto * in  = text.data();
+    auto * end = text.pend();
+    auto * out = decoded.data();
 
     while (in != end)
     {
@@ -105,13 +105,13 @@ constexpr u8 codepoint_width(c32 c)
 /// @brief `encoded.size()` must be at least `text.size() * 4`
 [[nodiscard]] constexpr usize utf8_encode(Str32 text, MutStr8 encoded)
 {
-    c8 *        out = encoded.data();
-    c32 const * in  = text.data();
-    c32 const * end = text.pend();
+    auto * out = encoded.data();
+    auto * in  = text.data();
+    auto * end = text.pend();
 
     while (in != end)
     {
-        c32 const c = *in;
+        auto c = *in;
 
         if (c <= 0x7F)
         {
@@ -150,13 +150,13 @@ constexpr u8 codepoint_width(c32 c)
 /// `decoded`
 inline Result<> utf8_decode(Str8 text, Vec<c32> & decoded)
 {
-    usize const first     = decoded.size();
-    usize const max_count = text.size();
+    auto first     = decoded.size();
+    auto max_count = text.size();
     if (!decoded.extend_uninit(max_count))
     {
         return Err{};
     }
-    usize const count = utf8_decode(text, decoded.view().slice(first, max_count));
+    auto count = utf8_decode(text, decoded.view().slice(first, max_count));
     decoded.resize_uninit(first + count).unwrap();
     return Ok{};
 }
@@ -165,22 +165,22 @@ inline Result<> utf8_decode(Str8 text, Vec<c32> & decoded)
 /// `encoded`
 [[nodiscard]] inline Result<> utf8_encode(Str32 text, Vec<c8> & encoded)
 {
-    usize const first     = encoded.size();
-    usize const max_count = text.size() * 4;
+    auto first     = encoded.size();
+    auto max_count = text.size() * 4;
     if (!encoded.extend_uninit(max_count))
     {
         return Err{};
     }
-    usize const count = utf8_encode(text, encoded.view().slice(first, max_count));
+    auto count = utf8_encode(text, encoded.view().slice(first, max_count));
     encoded.resize_uninit(first + count).unwrap();
     return Ok{};
 }
 
 constexpr void replace_invalid_codepoints(Str32 input, MutStr32 output, c32 replacement)
 {
-    c32 const * in  = input.pbegin();
-    c32 const * end = input.pend();
-    c32 *       out = output.pbegin();
+    auto * in  = input.pbegin();
+    auto * end = input.pend();
+    auto * out = output.pbegin();
 
     while (in != end)
     {
@@ -309,34 +309,5 @@ struct Utf8EncodeIter
         return iter_.max_size() * 4;
     }
 };
-
-namespace ascii
-{
-}
-
-// TODO: to ascii lower
-// TODO: to ascii upper
-// TODO: matches
-// TODO: replace
-// TODO: replace_n
-// TODO: split
-// TODO: truncate
-// TODO: trim
-// TODO: trim_ascii
-// TODO: lines
-// TODO: delimeter
-// TODO: split_ascii
-// TODO: join()
-// TODO: utf-8 iterator
-// TODO: reverse
-// TODO: right
-// TODO: substr
-
-// TODO: concat(....)
-// TODO: lower
-// TODO: ltrim
-// TODO: rtim
-// TODO: trim
-// TODO: replicate
 
 }    // namespace ash

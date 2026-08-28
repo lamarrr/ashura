@@ -229,14 +229,14 @@ struct QuadGradientMaterial
 
 struct SdfGradientMaterial
 {
-    alignas(16) f32x4 top;
-    alignas(16) f32x4 bottom;
-    alignas(4) f32 gradient_angle;
-    alignas(4) f32 gradient_center;
-    alignas(4) SamplerIndex sampler;
-    alignas(4) TextureIndex texture;
-    alignas(4) SamplerIndex sdf_sampler;
-    alignas(4) TextureIndex sdf_map;
+    f32x4        top;
+    f32x4        bottom;
+    f32          gradient_angle;
+    f32          gradient_center;
+    SamplerIndex sampler;
+    TextureIndex texture;
+    SamplerIndex sdf_sampler;
+    TextureIndex sdf_map;
 };
 
 struct SdfNoiseMaterial
@@ -271,11 +271,12 @@ struct TriangleSetGradientMaterial
 
 struct BlurItem
 {
-    alignas(8) f32x2 uv0;
-    alignas(8) f32x2 uv1;
-    alignas(8) f32x2 radius;
-    alignas(4) SamplerIndex sampler;
-    alignas(4) TextureIndex tex;
+    f32x4x4      world_to_ndc;
+    f32x4x4      world_transform;
+    f32x4x4      uv_transform;
+    f32x2        radius;
+    SamplerIndex sampler;
+    TextureIndex tex;
 };
 
 struct SdfSubItem
@@ -327,14 +328,14 @@ typedef QuadItem<QuadGradientMaterial> QuadGradientItem;
 template <typename MaterialType>
 struct SdfItem
 {
-    alignas(16) f32x4x4 world_transform;
-    alignas(16) f32x4x4 uv_transform;
-    alignas(16) f32x4 radii;
-    alignas(8) f32x2 half_bbox_extent;
-    alignas(8) f32x2 half_extent;
-    alignas(4) f32 feather;
-    alignas(4) SdfShadeType shade_type;
-    alignas(4) SdfShapeType type;
+    f32x4x4      world_transform;
+    f32x4x4      uv_transform;
+    f32x4        radii;
+    f32x2        half_bbox_extent;
+    f32x2        half_extent;
+    f32          feather;
+    SdfShadeType shade_type;
+    SdfShapeType type;
     MaterialType material;
 };
 

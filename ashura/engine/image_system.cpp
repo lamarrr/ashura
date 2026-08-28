@@ -62,7 +62,7 @@ Result<ImageInfo, SysErr> IImageSys::upload_(Str                            labe
                                              Span<gpu::ImageViewInfo const> view_infos,
                                              Span<u8 const>                 channels)
 {
-    tracing::ScopeTrace trace;
+    ASH_TRACE_SCOPE;
 
     ASH_CHECK(info.type == gpu::ImageType::Type2D, "");
     ASH_CHECK((info.usage & ~(gpu::ImageUsage::Sampled | gpu::ImageUsage::TransferSrc |
@@ -79,9 +79,9 @@ Result<ImageInfo, SysErr> IImageSys::upload_(Str                            labe
                 info.format == gpu::Format::B8G8R8A8_UNORM,
               "");
 
-    gpu::Format resolved_format = gpu::Format::B8G8R8A8_UNORM;
+    auto resolved_format = gpu::Format::B8G8R8A8_UNORM;
 
-    u64 const bgra_size = pixel_size_bytes(info.extent.xy(), 4) * info.array_layers;
+    auto bgra_size = pixel_size_bytes(info.extent.xy(), 4) * info.array_layers;
 
     Vec<u8> bgra_tmp{allocator_};
 
@@ -222,13 +222,13 @@ Future<Result<ImageInfo, SysErr>>
                                     .array_layers = info_.array_layers,
                                     .sample_count = info_.sample_count};
 
-    return scheduler_
-      ->run(allocator_, MainThread::Main,
-            [label = std::move(label), view_info_labels = std::move(view_info_labels),
-             info = info_copy, view_infos = std::move(view_infos),
-             channels = std::move(channels), this]() mutable {
-                return upload_(label, info, view_infos.view(), channels.get());
-            })
+    return scheduler()
+      .run(allocator_, MainThread::Main,
+           [label = std::move(label), view_info_labels = std::move(view_info_labels),
+            info = info_copy, view_infos = std::move(view_infos),
+            channels = std::move(channels), this]() mutable {
+               return upload_(label, info, view_infos.view(), channels.get());
+           })
       .unwrap();
 }
 
@@ -238,8 +238,8 @@ Future<Result<ImageInfo, SysErr>> IImageSys::load_from_path(Str label_span, Str 
     StrVec label{allocator_};
     label.append(label_span).unwrap();
 
-    auto decode_fut = scheduler_
-                        ->then(
+    auto decode_fut = scheduler()
+                        .then(
                           allocator_, WorkerThread::Any,
                           [allocator = allocator_](Result<Vec<u8>, SysErr> & r) {
                               using R =
@@ -257,8 +257,8 @@ Future<Result<ImageInfo, SysErr>> IImageSys::load_from_path(Str label_span, Str 
                           std::move(load_fut))
                         .unwrap();
 
-    return scheduler_
-      ->then(
+    return scheduler()
+      .then(
         allocator_, MainThread::Main,
         [label = std::move(label),
          this](Result<Tuple<Vec<u8>, DecodedImageInfo>, SysErr> & r) {

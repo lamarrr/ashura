@@ -243,16 +243,16 @@ TEST(OptionLifetimeTest, Contains)
 
 TEST(OptionTest, AsConstRef)
 {
-  Option const a = 68;
+  Option   a = 68;
   EXPECT_EQ(*a.as_ptr().unwrap(), 68);
 
-  Option<int> const b = none;
+  Option<int>   b = none;
   EXPECT_EQ(b.as_ptr(), none);
 
-  Option const c = std::vector{1, 2, 3, 4};
+  Option   c = std::vector{1, 2, 3, 4};
   EXPECT_EQ(*c.as_ptr().unwrap(), (std::vector{1, 2, 3, 4}));
 
-  Option<std::vector<int>> const d = none;
+  Option<std::vector<int>>   d = none;
   EXPECT_EQ(d.as_ptr(), none);
 }
 
@@ -354,7 +354,7 @@ TEST(OptionTest, FnMutMap)
 
   EXPECT_EQ(fnmut_a.mut_call_times, 2);
 
-  auto const fnmut_b = FnMut();
+  auto fnmut_b = FnMut();
   auto       b1_     = Option(90).map(fnmut_b);
   auto       b2_     = Option(90).map(fnmut_b);
 

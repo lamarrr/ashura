@@ -204,7 +204,6 @@ struct [[nodiscard]] RenderText
     void perform_layout();
 
     /// @brief Generate the placement rectangles for the laid-out text
-    /// @param center canvas-space region of the text to place the text on
     /// @param transform the canvas-space transform to apply to the text block
     /// @param clip the canvas-space clip rectangle
     /// @param highlights text highlights to render
@@ -213,8 +212,7 @@ struct [[nodiscard]] RenderText
     /// @param caret_styles styles for each of the carets
     /// @param allocator allocator to use for the placement allocations
     Tuple<TextRenderInfo, TextPlacement>
-      place(f32x2 center, f32x4x4 const & transform, CRect const & clip,
-            Span<Slice const>              highlights,
+      place(f32x4x4 const & transform, CRect const & clip, Span<Slice const> highlights,
             Span<TextHighlightStyle const> highlight_styles, Span<usize const> carets,
             Span<CaretStyle const> caret_styles, Allocator allocator) const;
 

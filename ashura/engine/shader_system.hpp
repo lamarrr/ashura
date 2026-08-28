@@ -3,7 +3,7 @@
 
 #include "ashura/engine/errors.hpp"
 #include "ashura/engine/systems.hpp"
-#include "ashura/gpu/gpu.h"
+#include "ashura/gpu/gpu.hpp"
 #include "ashura/std/async.hpp"
 #include "ashura/std/types.hpp"
 
@@ -45,15 +45,13 @@ struct IShaderSys
     SparseVec<ShaderId, Shader> shaders_;
     GpuSys                      gpu_sys_;
     FileSys                     file_sys_;
-    Scheduler                   scheduler_;
 
-    IShaderSys(GpuSys gpu_sys, FileSys file_sys, Scheduler scheduler) :
+    IShaderSys(GpuSys gpu_sys, FileSys file_sys) :
       allocator_{noop_allocator},
       rw_lock_{},
       shaders_{noop_allocator},
       gpu_sys_{gpu_sys},
-      file_sys_{file_sys},
-      scheduler_{scheduler}
+      file_sys_{file_sys}
     {
     }
 

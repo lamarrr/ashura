@@ -46,8 +46,8 @@ struct ImageSpan
         offset = offset.min(this->extent);
         extent = extent.min(this->extent - offset);
 
-        u64 const data_offset = (offset.y() * stride + offset.x()) * C;
-        u64 const data_span   = (extent.y() * stride) * C;
+        auto data_offset = (offset.y() * stride + offset.x()) * C;
+        auto data_span   = (extent.y() * stride) * C;
 
         return ImageSpan{.channels = channels.slice(data_offset, data_span),
                          .extent   = extent,
@@ -104,8 +104,8 @@ void copy_image(ImageSpan<T const, C> src, ImageSpan<T, C> dst)
 {
     src.extent = src.extent.min(dst.extent);
 
-    auto const * ASH_RESTRICT in_row  = src.channels.data();
-    auto * ASH_RESTRICT       out_row = dst.channels.data();
+    auto * ASH_RESTRICT in_row  = src.channels.data();
+    auto * ASH_RESTRICT out_row = dst.channels.data();
 
     for (isize i = 0; i < src.extent.y();
          i++, in_row += src.pitch(), out_row += dst.pitch())
@@ -120,14 +120,14 @@ void copy_alpha_image_to_BGRA(ImageSpan<T const, 1> src, ImageSpan<T, 4> dst, T 
 {
     src.extent = src.extent.min(dst.extent);
 
-    auto const * ASH_RESTRICT in_row  = src.channels.data();
-    auto * ASH_RESTRICT       out_row = dst.channels.data();
+    auto * ASH_RESTRICT in_row  = src.channels.data();
+    auto * ASH_RESTRICT out_row = dst.channels.data();
 
     for (isize i = 0; i < src.extent.y();
          i++, in_row += src.pitch(), out_row += dst.pitch())
     {
-        auto const * ASH_RESTRICT in  = in_row;
-        auto * ASH_RESTRICT       out = out_row;
+        auto * ASH_RESTRICT in  = in_row;
+        auto * ASH_RESTRICT out = out_row;
         for (isize j = 0; j < src.extent.x(); j++, in += 1, out += 4)
         {
             out[0] = B;
@@ -143,14 +143,14 @@ void copy_RGBA_to_BGRA(ImageSpan<T const, 4> src, ImageSpan<T, 4> dst)
 {
     src.extent = src.extent.min(dst.extent);
 
-    auto const * ASH_RESTRICT in_row  = src.channels.data();
-    auto * ASH_RESTRICT       out_row = dst.channels.data();
+    auto * ASH_RESTRICT in_row  = src.channels.data();
+    auto * ASH_RESTRICT out_row = dst.channels.data();
 
     for (isize i = 0; i < src.extent.y();
          i++, in_row += src.pitch(), out_row += dst.pitch())
     {
-        auto const * ASH_RESTRICT in  = in_row;
-        auto * ASH_RESTRICT       out = out_row;
+        auto * ASH_RESTRICT in  = in_row;
+        auto * ASH_RESTRICT out = out_row;
         for (isize j = 0; j < src.extent.x(); j++, in += 4, out += 4)
         {
             out[0] = in[2];
@@ -166,14 +166,14 @@ void copy_RGB_to_BGRA(ImageSpan<T const, 3> src, ImageSpan<T, 4> dst, T A)
 {
     src.extent = src.extent.min(dst.extent);
 
-    auto const * in_row  = src.channels.data();
-    auto *       out_row = dst.channels.data();
+    auto * in_row  = src.channels.data();
+    auto * out_row = dst.channels.data();
 
     for (isize i = 0; i < src.extent.y();
          i++, in_row += src.pitch(), out_row += dst.pitch())
     {
-        auto const * in  = in_row;
-        auto *       out = out_row;
+        auto * in  = in_row;
+        auto * out = out_row;
         for (isize j = 0; j < src.extent.x(); j++, in += 3, out += 4)
         {
             out[0] = in[2];

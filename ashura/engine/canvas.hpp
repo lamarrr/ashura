@@ -1,11 +1,11 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
+#include "ashura/engine/color.hpp"
 #include "ashura/engine/color_gradient.hpp"
 #include "ashura/engine/encoders.hpp"
 #include "ashura/engine/pipeline.hpp"
 #include "ashura/engine/text.hpp"
 #include "ashura/std/allocators.hpp"
-#include "ashura/std/color.hpp"
 #include "ashura/std/math.hpp"
 #include "ashura/std/types.hpp"
 
@@ -150,7 +150,7 @@ struct Shape
     TextureIndex map = TextureIndex::White;
 
     /// @brief The sampler to use for sampling the signed distance map
-    SamplerIndex sdf_sampler = SamplerIndex::LinearBorderClampBlackFloat;
+    SamplerIndex sdf_sampler = SamplerIndex::LinearRepeatWhiteFloat;
 
     /// @brief Index of the signed distance map in the texture set
     TextureIndex sdf_map = TextureIndex::White;
@@ -728,7 +728,8 @@ struct ICanvas
     ICanvas & paths(Span<PathInfo const> info, bool has_overlaps);
 
     /// @brief Render a text block
-    ICanvas & text(TextRenderInfo const & info, TextPlacementInfo const & placement);
+    ICanvas & text(TextRenderInfo const & info, TextPlacementInfo const & placement,
+                   f32x2 center);
 };
 
 }    // namespace ash

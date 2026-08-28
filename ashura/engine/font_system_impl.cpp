@@ -18,12 +18,10 @@ extern "C"
 namespace ash
 {
 
-Dyn<FontSys> IFontSys::create(Allocator allocator, FileSys file_sys, ImageSys image_sys,
-                              Scheduler scheduler)
+Dyn<FontSys> IFontSys::create(Allocator allocator, FileSys file_sys, ImageSys image_sys)
 {
     return cast<FontSys>(
-      dyn<FontSysImpl>(inplace, allocator, allocator, file_sys, image_sys, scheduler)
-        .unwrap());
+      dyn<FontSysImpl>(inplace, allocator, allocator, file_sys, image_sys).unwrap());
 }
 
 FontImpl::~FontImpl()
@@ -64,16 +62,23 @@ FontSysImpl::~FontSysImpl()
 AwaitFuturesVec FontSysImpl::init()
 {
     static constexpr u8 ROBOTO_FONT_DATA[] = {
-#embed "fonts/Roboto/Roboto-Regular.ttf"
+#embed "fonts/RobotoMono/RobotoMono-Regular.ttf"
     };
-    static constexpr u32 FONT_RASTER_HEIGHT = 64U;
+    static constexpr u8 MATERIAL_ICONS_FONT_DATA[] = {
+#embed "fonts/MaterialIcons/MaterialIcons-Regular.ttf"
+    };
+    static constexpr u32 FONT_RASTER_HEIGHT = 32U;
     static constexpr u32 FONT_FACE          = 0U;
 
-    auto fut = load_from_memory("Default"_s, static_rc(span(ROBOTO_FONT_DATA)),
-                                FONT_RASTER_HEIGHT, FONT_FACE);
-
     Vec<AnyFuture> await_futures{allocator_};
-    await_futures.push(std::move(fut)).unwrap();
+    await_futures
+      .push(load_from_memory("Default"_s, static_rc(span(ROBOTO_FONT_DATA)),
+                             FONT_RASTER_HEIGHT, FONT_FACE, FontId::Default))
+      .unwrap();
+    await_futures
+      .push(load_from_memory("Icons"_s, static_rc(span(MATERIAL_ICONS_FONT_DATA)),
+                             FONT_RASTER_HEIGHT, FONT_FACE, FontId::Icons))
+      .unwrap();
     return AwaitFuturesVec{std::move(await_futures)};
 }
 
@@ -89,8 +94,8 @@ void FontSysImpl::shutdown()
 Result<Dyn<Font>, SysErr> FontSysImpl::decode_(Str label_ref, Span<u8 const> encoded,
                                                u32 face)
 {
-    tracing::ScopeTrace trace;
-    Vec<char>           font_data{allocator_};
+    ASH_TRACE_SCOPE;
+    Vec<char> font_data{allocator_};
     if (!font_data.append(encoded.as_char()))
     {
         return Err{SysErr::OutOfMemory};
@@ -182,9 +187,8 @@ Result<Dyn<Font>, SysErr> FontSysImpl::decode_(Str label_ref, Span<u8 const> enc
         }
     }};
 
-    bool const has_color = FT_HAS_COLOR(ft_face);
-
-    char const * ft_postscript_name = FT_Get_Postscript_Name(ft_face);
+    auto   has_color          = FT_HAS_COLOR(ft_face);
+    auto * ft_postscript_name = FT_Get_Postscript_Name(ft_face);
 
     FontImpl::Name postscript_name;
     FontImpl::Name family_name;
@@ -301,7 +305,9 @@ Result<CpuFontAtlas, SysErr> FontSysImpl::rasterize_(Font font_, u32 font_height
 
     for (auto [i, g] : enumerate<u32>(atlas.glyphs))
     {
-        if (FT_Error err = FT_Load_Glyph(font.ft_face, i, FT_LOAD_DEFAULT); err != 0)
+        if (FT_Error err = FT_Load_Glyph(
+              font.ft_face, i, FT_LOAD_DEFAULT | FT_LOAD_COLOR | FT_LOAD_TARGET_NORMAL);
+            err != 0)
         {
             continue;
         }
@@ -407,8 +413,9 @@ Result<CpuFontAtlas, SysErr> FontSysImpl::rasterize_(Font font_, u32 font_height
 
     for (auto [i, ag] : enumerate<u32>(atlas.glyphs))
     {
-        if (FT_Error err = FT_Load_Glyph(
-              font.ft_face, i, FT_LOAD_DEFAULT | FT_LOAD_COLOR | FT_LOAD_RENDER);
+        if (FT_Error err = FT_Load_Glyph(font.ft_face, i,
+                                         FT_LOAD_DEFAULT | FT_LOAD_COLOR |
+                                           FT_LOAD_RENDER | FT_LOAD_TARGET_NORMAL);
             err != 0)
         {
             continue;
@@ -509,8 +516,8 @@ Future<Result<GpuFontAtlas, SysErr>>
     Vec<AtlasGlyph> gpu_glyphs{allocator_};
     gpu_glyphs.append(atlas->glyphs).unwrap();
 
-    return scheduler_
-      ->then(
+    return scheduler()
+      .then(
         allocator_, WorkerThread::Any,
         [allocator = allocator_, font_height = atlas->font_height,
          glyphs = std::move(gpu_glyphs)](Result<ImageInfo, SysErr> & err) mutable {
@@ -534,7 +541,8 @@ Future<Result<GpuFontAtlas, SysErr>>
 
 Future<Result<FontId, SysErr>> FontSysImpl::load_from_memory(Str     label_span,
                                                              RcBlob8 encoded,
-                                                             u32 font_height, u32 face)
+                                                             u32 font_height, u32 face,
+                                                             Option<FontId> target_id)
 {
     StrVec label{allocator_};
     label.append(label_span).unwrap();
@@ -542,15 +550,15 @@ Future<Result<FontId, SysErr>> FontSysImpl::load_from_memory(Str     label_span,
     // TODO: using trace span id in logging
 
     auto decode_fut =
-      scheduler_
-        ->run(allocator_, WorkerThread::Any,
-              [encoded = std::move(encoded), label = std::move(label), this,
-               face]() mutable { return decode_(label, encoded.get(), face); })
+      scheduler()
+        .run(allocator_, WorkerThread::Any,
+             [encoded = std::move(encoded), label = std::move(label), this,
+              face]() mutable { return decode_(label, encoded.get(), face); })
         .unwrap();
 
     auto raster_fut =
-      scheduler_
-        ->then(
+      scheduler()
+        .then(
           allocator_, WorkerThread::Any,
           [encoded = std::move(encoded), label = std::move(label), this,
            font_height](Result<Dyn<Font>, SysErr> & r) mutable {
@@ -566,8 +574,8 @@ Future<Result<FontId, SysErr>> FontSysImpl::load_from_memory(Str     label_span,
         .unwrap();
 
     auto upload_fut =
-      scheduler_
-        ->then(
+      scheduler()
+        .then(
           allocator_, WorkerThread::Any,
           [this, decode_fut = decode_fut.alias()](Result<CpuFontAtlas, SysErr> & r) {
               using R = Result<Future<Result<GpuFontAtlas, SysErr>>, SysErr>;
@@ -589,57 +597,60 @@ Future<Result<FontId, SysErr>> FontSysImpl::load_from_memory(Str     label_span,
         .unwrap();
 
     auto flattened_upload_fut =
-      scheduler_->flatten(allocator_, WorkerThread::Any, std::move(upload_fut))
+      scheduler()
+        .flatten(allocator_, WorkerThread::Any, std::move(upload_fut))
         .unwrap();
 
-    auto ret_fut =
-      scheduler_
-        ->then(
-          allocator_, WorkerThread::Any,
-          [decode_fut = decode_fut.alias(), this](Result<GpuFontAtlas, SysErr> & r) {
-              using R = Result<FontId, SysErr>;
+    auto ret_fut = scheduler()
+                     .then(
+                       allocator_, WorkerThread::Any,
+                       [decode_fut = decode_fut.alias(), this,
+                        target_id](Result<GpuFontAtlas, SysErr> & r) {
+                           using R = Result<FontId, SysErr>;
 
-              return r.match(
-                [&](GpuFontAtlas & gpu_atlas) -> R {
-                    return Ok{
-                      add_font_(decode_fut.get().unwrap(), std::move(gpu_atlas))};
-                },
-                [](SysErr err) -> R { return Err{err}; });
-          },
-          std::move(flattened_upload_fut))
-        .unwrap();
+                           return r.match(
+                             [&](GpuFontAtlas & gpu_atlas) -> R {
+                                 return Ok{add_font_(decode_fut.get().unwrap(),
+                                                     std::move(gpu_atlas), target_id)};
+                             },
+                             [](SysErr err) -> R { return Err{err}; });
+                       },
+                       std::move(flattened_upload_fut))
+                     .unwrap();
 
     return ret_fut;
 }
 
 Future<Result<FontId, SysErr>> FontSysImpl::load_from_path(Str label_span, Str path,
-                                                           u32 font_height, u32 face)
+                                                           u32 font_height, u32 face,
+                                                           Option<FontId> target_id)
 {
     Future file_load_fut = file_sys_->load_file(allocator_, path);
     StrVec label{allocator_};
     label.append(label_span).unwrap();
 
     auto load_fut =
-      scheduler_
-        ->then(
+      scheduler()
+        .then(
           allocator_, WorkerThread::Any,
-          [label = std::move(label), this, font_height,
-           face](Result<Vec<u8>, SysErr> & r) {
+          [label = std::move(label), this, font_height, face,
+           target_id](Result<Vec<u8>, SysErr> & r) {
               using R = Result<Future<Result<FontId, SysErr>>, SysErr>;
               return r.match(
                 [&](Vec<u8> & data) -> R {
                     auto blob_span = data.view().as_const();
                     auto blob      = rc<Vec<u8>>(allocator_, std::move(data)).unwrap();
                     auto blob8     = transmute(std::move(blob), blob_span);
-                    return Ok{
-                      load_from_memory(label, std::move(blob8), font_height, face)};
+                    return Ok{load_from_memory(label, std::move(blob8), font_height,
+                                               face, target_id)};
                 },
                 [&](SysErr err) -> R { return Err{err}; });
           },
           file_load_fut.alias())
         .unwrap();
 
-    return scheduler_->flatten(allocator_, WorkerThread::Any, std::move(load_fut))
+    return scheduler()
+      .flatten(allocator_, WorkerThread::Any, std::move(load_fut))
       .unwrap();
 }
 
@@ -693,14 +704,20 @@ void FontSysImpl::unload(FontId id)
     image_sys_->unload(image_id);
 }
 
-FontId FontSysImpl::add_font_(Dyn<Font> font, GpuFontAtlas gpu_atlas)
+FontId FontSysImpl::add_font_(Dyn<Font> font, GpuFontAtlas gpu_atlas,
+                              Option<FontId> target_id)
 {
     FontImpl & font_impl = (FontImpl &) *font;
     font_impl.gpu_atlas  = std::move(gpu_atlas);
 
     {
         WriteGuard guard{rw_lock_};
-        return fonts_.push(std::move(font)).unwrap();
+        return target_id.match(
+          [&](FontId id) {
+              fonts_.update(id, std::move(font));
+              return id;
+          },
+          [&]() { return fonts_.push(std::move(font)).unwrap(); });
     }
 }
 
@@ -1131,11 +1148,11 @@ static u8 determine_levels(Str32 paragraph_str, TextDirection direction,
 TextLayout FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
                                     f32 align_width)
 {
-    tracing::ScopeTrace trace;
-    ScratchScope        scratch{allocator_};
+    ASH_TRACE_SCOPE;
+    ThreadScratchScope scratch;
 
-    auto       str      = block.str;
-    auto const str_size = block.str.size();
+    auto str      = block.str;
+    auto str_size = block.str.size();
     ASH_CHECK(block.run_indices.size() >= 2, "No run styling provided for text");
     ASH_CHECK(block.run_indices.size() == (block.fonts.size() + 1), "");
     ASH_CHECK(block.run_indices.last() == USIZE_MAX,
@@ -1180,7 +1197,7 @@ TextLayout FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
     auto style_iter = RunItemView{block.run_indices.view()}.begin();
 
     f32x2 extent{};
-    usize caret_iter = 0;
+    auto  caret_iter = 0uz;
 
     auto layout = TextLayout{
       .glyphs{allocator_},
@@ -1244,7 +1261,7 @@ TextLayout FontSysImpl::layout_text(TextBlock const & block, f32 max_width,
                 ++run_iter;
             }
 
-            if (!is_wrap_char(paragraph_str[run_begin]))
+            if (run_begin < paragraph_size && !is_wrap_char(paragraph_str[run_begin]))
             {
                 while (run_iter < paragraph_size &&
                        run_props.style == style_iter.run() &&

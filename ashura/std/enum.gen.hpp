@@ -1336,6 +1336,242 @@ constexpr decltype(auto) match(Enum && e, Fns && ... fns)
   ASH_UNREACHABLE;
 }
 
+template<typename ... T>
+constexpr bool equal(Enum<T...> const& lhs, Enum<T...> const& rhs){
+if(lhs.index_ != rhs.index_){
+  return false;
+}
+
+constexpr unsigned int SIZE = sizeof...(T);
+
+if constexpr(SIZE > 0)
+{
+  if(lhs.index_ == 0)
+  {
+    return lhs.v0_ == rhs.v0_;
+  }
+}
+if constexpr(SIZE > 1)
+{
+  if(lhs.index_ == 1)
+  {
+    return lhs.v1_ == rhs.v1_;
+  }
+}
+if constexpr(SIZE > 2)
+{
+  if(lhs.index_ == 2)
+  {
+    return lhs.v2_ == rhs.v2_;
+  }
+}
+if constexpr(SIZE > 3)
+{
+  if(lhs.index_ == 3)
+  {
+    return lhs.v3_ == rhs.v3_;
+  }
+}
+if constexpr(SIZE > 4)
+{
+  if(lhs.index_ == 4)
+  {
+    return lhs.v4_ == rhs.v4_;
+  }
+}
+if constexpr(SIZE > 5)
+{
+  if(lhs.index_ == 5)
+  {
+    return lhs.v5_ == rhs.v5_;
+  }
+}
+if constexpr(SIZE > 6)
+{
+  if(lhs.index_ == 6)
+  {
+    return lhs.v6_ == rhs.v6_;
+  }
+}
+if constexpr(SIZE > 7)
+{
+  if(lhs.index_ == 7)
+  {
+    return lhs.v7_ == rhs.v7_;
+  }
+}
+if constexpr(SIZE > 8)
+{
+  if(lhs.index_ == 8)
+  {
+    return lhs.v8_ == rhs.v8_;
+  }
+}
+if constexpr(SIZE > 9)
+{
+  if(lhs.index_ == 9)
+  {
+    return lhs.v9_ == rhs.v9_;
+  }
+}
+if constexpr(SIZE > 10)
+{
+  if(lhs.index_ == 10)
+  {
+    return lhs.v10_ == rhs.v10_;
+  }
+}
+if constexpr(SIZE > 11)
+{
+  if(lhs.index_ == 11)
+  {
+    return lhs.v11_ == rhs.v11_;
+  }
+}
+if constexpr(SIZE > 12)
+{
+  if(lhs.index_ == 12)
+  {
+    return lhs.v12_ == rhs.v12_;
+  }
+}
+if constexpr(SIZE > 13)
+{
+  if(lhs.index_ == 13)
+  {
+    return lhs.v13_ == rhs.v13_;
+  }
+}
+if constexpr(SIZE > 14)
+{
+  if(lhs.index_ == 14)
+  {
+    return lhs.v14_ == rhs.v14_;
+  }
+}
+if constexpr(SIZE > 15)
+{
+  if(lhs.index_ == 15)
+  {
+    return lhs.v15_ == rhs.v15_;
+  }
+}
+if constexpr(SIZE > 16)
+{
+  if(lhs.index_ == 16)
+  {
+    return lhs.v16_ == rhs.v16_;
+  }
+}
+if constexpr(SIZE > 17)
+{
+  if(lhs.index_ == 17)
+  {
+    return lhs.v17_ == rhs.v17_;
+  }
+}
+if constexpr(SIZE > 18)
+{
+  if(lhs.index_ == 18)
+  {
+    return lhs.v18_ == rhs.v18_;
+  }
+}
+if constexpr(SIZE > 19)
+{
+  if(lhs.index_ == 19)
+  {
+    return lhs.v19_ == rhs.v19_;
+  }
+}
+if constexpr(SIZE > 20)
+{
+  if(lhs.index_ == 20)
+  {
+    return lhs.v20_ == rhs.v20_;
+  }
+}
+if constexpr(SIZE > 21)
+{
+  if(lhs.index_ == 21)
+  {
+    return lhs.v21_ == rhs.v21_;
+  }
+}
+if constexpr(SIZE > 22)
+{
+  if(lhs.index_ == 22)
+  {
+    return lhs.v22_ == rhs.v22_;
+  }
+}
+if constexpr(SIZE > 23)
+{
+  if(lhs.index_ == 23)
+  {
+    return lhs.v23_ == rhs.v23_;
+  }
+}
+if constexpr(SIZE > 24)
+{
+  if(lhs.index_ == 24)
+  {
+    return lhs.v24_ == rhs.v24_;
+  }
+}
+if constexpr(SIZE > 25)
+{
+  if(lhs.index_ == 25)
+  {
+    return lhs.v25_ == rhs.v25_;
+  }
+}
+if constexpr(SIZE > 26)
+{
+  if(lhs.index_ == 26)
+  {
+    return lhs.v26_ == rhs.v26_;
+  }
+}
+if constexpr(SIZE > 27)
+{
+  if(lhs.index_ == 27)
+  {
+    return lhs.v27_ == rhs.v27_;
+  }
+}
+if constexpr(SIZE > 28)
+{
+  if(lhs.index_ == 28)
+  {
+    return lhs.v28_ == rhs.v28_;
+  }
+}
+if constexpr(SIZE > 29)
+{
+  if(lhs.index_ == 29)
+  {
+    return lhs.v29_ == rhs.v29_;
+  }
+}
+if constexpr(SIZE > 30)
+{
+  if(lhs.index_ == 30)
+  {
+    return lhs.v30_ == rhs.v30_;
+  }
+}
+if constexpr(SIZE > 31)
+{
+  if(lhs.index_ == 31)
+  {
+    return lhs.v31_ == rhs.v31_;
+  }
+}
+  return true;
+}
+
+
 } // namespace intr
 
 
@@ -1507,6 +1743,11 @@ constexpr decltype(auto) match(Fns && ... fns) const
   return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)...);
 }
 
+constexpr bool operator==(Enum const& other) const
+{
+  return intr::equal(*this, other);
+}
+
 
 };
     
@@ -1651,6 +1892,11 @@ requires(sizeof...(Fns) == SIZE)
 constexpr decltype(auto) match(Fns && ... fns) const
 {
   return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)...);
+}
+
+constexpr bool operator==(Enum const& other) const
+{
+  return intr::equal(*this, other);
 }
 
 
@@ -1802,6 +2048,11 @@ requires(sizeof...(Fns) == SIZE)
 constexpr decltype(auto) match(Fns && ... fns) const
 {
   return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)...);
+}
+
+constexpr bool operator==(Enum const& other) const
+{
+  return intr::equal(*this, other);
 }
 
 
@@ -1958,6 +2209,11 @@ requires(sizeof...(Fns) == SIZE)
 constexpr decltype(auto) match(Fns && ... fns) const
 {
   return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)...);
+}
+
+constexpr bool operator==(Enum const& other) const
+{
+  return intr::equal(*this, other);
 }
 
 
@@ -2119,6 +2375,11 @@ requires(sizeof...(Fns) == SIZE)
 constexpr decltype(auto) match(Fns && ... fns) const
 {
   return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)...);
+}
+
+constexpr bool operator==(Enum const& other) const
+{
+  return intr::equal(*this, other);
 }
 
 
@@ -2285,6 +2546,11 @@ requires(sizeof...(Fns) == SIZE)
 constexpr decltype(auto) match(Fns && ... fns) const
 {
   return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)...);
+}
+
+constexpr bool operator==(Enum const& other) const
+{
+  return intr::equal(*this, other);
 }
 
 
@@ -2456,6 +2722,11 @@ requires(sizeof...(Fns) == SIZE)
 constexpr decltype(auto) match(Fns && ... fns) const
 {
   return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)...);
+}
+
+constexpr bool operator==(Enum const& other) const
+{
+  return intr::equal(*this, other);
 }
 
 
@@ -2632,6 +2903,11 @@ requires(sizeof...(Fns) == SIZE)
 constexpr decltype(auto) match(Fns && ... fns) const
 {
   return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)...);
+}
+
+constexpr bool operator==(Enum const& other) const
+{
+  return intr::equal(*this, other);
 }
 
 
@@ -2813,6 +3089,11 @@ requires(sizeof...(Fns) == SIZE)
 constexpr decltype(auto) match(Fns && ... fns) const
 {
   return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)...);
+}
+
+constexpr bool operator==(Enum const& other) const
+{
+  return intr::equal(*this, other);
 }
 
 
@@ -2999,6 +3280,11 @@ requires(sizeof...(Fns) == SIZE)
 constexpr decltype(auto) match(Fns && ... fns) const
 {
   return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)...);
+}
+
+constexpr bool operator==(Enum const& other) const
+{
+  return intr::equal(*this, other);
 }
 
 
@@ -3190,6 +3476,11 @@ requires(sizeof...(Fns) == SIZE)
 constexpr decltype(auto) match(Fns && ... fns) const
 {
   return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)...);
+}
+
+constexpr bool operator==(Enum const& other) const
+{
+  return intr::equal(*this, other);
 }
 
 
@@ -3386,6 +3677,11 @@ requires(sizeof...(Fns) == SIZE)
 constexpr decltype(auto) match(Fns && ... fns) const
 {
   return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)...);
+}
+
+constexpr bool operator==(Enum const& other) const
+{
+  return intr::equal(*this, other);
 }
 
 
@@ -3587,6 +3883,11 @@ requires(sizeof...(Fns) == SIZE)
 constexpr decltype(auto) match(Fns && ... fns) const
 {
   return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)...);
+}
+
+constexpr bool operator==(Enum const& other) const
+{
+  return intr::equal(*this, other);
 }
 
 
@@ -3793,6 +4094,11 @@ requires(sizeof...(Fns) == SIZE)
 constexpr decltype(auto) match(Fns && ... fns) const
 {
   return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)...);
+}
+
+constexpr bool operator==(Enum const& other) const
+{
+  return intr::equal(*this, other);
 }
 
 
@@ -4004,6 +4310,11 @@ requires(sizeof...(Fns) == SIZE)
 constexpr decltype(auto) match(Fns && ... fns) const
 {
   return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)...);
+}
+
+constexpr bool operator==(Enum const& other) const
+{
+  return intr::equal(*this, other);
 }
 
 
@@ -4220,6 +4531,11 @@ requires(sizeof...(Fns) == SIZE)
 constexpr decltype(auto) match(Fns && ... fns) const
 {
   return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)...);
+}
+
+constexpr bool operator==(Enum const& other) const
+{
+  return intr::equal(*this, other);
 }
 
 
@@ -4441,6 +4757,11 @@ requires(sizeof...(Fns) == SIZE)
 constexpr decltype(auto) match(Fns && ... fns) const
 {
   return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)...);
+}
+
+constexpr bool operator==(Enum const& other) const
+{
+  return intr::equal(*this, other);
 }
 
 
@@ -4667,6 +4988,11 @@ requires(sizeof...(Fns) == SIZE)
 constexpr decltype(auto) match(Fns && ... fns) const
 {
   return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)...);
+}
+
+constexpr bool operator==(Enum const& other) const
+{
+  return intr::equal(*this, other);
 }
 
 
@@ -4898,6 +5224,11 @@ requires(sizeof...(Fns) == SIZE)
 constexpr decltype(auto) match(Fns && ... fns) const
 {
   return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)...);
+}
+
+constexpr bool operator==(Enum const& other) const
+{
+  return intr::equal(*this, other);
 }
 
 
@@ -5134,6 +5465,11 @@ requires(sizeof...(Fns) == SIZE)
 constexpr decltype(auto) match(Fns && ... fns) const
 {
   return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)...);
+}
+
+constexpr bool operator==(Enum const& other) const
+{
+  return intr::equal(*this, other);
 }
 
 
@@ -5375,6 +5711,11 @@ requires(sizeof...(Fns) == SIZE)
 constexpr decltype(auto) match(Fns && ... fns) const
 {
   return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)...);
+}
+
+constexpr bool operator==(Enum const& other) const
+{
+  return intr::equal(*this, other);
 }
 
 
@@ -5621,6 +5962,11 @@ requires(sizeof...(Fns) == SIZE)
 constexpr decltype(auto) match(Fns && ... fns) const
 {
   return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)...);
+}
+
+constexpr bool operator==(Enum const& other) const
+{
+  return intr::equal(*this, other);
 }
 
 
@@ -5872,6 +6218,11 @@ requires(sizeof...(Fns) == SIZE)
 constexpr decltype(auto) match(Fns && ... fns) const
 {
   return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)...);
+}
+
+constexpr bool operator==(Enum const& other) const
+{
+  return intr::equal(*this, other);
 }
 
 
@@ -6128,6 +6479,11 @@ requires(sizeof...(Fns) == SIZE)
 constexpr decltype(auto) match(Fns && ... fns) const
 {
   return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)...);
+}
+
+constexpr bool operator==(Enum const& other) const
+{
+  return intr::equal(*this, other);
 }
 
 
@@ -6389,6 +6745,11 @@ requires(sizeof...(Fns) == SIZE)
 constexpr decltype(auto) match(Fns && ... fns) const
 {
   return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)...);
+}
+
+constexpr bool operator==(Enum const& other) const
+{
+  return intr::equal(*this, other);
 }
 
 
@@ -6655,6 +7016,11 @@ requires(sizeof...(Fns) == SIZE)
 constexpr decltype(auto) match(Fns && ... fns) const
 {
   return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)...);
+}
+
+constexpr bool operator==(Enum const& other) const
+{
+  return intr::equal(*this, other);
 }
 
 
@@ -6926,6 +7292,11 @@ requires(sizeof...(Fns) == SIZE)
 constexpr decltype(auto) match(Fns && ... fns) const
 {
   return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)...);
+}
+
+constexpr bool operator==(Enum const& other) const
+{
+  return intr::equal(*this, other);
 }
 
 
@@ -7202,6 +7573,11 @@ requires(sizeof...(Fns) == SIZE)
 constexpr decltype(auto) match(Fns && ... fns) const
 {
   return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)...);
+}
+
+constexpr bool operator==(Enum const& other) const
+{
+  return intr::equal(*this, other);
 }
 
 
@@ -7483,6 +7859,11 @@ requires(sizeof...(Fns) == SIZE)
 constexpr decltype(auto) match(Fns && ... fns) const
 {
   return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)...);
+}
+
+constexpr bool operator==(Enum const& other) const
+{
+  return intr::equal(*this, other);
 }
 
 
@@ -7769,6 +8150,11 @@ requires(sizeof...(Fns) == SIZE)
 constexpr decltype(auto) match(Fns && ... fns) const
 {
   return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)...);
+}
+
+constexpr bool operator==(Enum const& other) const
+{
+  return intr::equal(*this, other);
 }
 
 
@@ -8060,6 +8446,11 @@ requires(sizeof...(Fns) == SIZE)
 constexpr decltype(auto) match(Fns && ... fns) const
 {
   return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)...);
+}
+
+constexpr bool operator==(Enum const& other) const
+{
+  return intr::equal(*this, other);
 }
 
 
@@ -8356,6 +8747,11 @@ requires(sizeof...(Fns) == SIZE)
 constexpr decltype(auto) match(Fns && ... fns) const
 {
   return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)...);
+}
+
+constexpr bool operator==(Enum const& other) const
+{
+  return intr::equal(*this, other);
 }
 
 

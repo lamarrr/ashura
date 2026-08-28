@@ -228,7 +228,6 @@ struct ArenaPoolCfg
 
 typedef struct IArenaPool * ArenaPool;
 
-// TODO: unit tests
 /// @brief An Arena Pool is a collection of arenas. All allocations are
 /// reset/free-d at once. They are suitable for homegenously sized and lifetimed objects.
 ///
@@ -632,13 +631,7 @@ struct IFallbackAllocator : IAllocator
     }
 };
 
-Allocator get_thread_arena_upstream();
-
-Layout get_thread_arena_layout();
-
-Arena get_thread_arena();
-
-struct ScratchScope final : IAllocator
+struct ScratchScope : IAllocator
 {
     ArenaScope         scope_;
     IFallbackAllocator fallback_;
@@ -646,10 +639,6 @@ struct ScratchScope final : IAllocator
     ScratchScope(Arena arena, Allocator upstream) :
       scope_{arena},
       fallback_{arena, upstream}
-    {
-    }
-
-    ScratchScope(Allocator upstream) : ScratchScope(get_thread_arena(), upstream)
     {
     }
 
@@ -662,25 +651,54 @@ struct ScratchScope final : IAllocator
     /// @copydoc IAllocator::alloc
     virtual bool alloc(Layout layout, u8 *& mem) override
     {
+        if (scope_.arena()->alloc(layout, mem))
+        {
+            return true;
+        }
         return fallback_.alloc(layout, mem);
     }
 
     /// @copydoc IAllocator::zalloc
     virtual bool zalloc(Layout layout, u8 *& mem) override
     {
+        if (scope_.arena()->zalloc(layout, mem))
+        {
+            return true;
+        }
         return fallback_.zalloc(layout, mem);
     }
 
     /// @copydoc IAllocator::realloc
     virtual bool realloc(Layout layout, usize new_size, u8 *& mem) override
     {
+        if (scope_.arena()->contains(layout, mem))
+        {
+            return scope_.arena()->realloc(layout, new_size, mem);
+        }
         return fallback_.realloc(layout, new_size, mem);
     }
 
     /// @copydoc IAllocator::dealloc
     virtual void dealloc(Layout layout, u8 * mem) override
     {
+        if (scope_.arena()->contains(layout, mem))
+        {
+            return scope_.arena()->dealloc(layout, mem);
+        }
         fallback_.dealloc(layout, mem);
+    }
+};
+
+Allocator get_thread_arena_upstream();
+
+Layout get_thread_arena_layout();
+
+Arena get_thread_arena();
+
+struct ThreadScratchScope final : ScratchScope
+{
+    ThreadScratchScope() : ScratchScope{get_thread_arena(), get_thread_arena_upstream()}
+    {
     }
 };
 

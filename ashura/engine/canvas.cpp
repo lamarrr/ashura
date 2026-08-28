@@ -2,11 +2,12 @@
 #include "ashura/engine/canvas.hpp"
 #include "ashura/engine/font_system.hpp"
 #include "ashura/engine/pipeline_system.hpp"
-#include "ashura/engine/pipelines/blur.hpp"
-#include "ashura/engine/pipelines/sdf.hpp"
+#include "ashura/engine/pipelines.hpp"
 #include "ashura/engine/systems.hpp"
+#include "ashura/std/dict.hpp"
 #include "ashura/std/math.hpp"
 #include "ashura/std/range.hpp"
+#include "ashura/std/trace.hpp"
 
 namespace ash
 {
@@ -116,11 +117,11 @@ void path::rect(Vec<f32x2> & vtx, f32x2 extent, f32x2 center)
 
 void path::line(Span<f32x2> vtx, f32x2 cp0, f32x2 cp1)
 {
-    auto const segments = size32(vtx);
+    auto segments = size32(vtx);
 
     if (segments > 1)
     {
-        f32 const step = 1 / (segments - 1);
+        auto step = 1 / (segments - 1);
 
         for (u32 i = 0; i < segments; i++)
         {
@@ -143,12 +144,12 @@ void path::line(Span<f32x2> vtx, f32x2 cp0, f32x2 cp1)
 
 void path::arc(Span<f32x2> vtx, f32x2 radii, f32x2 center, f32 start, f32 turn)
 {
-    radii               = radii.max(0);
-    auto const segments = size32(vtx);
+    radii         = radii.max(0);
+    auto segments = size32(vtx);
 
     if (segments > 1)
     {
-        f32 const step = turn / (segments - 1);
+        auto step = turn / (segments - 1);
 
         for (u32 i = 0; i < segments; i++)
         {
@@ -166,11 +167,11 @@ void path::arc(Span<f32x2> vtx, f32x2 radii, f32x2 center, f32 start, f32 turn)
 
 void path::bezier(Span<f32x2> vtx, f32x2 cp0, f32x2 cp1, f32x2 cp2)
 {
-    auto const segments = size32(vtx);
+    auto segments = size32(vtx);
 
     if (segments > 1)
     {
-        f32 const step = 1.0F / (segments - 1);
+        auto step = 1.0F / (segments - 1);
 
         for (u32 i = 0; i < segments; i++)
         {
@@ -189,11 +190,11 @@ void path::bezier(Span<f32x2> vtx, f32x2 cp0, f32x2 cp1, f32x2 cp2)
 
 void path::cubic_bezier(Span<f32x2> vtx, f32x2 cp0, f32x2 cp1, f32x2 cp2, f32x2 cp3)
 {
-    auto const segments = size32(vtx);
+    auto segments = size32(vtx);
 
     if (segments > 1)
     {
-        f32 const step = 1.0F / (segments - 1);
+        auto step = 1.0F / (segments - 1);
 
         for (u32 i = 0; i < segments; i++)
         {
@@ -213,11 +214,11 @@ void path::cubic_bezier(Span<f32x2> vtx, f32x2 cp0, f32x2 cp1, f32x2 cp2, f32x2 
 
 void path::catmull_rom(Span<f32x2> vtx, f32x2 cp0, f32x2 cp1, f32x2 cp2, f32x2 cp3)
 {
-    auto const segments = size32(vtx);
+    auto segments = size32(vtx);
 
     if (segments > 1)
     {
-        f32 const step = 1.0F / (segments - 1);
+        auto step = 1.0F / (segments - 1);
 
         for (u32 i = 0; i < segments; i++)
         {
@@ -242,12 +243,12 @@ void path::circle(Vec<f32x2> & vtx, f32x2 extent, f32x2 center, u32 segments)
         return;
     }
 
-    extent           = extent.max(0);
-    auto const first = size32(vtx);
+    extent     = extent.max(0);
+    auto first = size32(vtx);
 
     vtx.extend_uninit(segments).unwrap();
 
-    f32 const step = (2 * PI) / (segments - 1);
+    auto step = (2 * PI) / (segments - 1);
 
     for (u32 i = 0; i < segments; i++)
     {
@@ -258,7 +259,7 @@ void path::circle(Vec<f32x2> & vtx, f32x2 extent, f32x2 center, u32 segments)
 void path::squircle(Vec<f32x2> & vtx, f32x2 extent, f32x2 center, f32 elasticity,
                     u32 segments)
 {
-    auto const n = segments << 2;
+    auto n = segments << 2;
 
     elasticity = clamp(elasticity * 0.5F, 0.0F, 0.5F);
 
@@ -297,7 +298,7 @@ void path::squircle(Vec<f32x2> & vtx, f32x2 extent, f32x2 center, f32 elasticity
 void path::rrect(Vec<f32x2> & vtx, f32x2 extent, f32x2 center, f32x4 radii,
                  u32 segments)
 {
-    auto const n = (segments << 2) + 8;
+    auto n = (segments << 2) + 8;
 
     extent = extent.max(0);
 
@@ -310,8 +311,8 @@ void path::rrect(Vec<f32x2> & vtx, f32x2 extent, f32x2 center, f32x4 radii,
     auto w_max      = min(z_max, max_radius - radii.z());
     radii.w()       = min(radii.w(), w_max);
 
-    f32 const  step  = (segments == 0) ? 0.0F : ((PI * 0.5F) / segments);
-    auto const first = size32(vtx);
+    auto step  = (segments == 0) ? 0.0F : ((PI * 0.5F) / segments);
+    auto first = size32(vtx);
 
     vtx.extend_uninit(n).unwrap();
 
@@ -368,12 +369,12 @@ void triangulate_stroke(Span<f32x2 const> points, Vec<f32x2> & vertices,
         return;
     }
 
-    I const first_vtx    = static_cast<I>(vertices.size());
-    I const first_idx    = static_cast<I>(indices.size());
-    I const num_points   = static_cast<I>(points.size());
-    I const num_vertices = (num_points - 1) * 4;
-    I const num_indices  = (num_points - 1) * 6 + (num_points - 2) * 6;
-    thickness            = max(thickness, 0.0F);
+    auto first_vtx    = static_cast<I>(vertices.size());
+    auto first_idx    = static_cast<I>(indices.size());
+    auto num_points   = static_cast<I>(points.size());
+    auto num_vertices = (num_points - 1) * 4;
+    auto num_indices  = (num_points - 1) * 6 + (num_points - 2) * 6;
+    thickness         = max(thickness, 0.0F);
 
     vertices.extend_uninit(num_vertices).unwrap();
     indices.extend_uninit(num_indices).unwrap();
@@ -384,16 +385,16 @@ void triangulate_stroke(Span<f32x2 const> points, Vec<f32x2> & vertices,
 
     for (I i = 0; i < num_points - 1; i++)
     {
-        auto const p0    = points[i];
-        auto const p1    = points[i + 1];
-        auto const d     = p1 - p0;
-        auto const alpha = std::atan2(d.y(), d.x());
+        auto p0    = points[i];
+        auto p1    = points[i + 1];
+        auto d     = p1 - p0;
+        auto alpha = std::atan2(d.y(), d.x());
 
         // parallel angle
-        auto const down = thickness * 0.5F * rotor(alpha + PI * 0.5F);
+        auto down = thickness * 0.5F * rotor(alpha + PI * 0.5F);
 
         // perpendicular angle
-        auto const up = -down;
+        auto up = -down;
 
         vtx[0] = p0 + up;
         vtx[1] = p0 + down;
@@ -440,8 +441,8 @@ template <typename I>
 void triangles(I first_vertex, I num_vertices, Vec<I> & indices)
 {
     ASH_CHECK(num_vertices > 3, "");
-    I const num_triangles = num_vertices / 3;
-    I const first_idx     = static_cast<I>(indices.size());
+    auto num_triangles = num_vertices / 3;
+    auto first_idx     = static_cast<I>(indices.size());
     indices.extend_uninit(num_triangles * 3).unwrap();
 
     I * idx = indices.data() + first_idx;
@@ -471,8 +472,8 @@ void triangulate_convex(Vec<I> & idx, I first_vertex, I num_vertices)
         return;
     }
 
-    I const num_indices = (num_vertices - 2) * 3;
-    I const first_index = static_cast<I>(idx.size());
+    auto num_indices = (num_vertices - 2) * 3;
+    auto first_index = static_cast<I>(idx.size());
 
     idx.extend_uninit(num_indices).unwrap();
 
@@ -498,7 +499,7 @@ void path::tesselate_curves(Vec<f32x2> & vertices, Span<CurveType const> segment
                             Span<u32 const>   subdivisions,
                             Span<f32x2 const> control_points)
 {
-    auto const num_vertices = reduce(subdivisions, 0U, add);
+    auto num_vertices = reduce(subdivisions, 0U, add);
 
     vertices.extend_uninit(num_vertices).unwrap();
 
@@ -746,6 +747,7 @@ void ICanvas::reset()
 
 void ICanvas::execute(GpuFramePlan plan)
 {
+    ASH_TRACE_SCOPE;
     ASH_CHECK(state_ == CanvasState::Recorded, "");
 
     plan->reserve_scratch_images(num_image_slots());
@@ -1145,7 +1147,8 @@ void ICanvas::render_blur_(Shape const & info_)
                   scissor = clip_to_scissor(clip_), world_to_ndc = this->world_to_ndc_,
                   framebuffer_extent = this->framebuffer_extent_,
                   &tmp_arena         = this->tmp_arena_](GpuFramePlan plan) {
-        plan->add_pass([&](GpuFrame frame, gpu::CommandEncoder enc) {
+        plan->add_pass([color, scratch_0, scratch_1,
+                        padded_area](GpuFrame frame, gpu::CommandEncoder enc) {
             auto images          = frame->get_scratch_images();
             auto color_image     = images[color].color;
             auto scratch_image_0 = images[scratch_0].color;
@@ -1197,14 +1200,23 @@ void ICanvas::render_blur_(Shape const & info_)
             dst            = (src + 1) & 1;
             auto src_image = images[src];
             auto dst_image = images[dst];
-            auto spread    = u32x2::splat(i).clamp(u32x2::splat(1U), spread_radius);
             auto base      = 1 / framebuffer_extent.to<f32>();
-            auto blur =
-              shader::BlurItem{.uv0     = area.begin().to<f32>() * base,
-                               .uv1     = area.end().to<f32>() * base,
-                               .radius  = spread.to<f32>() * base,
-                               .sampler = SamplerIndex::LinearEdgeClampBlackFloat,
-                               .tex     = ColorImage::sampled_texture_index};
+            auto spread =
+              u32x2::splat(i).clamp(u32x2::splat(1U), spread_radius).to<f32>() * base;
+            auto uv0       = area.begin().to<f32>() * base - 0.5F;
+            auto uv1       = area.end().to<f32>() * base - 0.5F;
+            auto uv_extent = uv1 - uv0;
+            auto uv_center = uv0 + 0.5F * uv_extent;
+            auto uv_transform =
+              transform2d_to_3d(translate2d(uv_center) * scale2d(uv_extent));
+
+            auto blur = shader::BlurItem{
+              .world_to_ndc    = world_to_ndc.to_mat(),
+              .world_transform = unit_object_to_world(info.world_transform, info.area),
+              .uv_transform    = uv_transform.to_mat(),
+              .radius          = spread,
+              .sampler         = SamplerIndex::LinearEdgeClampBlackFloat,
+              .tex             = ColorImage::sampled_texture_index};
 
             auto blur_id = plan->push_gpu(span({blur}));
 
@@ -1240,14 +1252,23 @@ void ICanvas::render_blur_(Shape const & info_)
             dst            = (src + 1) & 1;
             auto src_image = images[src];
             auto dst_image = images[dst];
-            auto spread    = u32x2::splat(i).clamp(u32x2::splat(1U), spread_radius);
             auto base      = 1 / framebuffer_extent.to<f32>();
-            auto blur =
-              shader::BlurItem{.uv0     = area.begin().to<f32>() * base,
-                               .uv1     = area.end().to<f32>() * base,
-                               .radius  = spread.to<f32>() * base,
-                               .sampler = SamplerIndex::LinearEdgeClampBlackFloat,
-                               .tex     = ColorImage::sampled_texture_index};
+            auto spread =
+              u32x2::splat(i).clamp(u32x2::splat(1U), spread_radius).to<f32>() * base;
+            auto uv0       = area.begin().to<f32>() * base - 0.5F;
+            auto uv1       = area.end().to<f32>() * base - 0.5F;
+            auto uv_extent = uv1 - uv0;
+            auto uv_center = uv0 + 0.5F * uv_extent;
+            auto uv_transform =
+              transform2d_to_3d(translate2d(uv_center) * scale2d(uv_extent));
+
+            auto blur = shader::BlurItem{
+              .world_to_ndc    = world_to_ndc.to_mat(),
+              .world_transform = unit_object_to_world(info.world_transform, info.area),
+              .uv_transform    = uv_transform.to_mat(),
+              .radius          = spread,
+              .sampler         = SamplerIndex::LinearEdgeClampBlackFloat,
+              .tex             = ColorImage::sampled_texture_index};
 
             auto blur_id = plan->push_gpu(span({blur}));
 
@@ -1283,9 +1304,11 @@ void ICanvas::render_blur_(Shape const & info_)
         {
             auto src_image    = images[dst];
             auto base         = 1 / framebuffer_extent.to<f32>();
-            auto uv_scale     = info.area.extent * base;
-            auto uv_translate = info.area.center * base;
-            auto uv_transform = translate2d(uv_translate) * scale2d(uv_scale);
+            auto uv0          = area.begin().to<f32>() * base - 0.5F;
+            auto uv1          = area.end().to<f32>() * base - 0.5F;
+            auto uv_extent    = uv1 - uv0;
+            auto uv_center    = uv0 + 0.5F * uv_extent;
+            auto uv_transform = translate2d(uv_center) * scale2d(uv_extent);
 
             auto item = shader::SdfGradientItem{
               .world_transform =
@@ -1302,7 +1325,7 @@ void ICanvas::render_blur_(Shape const & info_)
                                                               .bottom          = info.tint.bottom(),
                                                               .gradient_angle  = info.tint.angle(),
                                                               .gradient_center = info.tint.center(),
-                                                              .sampler         = SamplerIndex::LinearEdgeClampBlackFloat,
+                                                              .sampler         = SamplerIndex::LinearEdgeClampWhiteFloat,
                                                               .texture         = ColorImage::sampled_texture_index,
                                                               .sdf_sampler     = SamplerIndex::LinearBorderClampBlackFloat,
                                                               .sdf_map         = TextureIndex::White}
@@ -1705,10 +1728,10 @@ void ICanvas::render_paths_vector_feathering_(Span<PathInfo const> paths,
             // it is at the lowest depth and will be overriden by the inner region or
             // feather region
             {
-                u32 const num_segments = feather_segments;
-                f32 const step         = (2 * PI) / (num_segments - 1);
-                f32 const signed_step  = signed_area <= 0 ? step :    // CW rotation
-                                                            -step;    // CCW rotation
+                auto num_segments = feather_segments;
+                auto step         = (2 * PI) / (num_segments - 1);
+                auto signed_step  = signed_area <= 0 ? step :    // CW rotation
+                                                       -step;    // CCW rotation
 
                 auto first = size32(path_vertices);
                 path_vertices.extend_uninit(num_segments + 1).unwrap();
@@ -1987,7 +2010,7 @@ ICanvas & ICanvas::mesh_gradient(MeshGradientInfo const & info)
     return *this;
 }
 
-ICanvas & ICanvas::nine_slice(NineSliceInfo const & info)
+ICanvas & ICanvas::nine_slice(NineSliceInfo const &)
 {
     // TODO: implement; critical
     return *this;
@@ -2030,16 +2053,21 @@ ICanvas & ICanvas::paths(Span<PathInfo const> info, bool has_overlaps)
 }
 
 ICanvas & ICanvas::text(TextRenderInfo const &    info,
-                        TextPlacementInfo const & placement)
+                        TextPlacementInfo const & placement, f32x2 center)
 {
+    ASH_TRACE_SCOPE;
+
+    // TODO: use the new slug rendering algorithm
+
     push_clip();
     set_clip(info.clip.intersection(this->clip_));
     defer clip_{[&] { pop_clip(); }};
+    auto  world_transform = info.transform * translate3d(center.append(0));
 
     for (auto & b : placement.backgrounds)
     {
         auto & style = info.runs[b.run_style];
-        rect(Shape{.world_transform = info.transform,
+        rect(Shape{.world_transform = world_transform,
                    .uv_transform    = f32x4x4::identity(),
                    .area            = b.bbox,
                    .bbox_extent     = b.bbox.extent,
@@ -2057,7 +2085,7 @@ ICanvas & ICanvas::text(TextRenderInfo const &    info,
     for (auto & b : placement.glyph_shadows)
     {
         auto & style = info.runs[b.run_style];
-        rect(Shape{.world_transform = info.transform,
+        rect(Shape{.world_transform = world_transform,
                    .uv_transform    = f32x4x4::identity(),
                    .area            = b.bbox,
                    .bbox_extent     = b.bbox.extent,
@@ -2072,21 +2100,29 @@ ICanvas & ICanvas::text(TextRenderInfo const &    info,
                    .sdf_map         = TextureIndex::White});
     }
 
+    BitDict<FontId, FontInfo> font_cache{tmp_arena_};
+
     for (auto & b : placement.glyphs)
     {
-        // TODO: if retrieving the font for each glyph ends up being slow, we can
-        // consider using run-end encoding. of the runs and their glyphs.
-
-        auto & style         = info.runs[b.run_style];
-        auto & font          = info.block.fonts[b.run_style];
-        auto   font_info     = sys.font->get(font.font);
+        auto &   style = info.runs[b.run_style];
+        auto &   font  = info.block.fonts[b.run_style];
+        FontInfo font_info;
+        if (auto info = font_cache.try_get(font.font); info.is_some())
+        {
+            font_info = info.v();
+        }
+        else
+        {
+            font_info = sys.font->get(font.font);
+            font_cache.push(font.font, font_info).unwrap();
+        }
         auto & atlas         = font_info.gpu_atlas.v();
         auto & atlas_glyph   = atlas.glyphs[b.glyph];
         auto   texture_index = atlas.textures[atlas_glyph.layer];
         auto   uv_transform =
           translate2d(atlas_glyph.uv.center) * scale2d(atlas_glyph.uv.extent);
 
-        rect(Shape{.world_transform = info.transform,
+        rect(Shape{.world_transform = world_transform,
                    .uv_transform    = transform2d_to_3d(uv_transform).to_mat(),
                    .area            = b.bbox,
                    .bbox_extent     = b.bbox.extent,
@@ -2104,7 +2140,7 @@ ICanvas & ICanvas::text(TextRenderInfo const &    info,
     for (auto & b : placement.underlines)
     {
         auto & style = info.runs[b.run_style];
-        rect(Shape{.world_transform = info.transform,
+        rect(Shape{.world_transform = world_transform,
                    .uv_transform    = f32x4x4::identity(),
                    .area            = b.bbox,
                    .bbox_extent     = b.bbox.extent,
@@ -2122,7 +2158,7 @@ ICanvas & ICanvas::text(TextRenderInfo const &    info,
     for (auto & b : placement.strikethroughs)
     {
         auto & style = info.runs[b.run_style];
-        rect(Shape{.world_transform = info.transform,
+        rect(Shape{.world_transform = world_transform,
                    .uv_transform    = f32x4x4::identity(),
                    .area            = b.bbox,
                    .bbox_extent     = b.bbox.extent,
@@ -2139,7 +2175,7 @@ ICanvas & ICanvas::text(TextRenderInfo const &    info,
 
     for (auto & b : placement.highlights)
     {
-        rect(Shape{.world_transform = info.transform,
+        rect(Shape{.world_transform = world_transform,
                    .uv_transform    = f32x4x4::identity(),
                    .area            = b.bbox,
                    .bbox_extent     = b.bbox.extent,
@@ -2157,7 +2193,7 @@ ICanvas & ICanvas::text(TextRenderInfo const &    info,
     for (auto & b : placement.carets)
     {
         auto & style = info.caret_styles[b.id];
-        rect(Shape{.world_transform = info.transform,
+        rect(Shape{.world_transform = world_transform,
                    .uv_transform    = f32x4x4::identity(),
                    .area            = b.bbox,
                    .bbox_extent     = b.bbox.extent,

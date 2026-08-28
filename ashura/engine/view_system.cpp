@@ -166,6 +166,8 @@ void IViewSys::build_children_(Tree & tree, ui::View & view, u16 idx, u16 depth,
 
 void IViewSys::build_(Tree & tree, RootView & root, RequestQueue & request_queue)
 {
+    ASH_TRACE_SCOPE;
+
     push_view_(tree, root, 0, 0, RootView::PARENT);
     i32 tab_index = 0;
     build_children_(tree, root, 0, 0, RootView::VIEWPORT, tab_index, request_queue);
@@ -173,7 +175,7 @@ void IViewSys::build_(Tree & tree, RootView & root, RequestQueue & request_queue
 
 void IViewSys::build_states_(Tree & tree)
 {
-    tracing::ScopeTrace trace;
+    ASH_TRACE_SCOPE;
 
     auto n = tree.nodes.views.size();
 
@@ -234,7 +236,7 @@ void IViewSys::build_states_(Tree & tree)
 
 void IViewSys::focus_order_(Tree & tree)
 {
-    tracing::ScopeTrace trace;
+    ASH_TRACE_SCOPE;
 
     iota(tree.props.focus_ord.view(), 0U);
 
@@ -250,7 +252,7 @@ void IViewSys::focus_order_(Tree & tree)
 
 void IViewSys::layout_(Tree & tree, f32x2 viewport_extent)
 {
-    tracing::ScopeTrace trace;
+    ASH_TRACE_SCOPE;
 
     if (tree.nodes.views.is_empty())
     {
@@ -389,7 +391,7 @@ static constexpr Order z_cmp(i32 a_layer, i32 a_z_index, u16 a_depth, i32 b_laye
 
 void IViewSys::stack_(Tree & tree)
 {
-    tracing::ScopeTrace trace;
+    ASH_TRACE_SCOPE;
 
     if (tree.nodes.views.is_empty())
     {
@@ -426,7 +428,7 @@ void IViewSys::stack_(Tree & tree)
 
 void IViewSys::visibility_(Tree & tree)
 {
-    tracing::ScopeTrace trace;
+    ASH_TRACE_SCOPE;
 
     for (auto [i, children] : enumerate(tree.nodes.children))
     {
@@ -452,7 +454,7 @@ void IViewSys::visibility_(Tree & tree)
 
 void IViewSys::render_(Tree & tree, Canvas & canvas)
 {
-    tracing::ScopeTrace trace;
+    ASH_TRACE_SCOPE;
 
     for (auto i : tree.props.z_ord)
     {
@@ -479,25 +481,23 @@ void IViewSys::render_(Tree & tree, Canvas & canvas)
 void IViewSys::dispatch_focus_(Tree & tree, FocusRequest const & request,
                                Vec<Event> & events)
 {
-    auto old        = hot_ids_[cross_frame_focus_state_.tgt];
-    bool was_active = cross_frame_focus_state_.active;
+    {
+        auto old = hot_ids_[cross_frame_focus_state_.tgt == ui::ViewId::None ?
+                              ui::ViewId::Root :
+                              cross_frame_focus_state_.tgt];
+        tree.nodes.views[old]->hot_ = true;
+        if (old != request.tgt)
+        {
+            events.push(Event{.dst = old, .type = ui::Events::FocusOut}).unwrap();
+            events.push(Event{.dst = request.tgt, .type = ui::Events::FocusIn})
+              .unwrap();
+        }
+    }
 
-    tree.nodes.views[old]->hot_         = true;
     tree.nodes.views[request.tgt]->hot_ = true;
 
     cross_frame_focus_state_ = CrossFrameFocusState{
       .active = request.active, .tgt = tree.nodes.views[request.tgt]->id()};
-
-    if (was_active && (!request.active || old != request.tgt))
-    {
-        events.push(Event{.dst = old, .type = ui::Events::FocusOut}).unwrap();
-    }
-
-    if ((request.tgt != old && request.active) ||
-        (request.tgt == old && !was_active && request.active))
-    {
-        events.push(Event{.dst = request.tgt, .type = ui::Events::FocusIn}).unwrap();
-    }
 
     if (request.active && request.grab_focus)
     {
@@ -592,16 +592,17 @@ u16 IViewSys::navigate_focus_(Tree & tree, u16 from_idx, bool forward) const
     return from_idx;
 }
 
-IViewSys::HitState IViewSys::none_seq_(Tree & tree, ui::InputScope const & input,
-                                       Vec<Event> &   events,
-                                       RequestQueue & request_queue)
+IViewSys::HitState IViewSys::none_sequence_(Tree & tree, ui::InputScope const & input,
+                                            Vec<Event> & events)
 {
+    ASH_TRACE_SCOPE;
+
     if (!input.mouse().focused())
     {
         return none;
     }
 
-    return point_seq_(tree, input, none, events, request_queue);
+    return point_sequence_(tree, input, none, events);
 }
 
 template <typename Match>
@@ -664,9 +665,12 @@ Option<u16> bubble_hit(IViewSys::Tree & tree, f32x2 position, Match && match)
     });
 }
 
-IViewSys::HitState IViewSys::drag_start_seq_(Tree & tree, ui::InputScope const & input,
-                                             Option<u16> src, Vec<Event> & events)
+IViewSys::HitState IViewSys::drag_start_sequence_(Tree &                 tree,
+                                                  ui::InputScope const & input,
+                                                  Option<u16> src, Vec<Event> & events)
 {
+    ASH_TRACE_SCOPE;
+
     auto diff = [&](Option<u16> tgt, Option<ui::HitInfo> hit) {
         tgt.match([&](auto i) {
             events.push(Event{.dst = i, .type = ui::Events::DragIn, .hit = hit})
@@ -676,7 +680,7 @@ IViewSys::HitState IViewSys::drag_start_seq_(Tree & tree, ui::InputScope const &
         });
     };
 
-    if (!input.mouse().focused() || input.key().held(KeyCode::Escape))
+    if (!input.mouse().focused() || input.key().down(KeyCode::Escape))
     {
         src.match([&](auto i) {
             events.push(Event{.dst = i, .type = ui::Events::DragEnd}).unwrap();
@@ -689,7 +693,7 @@ IViewSys::HitState IViewSys::drag_start_seq_(Tree & tree, ui::InputScope const &
         return bubble_hit(tree, p, [&](auto i) { return tree.props.droppable[i]; });
     });
 
-    if (!input.mouse().held(MouseButton::Primary))
+    if (input.mouse().up(MouseButton::Primary))
     {
         src.match([&](auto i) {
             events
@@ -731,10 +735,14 @@ IViewSys::HitState IViewSys::drag_start_seq_(Tree & tree, ui::InputScope const &
     return DragState{.seq = DragState::Update, .src = src, .tgt = tgt};
 }
 
-IViewSys::HitState IViewSys::drag_update_seq_(Tree & tree, ui::InputScope const & input,
-                                              Option<u16> src, Option<u16> prev_tgt,
-                                              Vec<Event> & events)
+IViewSys::HitState IViewSys::drag_update_sequence_(Tree &                 tree,
+                                                   ui::InputScope const & input,
+                                                   Option<u16>            src,
+                                                   Option<u16>            prev_tgt,
+                                                   Vec<Event> &           events)
 {
+    ASH_TRACE_SCOPE;
+
     auto diff = [&](Option<u16> tgt, Option<ui::HitInfo> hit) {
         tgt.match([&](auto i) {
             if (prev_tgt == i)
@@ -759,7 +767,7 @@ IViewSys::HitState IViewSys::drag_update_seq_(Tree & tree, ui::InputScope const 
         });
     };
 
-    if (!input.mouse().focused() || input.key().held(KeyCode::Escape))
+    if (!input.mouse().focused() || input.key().down(KeyCode::Escape))
     {
         diff(none, none);
         return none;
@@ -771,7 +779,7 @@ IViewSys::HitState IViewSys::drag_update_seq_(Tree & tree, ui::InputScope const 
     auto hit = tgt.map(
       [&](auto i) { return get_hit_info_(tree, i, input.mouse().position().v()); });
 
-    if (!input.mouse().held(MouseButton::Primary))
+    if (input.mouse().up(MouseButton::Primary))
     {
         diff(tgt, hit);
 
@@ -803,10 +811,11 @@ IViewSys::HitState IViewSys::drag_update_seq_(Tree & tree, ui::InputScope const 
     return DragState{.seq = DragState::Update, .src = src, .tgt = tgt};
 }
 
-IViewSys::HitState IViewSys::point_seq_(Tree & tree, ui::InputScope const & input,
-                                        Option<u16> prev_tgt, Vec<Event> & events,
-                                        RequestQueue & request_queue)
+IViewSys::HitState IViewSys::point_sequence_(Tree & tree, ui::InputScope const & input,
+                                             Option<u16> prev_tgt, Vec<Event> & events)
 {
+    ASH_TRACE_SCOPE;
+
     // TODO: handle external drop
     auto diff = [&](Option<u16> tgt, Option<ui::HitInfo> hit) {
         tgt.match([&](auto i) {
@@ -870,9 +879,7 @@ IViewSys::HitState IViewSys::point_seq_(Tree & tree, ui::InputScope const & inpu
         }
     }
 
-    // TODO: pointerup
-
-    if (input.mouse().held(MouseButton::Primary))
+    if (input.mouse().down(MouseButton::Primary))
     {
         auto tgt = bubble_hit(tree, input.mouse().position().v(), [&](auto i) {
             return tree.props.draggable[i] || tree.props.clickable[i];
@@ -885,30 +892,25 @@ IViewSys::HitState IViewSys::point_seq_(Tree & tree, ui::InputScope const & inpu
         {
             auto i         = tgt.v();
             auto draggable = tree.props.draggable[i];
+            auto clickable = tree.props.clickable[i];
 
-            // focus_on(tree, i, false, false, events);
-            request_queue.focus =
-              FocusRequest{.tgt = i, .active = false, .grab_focus = false};
+            events.push(Event{.dst = i, .type = ui::Events::PointerDown, .hit = hit})
+              .unwrap();
 
             diff(tgt, hit);
 
-            if (draggable)
+            if (draggable || clickable)
             {
-                events.push(Event{.dst = i, .type = ui::Events::DragStart, .hit = hit})
-                  .unwrap();
-                events.push(Event{.dst = i, .type = ui::Events::DragUpdate, .hit = hit})
-                  .unwrap();
-                return DragState{.seq = DragState::Start, .src = i, .tgt = none};
+                return PendingPressState{.clickable = clickable,
+                                         .draggable = draggable,
+                                         .tgt       = tgt,
+                                         .hit       = hit.v()};
             }
-
-            if (input.mouse().any_down())
+            else
             {
-                events
-                  .push(Event{.dst = i, .type = ui::Events::PointerDown, .hit = hit})
-                  .unwrap();
+                ASH_CHECK(false, "unexpected state: pointer down on non-draggable, "
+                                 "non-clickable view");
             }
-
-            return PointState{.tgt = tgt};
         }
     }
 
@@ -922,33 +924,130 @@ IViewSys::HitState IViewSys::point_seq_(Tree & tree, ui::InputScope const & inpu
     return PointState{.tgt = tgt};
 }
 
-void IViewSys::hit_seq_(Tree & tree, ui::InputScope const & input, Vec<Event> & events,
-                        RequestQueue & request_queue)
+IViewSys::HitState
+  IViewSys::pending_press_sequence_(Tree & tree, ui::InputScope const & input,
+                                    bool clickable, bool draggable, Option<u16> tgt,
+                                    ui::HitInfo const & initial_hit,
+                                    Vec<Event> & events, RequestQueue & request_queue)
 {
-    tracing::ScopeTrace trace;
+    ASH_TRACE_SCOPE;
+
+    static constexpr f32 DRAG_THRESHOLD = 2.5F;
+    auto &               m              = input.mouse();
+
+    if (!m.focused())
+    {
+        request_queue.focus =
+          FocusRequest{.tgt = 0, .active = false, .grab_focus = false};
+        return none;
+    }
+
+    if (tgt.is_some())
+    {
+        auto i   = tgt.v();
+        auto hit = tgt.map(
+          [&](auto i) { return get_hit_info_(tree, i, input.mouse().position().v()); });
+
+        if (draggable && m.held(MouseButton::Primary) &&
+            (m.position().v() - initial_hit.canvas_hit).length() > DRAG_THRESHOLD)
+        {
+            request_queue.focus =
+              FocusRequest{.tgt = i, .active = true, .grab_focus = false};
+            events
+              .push(Event{.dst = i, .type = ui::Events::DragStart, .hit = initial_hit})
+              .unwrap();
+            return DragState{.seq = DragState::Start, .src = i, .tgt = none};
+        }
+
+        if (clickable && m.up(MouseButton::Primary))
+        {
+            request_queue.focus =
+              FocusRequest{.tgt = i, .active = true, .grab_focus = false};
+            events.push(Event{.dst = i, .type = ui::Events::PointerUp, .hit = hit})
+              .unwrap();
+            events.push(Event{.dst = i, .type = ui::Events::Click, .hit = hit})
+              .unwrap();
+            return none;
+        }
+
+        if (draggable && m.up(MouseButton::Primary))
+        {
+            request_queue.focus =
+              FocusRequest{.tgt = i, .active = true, .grab_focus = false};
+            events.push(Event{.dst = i, .type = ui::Events::PointerUp, .hit = hit})
+              .unwrap();
+            return none;
+        }
+
+        if (draggable && m.held(MouseButton::Primary))
+        {
+            return PendingPressState{.clickable = clickable,
+                                     .draggable = draggable,
+                                     .tgt       = tgt,
+                                     .hit       = initial_hit};
+        }
+
+        if (clickable && m.held(MouseButton::Primary))
+        {
+            return PendingPressState{.clickable = clickable,
+                                     .draggable = draggable,
+                                     .tgt       = tgt,
+                                     .hit       = initial_hit};
+        }
+    }
+
+    request_queue.focus = FocusRequest{.tgt = 0, .active = true, .grab_focus = false};
+
+    return none;
+}
+
+void IViewSys::hit_sequence_(Tree & tree, ui::InputScope const & input,
+                             Vec<Event> & events, RequestQueue & request_queue)
+{
+    ASH_TRACE_SCOPE;
+
     // - build hitstate from the ids
     // - process event state
     // - mark eventful views as hot
     // - store the events in an event queue using idsm so they can be referenced
     // in the next frame
 
+    // remap IDs from the previous frame to indices on the current frame
     auto hit_state = cross_frame_hit_state_.match(
       [](None) -> HitState { return none; },
-      [&](auto & h) -> HitState {
+      [&](CrossFramePointState const & h) -> HitState {
+          return PointState{.tgt = h.tgt.and_then(
+                              [&](auto id) { return hot_ids_.try_get(id).unref(); })};
+      },
+      [&](CrossFramePendingPressState const & h) -> HitState {
+          return PendingPressState{.clickable = h.clickable,
+                                   .draggable = h.draggable,
+                                   .tgt       = h.tgt.and_then([&](auto id) {
+                                       return hot_ids_.try_get(id).unref();
+                                   }),
+                                   .hit       = h.hit};
+      },
+      [&](CrossFrameDragState const & h) -> HitState {
           return DragState{.seq = h.seq,
                            .src = h.src.and_then(
                              [&](auto id) { return hot_ids_.try_get(id).unref(); }),
                            .tgt = h.tgt.and_then(
                              [&](auto id) { return hot_ids_.try_get(id).unref(); })};
-      },
-      [&](auto & h) -> HitState {
-          return PointState{.tgt = h.tgt.and_then(
-                              [&](auto id) { return hot_ids_.try_get(id).unref(); })};
       });
 
+    // process the hit state and generate events
     hit_state = hit_state.match(
-      [&](None) { return none_seq_(tree, input, events, request_queue); },
-      [&](auto & h) {
+      [&](None) { return none_sequence_(tree, input, events); },
+      [&](PointState const & h) {
+          h.tgt.match([&](auto i) { tree.nodes.views[i]->hot_ = true; });
+          return point_sequence_(tree, input, h.tgt, events);
+      },
+      [&](PendingPressState const & h) {
+          h.tgt.match([&](auto i) { tree.nodes.views[i]->hot_ = true; });
+          return pending_press_sequence_(tree, input, h.clickable, h.draggable, h.tgt,
+                                         h.hit, events, request_queue);
+      },
+      [&](DragState const & h) {
           // mark previous frame's src and dst views as hot, so we can
           // dispatch pointer in/out events to them
           h.src.match([&](auto i) { tree.nodes.views[i]->hot_ = true; });
@@ -957,19 +1056,28 @@ void IViewSys::hit_seq_(Tree & tree, ui::InputScope const & input, Vec<Event> & 
           switch (h.seq)
           {
               case DragState::Start:
-                  return drag_start_seq_(tree, input, h.src, events);
+                  return drag_start_sequence_(tree, input, h.src, events);
               case DragState::Update:
-                  return drag_update_seq_(tree, input, h.src, h.tgt, events);
+                  return drag_update_sequence_(tree, input, h.src, h.tgt, events);
           }
-      },
-      [&](auto & h) {
-          h.tgt.match([&](auto i) { tree.nodes.views[i]->hot_ = true; });
-          return point_seq_(tree, input, h.tgt, events, request_queue);
       });
 
     // mark current source and dst as hot, will still receive events on this frame
     cross_frame_hit_state_ = hit_state.match(
       [](None) -> CrossFrameHitState { return none; },
+      [&](PointState const & h) -> CrossFrameHitState {
+          h.tgt.match([&](auto i) { tree.nodes.views[i]->hot_ = true; });
+          return CrossFramePointState{
+            .tgt = h.tgt.map([&](auto i) { return tree.nodes.views[i]->id(); })};
+      },
+      [&](PendingPressState const & h) -> CrossFrameHitState {
+          h.tgt.match([&](auto i) { tree.nodes.views[i]->hot_ = true; });
+          return CrossFramePendingPressState{
+            .clickable = h.clickable,
+            .draggable = h.draggable,
+            .tgt       = h.tgt.map([&](auto i) { return tree.nodes.views[i]->id(); }),
+            .hit       = h.hit};
+      },
       [&](DragState const & h) -> CrossFrameHitState {
           h.src.match([&](auto i) { tree.nodes.views[i]->hot_ = true; });
           h.tgt.match([&](auto i) { tree.nodes.views[i]->hot_ = true; });
@@ -978,21 +1086,17 @@ void IViewSys::hit_seq_(Tree & tree, ui::InputScope const & input, Vec<Event> & 
             .seq = h.seq,
             .src = h.src.map([&](auto i) { return tree.nodes.views[i]->id(); }),
             .tgt = h.tgt.map([&](auto i) { return tree.nodes.views[i]->id(); })};
-      },
-      [&](PointState const & h) -> CrossFrameHitState {
-          h.tgt.match([&](auto i) { tree.nodes.views[i]->hot_ = true; });
-          return CrossFramePointState{
-            .tgt = h.tgt.map([&](auto i) { return tree.nodes.views[i]->id(); })};
       });
 }
 
-void IViewSys::focus_seq_(Tree & tree, ui::InputScope const & input,
-                          Vec<Event> & events, RequestQueue & request_queue)
+void IViewSys::focus_sequence_(Tree & tree, ui::InputScope const & input,
+                               Vec<Event> & events, RequestQueue & request_queue)
 {
-    tracing::ScopeTrace trace;
+    ASH_TRACE_SCOPE;
+
     // view might be gone when we begin this frame so we can focus on the root
     // view if it has disappeared
-    auto                focus_active = cross_frame_focus_state_.active;
+    auto focus_active = cross_frame_focus_state_.active;
     auto focus_tgt = hot_ids_.try_get(cross_frame_focus_state_.tgt).unref().unwrap_or();
 
     tree.nodes.views[focus_tgt]->hot_ = true;
@@ -1062,12 +1166,12 @@ Tuple<Option<ui::FocusRect>, Option<TextInputInfo>, Cursor>
   IViewSys::prepare_events_(Tree & tree, ui::InputScope const & input,
                             RequestQueue & request_queue, Allocator scratch_allocator)
 {
-    tracing::ScopeTrace trace;
+    ASH_TRACE_SCOPE;
 
     Vec<Event> events{scratch_allocator};
 
-    hit_seq_(tree, input, events, request_queue);
-    focus_seq_(tree, input, events, request_queue);
+    hit_sequence_(tree, input, events, request_queue);
+    focus_sequence_(tree, input, events, request_queue);
 
     Option<ui::FocusRect> focus_rect;
     Option<TextInputInfo> input_info;
@@ -1110,8 +1214,11 @@ Tuple<Option<ui::FocusRect>, Option<TextInputInfo>, Cursor>
 ViewSysState IViewSys::tick(Engine engine, ui::InputScope const & input, Canvas canvas,
                             Fn<ui::View &(Engine, ui::Scope const &)> loop)
 {
-    tracing::ScopeTrace trace;
-    ScratchScope        scratch{allocator_};
+    ASH_TRACE_SCOPE;
+
+    // TODO: input event trickling
+
+    ThreadScratchScope scratch;
 
     auto & base      = loop(engine, prev_frame_scope_);
     root_view_.next_ = base;

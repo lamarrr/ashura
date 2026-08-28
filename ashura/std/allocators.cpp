@@ -89,7 +89,7 @@ void ThreadArenaHook::pop(ThreadArenaHook * hook)
 
 Allocator get_thread_arena_upstream()
 {
-    return heap_allocator;
+    return default_allocator;
 }
 
 Layout get_thread_arena_layout()
@@ -98,6 +98,9 @@ Layout get_thread_arena_layout()
     return Layout{alignof(max_align_t), CFG_THREAD_ARENA_SIZE};
 }
 
+
+// TODO: make this defer-initialized so that not all threads will allocate memory?
+// otherwise consider making arena smaller?
 Arena get_thread_arena()
 {
     static thread_local ThreadArenaHook thread_arena{

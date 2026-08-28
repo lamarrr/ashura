@@ -108,16 +108,13 @@ struct FontSysImpl final : IFontSys
     SparseVec<FontId, Dyn<Font>> fonts_;
     FileSys                      file_sys_;
     ImageSys                     image_sys_;
-    Scheduler                    scheduler_;
 
-    explicit FontSysImpl(Allocator allocator, FileSys file_sys, ImageSys image_sys,
-                         Scheduler scheduler) :
+    explicit FontSysImpl(Allocator allocator, FileSys file_sys, ImageSys image_sys) :
       allocator_{allocator},
       rw_lock_{},
       fonts_{allocator},
       file_sys_{file_sys},
-      image_sys_{image_sys},
-      scheduler_{scheduler}
+      image_sys_{image_sys}
     {
     }
 
@@ -144,7 +141,7 @@ struct FontSysImpl final : IFontSys
     Future<Result<GpuFontAtlas, SysErr>>
       upload_atlas_to_gpu_(Str label, Rc<CpuFontAtlas const *> cpu_atlas);
 
-    FontId add_font_(Dyn<Font> font, GpuFontAtlas gpu_atlas);
+    FontId add_font_(Dyn<Font> font, GpuFontAtlas gpu_atlas, Option<FontId> target_id);
 
     TextLayoutBufferImpl & get_thread_layout_buffer();
 
@@ -152,10 +149,12 @@ struct FontSysImpl final : IFontSys
                                    f32 align_width) override;
 
     virtual Future<Result<FontId, SysErr>>
-      load_from_memory(Str label, RcBlob8 encoded, u32 font_height, u32 face) override;
+      load_from_memory(Str label, RcBlob8 encoded, u32 font_height, u32 face,
+                       Option<FontId> target_id) override;
 
     virtual Future<Result<FontId, SysErr>>
-      load_from_path(Str label, Str path, u32 font_height, u32 face) override;
+      load_from_path(Str label, Str path, u32 font_height, u32 face,
+                     Option<FontId> target_id) override;
 
     virtual FontInfo get(FontId id) override;
 

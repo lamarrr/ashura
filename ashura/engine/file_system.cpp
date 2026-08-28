@@ -5,8 +5,7 @@
 namespace ash
 {
 
-IFileSys::IFileSys(Scheduler scheduler, [[maybe_unused]] Allocator allocator) :
-  scheduler_(scheduler)
+IFileSys::IFileSys([[maybe_unused]] Allocator allocator)
 {
 }
 
@@ -30,15 +29,15 @@ Future<Result<Vec<u8>, SysErr>> IFileSys::load_file(Allocator allocator, Str pat
     Vec<char> path_copy{allocator};
     path_copy.append(path).unwrap();
 
-    return scheduler_
-      ->run(allocator, WorkerThread::Any,
-            [allocator, path = std::move(path_copy)]() {
-                Vec<u8> data{allocator};
-                using R = Result<Vec<u8>, SysErr>;
-                return read_file(path, data, allocator)
-                  .match([&](Void) -> R { return Ok{std::move(data)}; },
-                         [&](IoErr err) -> R { return Err{to_sys_err(err)}; });
-            })
+    return scheduler()
+      .run(allocator, WorkerThread::Any,
+           [allocator, path = std::move(path_copy)]() {
+               Vec<u8> data{allocator};
+               using R = Result<Vec<u8>, SysErr>;
+               return read_file(path, data, allocator)
+                 .match([&](Void) -> R { return Ok{std::move(data)}; },
+                        [&](IoErr err) -> R { return Err{to_sys_err(err)}; });
+           })
       .unwrap();
 }
 

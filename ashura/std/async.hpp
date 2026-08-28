@@ -648,13 +648,13 @@ template <typename Sem, typename Stage, typename SemaphoreKey, typename StageKey
                                    StageKey &&     stage_key     = {})
 {
     ASH_CHECK(semaphores.size() == stages.size(), "");
-    usize const n = semaphores.size();
+    auto n = semaphores.size();
 
     for (auto i = 0uz; i < n; i++)
     {
         ITimelineSemaphore & semaphore = semaphore_key(semaphores[i]);
-        u64 const            stage     = stage_key(stages[i]);
-        bool const           is_ready  = semaphore.is_completed(stage);
+        auto                 stage     = stage_key(stages[i]);
+        auto                 is_ready  = semaphore.is_completed(stage);
 
         if (!is_ready)
         {
@@ -668,13 +668,13 @@ template <typename Sem, typename Stage, typename SemaphoreKey, typename StageKey
 template <typename Future, typename FutureStageKey>
 [[nodiscard]] bool poll_futures(Span<Future> futures, FutureStageKey && stage_key = {})
 {
-    usize const n = futures.size();
+    auto n = futures.size();
 
     for (auto i = 0uz; i < n; i++)
     {
         FutureStage &   stage = stage_key(futures[i]);
         std::atomic_ref stage_ref{stage};
-        bool const      is_ready =
+        auto            is_ready =
           stage_ref.load(std::memory_order_acquire) == FutureStage::Yielded;
 
         if (!is_ready)
@@ -688,7 +688,7 @@ template <typename Future, typename FutureStageKey>
 
 [[nodiscard]] inline bool poll_futures(Span<FutureStage * const> futures)
 {
-    return poll_futures(futures, [](auto const & f) -> FutureStage & { return *f; });
+    return poll_futures(futures, [](auto & f) -> FutureStage & { return *f; });
 }
 
 }    // namespace impl
@@ -824,7 +824,7 @@ struct [[nodiscard]] Future
     template <typename... Args>
     Result<> yield(Args &&... args) const
     {
-        bool const yielded = state_->init(static_cast<Args &&>(args)...);
+        auto yielded = state_->init(static_cast<Args &&>(args)...);
 
         if (!yielded)
         {
@@ -1086,7 +1086,7 @@ struct [[nodiscard]] Delay
         {
             return true;
         }
-        auto const past = steady_clock::now() - from;
+        auto past = steady_clock::now() - from;
         return past >= delay;
     }
 };
@@ -1169,8 +1169,10 @@ struct IScheduler
     /// task queue.
     virtual void shutdown() = 0;
 
+    /// @brief Gets the number of dedicated threads in the scheduler
     [[nodiscard]] virtual u32 num_dedicated() = 0;
 
+    /// @brief Gets the number of worker threads in the scheduler
     [[nodiscard]] virtual u32 num_workers() = 0;
 
     /// @brief Schedule task to a specific thread
@@ -1185,8 +1187,10 @@ struct IScheduler
     /// the task queue is empty
     virtual void run_main_loop(nanoseconds duration, nanoseconds poll_max) = 0;
 
+    /// @brief Request that a thread stop executing and completes the tasks on its queue.
     virtual void request_thread_shutdown(Thread thread) = 0;
 
+    /// @brief Await that a thread has stopped executing and completed the tasks on its queue.
     virtual void await_thread_shutdown(Thread thread) = 0;
 
     /// @brief Schedule a task to run
@@ -1455,7 +1459,7 @@ struct IScheduler
                        else
                        {
                            // early exit
-                           bool const done = fn(i);
+                           auto done = fn(i);
                            i++;
                            return done || (n == i);
                        }
@@ -1511,10 +1515,8 @@ struct IScheduler
     }
 };
 
-extern Scheduler scheduler;
+IScheduler & scheduler();
 
-/// @brief Global scheduler object. Designed for hooking across DLLs. Must be
-/// initialized at program startup.
-ASH_C_LINKAGE ASH_DLL_EXPORT void hook_scheduler(Scheduler);
+void initialize_scheduler(SchedulerInfo const & info);
 
 }    // namespace ash

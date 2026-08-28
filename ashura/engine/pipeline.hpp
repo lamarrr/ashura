@@ -2,7 +2,7 @@
 #pragma once
 #include "ashura/engine/gpu_system.hpp"
 #include "ashura/engine/shaders/items.gen.hpp"
-#include "ashura/gpu/gpu.h"
+#include "ashura/gpu/gpu.hpp"
 #include "ashura/std/types.hpp"
 
 namespace ash
@@ -30,6 +30,8 @@ struct PipelineStencil
 {
     gpu::StencilState front = {};
     gpu::StencilState back  = {};
+
+    constexpr bool operator==(PipelineStencil const & other) const = default;
 };
 
 enum class PipelineVariantId : u32

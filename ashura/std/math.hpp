@@ -167,7 +167,7 @@ constexpr f32 invsqrt(f32 x)
 {
     // (enable only on IEEE 754)
     static_assert(std::numeric_limits<f32>::is_iec559);
-    f32 const y = std::bit_cast<f32>(0x5F37'59DF - (std::bit_cast<u32>(x) >> 1));
+    auto y = std::bit_cast<f32>(0x5F37'59DF - (std::bit_cast<u32>(x) >> 1));
     return y * (1.5F - (x * 0.5F * y * y));
 }
 
@@ -289,8 +289,8 @@ constexpr T catmull_rom(T const & p0, T const & p1, T const & p2, T const & p3,
 inline f32 elastic(f32 amplitude, f32 period, f32 t)
 {
     constexpr f32 TWO_PI = 2.0F * PI;
-    f32 const     s      = (period * (1 / TWO_PI)) * std::asin(1 / amplitude);
-    f32 const     factor =
+    auto          s      = (period * (1 / TWO_PI)) * std::asin(1 / amplitude);
+    auto          factor =
       amplitude * std::pow(2.0F, -10.0F * t) * std::sin((t - s) * (TWO_PI / period)) +
       1.0F;
     return factor;
@@ -340,22 +340,22 @@ constexpr f32 bounce(f32 strength, f32 t)
 inline f32 spring(f32 mass, f32 stiffness, f32 damping, f32 t)
 {
     // Calculate critical damping factors
-    f32 const omega0           = std::sqrt(stiffness / mass);
-    f32 const critical_damping = 2.0F * std::sqrt(mass * stiffness);
-    f32 const damping_ratio    = damping / critical_damping;
+    auto omega0           = std::sqrt(stiffness / mass);
+    auto critical_damping = 2.0F * std::sqrt(mass * stiffness);
+    auto damping_ratio    = damping / critical_damping;
 
     // Underdamped
     if (damping_ratio < 1.0F)
     {
-        f32 const omega_d = omega0 * std::sqrt(1.0F - damping_ratio * damping_ratio);
+        auto omega_d = omega0 * std::sqrt(1.0F - damping_ratio * damping_ratio);
         return 1.0F - std::exp(-damping_ratio * omega0 * t) *
                         (std::cos(omega_d * t) +
                          (damping_ratio * omega0 / omega_d) * std::sin(omega_d * t));
     }
 
     // Overdamped or critically damped
-    f32 const alpha = -damping_ratio * omega0;
-    f32 const beta  = omega0 * std::sqrt(damping_ratio * damping_ratio - 1.0F);
+    auto alpha = -damping_ratio * omega0;
+    auto beta  = omega0 * std::sqrt(damping_ratio * damping_ratio - 1.0F);
     return 1.0F - (std::exp(alpha * t) *
                    (std::cosh(beta * t) + (alpha / beta) * std::sinh(beta * t)));
 }
@@ -396,7 +396,7 @@ constexpr T axis_to_norm(T const & axis)
 template <typename T>
 constexpr T space_align(T const & space, T const & item, T const & alignment)
 {
-    T const half_space = 0.5F * (space - item);
+    auto half_space = 0.5F * (space - item);
     return lerp(-half_space, half_space, axis_to_norm(alignment));
 }
 
@@ -2324,7 +2324,7 @@ constexpr f32x3 transform(f32x4x4 const & t, f32x3 value)
 
 constexpr f32x3 transform(affinef32x4 const & t, f32x3 value)
 {
-    return (t * (f32x4{value.x(), value.y(), 1})).xyz();
+    return (t * (f32x4{value.x(), value.y(), value.z(), 1})).xyz();
 }
 
 inline f32x2 sin(f32x2 v)
@@ -2925,9 +2925,9 @@ constexpr bool operator!=(CBox const & a, CBox const & b)
 /// respecting the provided aspect ratio
 constexpr f32x2 with_aspect(f32x2 extent, f32 aspect_ratio)
 {
-    f32 const   base          = min(extent.x(), extent.y());
-    f32x2 const width_scaled  = f32x2{base * aspect_ratio, base};
-    f32x2 const height_scaled = f32x2{base, base / aspect_ratio};
+    auto base          = min(extent.x(), extent.y());
+    auto width_scaled  = f32x2{base * aspect_ratio, base};
+    auto height_scaled = f32x2{base, base / aspect_ratio};
 
     if (width_scaled.x() <= extent.x())
     {
@@ -2948,8 +2948,8 @@ constexpr f32x2 with_aspect(f32x2 extent, f32 aspect_ratio)
 /// MUST NOT be equal to zero. zfar MUST be greater than znear.
 constexpr affinef32x4 orthographic(f32 x_mag, f32 y_mag, f32 z_near, f32 z_far)
 {
-    f32 const z_diff     = z_near - z_far;
-    f32 const z_diff_inv = 1 / z_diff;
+    auto z_diff     = z_near - z_far;
+    auto z_diff_inv = 1 / z_diff;
     return affinef32x4{
       {{1 / x_mag, 0, 0, 0},
        {0, 1 / y_mag, 0, 0},
@@ -2964,9 +2964,9 @@ constexpr affinef32x4 orthographic(f32 x_mag, f32 y_mag, f32 z_near, f32 z_far)
 /// @param z_near The distance to the near clipping plane.
 inline f32x4x4 perspective(f32 aspect_ratio, f32 y_fov, f32 z_far, f32 z_near)
 {
-    f32 const s          = tanf(y_fov * 0.5F);
-    f32 const z_diff     = z_near - z_far;
-    f32 const z_diff_inv = 1 / z_diff;
+    auto s          = tanf(y_fov * 0.5F);
+    auto z_diff     = z_near - z_far;
+    auto z_diff_inv = 1 / z_diff;
     return f32x4x4{
       {{1 / (aspect_ratio * s), 0, 0, 0},
        {0, 1 / s, 0, 0},
@@ -2977,9 +2977,9 @@ inline f32x4x4 perspective(f32 aspect_ratio, f32 y_fov, f32 z_far, f32 z_near)
 
 constexpr f32x4x4 look_at(f32x3 eye, f32x3 center, f32x3 up)
 {
-    f32x3 const f = normalize(center - eye);
-    f32x3 const s = normalize(up.cross(f));
-    f32x3 const u = f.cross(s);
+    auto f = normalize(center - eye);
+    auto s = normalize(up.cross(f));
+    auto u = f.cross(s);
 
     return {
       {{s.x(), s.x(), s.x(), 0},

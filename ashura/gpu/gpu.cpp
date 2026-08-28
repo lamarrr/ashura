@@ -1,5 +1,5 @@
 /// SPDX-License-Identifier: MIT
-#include "ashura/gpu/gpu.h"
+#include "ashura/gpu/gpu.hpp"
 
 namespace ash
 {

@@ -259,8 +259,8 @@ constexpr TokenSeekResult seek_token(Str source, char const *& iter,
 
     if (iter != end)
     {
-        auto const      token_begin = iter;
-        TokenType const type        = next_token(iter, end);
+        auto token_begin = iter;
+        auto type        = next_token(iter, end);
         return TokenSeekResult{.type = type,
                                .token{Span{token_begin, iter}.as_slice_of(source)}};
     }
@@ -391,7 +391,7 @@ constexpr ParseState parser_state(ParseState state, TokenType token)
     }
 
     char const * iter = str.pbegin();
-    auto const   end  = str.pend();
+    auto         end  = str.pend();
 
     while (iter != end)
     {
@@ -463,18 +463,18 @@ constexpr Result parse_spec(Str source, Str str, Spec & spec)
     ParseState state = ParseState::Start;
 
     char const * iter = str.pbegin();
-    auto const   end  = str.pend();
+    auto         end  = str.pend();
 
     while (iter != end)
     {
-        TokenSeekResult const result = seek_token(source, iter, end);
+        auto result = seek_token(source, iter, end);
 
         if (result.type == TokenType::Unrecognized)
         {
             return Result{.error = Error::UnexpectedToken, .position = result.token};
         }
 
-        ParseState const current_state = parser_state(state, result.type);
+        auto current_state = parser_state(state, result.type);
 
         switch (current_state)
         {
@@ -500,9 +500,9 @@ constexpr Result parse_spec(Str source, Str str, Spec & spec)
 template <typename T>
 constexpr bool streq_same_size(Span<T> s0, Span<T> s1)
 {
-    auto       p0     = s0.pbegin();
-    auto const p0_end = s0.pend();
-    auto       p1     = s1.pbegin();
+    auto p0     = s0.pbegin();
+    auto p0_end = s0.pend();
+    auto p1     = s1.pbegin();
 
     while (p0 != p0_end && *p0 == *p1)
     {
@@ -516,7 +516,7 @@ constexpr bool streq_same_size(Span<T> s0, Span<T> s1)
 template <typename T>
 constexpr Slice substr(Span<T> str, Span<T> part)
 {
-    auto const part_size = part.size();
+    auto part_size = part.size();
 
     if (part_size > str.size())
     {
@@ -528,9 +528,9 @@ constexpr Slice substr(Span<T> str, Span<T> part)
         return Slice{0, 0};
     }
 
-    auto const begin    = str.pbegin();
-    auto       iter     = str.pbegin();
-    auto const iter_end = str.pend() - part.size();
+    auto begin    = str.pbegin();
+    auto iter     = str.pbegin();
+    auto iter_end = str.pend() - part.size();
 
     while (iter != iter_end && !streq_same_size({iter, part_size}, part))
     {
@@ -548,8 +548,7 @@ constexpr Slice substr(Span<T> str, Span<T> part)
 constexpr Result push_spec(Str format, Str spec_src, Buffer<Op> & ops, usize & num_args)
 {
     Spec spec;
-    if (auto const result = parse_spec(format, spec_src, spec);
-        result.error != Error::None)
+    if (auto result = parse_spec(format, spec_src, spec); result.error != Error::None)
     {
         return result;
     }
@@ -608,12 +607,12 @@ constexpr char const * seek_spec_end(char const * iter, char const * end)
 constexpr Result parse(Str format, Buffer<Op> & ops, usize & num_args)
 {
     char const * iter = format.pbegin();
-    auto const   end  = format.pend();
+    auto         end  = format.pend();
 
     while (iter != end)
     {
-        auto const seek_begin = iter;
-        iter                  = impl::seek_token(iter, end);
+        auto seek_begin = iter;
+        iter            = impl::seek_token(iter, end);
 
         if (seek_begin != iter)
         {
@@ -633,10 +632,10 @@ constexpr Result parse(Str format, Buffer<Op> & ops, usize & num_args)
         {
             case '{':
             {
-                auto const expr_begin = iter;
+                auto expr_begin = iter;
                 iter++;
-                auto const spec_begin = iter;
-                iter                  = impl::seek_eq(iter, end, '}');
+                auto spec_begin = iter;
+                iter            = impl::seek_eq(iter, end, '}');
 
                 if (iter == end)
                 {
@@ -647,13 +646,13 @@ constexpr Result parse(Str format, Buffer<Op> & ops, usize & num_args)
                     };
                 }
 
-                auto const spec_end = iter;
+                auto spec_end = iter;
 
                 iter++;
 
                 Span const spec{spec_begin, spec_end};
 
-                if (auto const result = impl::push_spec(format, spec, ops, num_args);
+                if (auto result = impl::push_spec(format, spec, ops, num_args);
                     result.error != Error::None)
                 {
                     return result;
@@ -670,12 +669,12 @@ constexpr Result parse(Str format, Buffer<Op> & ops, usize & num_args)
 
             case '\\':
             {
-                auto const expr_begin = iter;
+                auto expr_begin = iter;
                 iter++;
 
-                auto const   escaped      = *iter;
-                auto const * escape_begin = iter;
-                auto const * escape_end   = iter + 1;
+                auto   escaped      = *iter;
+                auto * escape_begin = iter;
+                auto * escape_end   = iter + 1;
                 iter++;
 
                 if (!impl::is_token(escaped))

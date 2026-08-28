@@ -3,14 +3,7 @@
 
 #include "ashura/engine/pipeline.hpp"
 
-#include "ashura/engine/pipelines/bezier_stencil.hpp"
-#include "ashura/engine/pipelines/blur.hpp"
-#include "ashura/engine/pipelines/fill_stencil.hpp"
-#include "ashura/engine/pipelines/pbr.hpp"
-#include "ashura/engine/pipelines/quad.hpp"
-#include "ashura/engine/pipelines/sdf.hpp"
-#include "ashura/engine/pipelines/triangle_fill.hpp"
-#include "ashura/engine/pipelines/vector_path.hpp"
+#include "ashura/engine/pipelines.hpp"
 #include "ashura/std/allocator.hpp"
 #include "ashura/std/math.hpp"
 #include "ashura/std/obj.hpp"
@@ -96,7 +89,7 @@ static void push_state(State const & state, Vec<State> & states, Vec<u32> & runs
     }
     else
     {
-        if (obj::byte_eq(state, states.last()))
+        if (state == states.last())
         {
             runs.last()++;
         }
@@ -195,8 +188,7 @@ struct SdfEncoder final : ICanvasEncoder
 
     [[nodiscard]] bool push(Item const & item)
     {
-        auto mergeable = obj::byte_eq(Tuple{texture_set_, variant_},
-                                      Tuple{item.texture_set, item.variant});
+        auto mergeable = texture_set_ == item.texture_set && variant_ == item.variant;
 
         if (!mergeable)
         {
@@ -284,8 +276,7 @@ struct QuadEncoder final : ICanvasEncoder
 
     [[nodiscard]] bool push(Item const & item)
     {
-        auto mergeable = obj::byte_eq(Tuple{texture_set_, variant_},
-                                      Tuple{item.texture_set, item.variant});
+        auto mergeable = texture_set_ == item.texture_set && variant_ == item.variant;
 
         if (!mergeable)
         {
@@ -396,8 +387,7 @@ struct TriangleFillEncoder final : ICanvasEncoder
 
     [[nodiscard]] bool push(Item const & item)
     {
-        auto mergeable = obj::byte_eq(Tuple{texture_set_, variant_},
-                                      Tuple{item.texture_set, item.variant});
+        auto mergeable = texture_set_ == item.texture_set && variant_ == item.variant;
 
         if (!mergeable)
         {
@@ -850,8 +840,7 @@ struct VectorPathEncoder final : ICanvasEncoder
 
     [[nodiscard]] bool push(Item const & item)
     {
-        auto mergeable = obj::byte_eq(Tuple{texture_set_, variant_},
-                                      Tuple{item.texture_set, item.variant});
+        auto mergeable = texture_set_ == item.texture_set && variant_ == item.variant;
 
         if (!mergeable)
         {

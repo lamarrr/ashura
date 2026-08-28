@@ -19,32 +19,32 @@ TYPED_TEST_SUITE(VecTest, Types);
 
 TYPED_TEST(VecTest, Push)
 {
-  TypeParam a{default_allocator};
+    TypeParam a{default_allocator};
 
-  for (auto i : range<i32>(256))
-  {
-    a.push(i).unwrap();
-  }
+    for (auto i : range<i32>(256))
+    {
+        a.push(i).unwrap();
+    }
 
-  EXPECT_EQ(a.size(), 256);
+    EXPECT_EQ(a.size(), 256);
 
-  for (auto [i, e] : enumerate<i32>(a))
-  {
-    EXPECT_EQ(i, e);
-  }
+    for (auto [i, e] : enumerate<i32>(a))
+    {
+        EXPECT_EQ(i, e);
+    }
 }
 
 TEST(MemVecTest, Leak)
 {
-  Vec<f32> a{default_allocator};
-  a.resize(200).unwrap();
+    Vec<f32> a{default_allocator};
+    a.resize(200).unwrap();
 
-  auto prev = a.view();
+    auto prev = a.view();
 
-  auto leaked = a.leak();
+    auto leaked = a.leak();
 
-  EXPECT_EQ(prev.data(), leaked.data());
-  EXPECT_EQ(prev.size(), leaked.size());
-  EXPECT_EQ(a.data(), nullptr);
-  EXPECT_EQ(a.size(), 0);
+    EXPECT_EQ(prev.data(), leaked.data());
+    EXPECT_EQ(prev.size(), leaked.size());
+    EXPECT_EQ(a.data(), nullptr);
+    EXPECT_EQ(a.size(), 0);
 }

@@ -306,7 +306,7 @@ struct [[nodiscard]] Buffer
     /// @returns true if there's enough memory to perform the operation
     [[nodiscard]] constexpr bool extend(usize extension)
     {
-        usize const pos = size_;
+        auto pos = size_;
 
         if (!extend_uninit(extension)) [[unlikely]]
         {
@@ -322,7 +322,7 @@ struct [[nodiscard]] Buffer
     /// @returns true if there's enough memory to perform the operation
     [[nodiscard]] constexpr bool append(Span<T const> span)
     {
-        usize const pos = size_;
+        auto pos = size_;
 
         if (!extend_uninit(span.size())) [[unlikely]]
         {

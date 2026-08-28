@@ -145,6 +145,7 @@ struct GpuFontAtlas
 enum class FontId : u64
 {
     Default = 0,
+    Icons   = 1,
     None    = U64_MAX
 };
 

@@ -2,7 +2,7 @@
 #pragma once
 
 #include "ashura/engine/input.hpp"
-#include "ashura/gpu/gpu.h"
+#include "ashura/gpu/gpu.hpp"
 #include "ashura/std/dyn.hpp"
 #include "ashura/std/image.hpp"
 #include "ashura/std/math.hpp"

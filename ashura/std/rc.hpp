@@ -146,7 +146,7 @@ struct RcObject
             }
             case RcAction::Unalias:
             {
-                auto const old = p->v.alias_count.unalias();
+                auto old = p->v.alias_count.unalias();
                 if (old == 0)
                 {
                     auto allocator = p->allocator;

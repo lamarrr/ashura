@@ -185,44 +185,42 @@ struct ILogger
     }
 };
 
-extern Logger logger;
-
-ASH_C_LINKAGE ASH_DLL_EXPORT void hook_logger(Logger);
+ILogger & logger();
 
 template <typename... Args>
 void debug(Str fstr, Args const &... args)
 {
-    logger->debug(fstr, args...);
+    logger().debug(fstr, args...);
 }
 
 template <typename... Args>
 void trace(Str fstr, Args const &... args)
 {
-    logger->trace(fstr, args...);
+    logger().trace(fstr, args...);
 }
 
 template <typename... Args>
 void info(Str fstr, Args const &... args)
 {
-    logger->info(fstr, args...);
+    logger().info(fstr, args...);
 }
 
 template <typename... Args>
 void warn(Str fstr, Args const &... args)
 {
-    logger->warn(fstr, args...);
+    logger().warn(fstr, args...);
 }
 
 template <typename... Args>
 void error(Str fstr, Args const &... args)
 {
-    logger->error(fstr, args...);
+    logger().error(fstr, args...);
 }
 
 template <typename... Args>
 void fatal(Str fstr, Args const &... args)
 {
-    logger->fatal(fstr, args...);
+    logger().fatal(fstr, args...);
 }
 
 }    // namespace ash

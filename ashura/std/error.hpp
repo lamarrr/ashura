@@ -21,11 +21,11 @@
     } while (false)
 
 #define ASH_CHECK_SLOC(src_loc_expr, cond_expr, description_fstr, ...) \
-    ASH_CHECK_EX(*::ash::logger, src_loc_expr, cond_expr,              \
+    ASH_CHECK_EX(::ash::logger(), src_loc_expr, cond_expr,             \
                  description_fstr __VA_OPT__(, ) __VA_ARGS__)
 
-#define ASH_CHECK(cond_expr, description_fstr, ...)                           \
-    ASH_CHECK_EX(*::ash::logger, ::ash::SourceLocation::current(), cond_expr, \
+#define ASH_CHECK(cond_expr, description_fstr, ...)                            \
+    ASH_CHECK_EX(::ash::logger(), ::ash::SourceLocation::current(), cond_expr, \
                  description_fstr __VA_OPT__(, ) __VA_ARGS__)
 
 #define ASH_CHECK_UNREACHABLE() \

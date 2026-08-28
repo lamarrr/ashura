@@ -41,11 +41,11 @@ VertexOutput vert(u32 instance : SV_VulkanInstanceID,
                   u32 vertex_idx : SV_VulkanVertexID)
 {
     f32x2 pos        = VERTEX_BUFFER[vertex_idx];
-    f32x2 screen_pos = pos * 2;
-    f32x2 norm_uv    = pos + 0.5;
     var   blur       = params.blurs[instance];
-    f32x2 region_uv  = lerp(blur.uv0, blur.uv1, norm_uv);
-    return VertexOutput(f32x4(screen_pos, 0, 1), region_uv, instance);
+    f32x4 world_pos  = mul(blur.world_transform, f32x4(pos, 0.0, 1.0));
+    f32x4 screen_pos = mul(blur.world_to_ndc, world_pos);
+    f32x2 uv         = mul(blur.uv_transform, f32x4(pos, 0.0, 1.0)).xy;
+    return VertexOutput(f32x4(screen_pos.xy, 0, 1), uv, instance);
 }
 
 #if DOWNSAMPLE
@@ -56,7 +56,7 @@ f32x4 frag(VertexOutput in) :
 {
     var blur = params.blurs[in.instance];
     return f32x4(downsample(samplers[NonUniformResourceIndex(blur.sampler)],
-                            textures[NonUniformResourceIndex(blur.tex)], in.uv,
+                            textures[NonUniformResourceIndex(blur.tex)], in.uv + 0.5,
                             blur.radius)
                    .xyz,
                  1.0);
@@ -70,7 +70,7 @@ f32x4 frag(VertexOutput in) :
 {
     var blur = params.blurs[in.instance];
     return f32x4(upsample(samplers[NonUniformResourceIndex(blur.sampler)],
-                          textures[NonUniformResourceIndex(blur.tex)], in.uv,
+                          textures[NonUniformResourceIndex(blur.tex)], in.uv + 0.5,
                           blur.radius)
                    .xyz,
                  1.0);

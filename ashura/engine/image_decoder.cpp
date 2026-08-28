@@ -25,12 +25,12 @@ Result<DecodedImageInfo, SysErr> decode_webp(Span<u8 const> bytes, Vec<u8> & cha
         return Err{SysErr::DecodeFailed};
     }
 
-    u32 const         pitch = features.width * (features.has_alpha == 0 ? 3U : 4U);
-    gpu::Format const fmt =
+    auto pitch = features.width * (features.has_alpha == 0 ? 3U : 4U);
+    auto fmt =
       features.has_alpha == 0 ? gpu::Format::R8G8B8_UNORM : gpu::Format::R8G8B8A8_UNORM;
     u32x2 extent{(u32) features.width, (u32) features.height};
 
-    u64 const buffer_size = pixel_size_bytes(extent, features.has_alpha ? 3 : 4);
+    auto buffer_size = pixel_size_bytes(extent, features.has_alpha ? 3 : 4);
 
     if (!channels.resize_uninit(buffer_size))
     {
@@ -167,12 +167,12 @@ Result<DecodedImageInfo, SysErr> decode_jpg(Span<u8 const> bytes, Vec<u8> & chan
         return Err{SysErr::UnsupportedFormat};
     }
 
-    u32               width       = info.output_width;
-    u32               height      = info.output_height;
-    u32               ncomponents = info.num_components;
-    u32               pitch       = width * ncomponents;
-    u64               buffer_size = (u64) height * pitch;
-    gpu::Format const fmt =
+    u32  width       = info.output_width;
+    u32  height      = info.output_height;
+    u32  ncomponents = info.num_components;
+    u32  pitch       = width * ncomponents;
+    u64  buffer_size = (u64) height * pitch;
+    auto fmt =
       (ncomponents == 3) ? gpu::Format::R8G8B8_UNORM : gpu::Format::R8G8B8A8_UNORM;
 
     if (!channels.resize_uninit(buffer_size))
@@ -198,7 +198,7 @@ Result<DecodedImageInfo, SysErr> decode_jpg(Span<u8 const> bytes, Vec<u8> & chan
 
 Result<DecodedImageInfo, SysErr> decode_image(Span<u8 const> bytes, Vec<u8> & channels)
 {
-    tracing::ScopeTrace trace;
+    ASH_TRACE_SCOPE;
 
     static constexpr u8 JPG_MAGIC[] = {0xFF, 0xD8, 0xFF};
     static constexpr u8 PNG_MAGIC[] = {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};

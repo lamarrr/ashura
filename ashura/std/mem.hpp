@@ -281,10 +281,10 @@ struct Flex
     template <usize I>
     auto unpack_at_(void const *& stack) const
     {
-        using M           = index_pack<I, T...>;
-        stack             = align_up(members[I].alignment, stack);
-        usize const count = members[I].size / sizeof(M);
-        Span<M>     span{(M *) stack, count};
+        using M       = index_pack<I, T...>;
+        stack         = align_up(members[I].alignment, stack);
+        auto    count = members[I].size / sizeof(M);
+        Span<M> span{(M *) stack, count};
         stack = ((u8 const *) stack) + members[I].size;
         return span;
     }

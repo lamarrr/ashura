@@ -30,10 +30,10 @@ template<typename ... T>
 requires(sizeof...(T) <= MAX_ENUM_SIZE)
 struct Enum;
 """
-)
+    )
 
 member_cases = [
-  f"""
+    f"""
 if constexpr(I == {i})
 {{
   return e.v{i}_;
@@ -140,7 +140,7 @@ enum_copy_construct(src, dst);
 """)
 
 match_cases = [
-f""" if constexpr(SIZE > {i})
+    f""" if constexpr(SIZE > {i})
 {{
   if(e.index_ == {i})
   {{
@@ -149,7 +149,7 @@ f""" if constexpr(SIZE > {i})
 }}""" for i in range(MAX_ENUM_SIZE)]
 
 out(
-f"""
+    f"""
 template<unsigned int SIZE, typename Enum, typename ... Fns>
 constexpr decltype(auto) match(Enum && e, Fns && ... fns)
 {{
@@ -161,6 +161,35 @@ constexpr decltype(auto) match(Enum && e, Fns && ... fns)
 }}
 """)
 
+
+equal_cases = [
+    f"""if constexpr(SIZE > {i})
+{{
+  if(lhs.index_ == {i})
+  {{
+    return lhs.v{i}_ == rhs.v{i}_;
+  }}
+}}""" for i in range(MAX_ENUM_SIZE)]
+
+
+out(
+    f"""
+template<typename ... T>
+constexpr bool equal(Enum<T...> const& lhs, Enum<T...> const& rhs){{
+if(lhs.index_ != rhs.index_){{
+  return false;
+}}
+
+constexpr unsigned int SIZE = sizeof...(T);
+
+{"\n".join(equal_cases)}
+  return true;
+}}
+
+"""
+)
+
+
 out(f"""
 }} // namespace intr
 
@@ -168,27 +197,27 @@ out(f"""
 
 for size in range(0,  MAX_ENUM_SIZE + 1):
 
-  types = [f"T{i}" for i in range(size)]
-  aliases = [f"E{i}" for i in range(size)]
-  values = [f"v{i}_" for i in range(size)]
-  typename_decls = [f"typename {t}" for t in types]
-  alias_decls = [f"typedef {t} {a};" for t, a in zip(types, aliases)]
-  value_decls = [f"{t} {v};" for t, v in zip(types, values)]
+    types = [f"T{i}" for i in range(size)]
+    aliases = [f"E{i}" for i in range(size)]
+    values = [f"v{i}_" for i in range(size)]
+    typename_decls = [f"typename {t}" for t in types]
+    alias_decls = [f"typedef {t} {a};" for t, a in zip(types, aliases)]
+    value_decls = [f"{t} {v};" for t, v in zip(types, values)]
 
-  members_def = [f"T{i} v{i}_;" for i in range(0, size)]
+    members_def = [f"T{i} v{i}_;" for i in range(0, size)]
 
-  index_def = ""
+    index_def = ""
 
-  if size == 0:
+    if size == 0:
         index_def = ""
-  elif size == 1:
+    elif size == 1:
         index_def = """static constexpr unsigned int index_ = 0;
 
 static constexpr unsigned int index()
 {
   return 0;
 }"""
-  else:
+    else:
         index_def = """unsigned int index_;
 
 constexpr unsigned int index() const
@@ -196,23 +225,23 @@ constexpr unsigned int index() const
   return index_;
 }"""
 
-  value_constructors = []
+    value_constructors = []
 
-  if size == 0:
+    if size == 0:
         value_constructors = []
-  elif size == 1:
+    elif size == 1:
         value_constructors = [f"""constexpr Enum(T0 v) :
 v0_{{static_cast<T0 &&>(v)}}
 {{ }}
 """]
-  else:
+    else:
         value_constructors = [f"""constexpr Enum(T{i} v) :
 index_{{{i}}},
 v{i}_{{static_cast<T{i} &&>(v)}}
 {{ }}
 """ for i in range(0, size)]
 
-  out(f"""
+    out(f"""
 template<{", ".join(typename_decls)}>
 struct Enum<{", ".join(types)}>
 {{
@@ -220,7 +249,7 @@ struct Enum<{", ".join(types)}>
 {"\t".join(alias_decls)}
 
 {"" if size == 0 else
-f"""template<unsigned int I>
+        f"""template<unsigned int I>
 using E = index_pack<I, {", ".join(aliases)}>;
 """}
 
@@ -232,7 +261,7 @@ static constexpr unsigned int size()
 }}
 
 {
-f"""
+        f"""
 constexpr bool is(unsigned int) const
 {{
   return false;
@@ -247,7 +276,7 @@ constexpr void match() const
 }}
 """
 
-if size == 0 else f"""{index_def}
+        if size == 0 else f"""{index_def}
 
 union {{
 {"\t".join(members_def)}
@@ -359,8 +388,13 @@ constexpr decltype(auto) match(Fns && ... fns) const
   return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)...);
 }}
 
+constexpr bool operator==(Enum const& other) const
+{{
+  return intr::equal(*this, other);
+}}
+
 """
-}
+    }
 }};
     """)
 

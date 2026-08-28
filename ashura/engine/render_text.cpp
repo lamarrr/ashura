@@ -4,6 +4,7 @@
 #include "ashura/engine/systems.hpp"
 #include "ashura/std/range.hpp"
 #include "ashura/std/text.hpp"
+#include "ashura/std/trace.hpp"
 
 namespace ash
 {
@@ -294,15 +295,13 @@ void RenderText::perform_layout()
     hash_ = HASH_CLEAN;
 }
 
-Tuple<TextRenderInfo, TextPlacement>
-  RenderText::place(f32x2 center, f32x4x4 const & transform, CRect const & clip,
-                    Span<Slice const>              highlights,
-                    Span<TextHighlightStyle const> highlight_styles,
-                    Span<usize const> carets, Span<CaretStyle const> caret_styles,
-                    Allocator allocator) const
+Tuple<TextRenderInfo, TextPlacement> RenderText::place(
+  f32x4x4 const & transform, CRect const & clip, Span<Slice const> highlights,
+  Span<TextHighlightStyle const> highlight_styles, Span<usize const> carets,
+  Span<CaretStyle const> caret_styles, Allocator allocator) const
 {
-    TextRenderInfo info{.center           = center,
-                        .transform        = transform,
+    ASH_TRACE_SCOPE;
+    TextRenderInfo info{.transform        = transform,
                         .clip             = clip,
                         .block            = block(),
                         .style            = block_style(),
@@ -509,20 +508,36 @@ void TextModel::update_cursor(TextCursor value)
 
 void TextModel::unselect()
 {
-    auto & cursor = touch_cursor();
-    cursor.unselect();
+    if (cursor_.is_some())
+    {
+        cursor_->unselect();
+    }
 }
 
 void TextModel::left()
 {
     auto & cursor = touch_cursor();
-    cursor.translate(-1).normalize(layout().num_carets);
+    if (cursor.has_selection())
+    {
+        cursor.unselect_left().normalize(layout().num_carets);
+    }
+    else
+    {
+        cursor.translate(-1).normalize(layout().num_carets);
+    }
 }
 
 void TextModel::right()
 {
     auto & cursor = touch_cursor();
-    cursor.translate(1).normalize(layout().num_carets);
+    if (cursor.has_selection())
+    {
+        cursor.unselect_right().normalize(layout().num_carets);
+    }
+    else
+    {
+        cursor.translate(1).normalize(layout().num_carets);
+    }
 }
 
 void TextModel::word_start(Span<c32 const> word_symbols)
@@ -565,6 +580,10 @@ void TextModel::up()
 {
     auto & l      = layout();
     auto & cursor = touch_cursor();
+    if (cursor.has_selection())
+    {
+        cursor.unselect_left();
+    }
     cursor.move_to(translate_caret(l, cursor.caret(), caret_alignment_, -1)
                      .unwrap_or(cursor.caret()));
 }
@@ -573,6 +592,10 @@ void TextModel::down()
 {
     auto & l      = layout();
     auto & cursor = touch_cursor();
+    if (cursor.has_selection())
+    {
+        cursor.unselect_right();
+    }
     cursor.move_to(translate_caret(l, cursor.caret(), caret_alignment_, 1)
                      .unwrap_or(cursor.caret()));
 }
@@ -714,7 +737,7 @@ void TextModel::hit(f32x2 center, f32x4x4 const & transform, f32x2 pos)
     auto & cursor     = touch_cursor();
     auto [caret, loc] = text_.hit(center, transform, pos);
     caret_alignment_  = loc.x;
-    cursor.move_to(l.align_caret(loc));
+    cursor.unselect().move_to(l.align_caret(loc));
 }
 
 void TextModel::hit_select(f32x2 center, f32x4x4 const & transform, f32x2 pos)
@@ -812,6 +835,7 @@ void TextModel::insert(Str32 input)
         auto cp        = l.get_caret_codepoint(cursor.caret());
         auto codepoint = cp.codepoint + (cp.after ? 1 : 0);
         insert_at(codepoint, input);
+        perform_layout();
         auto caret = l.to_caret(codepoint + input.size(), true);
         cursor.move_to(caret).normalize(l.num_carets);
     }
@@ -819,8 +843,8 @@ void TextModel::insert(Str32 input)
 
 void TextModel::insert(Str8 input)
 {
-    ScratchScope scratch{allocator_};
-    Vec<c32>     utf32{scratch};
+    ThreadScratchScope scratch;
+    Vec<c32>           utf32{scratch};
     utf8_decode(input, utf32).unwrap();
     insert(utf32);
 }

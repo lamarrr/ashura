@@ -60,6 +60,11 @@ struct SyncLib
                   "Failed to get address of WakeByAddressAll from "
                   "API-MS-Win-Core-Synch-l1-2-0.dll");
     }
+
+    SyncLib()
+    {
+        load();
+    }
 };
 
 #else
@@ -69,23 +74,19 @@ struct SyncLib
     void load()
     {
     }
+
+    SyncLib()
+    {
+        load();
+    }
 };
 
 #endif
 
-static SyncLib   sync_lib;
-static SyncLib * sink_lib_ptr;
-
 SyncLib & get_sync_lib()
 {
-    ASH_CHECK(sink_lib_ptr != nullptr, "Sync lib not initialized");
-    return *sink_lib_ptr;
-}
-
-void init_sync_runtime()
-{
-    sync_lib.load();
-    sink_lib_ptr = &sync_lib;
+    static SyncLib sync_lib;
+    return sync_lib;
 }
 
 void IWaitToken::os_notify()
@@ -314,9 +315,9 @@ struct TaskAllocator
 
     bool alloc_arena(TaskArena *& out)
     {
-        auto const flex = TaskArena::flex(
+        auto flex = TaskArena::flex(
           Layout{.alignment = MAX_STANDARD_ALIGNMENT, .size = TASK_ARENA_SIZE});
-        Layout const layout = flex.layout();
+        auto layout = flex.layout();
 
         u8 * stack;
 
@@ -351,8 +352,8 @@ struct TaskAllocator
 
     static bool alloc_task(TaskArena & arena, TaskInfo const & info, Task *& out)
     {
-        auto const   flex   = Task::flex(info.frame_layout);
-        Layout const layout = flex.layout();
+        auto flex   = Task::flex(info.frame_layout);
+        auto layout = flex.layout();
 
         u8 * stack;
 
@@ -689,8 +690,8 @@ struct ASH_DLL_EXPORT SchedulerImpl final : IScheduler
     static void main_thread_loop(TaskAllocator & a, TaskQueue & q, nanoseconds duration,
                                  nanoseconds poll_max)
     {
-        time_point const begin      = steady_clock::now();
-        time_point       poll_start = begin;
+        auto begin      = steady_clock::now();
+        auto poll_start = begin;
 
         while (true)
         {
@@ -858,11 +859,20 @@ Dyn<Scheduler> IScheduler::create(SchedulerInfo const & info)
     return cast<Scheduler>(std::move(impl));
 }
 
-Scheduler scheduler = nullptr;
-
-void hook_scheduler(Scheduler instance)
+IScheduler & get_scheduler(SchedulerInfo const & info)
 {
-    scheduler = instance;
+    static Dyn<Scheduler> scheduler = [&]() { return IScheduler::create(info); }();
+    return *scheduler;
+}
+
+IScheduler & scheduler()
+{
+    return get_scheduler(SchedulerInfo{.allocator = default_allocator});
+}
+
+void initialize_scheduler(SchedulerInfo const & info)
+{
+    get_scheduler(info);
 }
 
 }    // namespace ash

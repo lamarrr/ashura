@@ -403,7 +403,7 @@ struct [[nodiscard]] Vec
         }
         else
         {
-            auto const tail_first = max(first, min(size_, distance) - size_);
+            auto tail_first = max(first, min(size_, distance) - size_);
 
             // move construct tail elements to uninitialized placements
             obj::move_construct(Span{data() + tail_first, size_ - tail_first},
@@ -492,7 +492,7 @@ struct [[nodiscard]] Vec
 
     constexpr Result<> extend(usize extension)
     {
-        auto const pos = size_;
+        auto pos = size_;
 
         if (!extend_uninit(extension)) [[unlikely]]
         {
@@ -506,7 +506,7 @@ struct [[nodiscard]] Vec
 
     constexpr Result<> append(Span<Type const> span)
     {
-        auto const pos = size_;
+        auto pos = size_;
 
         if (!extend_uninit(span.size())) [[unlikely]]
         {
@@ -529,7 +529,7 @@ struct [[nodiscard]] Vec
 
     constexpr Result<> append_move(Span<Type> span)
     {
-        auto const pos = size_;
+        auto pos = size_;
 
         if (!extend_uninit(span.size())) [[unlikely]]
         {
@@ -1158,7 +1158,7 @@ struct [[nodiscard]] SmallVec
         }
         else
         {
-            auto const tail_first = max(first, min(size_, distance) - size_);
+            auto tail_first = max(first, min(size_, distance) - size_);
 
             // move construct tail elements to uninitialized placements
             obj::move_construct(Span{data() + tail_first, size_ - tail_first},
@@ -1247,7 +1247,7 @@ struct [[nodiscard]] SmallVec
 
     constexpr Result<> extend(usize extension)
     {
-        auto const pos = size_;
+        auto pos = size_;
 
         if (!extend_uninit(extension)) [[unlikely]]
         {
@@ -1261,7 +1261,7 @@ struct [[nodiscard]] SmallVec
 
     constexpr Result<> append(Span<Type const> span)
     {
-        auto const pos = size_;
+        auto pos = size_;
 
         if (!extend_uninit(span.size())) [[unlikely]]
         {
@@ -1284,7 +1284,7 @@ struct [[nodiscard]] SmallVec
 
     constexpr Result<> append_move(Span<Type> span)
     {
-        auto const pos = size_;
+        auto pos = size_;
 
         if (!extend_uninit(span.size())) [[unlikely]]
         {
@@ -1711,7 +1711,7 @@ struct [[nodiscard]] InplaceVec
         }
         else
         {
-            auto const tail_first = max(first, min(size_, distance) - size_);
+            auto tail_first = max(first, min(size_, distance) - size_);
 
             // move construct tail elements to uninitialized placements
             obj::move_construct(Span{data() + tail_first, size_ - tail_first},
@@ -1802,7 +1802,7 @@ struct [[nodiscard]] InplaceVec
 
     constexpr Result<> extend(usize extension)
     {
-        auto const pos = size_;
+        auto pos = size_;
 
         if (!extend_uninit(extension)) [[unlikely]]
         {
@@ -1816,7 +1816,7 @@ struct [[nodiscard]] InplaceVec
 
     constexpr Result<> append(Span<Type const> span)
     {
-        auto const pos = size_;
+        auto pos = size_;
 
         if (!extend_uninit(span.size())) [[unlikely]]
         {
@@ -1838,7 +1838,7 @@ struct [[nodiscard]] InplaceVec
 
     constexpr Result<> append_move(Span<Type> span)
     {
-        auto const pos = size_;
+        auto pos = size_;
 
         if (!extend_uninit(span.size())) [[unlikely]]
         {
@@ -2127,7 +2127,7 @@ struct [[nodiscard]] CoreBitVec
 
     constexpr Result<> push(bool bit)
     {
-        auto const index = size_;
+        auto index = size_;
 
         if (!extend_uninit(1)) [[unlikely]]
         {
@@ -2142,7 +2142,7 @@ struct [[nodiscard]] CoreBitVec
     {
         num = min(size_, num);
         size_ -= num;
-        auto const diff = repr_.size() - atom_size_for<Repr>(size_);
+        auto diff = repr_.size() - atom_size_for<Repr>(size_);
         repr_.pop(diff);
     }
 
@@ -2202,7 +2202,7 @@ struct [[nodiscard]] CoreBitVec
 
     constexpr Result<> extend(usize extension)
     {
-        auto const pos = size_;
+        auto pos = size_;
 
         if (!extend_uninit(extension)) [[unlikely]]
         {
@@ -2472,7 +2472,7 @@ struct CoreSparseVec
 
     constexpr bool is_valid_id(Id item) const
     {
-        auto const id = static_cast<Index>(item);
+        auto id = static_cast<Index>(item);
 
         if (id >= id_to_index_.size())
         {
@@ -2489,9 +2489,10 @@ struct CoreSparseVec
 
     constexpr auto operator[](Id item) const
     {
-        auto const id = static_cast<Index>(item);
+        ASH_CHECK(is_valid_id(item), "Invalid ID: {}", static_cast<Index>(item));
+        auto id    = static_cast<Index>(item);
+        auto index = id_to_index_[id];
 
-        auto const index = id_to_index_[id];
         return apply(
           [index](auto &... dense) {
               return Tuple<decltype(dense[index])...>{dense[index]...};
@@ -2501,35 +2502,33 @@ struct CoreSparseVec
 
     constexpr auto get(Id item) const
     {
-        auto const id = static_cast<Index>(item);
-
-        return this->operator[](id);
+        return this->operator[](item);
     }
 
     template <typename... Args>
     requires (sizeof...(Args) == sizeof...(V))
     constexpr void set(Id item, Args &&... args) const
     {
-        auto const        id    = static_cast<Index>(item);
-        auto              index = id_to_index_[id];
-        Tuple<Args &&...> arg_refs{static_cast<Args &&>(args)...};
+        ASH_CHECK(is_valid_id(item), "Invalid ID: {}", static_cast<Index>(item));
+        auto id    = static_cast<Index>(item);
+        auto index = id_to_index_[id];
 
         index_apply<sizeof...(V)>([&]<Index... I>() {
-            (dense.template get<I>().set(index, static_cast<index_pack<I, Args &&...>>(
-                                                  arg_refs.template get<I>())),
+            (dense.template get<I>().set(index, static_cast<Args...[I] &&>(args...[I])),
              ...);
         });
     }
 
     constexpr Index to_index(Id item) const
     {
-        auto const id = static_cast<Index>(item);
+        ASH_CHECK(is_valid_id(item), "Invalid ID: {}", static_cast<Index>(item));
+        auto id = static_cast<Index>(item);
         return id_to_index_[id];
     }
 
     constexpr Result<Index, Void> try_to_index(Id item) const
     {
-        auto const id = static_cast<Index>(item);
+        auto id = static_cast<Index>(item);
 
         if (!is_valid_id(id)) [[unlikely]]
         {
@@ -2556,9 +2555,10 @@ struct CoreSparseVec
 
     constexpr void erase(Id item)
     {
-        auto const id    = static_cast<Index>(item);
-        auto const index = id_to_index_[id];
-        auto const last  = size() - 1;
+        ASH_CHECK(is_valid_id(item), "Invalid ID: {}", static_cast<Index>(item));
+        auto id    = static_cast<Index>(item);
+        auto index = id_to_index_[id];
+        auto last  = size() - 1;
 
         if (index != last)
         {
@@ -2570,7 +2570,7 @@ struct CoreSparseVec
         // swap indices of this element and the last element
         if (index != last)
         {
-            auto const last_id    = index_to_id_[last];
+            auto last_id          = index_to_id_[last];
             id_to_index_[last_id] = index;
             index_to_id_[index]   = last_id;
         }
@@ -2582,7 +2582,7 @@ struct CoreSparseVec
 
     constexpr Result<> try_erase(Id item)
     {
-        auto const id = static_cast<Index>(item);
+        auto id = static_cast<Index>(item);
 
         if (!is_valid_id(id)) [[unlikely]]
         {
@@ -2594,7 +2594,7 @@ struct CoreSparseVec
 
     constexpr Result<> reserve(Index target_capacity)
     {
-        auto const err = !apply(
+        auto err = !apply(
           [&](auto &... dense) {
               return ((id_to_index_.reserve(target_capacity) &&
                        index_to_id_.reserve(target_capacity)) &&
@@ -2617,7 +2617,7 @@ struct CoreSparseVec
 
     constexpr Result<> grow(Index target_capacity)
     {
-        auto const err = !apply(
+        auto err = !apply(
           [&](auto &... dense) {
               return ((id_to_index_.grow(target_capacity) &&
                        index_to_id_.grow(target_capacity)) &&
@@ -2641,21 +2641,21 @@ struct CoreSparseVec
     /// make new id and map the unique id to the end index
     constexpr Index create_id_()
     {
-        auto const index = static_cast<Index>(index_to_id_.size());
+        auto index = static_cast<Index>(index_to_id_.size());
         if (free_id_head_ != NONE)
         {
-            auto const id        = free_id_head_;
-            auto const next_free = id_to_index_[free_id_head_];
-            id_to_index_[id]     = index | FREE_MASK;
-            free_id_head_ = (next_free == NONE) ? NONE : (next_free & ~FREE_MASK);
-            index_to_id_.push(id).discard();
+            auto id          = free_id_head_;
+            auto next_free   = id_to_index_[free_id_head_];
+            id_to_index_[id] = index;
+            free_id_head_    = (next_free == NONE) ? NONE : (next_free & ~FREE_MASK);
+            index_to_id_.push(id).unwrap();
             return id;
         }
         else
         {
-            auto const id = static_cast<Index>(id_to_index_.size());
-            id_to_index_.push(index).discard();
-            index_to_id_.push(id).discard();
+            auto id = static_cast<Index>(id_to_index_.size());
+            id_to_index_.push(index).unwrap();
+            index_to_id_.push(id).unwrap();
             return id;
         }
     }
@@ -2671,18 +2671,78 @@ struct CoreSparseVec
             return Err{};
         }
 
-        auto const id = create_id_();
-
-        Tuple<Args &&...> arg_refs{static_cast<Args &&>(args)...};
+        auto id = create_id_();
 
         index_apply<sizeof...(V)>([&]<Index... I>() {
             (dense.template get<I>()
-               .push(static_cast<index_pack<I, Args &&...>>(arg_refs.template get<I>()))
-               .discard(),
+               .push(static_cast<Args...[I] &&>(args...[I]))
+               .unwrap(),
              ...);
         });
 
         return Ok{static_cast<Id>(id)};
+    }
+
+    template <typename... Args>
+    requires (sizeof...(Args) == sizeof...(V))
+    constexpr void update(Id item, Args &&... args)
+    {
+        if (is_valid_id(item))
+        {
+            return set(item, static_cast<Args &&>(args)...);
+        }
+        else
+        {
+            auto required_ids_size = static_cast<Index>(item) + 1;
+            auto current_ids_size  = static_cast<Index>(id_to_index_.size());
+
+            if (required_ids_size > id_to_index_.size())
+            {
+                id_to_index_.grow(required_ids_size).unwrap();
+                id_to_index_.resize_uninit(required_ids_size).unwrap();
+                index_to_id_.grow(required_ids_size).unwrap();
+                for (auto i = current_ids_size; i < required_ids_size; ++i)
+                {
+                    id_to_index_[i] = free_id_head_ | FREE_MASK;
+                    free_id_head_   = i;
+                }
+                return update(item, static_cast<Args &&>(args)...);
+            }
+            else
+            {
+                auto item_id = static_cast<Index>(item);
+                if (free_id_head_ == item_id)
+                {
+                    auto next             = id_to_index_[item_id];
+                    auto new_head         = (next == NONE) ? NONE : (next & ~FREE_MASK);
+                    free_id_head_         = new_head;
+                    id_to_index_[item_id] = static_cast<Index>(index_to_id_.size());
+                }
+                else
+                {
+                    auto previous_id = free_id_head_;
+                    while ((id_to_index_[previous_id] & ~FREE_MASK) != item_id)
+                    {
+                        previous_id = id_to_index_[previous_id] & ~FREE_MASK;
+                    }
+
+                    auto next                 = id_to_index_[item_id];
+                    id_to_index_[previous_id] = next;
+                    id_to_index_[item_id]     = static_cast<Index>(index_to_id_.size());
+                }
+
+                index_to_id_.push(item_id).unwrap();
+
+                index_apply<sizeof...(V)>([&]<Index... I>() {
+                    (dense.template get<I>()
+                       .push(static_cast<Args...[I] &&>(args...[I]))
+                       .unwrap(),
+                     ...);
+                });
+
+                return;
+            }
+        }
     }
 };
 

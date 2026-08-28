@@ -25,7 +25,9 @@ namespace ash
 
 Result<EngineCfg> EngineCfg::parse_json(Span<u8 const> json, Allocator allocator)
 {
-    ScratchScope scratch{allocator};
+    ASH_TRACE_SCOPE;
+
+    ThreadScratchScope scratch;
 
     EngineCfg out{.window{.title{allocator}},
                   .font_paths{allocator},
@@ -303,14 +305,15 @@ static void window_event_listener(IEngine::WindowEntry * win, WindowEvent const 
       });
 }
 
-Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
-                            Callbacks callbacks, Dyn<WindowLoop> loop)
+IEngine::~IEngine()
 {
-    tracing::ScopeTrace _;
+    shutdown_();
+}
 
-    Dyn<Logger> logger =
-      dyn<ILogger>(inplace, default_allocator, span<LogSink>({&stdio_sink})).unwrap();
-    hook_logger(logger.get());
+Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
+                            Callbacks callbacks)
+{
+    ASH_TRACE_SCOPE;
 
     trace("Initializing Engine Core Systems"_s);
     trace("Loading Graphics Pipeline Cache From {}"_s, cfg.pipeline_cache_path.view());
@@ -335,15 +338,15 @@ Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
     [[maybe_unused]] constexpr DedicatedThread audio_thread = DedicatedThread{1};
     [[maybe_unused]] constexpr DedicatedThread video_thread = DedicatedThread{2};
 
-    u32 const num_dedicated_threads =
-      size(dedicated_thread_names);    // gpu/render, audio, video,
-    u32 const hardware_concurrency = std::thread::hardware_concurrency();
-    u32 const min_worker_threads   = 1;
-    u32 const total_concurrency    = max(num_dedicated_threads + min_worker_threads +
-                                           // main thread
-                                           1,
-                                         hardware_concurrency);
-    u32 const num_worker_threads   = total_concurrency - (num_dedicated_threads + 1);
+    auto num_dedicated_threads =
+      size32(dedicated_thread_names);    // gpu/render, audio, video,
+    auto hardware_concurrency = std::thread::hardware_concurrency();
+    auto min_worker_threads   = 1U;
+    auto total_concurrency    = max(num_dedicated_threads + min_worker_threads +
+                                      // main thread
+                                      1,
+                                    hardware_concurrency);
+    auto num_worker_threads   = total_concurrency - (num_dedicated_threads + 1);
 
     Vec<SchedulerThreadInfo> dedicated_thread_infos{allocator};
 
@@ -364,16 +367,12 @@ Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
           .unwrap();
     }
 
-    Dyn<Scheduler> scheduler =
-      IScheduler::create(SchedulerInfo{.allocator         = allocator,
+    initialize_scheduler(SchedulerInfo{.allocator         = allocator,
                                        .dedicated_threads = dedicated_thread_infos,
                                        .worker_threads    = worker_thread_infos,
                                        .main_thread_id = std::this_thread::get_id()});
 
-    ash::sys.sched = scheduler.get();
-
-    Dyn<FileSys> file_sys =
-      dyn<IFileSys>(inplace, allocator, scheduler.get(), allocator).unwrap();
+    Dyn<FileSys> file_sys = dyn<IFileSys>(inplace, allocator, allocator).unwrap();
 
     ash::sys.file = file_sys.get();
 
@@ -397,37 +396,50 @@ Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
                         .color_formats         = ColorImage::SDR_FORMATS,
                         .depth_stencil_formats = DepthStencilImage::FORMATS};
 
-    gpu_sys->init(allocator, gpu_device, pipeline_cache.view(), gpu_pref,
-                  scheduler.get(), gpu_thread);
+    gpu_sys->init(allocator, gpu_device, pipeline_cache.view(), gpu_pref, gpu_thread);
 
     Dyn<ImageSys> image_sys =
-      dyn<IImageSys>(inplace, allocator, allocator, gpu_sys.get(), file_sys.get(),
-                     scheduler.get())
+      dyn<IImageSys>(inplace, allocator, allocator, gpu_sys.get(), file_sys.get())
         .unwrap();
 
     ash::sys.image = image_sys.get();
 
     Dyn<FontSys> font_sys =
-      IFontSys::create(allocator, file_sys.get(), image_sys.get(), scheduler.get());
+      IFontSys::create(allocator, file_sys.get(), image_sys.get());
 
     auto font_fut = font_sys->init();
 
-    while (!font_fut())
     {
-        scheduler->run_main_loop(10ms, 10ms);
+        auto * plan = ash::sys.gpu->current_plan();
+        plan->await();
+        plan->reset();
+        plan->begin();
+        while (!font_fut())
+        {
+            scheduler().run_main_loop(10ms, 10ms);
+        }
+        plan->end();
+        ash::sys.gpu->submit_frame();
     }
 
     ash::sys.font = font_sys.get();
 
-    Dyn<ShaderSys> shader_sys = dyn<IShaderSys>(inplace, allocator, gpu_sys.get(),
-                                                file_sys.get(), scheduler.get())
-                                  .unwrap();
+    Dyn<ShaderSys> shader_sys =
+      dyn<IShaderSys>(inplace, allocator, gpu_sys.get(), file_sys.get()).unwrap();
 
     auto shader_fut = shader_sys->init(allocator);
 
-    while (!shader_fut())
     {
-        scheduler->run_main_loop(10ms, 10ms);
+        auto * plan = ash::sys.gpu->current_plan();
+        plan->await();
+        plan->reset();
+        plan->begin();
+        while (!shader_fut())
+        {
+            scheduler().run_main_loop(10ms, 10ms);
+        }
+        plan->end();
+        ash::sys.gpu->submit_frame();
     }
 
     ash::sys.shader = shader_sys.get();
@@ -445,8 +457,6 @@ Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
 
     engine->allocator_ = allocator;
     engine->sys_       = Systems{
-      .logger   = std::move(logger),
-      .sched    = std::move(scheduler),
       .file     = std::move(file_sys),
       .gpu      = std::move(gpu_sys),
       .image    = std::move(image_sys),
@@ -472,14 +482,15 @@ Dyn<Engine> IEngine::create(Allocator allocator, EngineCfg const & cfg,
     engine->sys_.win->listen({engine.get(), system_event_listener});
     trace("Creating Root Window"_s);
 
-    engine->window_ = engine->add_window_(cfg.window, std::move(loop));
+    engine->window_ = engine->attach_window_(cfg.window);
 
     return engine;
 }
 
-Dyn<IEngine::WindowEntry *> IEngine::add_window_(EngineCfg::Window const & cfg,
-                                                 Dyn<WindowLoop>           loop)
+Dyn<IEngine::WindowEntry *> IEngine::attach_window_(EngineCfg::Window const & cfg)
 {
+    ASH_TRACE_SCOPE;
+
     auto entry = dyn<WindowEntry>(inplace, allocator_, *this, allocator_).unwrap();
 
     auto window = &sys_.win->create_window(gpu_instance_.get(), cfg.title).unwrap();
@@ -491,6 +502,12 @@ Dyn<IEngine::WindowEntry *> IEngine::add_window_(EngineCfg::Window const & cfg,
 
     entry->view_sys_ =
       dyn<IViewSys>(inplace, allocator_, allocator_, std::move(ui_data)).unwrap();
+
+    auto loop =
+      dyn_lambda<WindowLoop>(allocator_, [&](Engine, ui::Scope const &) -> ui::View & {
+          static ui::View view;
+          return view;
+      }).unwrap();
 
     entry->loop_ = std::move(loop);
     entry->present_mode_preference_ =
@@ -534,6 +551,8 @@ Dyn<IEngine::WindowEntry *> IEngine::add_window_(EngineCfg::Window const & cfg,
         {
             sys_.win->make_unresizable(window);
         }
+
+        sys_.win->set_cursor(Cursor::Default);
     };
 
     config_window();
@@ -543,7 +562,7 @@ Dyn<IEngine::WindowEntry *> IEngine::add_window_(EngineCfg::Window const & cfg,
 
 void IEngine::poll_inputs_(time_point prev_frame_end, time_point frame_start)
 {
-    tracing::ScopeTrace _;
+    ASH_TRACE_SCOPE;
 
     auto timedelta = frame_start - prev_frame_end;
 
@@ -586,14 +605,12 @@ void IEngine::poll_inputs_(time_point prev_frame_end, time_point frame_start)
     }
 }
 
-void IEngine::shutdown()
+void IEngine::shutdown_()
 {
-    tracing::ScopeTrace _;
+    ASH_TRACE_SCOPE;
 
     trace("Shutting down engine"_s);
     callbacks_.pre_shutdown(this);
-
-    scheduler->shutdown();
 
     gpu_device_->await_idle().unwrap();
 
@@ -625,7 +642,7 @@ void IEngine::shutdown()
     }
 
     sys_.file->shutdown();
-    sys_.sched->shutdown();
+    // TODO: sys_.sched->shutdown();
 
     gpu_instance_->uninit(gpu_device_);
 
@@ -735,146 +752,185 @@ Option<gpu::SwapchainInfo> IEngine::create_swapchain_info_(WindowEntry const & w
                               .composite_alpha     = alpha};
 }
 
-void IEngine::run()
+void IEngine::prepare_render_targets_(GpuFramePlan plan)
 {
-    tracing::ScopeTrace _;
-    trace("Starting Engine Run Loop"_s);
+    ASH_TRACE_SCOPE;
 
-    bool                  running            = true;
-    Option<Cursor>        cursor             = Cursor::Default;
-    Option<TextInputInfo> current_input_info = none;
-    time_point            frame_end          = steady_clock::now();
+    auto required_framebuffer_extent = window_->state_.surface_extent_;
 
-    sys_.win->set_cursor(cursor);
+    plan->set_target(
+      GpuFrameTargetInfo{.extent               = required_framebuffer_extent,
+                         .color_format         = sys.gpu->color_format(),
+                         .depth_stencil_format = sys.gpu->depth_stencil_format()});
 
-    while (running)
+    if (window_->swapchain_.is_none())
     {
-        tracing::ScopeTrace frame_trace{"frame"_s};
-
-        auto const frame_start = steady_clock::now();
-        poll_inputs_(frame_end, frame_start);
-        auto * plan = sys_.gpu->current_plan();
-
-        // TODO: pre-frame tasks were not executed before reset
-        plan->await();
-        plan->reset();
-        plan->begin();
-
-        u32x2 required_framebuffer_extent = window_->state_.surface_extent_;
-
-        plan->set_target(
-          GpuFrameTargetInfo{.extent               = required_framebuffer_extent,
-                             .color_format         = sys.gpu->color_format(),
-                             .depth_stencil_format = sys.gpu->depth_stencil_format()});
-
+        create_swapchain_info_(*window_).match([&](gpu::SwapchainInfo info) {
+            window_->swapchain_ = *gpu_device_->create_swapchain(info).unwrap();
+        });
+    }
+    else
+    {
+        // if swapchain extent is 0, defer creation until first resize event
+        if ((window_->state_.resized_ || window_->state_.surface_resized_) &&
+            !(window_->state_.extent_.any_zero() ||
+              window_->state_.surface_extent_.any_zero()))
         {
-            if (window_->swapchain_.is_none())
-            {
-                create_swapchain_info_(*window_).match([&](gpu::SwapchainInfo info) {
-                    window_->swapchain_ = *gpu_device_->create_swapchain(info).unwrap();
+            create_swapchain_info_(*window_).match([&](gpu::SwapchainInfo info) {
+                plan->add_preframe_task([dev       = plan->device(),
+                                         swapchain = &window_->swapchain_.v(),
+                                         info](GpuFrame) {
+                    dev->mark_swapchain_out_of_date(swapchain, info).unwrap();
                 });
-            }
-            else
-            {
-                // if swapchain extent is 0, defer creation until first resize event
-                if ((window_->state_.resized_ || window_->state_.surface_resized_) &&
-                    !(window_->state_.extent_.any_zero() ||
-                      window_->state_.surface_extent_.any_zero()))
-                {
-                    create_swapchain_info_(*window_).match(
-                      [&](gpu::SwapchainInfo info) {
-                          plan->add_preframe_task([dev       = plan->device(),
-                                                   swapchain = &window_->swapchain_.v(),
-                                                   info](GpuFrame) {
-                              dev->mark_swapchain_out_of_date(swapchain, info).unwrap();
-                          });
-                      });
-                }
-            }
+            });
         }
-
-        {
-            plan->add_preframe_task(
-              [swapchain = &window_->swapchain_.v(), dev = plan->device()](GpuFrame) {
-                  dev->acquire_next(swapchain).unwrap();
-              });
-        }
-
-        {
-            tracing::ScopeTrace record_trace{"frame.record"_s};
-
-            auto & w = *window_;
-
-            // TODO: framebuffer extent would be larger than surface extent since we
-            // render multiple windows into one image
-            w.canvas_.begin(
-              gpu::Viewport{
-                .offset{0, 0},
-                .extent    = w.state_.surface_extent_.to<f32>(),
-                .min_depth = 0,
-                .max_depth = 1
-            },
-              w.state_.extent_.to<f32>(), w.state_.surface_extent_);
-
-            auto state = w.view_sys_->tick(this, ui::InputScope{state_, w.state_},
-                                           &w.canvas_, w.loop_.get());
-
-            w.canvas_.end();
-            w.canvas_.execute(plan);
-            w.canvas_.reset();
-
-            if (w.state_.extent_.all_nonzero() &&
-                w.state_.surface_extent_.all_nonzero())
-            {
-                // [ ] swapchain would have been destroyed at start of frame if resize happens
-                plan->add_pass([swapchain = &w.swapchain_.v()](
-                                 GpuFrame frame, gpu::CommandEncoder enc) {
-                    auto * dev   = frame->dev();
-                    auto   state = dev->get_swapchain_state(swapchain).unwrap();
-
-                    gpu::ImageCopy const copies[] = {
-                      {.src_layers = {.aspects   = gpu::ImageAspects::Color,
-                                      .mip_level = 0,
-                                      .array_layers{0, 1}},
-                       .src_area   = {{0, 0, 0}, state.extent.append(1)},
-                       .dst_layers = {.aspects   = gpu::ImageAspects::Color,
-                                      .mip_level = 0,
-                                      .array_layers{0, 1}}}
-                    };
-
-                    state.current_image.match([&](u32 i) {
-                        auto & image = frame->get_scratch_images()[0];
-                        enc->copy_image(image.color.image, state.images[i], copies);
-                        enc->present(swapchain);
-                    });
-                });
-            }
-
-            if (window_->state_.mouse_.focused_)
-            {
-                sys_.win->set_cursor(state.cursor);
-            }
-
-            if (window_->state_.key_.focused_)
-            {
-                auto text = state.input_info;
-                if (text != current_input_info)
-                {
-                    sys_.win->set_text_input(window_->win_, text);
-                    current_input_info = text;
-                }
-            }
-        }
-
-        plan->end();
-        sys_.gpu->submit_frame();
-
-        frame_end = steady_clock::now();
-
-        sys_.sched->run_main_loop(milliseconds{10}, nanoseconds{500});
     }
 
-    trace("Ended Engine Run Loop"_s);
+    plan->add_preframe_task(
+      [swapchain = &window_->swapchain_.v(), dev = plan->device()](GpuFrame) {
+          dev->acquire_next(swapchain).unwrap();
+      });
+}
+
+ViewSysState IEngine::record_frame_(GpuFramePlan plan)
+{
+    ASH_TRACE_SCOPE;
+
+    auto & w = *window_;
+
+    // TODO: framebuffer extent would be larger than surface extent since we
+    // render multiple windows into one image
+    w.canvas_.begin(
+      gpu::Viewport{
+        .offset{0, 0},
+        .extent    = w.state_.surface_extent_.to<f32>(),
+        .min_depth = 0,
+        .max_depth = 1
+    },
+      w.state_.extent_.to<f32>(), w.state_.surface_extent_);
+
+    auto state = w.view_sys_->tick(this, ui::InputScope{state_, w.state_}, &w.canvas_,
+                                   w.loop_.get());
+
+    w.canvas_.end();
+    w.canvas_.execute(plan);
+    w.canvas_.reset();
+
+    if (w.state_.extent_.all_nonzero() && w.state_.surface_extent_.all_nonzero())
+    {
+        // TODO: swapchain would have been destroyed at start of frame if resize happens
+        plan->add_pass(
+          [swapchain = &w.swapchain_.v()](GpuFrame frame, gpu::CommandEncoder enc) {
+              auto * dev   = frame->dev();
+              auto   state = dev->get_swapchain_state(swapchain).unwrap();
+
+              gpu::ImageCopy const copies[] = {
+                {.src_layers = {.aspects   = gpu::ImageAspects::Color,
+                                .mip_level = 0,
+                                .array_layers{0, 1}},
+                 .src_area   = {{0, 0, 0}, state.extent.append(1)},
+                 .dst_layers = {.aspects   = gpu::ImageAspects::Color,
+                                .mip_level = 0,
+                                .array_layers{0, 1}}}
+              };
+
+              state.current_image.match([&](u32 i) {
+                  auto & image = frame->get_scratch_images()[0];
+                  enc->copy_image(image.color.image, state.images[i], copies);
+                  enc->present(swapchain);
+              });
+          });
+    }
+
+    return state;
+}
+
+Option<TextInputInfo>
+  IEngine::update_window_state_(ViewSysState const &          state,
+                                Option<TextInputInfo> const & current_input_info)
+{
+    if (window_->state_.mouse_.focused_)
+    {
+        if (state.cursor != window_->cursor_)
+        {
+            sys_.win->set_cursor(state.cursor);
+            window_->cursor_ = state.cursor;
+        }
+    }
+
+    auto input_info = current_input_info;
+    if (window_->state_.key_.focused_)
+    {
+        auto text = state.input_info;
+        if (text != input_info)
+        {
+            sys_.win->set_text_input(window_->win_, text);
+            input_info = text;
+        }
+    }
+
+    return input_info;
+}
+
+Option<TextInputInfo> IEngine::frame_(time_point                    previous_frame_end,
+                                      time_point                    current_frame_begin,
+                                      Option<TextInputInfo> const & current_input_info)
+{
+    ASH_TRACE_SCOPE;
+
+    poll_inputs_(previous_frame_end, current_frame_begin);
+    auto * plan = sys_.gpu->current_plan();
+
+    // TODO: pre-frame tasks were not executed before reset
+    plan->await();
+    plan->reset();
+    plan->begin();
+
+    prepare_render_targets_(plan);
+    auto state = record_frame_(plan);
+
+    auto input_info = update_window_state_(state, current_input_info);
+
+    scheduler().run_main_loop(milliseconds{10}, nanoseconds{500});
+
+    plan->end();
+    sys_.gpu->submit_frame();
+
+    // TODO: handle, running
+
+    return input_info;
+}
+
+void IEngine::run(Dyn<WindowLoop> loop, nanoseconds timeout)
+{
+    ASH_TRACE_SCOPE;
+
+    bool                  running            = true;
+    Option<TextInputInfo> current_input_info = none;
+    time_point            run_begin          = steady_clock::now();
+    time_point            frame_begin        = run_begin;
+    time_point            frame_end          = run_begin;
+
+    // TODO: properly handle $running
+    window_->loop_ = std::move(loop);
+
+    do
+    {
+        frame_begin        = steady_clock::now();
+        current_input_info = frame_(frame_end, frame_begin, current_input_info);
+        frame_end          = steady_clock::now();
+        frame_begin        = frame_end;
+    } while ((frame_end - run_begin) < timeout && running &&
+             !window_->state_.close_requested_);
+}
+
+void IEngine::run(ui::View & view, nanoseconds timeout)
+{
+    return run(
+      dyn_lambda<WindowLoop>(
+        allocator_, [&](Engine, ui::Scope const &) -> ui::View & { return view; })
+        .unwrap(),
+      timeout);
 }
 
 void hook_engine(Engine instance)

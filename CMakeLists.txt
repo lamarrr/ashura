@@ -223,22 +223,6 @@ FetchContent_Declare(
     GIT_REPOSITORY https://github.com/facebook/zstd.git
     GIT_TAG 1168da0)
 
-FetchContent_Declare(
-    AfterMathSDK_Linux_X64
-    URL https://developer.nvidia.com/downloads/assets/tools/secure/nsight-aftermath-sdk/2025_5_0/linux_x64/NVIDIA_Nsight_Aftermath_SDK_2025.5.0.25317-linux_x64.tgz
-)
-
-FetchContent_Declare(
-    AfterMathSDK_Linux_Arm64
-    URL https://developer.nvidia.com/downloads/assets/tools/secure/nsight-aftermath-sdk/2025_5_0/linux_arm64/NVIDIA_Nsight_Aftermath_SDK_2025.5.0.25317-linux_arm64.tgz
-)
-
-       
-FetchContent_Declare(
-    AfterMathSDK_Windows_X64
-    URL https://developer.nvidia.com/downloads/assets/tools/secure/nsight-aftermath-sdk/2025_5_0/windows_x64/NVIDIA_Nsight_Aftermath_SDK_2025.5.0.25317-windows_x64.zip
-)
-
 find_package(FFMPEG REQUIRED)
 find_package(JPEG REQUIRED)
 find_package(Threads REQUIRED)
@@ -282,19 +266,6 @@ if(NOT zstd_POPULATED)
     FetchContent_Populate(zstd)
 endif()
 
-if(NOT AfterMathSDK_Linux_X64_POPULATED)
-    FetchContent_Populate(AfterMathSDK_Linux_X64)
-endif()
-
-
-if(NOT AfterMathSDK_Linux_Arm64_POPULATED)
-    FetchContent_Populate(AfterMathSDK_Linux_Arm64)
-endif()
-
-if(NOT AfterMathSDK_Windows_X64_POPULATED)
-    FetchContent_Populate(AfterMathSDK_Windows_X64)
-endif()
-
 set(xxHash_INCLUDE_DIR ${xxhash_SOURCE_DIR})
 add_library(AshxxHash OBJECT ${xxhash_SOURCE_DIR}/xxh_x86dispatch.c
                              ${xxhash_SOURCE_DIR}/xxhash.c)
@@ -316,19 +287,6 @@ add_library(
     ${lz4_SOURCE_DIR}/lib/lz4frame.c ${lz4_SOURCE_DIR}/lib/lz4hc.c
     ${lz4_SOURCE_DIR}/lib/xxhash.c)
 target_include_directories(AshLZ4 PUBLIC ${LZ4_INCLUDE_DIR})
-
-if(LINUX)
-# TODO: handle arm64
-    find_library(LibAfterMath libGFSDK_Aftermath_Lib.x64.so
-                 HINTS ${aftermathsdk_linux_x64_SOURCE_DIR}/lib/x64 REQUIRED)
-    list(APPEND AFTERMATH_INCLUDE_DIRS ${aftermathsdk_linux_x64_SOURCE_DIR}/include)
-elseif(WIN32)
-    find_library(LibAfterMath GFSDK_Aftermath_Lib.x64.lib
-                 HINTS ${aftermathsdk_windows_x64_SOURCE_DIR}/lib/x64 REQUIRED)
-    list(APPEND AFTERMATH_INCLUDE_DIRS ${aftermathsdk_windows_x64_SOURCE_DIR}/include)
-else()
-    message(CONFIGURE_LOG "Unsupported platform for AfterMath SDK")
-endif()
 
 list(APPEND ASH_COMPILE_OPTIONS)
 list(APPEND ASH_COMPILE_DEFINITIONS)
@@ -353,6 +311,7 @@ else()
             -Wno-nullability-extension
             -Wno-bitwise-instead-of-logical
             -Wno-c23-extensions
+            -Wno-c2y-extensions
             -fno-omit-frame-pointer)
 
         if(ASH_WERROR)
@@ -405,10 +364,11 @@ target_compile_definitions(ashura_std PUBLIC ${ASH_COMPILE_DEFINITIONS})
 target_link_options(ashura_std PUBLIC ${ASH_LINK_OPTIONS})
 
 if(WIN32)
- target_link_libraries(ashura_std PRIVATE dbghelp)
+    target_link_libraries(ashura_std PRIVATE dbghelp)
 elseif(UNIX AND NOT APPLE)
     target_link_libraries(ashura_std PRIVATE dl) # <dlfunc.h>
-    target_link_options(ashura_std PUBLIC -rdynamic) # for better stack traces with address resolution
+    target_link_options(ashura_std PUBLIC -rdynamic) # for better stack traces with
+                                                     # address resolution
 endif()
 
 # ASHURA STD - TESTS
@@ -429,9 +389,7 @@ if(ASH_BUILD_TESTS)
         ashura/std/tests/main.cpp
         ashura/std/tests/math.cpp
         ashura/std/tests/option.cpp
-        ashura/std/tests/option_span.cpp
         ashura/std/tests/panic.cpp
-        ashura/std/tests/piece_table.cpp
         ashura/std/tests/range.cpp
         ashura/std/tests/result.cpp
         ashura/std/tests/sformat.cpp
@@ -457,25 +415,18 @@ endif()
 # ASHURA GPU
 
 if(ASH_BUILD_GPU)
-    add_library(ashura_gpu STATIC ashura/gpu/format.cc ashura/gpu/gpu.cc
-                                  ashura/gpu/vma_def.cc ashura/gpu/vulkan.cc)
+    add_library(ashura_gpu STATIC ashura/gpu/gpu.cpp ashura/gpu/vulkan.cpp)
     target_link_libraries(
         ashura_gpu
         PUBLIC ashura_std
         PUBLIC Vulkan-Headers Vulkan::UtilityHeaders Vulkan::Loader
-               GPUOpen::VulkanMemoryAllocator
-        PRIVATE ${LibAfterMath})
+               GPUOpen::VulkanMemoryAllocator)
 
-    target_include_directories(
-        ashura_gpu
-        PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
-        PRIVATE ${AFTERMATH_INCLUDE_DIRS})
+    target_include_directories(ashura_gpu PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_compile_options(ashura_gpu PUBLIC ${ASH_COMPILE_OPTIONS})
     target_compile_definitions(ashura_gpu PUBLIC ${ASH_COMPILE_DEFINITIONS})
     target_link_options(ashura_gpu PUBLIC ${ASH_LINK_OPTIONS})
 endif()
-
-
 
 # Ashura Engine's Core Shaders
 
@@ -522,7 +473,7 @@ set(SLANG_FLAGS
     "spirv_1_4+${SLANG_FEATURES}"
     -emit-spirv-directly
     -matrix-layout-row-major
-    -fvk-use-gl-layout
+    -fvk-use-c-layout
     -fvk-use-entrypoint-name
     -O3)
 
@@ -537,18 +488,20 @@ function(add_shader target_name shader_file)
     set(output_asm "${SLANG_OUT_DIR}/${target_name}.spv-asm")
     set(compile_options ${ARGN})
 
+    file(GLOB_RECURSE shader_includes "${SLANG_INCLUDE_DIR}/*.slang")
+
     add_custom_command(
         OUTPUT ${output_spv}
         COMMAND ${SLANGC_EXECUTABLE} -target spirv ${SLANG_FLAGS} ${input} -o
                 ${output_spv} -I ${SLANG_INCLUDE_DIR} ${compile_options}
-        DEPENDS ${input}
+        DEPENDS ${input} ${shader_includes}
         COMMENT "Compiling ${target_name} -> ${shader_file}.spv")
 
     add_custom_command(
         OUTPUT ${output_asm}
         COMMAND ${SLANGC_EXECUTABLE} -target spirv-asm ${SLANG_FLAGS} ${input} -o
                 ${output_asm} -I ${SLANG_INCLUDE_DIR} ${compile_options}
-        DEPENDS ${input}
+        DEPENDS ${input} ${shader_includes}
         COMMENT "Compiling ${target_name} -> ${shader_file}.spv-asm")
 
     add_custom_target(${target_name}_shaders ALL DEPENDS ${output_spv} ${output_asm})
@@ -571,7 +524,6 @@ if(ASH_BUILD_ENGINE)
     add_shader(vector_path_coverage vector_path_coverage.slang)
     add_shader(vector_path_fill vector_path_fill.slang)
 endif()
-
 
 # ASHURA ENGINE
 
@@ -603,39 +555,8 @@ if(ASH_BUILD_ENGINE)
         ashura/engine/view_system.cpp
         ashura/engine/view.cpp
         ashura/engine/window_system.cpp
-        # PIPELINES
-        ashura/engine/pipelines/bezier_stencil.cpp
-        ashura/engine/pipelines/bloom.cpp
-        ashura/engine/pipelines/blur.cpp
-        ashura/engine/pipelines/fill_stencil.cpp
-        ashura/engine/pipelines/pbr.cpp
-        ashura/engine/pipelines/quad.cpp
-        ashura/engine/pipelines/sdf.cpp
-        ashura/engine/pipelines/triangle_fill.cpp
-        ashura/engine/pipelines/vector_path.cpp
-        # VIEWS
-        ashura/engine/views/model/text.cpp
-        # ashura/engine/views/button.cpp
-        # ashura/engine/views/check_box.cpp
-        # ashura/engine/views/color_picker.cpp
-        # ashura/engine/views/combo.cpp
-        # ashura/engine/views/flex.cpp
-        # ashura/engine/views/focus_view.cpp
-        # ashura/engine/views/icon.cpp
-        # ashura/engine/views/image.cpp
-        # ashura/engine/views/input.cpp
-        # ashura/engine/views/list.cpp
-        # ashura/engine/views/modal.cpp
-        # ashura/engine/views/plot.cpp
-        # ashura/engine/views/radio.cpp
-        # ashura/engine/views/scalar_box.cpp
-        # ashura/engine/views/scroll_view.cpp
-        # ashura/engine/views/slider.cpp
-        # ashura/engine/views/space.cpp
-        # ashura/engine/views/stack.cpp
-        # ashura/engine/views/switch.cpp
-        # ashura/engine/views/table.cpp
-        ashura/engine/views/text.cpp)
+        ashura/engine/pipelines.cpp
+        ashura/engine/views.cpp)
 
     target_link_libraries(
         ashura_engine
@@ -660,19 +581,19 @@ if(ASH_BUILD_ENGINE)
     target_compile_definitions(ashura_engine PUBLIC ${ASH_COMPILE_DEFINITIONS})
     target_link_options(ashura_engine PUBLIC ${ASH_LINK_OPTIONS})
 
-    
-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-    target_compile_options(ashura_engine PRIVATE
-         --embed-dir=${CMAKE_CURRENT_LIST_DIR}/ashura/engine/assets)
-else()
-    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    target_compile_options(ashura_engine PRIVATE
-         --embed-dir=${CMAKE_CURRENT_LIST_DIR}/ashura/engine/assets)
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+        target_compile_options(
+            ashura_engine
+            PRIVATE --embed-dir=${CMAKE_CURRENT_LIST_DIR}/ashura/engine/assets)
+    else()
+        if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+            target_compile_options(
+                ashura_engine
+                PRIVATE --embed-dir=${CMAKE_CURRENT_LIST_DIR}/ashura/engine/assets)
+        endif()
     endif()
-endif()
 
-add_dependencies(ashura_engine ashura_shaders)
-
+    add_dependencies(ashura_engine ashura_shaders)
 
     # ASHURA ENGINE - TESTS
 
@@ -703,19 +624,21 @@ endif()
 # ASHURA ENGINE SAMPLES
 
 if(ASH_BUILD_SAMPLES)
-    add_executable(ashura_text_sample ashura/engine/samples/views/text.cpp)
+    add_executable(ashura_text_sample ashura/engine/samples/sample.cpp)
     target_link_libraries(ashura_text_sample ashura_std ashura_engine)
     target_compile_definitions(ashura_text_sample PUBLIC ${ASH_COMPILE_DEFINITIONS})
     target_compile_options(ashura_text_sample PUBLIC ${ASH_COMPILE_OPTIONS})
     target_link_options(ashura_text_sample PUBLIC ${ASH_LINK_OPTIONS})
-    
-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-    target_compile_options(ashura_text_sample PRIVATE
-         --embed-dir=${CMAKE_CURRENT_LIST_DIR}/ashura/engine/assets)
-else()
-    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    target_compile_options(ashura_text_sample PRIVATE
-         --embed-dir=${CMAKE_CURRENT_LIST_DIR}/ashura/engine/assets)
+
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+        target_compile_options(
+            ashura_text_sample
+            PRIVATE --embed-dir=${CMAKE_CURRENT_LIST_DIR}/ashura/engine/assets)
+    else()
+        if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+            target_compile_options(
+                ashura_text_sample
+                PRIVATE --embed-dir=${CMAKE_CURRENT_LIST_DIR}/ashura/engine/assets)
+        endif()
     endif()
-endif()
 endif()

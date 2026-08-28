@@ -18,7 +18,7 @@ Result<> join(Vec & out, Span<C const> delimiter, Span<Span<C const> const> stri
         return Ok{};
     }
 
-    auto const initial_size = out.size();
+    auto initial_size = out.size();
 
     for (auto i = 0uz; i < (strings.size() - 1); i++)
     {

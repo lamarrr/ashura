@@ -594,9 +594,9 @@ constexpr bool ends_with(Span<T> body, Span<U> foot, Cmp && cmp = {})
         return false;
     }
 
-    auto       foot_iter = foot.pbegin();
-    auto const foot_end  = foot.pbegin();
-    auto       body_iter = body.pend() - foot.size();
+    auto foot_iter = foot.pbegin();
+    auto foot_end  = foot.pbegin();
+    auto body_iter = body.pend() - foot.size();
 
     while (foot_iter != foot_end)
     {
@@ -851,9 +851,9 @@ constexpr bool is_sorted(Span<T> values, Cmp && cmp = {})
 template <typename T, typename Predicate>
 constexpr Tuple<Span<T>, Span<T>> partition(Span<T> range, Predicate && predicate)
 {
-    auto       iter      = range.pbegin();
-    auto const range_end = range.pend();
-    auto const first     = range.pbegin();
+    auto iter      = range.pbegin();
+    auto range_end = range.pend();
+    auto first     = range.pbegin();
 
     while (iter != range_end && predicate(*iter))
     {
@@ -890,9 +890,9 @@ constexpr void iota(R && range, T && first)
 template <typename T, typename I, typename O, typename Op = Add>
 constexpr T inclusive_scan(Span<I const> in, Span<O> out, T init = {}, Op && op = {})
 {
-    I const *       in_iter  = in.pbegin();
-    I const * const in_end   = in.pend();
-    O *             out_iter = out.pbegin();
+    auto * in_iter  = in.pbegin();
+    auto * in_end   = in.pend();
+    auto * out_iter = out.pbegin();
 
     while (in_iter != in_end)
     {
@@ -908,9 +908,9 @@ constexpr T inclusive_scan(Span<I const> in, Span<O> out, T init = {}, Op && op 
 template <typename T, typename I, typename O, typename Op = Add>
 constexpr T exclusive_scan(Span<I const> in, Span<O> out, T init = {}, Op && op = {})
 {
-    I const *       in_iter  = in.pbegin();
-    I const * const in_end   = in.pend();
-    O *             out_iter = out.pbegin();
+    auto * in_iter  = in.pbegin();
+    auto * in_end   = in.pend();
+    auto * out_iter = out.pbegin();
 
     while (in_iter != in_end)
     {
@@ -932,13 +932,13 @@ constexpr T exclusive_scan(Span<I const> in, Span<O> out, T init = {}, Op && op 
 template <typename T, typename Cmp>
 constexpr Span<T> binary_find(Span<T> span, Cmp && cmp)
 {
-    T *   iter = span.pbegin();
-    usize size = span.size();
+    auto * iter = span.pbegin();
+    usize  size = span.size();
 
     while (size > 1)
     {
-        usize const h0_size = size >> 1;
-        T * const   h0_last = iter + h0_size - 1;
+        auto   h0_size = size >> 1;
+        auto * h0_last = iter + h0_size - 1;
 
         if (cmp(*h0_last))
         {
@@ -962,10 +962,9 @@ constexpr Span<T> binary_find(Span<T> span, Cmp && cmp)
 template <typename T, typename Cmp, typename U>
 constexpr Span<T> binary_find(Span<T> span, Cmp && cmp, U && value)
 {
-    return binary_find<T>(span, [value_ = static_cast<U &&>(value),
-                                 cmp_   = static_cast<Cmp &&>(cmp)](auto const & a) {
-        return cmp_(a, value_);
-    });
+    return binary_find<T>(
+      span, [value_ = static_cast<U &&>(value),
+             cmp_   = static_cast<Cmp &&>(cmp)](auto & a) { return cmp_(a, value_); });
 }
 
 /// @param window_advance_ must be non-zero

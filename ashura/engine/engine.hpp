@@ -2,7 +2,7 @@
 #pragma once
 #include "ashura/engine/systems.hpp"
 #include "ashura/engine/view_system.hpp"
-#include "ashura/gpu/gpu.h"
+#include "ashura/gpu/gpu.hpp"
 #include "ashura/std/cfg.hpp"
 #include "ashura/std/dict.hpp"
 #include "ashura/std/vec.hpp"
@@ -66,8 +66,6 @@ struct IEngine
 {
     struct Systems
     {
-        Dyn<Logger>       logger;
-        Dyn<Scheduler>    sched;
         Dyn<FileSys>      file;
         Dyn<GpuSys>       gpu;
         Dyn<ImageSys>     image;
@@ -87,6 +85,8 @@ struct IEngine
         Window win_ = nullptr;
 
         WindowState state_;
+
+        Option<Cursor> cursor_ = none;
 
         gpu::Surface surface_ = nullptr;
 
@@ -152,9 +152,7 @@ struct IEngine
       allocator_{
         noop_allocator
     },
-      sys_{.logger{nullptr, dyn_noop},
-           .sched{nullptr, dyn_noop},
-           .file{nullptr, dyn_noop},
+      sys_{.file{nullptr, dyn_noop},
            .gpu{nullptr, dyn_noop},
            .image{nullptr, dyn_noop},
            .font{nullptr, dyn_noop},
@@ -182,20 +180,48 @@ struct IEngine
     IEngine & operator=(IEngine const &) = delete;
     IEngine(IEngine &&)                  = default;
     IEngine & operator=(IEngine &&)      = default;
-    ~IEngine()                           = default;
+    ~IEngine();
 
     static Dyn<Engine> create(Allocator allocator, EngineCfg const & cfg,
-                              Callbacks callbacks, Dyn<WindowLoop> loop);
+                              Callbacks callbacks);
 
-    Dyn<WindowEntry *> add_window_(EngineCfg::Window const & cfg, Dyn<WindowLoop> loop);
+    Dyn<WindowEntry *> attach_window_(EngineCfg::Window const & cfg);
 
     Option<gpu::SwapchainInfo> create_swapchain_info_(WindowEntry const & win_entry);
 
     void poll_inputs_(time_point prev_frame_end, time_point frame_start);
 
-    void shutdown();
+    void shutdown_();
 
-    void run();
+    void prepare_render_targets_(GpuFramePlan plan);
+
+    ViewSysState record_frame_(GpuFramePlan plan);
+
+    Option<TextInputInfo>
+      update_window_state_(ViewSysState const &          state,
+                           Option<TextInputInfo> const & current_input_info);
+
+    Option<TextInputInfo> frame_(time_point                    previous_frame_end,
+                                 time_point                    current_frame_begin,
+                                 Option<TextInputInfo> const & current_input_info);
+
+    void run(Dyn<WindowLoop> loop, nanoseconds timeout);
+
+    void run(ui::View & view, nanoseconds timeout);
+
+    template <typename Loop>
+    requires (Callable<Loop, Engine, ui::Scope const &>)
+    void run(Loop && loop, nanoseconds timeout)
+    {
+        run(dyn_lambda<WindowLoop>(allocator_, std::forward<Loop>(loop)).unwrap(),
+            timeout);
+    }
+
+    void run(nanoseconds timeout)
+    {
+        static ui::View view;
+        run(view, timeout);
+    }
 };
 
 /// Global Engine Pointer. Can be hooked at runtime for dynamically loaded

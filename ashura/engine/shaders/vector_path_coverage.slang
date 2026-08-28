@@ -20,7 +20,7 @@ ConstantBuffer<VectorPathCoverageShaderParams> params;
 
 [[vk::binding(0, 0)]]
 // default: 0
-RWBuffer<f32> alpha_masks[];
+RWBuffer<u32> alpha_masks[];
 
 [[vk::binding(0, 1)]]
 // default: 0
@@ -68,6 +68,6 @@ void frag(VertexOutput in)
     u32 texel_index =
       tiled_flat_offset(pixel, params.cfg.tile_extent_log2, params.cfg.tile_texel_count,
                         params.cfg.tile_count);
-    InterlockedExchange(alpha_masks[0][texel_index], in.alpha_mask);
+    InterlockedExchange(alpha_masks[0][texel_index], u32(in.alpha_mask * 255.0));
     InterlockedExchange(fill_ids[0][texel_index], in.fill_id);
 }

@@ -2,7 +2,7 @@
 #pragma once
 
 #include "ashura/engine/errors.hpp"
-#include "ashura/gpu/gpu.h"
+#include "ashura/gpu/gpu.hpp"
 #include "ashura/std/result.hpp"
 #include "ashura/std/types.hpp"
 #include "ashura/std/vec.hpp"

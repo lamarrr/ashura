@@ -1,15 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/engine/encoders.hpp"
 #include "ashura/engine/pipeline_system.hpp"
-#include "ashura/engine/pipelines/bezier_stencil.hpp"
-#include "ashura/engine/pipelines/bloom.hpp"
-#include "ashura/engine/pipelines/blur.hpp"
-#include "ashura/engine/pipelines/fill_stencil.hpp"
-#include "ashura/engine/pipelines/pbr.hpp"
-#include "ashura/engine/pipelines/quad.hpp"
-#include "ashura/engine/pipelines/sdf.hpp"
-#include "ashura/engine/pipelines/triangle_fill.hpp"
-#include "ashura/engine/pipelines/vector_path.hpp"
+#include "ashura/engine/pipelines.hpp"
 #include "ashura/engine/systems.hpp"
 
 namespace ash
