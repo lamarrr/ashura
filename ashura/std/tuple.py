@@ -15,8 +15,8 @@ out(f"""/// SPDX-License-Identifier: MIT
 /// Meta-Generated Source Code
 // clang-format off
 #pragma once
-#include "ashura/std/v.h"
-#include "ashura/std/index_pack.h"
+#include "ashura/std/v.hpp"
+#include "ashura/std/index_pack.hpp"
 
 namespace ash{{
 

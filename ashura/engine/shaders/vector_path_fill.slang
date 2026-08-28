@@ -27,7 +27,7 @@ SamplerState samplers[];
 Texture2D textures[];
 
 [[vk::binding(0, 2)]]
-Buffer<f32> alpha_masks[];
+Buffer<u32> alpha_masks[];
 
 [[vk::binding(0, 3)]]
 Buffer<u32> fill_ids[];
@@ -62,7 +62,7 @@ f32x4 frag(VertexOutput in) :
     u32   texel_index =
       tiled_flat_offset(pixel, params.cfg.tile_extent_log2, params.cfg.tile_texel_count,
                         params.cfg.tile_count);
-    f32 alpha_mask = f32(alpha_masks[0][texel_index]);
+    f32 alpha_mask = f32(alpha_masks[0][texel_index]) / 255.0;
     u32 fill_id    = fill_ids[0][texel_index];
 
     if (item.fill_id != fill_id)

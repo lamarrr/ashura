@@ -11,8 +11,9 @@
 /// @param radius relative to texture dimensions
 struct BlurItem
 {
-    f32x2        uv0;
-    f32x2        uv1;
+    f32x4x4      world_to_ndc;
+    f32x4x4      world_transform;
+    f32x4x4      uv_transform;
     f32x2        radius;
     SamplerIndex sampler;
     TextureIndex tex;

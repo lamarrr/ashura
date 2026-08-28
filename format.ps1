@@ -8,8 +8,8 @@ function cpp_format {
         $folder
     )
 
-    clang-format.exe -i --style=file "$folder/*.h"
-    clang-format.exe -i --style=file "$folder/*.cc"
+    clang-format.exe -i --style=file "$folder/*.hpp"
+    clang-format.exe -i --style=file "$folder/*.cpp"
 }
 
 
@@ -34,8 +34,6 @@ cpp_format -folder $CURRENT_SRC_DIR/ashura/gpu
 cpp_format -folder $CURRENT_SRC_DIR/ashura/engine
 # cpp_format -folder $CURRENT_SRC_DIR/ashura/engine/tests
 cpp_format -folder $CURRENT_SRC_DIR/ashura/engine/shaders
-cpp_format -folder $CURRENT_SRC_DIR/ashura/engine/pipelines
-cpp_format -folder $CURRENT_SRC_DIR/ashura/engine/views
 slang_format -folder $CURRENT_SRC_DIR/ashura/engine/shaders
 slang_format -folder $CURRENT_SRC_DIR/ashura/engine/shaders/modules
 slang_format -folder $CURRENT_SRC_DIR/ashura/engine/shaders/materials

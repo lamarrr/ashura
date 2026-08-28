@@ -1,0 +1,4228 @@
+/// SPDX-License-Identifier: MIT
+#pragma once
+#include "ashura/std/allocator.hpp"
+#include "ashura/std/dyn.hpp"
+#include "ashura/std/enum.hpp"
+#include "ashura/std/math.hpp"
+#include "ashura/std/option.hpp"
+#include "ashura/std/result.hpp"
+#include "ashura/std/time.hpp"
+#include "ashura/std/types.hpp"
+#include "ashura/std/vec.hpp"
+
+namespace ash
+{
+namespace gpu
+{
+
+inline constexpr u32 REMAINING_MIP_LEVELS   = U32_MAX;
+inline constexpr u32 REMAINING_ARRAY_LAYERS = U32_MAX;
+inline constexpr u64 WHOLE_SIZE             = U64_MAX;
+
+typedef struct IBuffer *              Buffer;
+typedef struct IBufferView *          BufferView;
+typedef struct IImage *               Image;
+typedef struct IImageView *           ImageView;
+typedef struct IAlias *               Alias;
+typedef struct ISampler *             Sampler;
+typedef struct IShader *              Shader;
+typedef struct IDescriptorSetLayout * DescriptorSetLayout;
+typedef struct IDescriptorSet *       DescriptorSet;
+typedef struct IPipelineCache *       PipelineCache;
+typedef struct IComputePipeline *     ComputePipeline;
+typedef struct IGraphicsPipeline *    GraphicsPipeline;
+typedef struct ITimestampQuery *      TimestampQuery;
+typedef struct IStatisticsQuery *     StatisticsQuery;
+typedef struct ISurface *             Surface;
+typedef struct ISwapchain *           Swapchain;
+typedef struct IQueueScope *          QueueScope;
+typedef struct ICommandEncoder *      CommandEncoder;
+typedef struct ICommandBuffer *       CommandBuffer;
+typedef struct IDevice *              Device;
+typedef struct IInstance *            Instance;
+
+enum class Backend : u8
+{
+    Stub    = 0,
+    Vulkan  = 1,
+    OpenGL  = 2,
+    DirectX = 3,
+    Metal   = 4
+};
+
+enum class DeviceType : u8
+{
+    Other         = 0,
+    IntegratedGpu = 1,
+    DiscreteGpu   = 2,
+    VirtualGpu    = 3,
+    Cpu           = 4
+};
+
+enum class MemoryProperties : u8
+{
+    None            = 0x00,
+    DeviceLocal     = 0x01,
+    HostVisible     = 0x02,
+    HostCoherent    = 0x04,
+    HostCached      = 0x08,
+    LazilyAllocated = 0x10
+};
+
+ASH_BIT_ENUM_OPS(MemoryProperties)
+
+enum class PresentMode : u8
+{
+    Immediate   = 0,
+    Mailbox     = 1,
+    Fifo        = 2,
+    FifoRelaxed = 3
+};
+
+enum class [[nodiscard]] Status : i32
+{
+    Success              = 0,
+    NotReady             = 1,
+    TimeOut              = 2,
+    Incomplete           = 5,
+    OutOfHostMemory      = -1,
+    OutOfDeviceMemory    = -2,
+    InitializationFailed = -3,
+    DeviceLost           = -4,
+    MemoryMapFailed      = -5,
+    LayerNotPresent      = -6,
+    ExtensionNotPresent  = -7,
+    FeatureNotPresent    = -8,
+    TooManyObjects       = -10,
+    FormatNotSupported   = -11,
+    Unknown              = -13,
+    SurfaceLost          = -1'000'000'000
+};
+
+constexpr Str to_str(Status status)
+{
+    switch (status)
+    {
+        case Status::Success:
+            return "Success"_s;
+        case Status::NotReady:
+            return "NotReady"_s;
+        case Status::TimeOut:
+            return "TimeOut"_s;
+        case Status::Incomplete:
+            return "Incomplete"_s;
+        case Status::OutOfHostMemory:
+            return "OutOfHostMemory"_s;
+        case Status::OutOfDeviceMemory:
+            return "OutOfDeviceMemory"_s;
+        case Status::InitializationFailed:
+            return "InitializationFailed"_s;
+        case Status::DeviceLost:
+            return "DeviceLost"_s;
+        case Status::MemoryMapFailed:
+            return "MemoryMapFailed"_s;
+        case Status::LayerNotPresent:
+            return "LayerNotPresent"_s;
+        case Status::ExtensionNotPresent:
+            return "ExtensionNotPresent"_s;
+        case Status::FeatureNotPresent:
+            return "FeatureNotPresent"_s;
+        case Status::TooManyObjects:
+            return "TooManyObjects"_s;
+        case Status::FormatNotSupported:
+            return "FormatNotSupported"_s;
+        case Status::SurfaceLost:
+            return "SurfaceLost"_s;
+        default:
+            return "<Unrecognized Status>"_s;
+    }
+}
+
+enum class Format : i32
+{
+    Undefined                                  = 0,
+    R4G4_UNORM_PACK8                           = 1,
+    R4G4B4A4_UNORM_PACK16                      = 2,
+    B4G4R4A4_UNORM_PACK16                      = 3,
+    R5G6B5_UNORM_PACK16                        = 4,
+    B5G6R5_UNORM_PACK16                        = 5,
+    R5G5B5A1_UNORM_PACK16                      = 6,
+    B5G5R5A1_UNORM_PACK16                      = 7,
+    A1R5G5B5_UNORM_PACK16                      = 8,
+    R8_UNORM                                   = 9,
+    R8_SNORM                                   = 10,
+    R8_USCALED                                 = 11,
+    R8_SSCALED                                 = 12,
+    R8_UINT                                    = 13,
+    R8_SINT                                    = 14,
+    R8_SRGB                                    = 15,
+    R8G8_UNORM                                 = 16,
+    R8G8_SNORM                                 = 17,
+    R8G8_USCALED                               = 18,
+    R8G8_SSCALED                               = 19,
+    R8G8_UINT                                  = 20,
+    R8G8_SINT                                  = 21,
+    R8G8_SRGB                                  = 22,
+    R8G8B8_UNORM                               = 23,
+    R8G8B8_SNORM                               = 24,
+    R8G8B8_USCALED                             = 25,
+    R8G8B8_SSCALED                             = 26,
+    R8G8B8_UINT                                = 27,
+    R8G8B8_SINT                                = 28,
+    R8G8B8_SRGB                                = 29,
+    B8G8R8_UNORM                               = 30,
+    B8G8R8_SNORM                               = 31,
+    B8G8R8_USCALED                             = 32,
+    B8G8R8_SSCALED                             = 33,
+    B8G8R8_UINT                                = 34,
+    B8G8R8_SINT                                = 35,
+    B8G8R8_SRGB                                = 36,
+    R8G8B8A8_UNORM                             = 37,
+    R8G8B8A8_SNORM                             = 38,
+    R8G8B8A8_USCALED                           = 39,
+    R8G8B8A8_SSCALED                           = 40,
+    R8G8B8A8_UINT                              = 41,
+    R8G8B8A8_SINT                              = 42,
+    R8G8B8A8_SRGB                              = 43,
+    B8G8R8A8_UNORM                             = 44,
+    B8G8R8A8_SNORM                             = 45,
+    B8G8R8A8_USCALED                           = 46,
+    B8G8R8A8_SSCALED                           = 47,
+    B8G8R8A8_UINT                              = 48,
+    B8G8R8A8_SINT                              = 49,
+    B8G8R8A8_SRGB                              = 50,
+    A8B8G8R8_UNORM_PACK32                      = 51,
+    A8B8G8R8_SNORM_PACK32                      = 52,
+    A8B8G8R8_USCALED_PACK32                    = 53,
+    A8B8G8R8_SSCALED_PACK32                    = 54,
+    A8B8G8R8_UINT_PACK32                       = 55,
+    A8B8G8R8_SINT_PACK32                       = 56,
+    A8B8G8R8_SRGB_PACK32                       = 57,
+    A2R10G10B10_UNORM_PACK32                   = 58,
+    A2R10G10B10_SNORM_PACK32                   = 59,
+    A2R10G10B10_USCALED_PACK32                 = 60,
+    A2R10G10B10_SSCALED_PACK32                 = 61,
+    A2R10G10B10_UINT_PACK32                    = 62,
+    A2R10G10B10_SINT_PACK32                    = 63,
+    A2B10G10R10_UNORM_PACK32                   = 64,
+    A2B10G10R10_SNORM_PACK32                   = 65,
+    A2B10G10R10_USCALED_PACK32                 = 66,
+    A2B10G10R10_SSCALED_PACK32                 = 67,
+    A2B10G10R10_UINT_PACK32                    = 68,
+    A2B10G10R10_SINT_PACK32                    = 69,
+    R16_UNORM                                  = 70,
+    R16_SNORM                                  = 71,
+    R16_USCALED                                = 72,
+    R16_SSCALED                                = 73,
+    R16_UINT                                   = 74,
+    R16_SINT                                   = 75,
+    R16_SFLOAT                                 = 76,
+    R16G16_UNORM                               = 77,
+    R16G16_SNORM                               = 78,
+    R16G16_USCALED                             = 79,
+    R16G16_SSCALED                             = 80,
+    R16G16_UINT                                = 81,
+    R16G16_SINT                                = 82,
+    R16G16_SFLOAT                              = 83,
+    R16G16B16_UNORM                            = 84,
+    R16G16B16_SNORM                            = 85,
+    R16G16B16_USCALED                          = 86,
+    R16G16B16_SSCALED                          = 87,
+    R16G16B16_UINT                             = 88,
+    R16G16B16_SINT                             = 89,
+    R16G16B16_SFLOAT                           = 90,
+    R16G16B16A16_UNORM                         = 91,
+    R16G16B16A16_SNORM                         = 92,
+    R16G16B16A16_USCALED                       = 93,
+    R16G16B16A16_SSCALED                       = 94,
+    R16G16B16A16_UINT                          = 95,
+    R16G16B16A16_SINT                          = 96,
+    R16G16B16A16_SFLOAT                        = 97,
+    R32_UINT                                   = 98,
+    R32_SINT                                   = 99,
+    R32_SFLOAT                                 = 100,
+    R32G32_UINT                                = 101,
+    R32G32_SINT                                = 102,
+    R32G32_SFLOAT                              = 103,
+    R32G32B32_UINT                             = 104,
+    R32G32B32_SINT                             = 105,
+    R32G32B32_SFLOAT                           = 106,
+    R32G32B32A32_UINT                          = 107,
+    R32G32B32A32_SINT                          = 108,
+    R32G32B32A32_SFLOAT                        = 109,
+    R64_UINT                                   = 110,
+    R64_SINT                                   = 111,
+    R64_SFLOAT                                 = 112,
+    R64G64_UINT                                = 113,
+    R64G64_SINT                                = 114,
+    R64G64_SFLOAT                              = 115,
+    R64G64B64_UINT                             = 116,
+    R64G64B64_SINT                             = 117,
+    R64G64B64_SFLOAT                           = 118,
+    R64G64B64A64_UINT                          = 119,
+    R64G64B64A64_SINT                          = 120,
+    R64G64B64A64_SFLOAT                        = 121,
+    B10G11R11_UFLOAT_PACK32                    = 122,
+    E5B9G9R9_UFLOAT_PACK32                     = 123,
+    D16_UNORM                                  = 124,
+    X8_D24_UNORM_PACK32                        = 125,
+    D32_SFLOAT                                 = 126,
+    S8_UINT                                    = 127,
+    D16_UNORM_S8_UINT                          = 128,
+    D24_UNORM_S8_UINT                          = 129,
+    D32_SFLOAT_S8_UINT                         = 130,
+    BC1_RGB_UNORM_BLOCK                        = 131,
+    BC1_RGB_SRGB_BLOCK                         = 132,
+    BC1_RGBA_UNORM_BLOCK                       = 133,
+    BC1_RGBA_SRGB_BLOCK                        = 134,
+    BC2_UNORM_BLOCK                            = 135,
+    BC2_SRGB_BLOCK                             = 136,
+    BC3_UNORM_BLOCK                            = 137,
+    BC3_SRGB_BLOCK                             = 138,
+    BC4_UNORM_BLOCK                            = 139,
+    BC4_SNORM_BLOCK                            = 140,
+    BC5_UNORM_BLOCK                            = 141,
+    BC5_SNORM_BLOCK                            = 142,
+    BC6H_UFLOAT_BLOCK                          = 143,
+    BC6H_SFLOAT_BLOCK                          = 144,
+    BC7_UNORM_BLOCK                            = 145,
+    BC7_SRGB_BLOCK                             = 146,
+    ETC2_R8G8B8_UNORM_BLOCK                    = 147,
+    ETC2_R8G8B8_SRGB_BLOCK                     = 148,
+    ETC2_R8G8B8A1_UNORM_BLOCK                  = 149,
+    ETC2_R8G8B8A1_SRGB_BLOCK                   = 150,
+    ETC2_R8G8B8A8_UNORM_BLOCK                  = 151,
+    ETC2_R8G8B8A8_SRGB_BLOCK                   = 152,
+    EAC_R11_UNORM_BLOCK                        = 153,
+    EAC_R11_SNORM_BLOCK                        = 154,
+    EAC_R11G11_UNORM_BLOCK                     = 155,
+    EAC_R11G11_SNORM_BLOCK                     = 156,
+    ASTC_4x4_UNORM_BLOCK                       = 157,
+    ASTC_4x4_SRGB_BLOCK                        = 158,
+    ASTC_5x4_UNORM_BLOCK                       = 159,
+    ASTC_5x4_SRGB_BLOCK                        = 160,
+    ASTC_5x5_UNORM_BLOCK                       = 161,
+    ASTC_5x5_SRGB_BLOCK                        = 162,
+    ASTC_6x5_UNORM_BLOCK                       = 163,
+    ASTC_6x5_SRGB_BLOCK                        = 164,
+    ASTC_6x6_UNORM_BLOCK                       = 165,
+    ASTC_6x6_SRGB_BLOCK                        = 166,
+    ASTC_8x5_UNORM_BLOCK                       = 167,
+    ASTC_8x5_SRGB_BLOCK                        = 168,
+    ASTC_8x6_UNORM_BLOCK                       = 169,
+    ASTC_8x6_SRGB_BLOCK                        = 170,
+    ASTC_8x8_UNORM_BLOCK                       = 171,
+    ASTC_8x8_SRGB_BLOCK                        = 172,
+    ASTC_10x5_UNORM_BLOCK                      = 173,
+    ASTC_10x5_SRGB_BLOCK                       = 174,
+    ASTC_10x6_UNORM_BLOCK                      = 175,
+    ASTC_10x6_SRGB_BLOCK                       = 176,
+    ASTC_10x8_UNORM_BLOCK                      = 177,
+    ASTC_10x8_SRGB_BLOCK                       = 178,
+    ASTC_10x10_UNORM_BLOCK                     = 179,
+    ASTC_10x10_SRGB_BLOCK                      = 180,
+    ASTC_12x10_UNORM_BLOCK                     = 181,
+    ASTC_12x10_SRGB_BLOCK                      = 182,
+    ASTC_12x12_UNORM_BLOCK                     = 183,
+    ASTC_12x12_SRGB_BLOCK                      = 184,
+    G8B8G8R8_422_UNORM                         = 1'000'156'000,
+    B8G8R8G8_422_UNORM                         = 1'000'156'001,
+    G8_B8_R8_3PLANE_420_UNORM                  = 1'000'156'002,
+    G8_B8R8_2PLANE_420_UNORM                   = 1'000'156'003,
+    G8_B8_R8_3PLANE_422_UNORM                  = 1'000'156'004,
+    G8_B8R8_2PLANE_422_UNORM                   = 1'000'156'005,
+    G8_B8_R8_3PLANE_444_UNORM                  = 1'000'156'006,
+    R10X6_UNORM_PACK16                         = 1'000'156'007,
+    R10X6G10X6_UNORM_2PACK16                   = 1'000'156'008,
+    R10X6G10X6B10X6A10X6_UNORM_4PACK16         = 1'000'156'009,
+    G10X6B10X6G10X6R10X6_422_UNORM_4PACK16     = 1'000'156'010,
+    B10X6G10X6R10X6G10X6_422_UNORM_4PACK16     = 1'000'156'011,
+    G10X6_B10X6_R10X6_3PLANE_420_UNORM_3PACK16 = 1'000'156'012,
+    G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16  = 1'000'156'013,
+    G10X6_B10X6_R10X6_3PLANE_422_UNORM_3PACK16 = 1'000'156'014,
+    G10X6_B10X6R10X6_2PLANE_422_UNORM_3PACK16  = 1'000'156'015,
+    G10X6_B10X6_R10X6_3PLANE_444_UNORM_3PACK16 = 1'000'156'016,
+    R12X4_UNORM_PACK16                         = 1'000'156'017,
+    R12X4G12X4_UNORM_2PACK16                   = 1'000'156'018,
+    R12X4G12X4B12X4A12X4_UNORM_4PACK16         = 1'000'156'019,
+    G12X4B12X4G12X4R12X4_422_UNORM_4PACK16     = 1'000'156'020,
+    B12X4G12X4R12X4G12X4_422_UNORM_4PACK16     = 1'000'156'021,
+    G12X4_B12X4_R12X4_3PLANE_420_UNORM_3PACK16 = 1'000'156'022,
+    G12X4_B12X4R12X4_2PLANE_420_UNORM_3PACK16  = 1'000'156'023,
+    G12X4_B12X4_R12X4_3PLANE_422_UNORM_3PACK16 = 1'000'156'024,
+    G12X4_B12X4R12X4_2PLANE_422_UNORM_3PACK16  = 1'000'156'025,
+    G12X4_B12X4_R12X4_3PLANE_444_UNORM_3PACK16 = 1'000'156'026,
+    G16B16G16R16_422_UNORM                     = 1'000'156'027,
+    B16G16R16G16_422_UNORM                     = 1'000'156'028,
+    G16_B16_R16_3PLANE_420_UNORM               = 1'000'156'029,
+    G16_B16R16_2PLANE_420_UNORM                = 1'000'156'030,
+    G16_B16_R16_3PLANE_422_UNORM               = 1'000'156'031,
+    G16_B16R16_2PLANE_422_UNORM                = 1'000'156'032,
+    G16_B16_R16_3PLANE_444_UNORM               = 1'000'156'033,
+    G8_B8R8_2PLANE_444_UNORM                   = 1'000'330'000,
+    G10X6_B10X6R10X6_2PLANE_444_UNORM_3PACK16  = 1'000'330'001,
+    G12X4_B12X4R12X4_2PLANE_444_UNORM_3PACK16  = 1'000'330'002,
+    G16_B16R16_2PLANE_444_UNORM                = 1'000'330'003,
+    A4R4G4B4_UNORM_PACK16                      = 1'000'340'000,
+    A4B4G4R4_UNORM_PACK16                      = 1'000'340'001,
+    ASTC_4x4_SFLOAT_BLOCK                      = 1'000'066'000,
+    ASTC_5x4_SFLOAT_BLOCK                      = 1'000'066'001,
+    ASTC_5x5_SFLOAT_BLOCK                      = 1'000'066'002,
+    ASTC_6x5_SFLOAT_BLOCK                      = 1'000'066'003,
+    ASTC_6x6_SFLOAT_BLOCK                      = 1'000'066'004,
+    ASTC_8x5_SFLOAT_BLOCK                      = 1'000'066'005,
+    ASTC_8x6_SFLOAT_BLOCK                      = 1'000'066'006,
+    ASTC_8x8_SFLOAT_BLOCK                      = 1'000'066'007,
+    ASTC_10x5_SFLOAT_BLOCK                     = 1'000'066'008,
+    ASTC_10x6_SFLOAT_BLOCK                     = 1'000'066'009,
+    ASTC_10x8_SFLOAT_BLOCK                     = 1'000'066'010,
+    ASTC_10x10_SFLOAT_BLOCK                    = 1'000'066'011,
+    ASTC_12x10_SFLOAT_BLOCK                    = 1'000'066'012,
+    ASTC_12x12_SFLOAT_BLOCK                    = 1'000'066'013,
+    A1B5G5R5_UNORM_PACK16                      = 1'000'470'000,
+    A8_UNORM                                   = 1'000'470'001,
+    PVRTC1_2BPP_UNORM_BLOCK_IMG                = 1'000'054'000,
+    PVRTC1_4BPP_UNORM_BLOCK_IMG                = 1'000'054'001,
+    PVRTC2_2BPP_UNORM_BLOCK_IMG                = 1'000'054'002,
+    PVRTC2_4BPP_UNORM_BLOCK_IMG                = 1'000'054'003,
+    PVRTC1_2BPP_SRGB_BLOCK_IMG                 = 1'000'054'004,
+    PVRTC1_4BPP_SRGB_BLOCK_IMG                 = 1'000'054'005,
+    PVRTC2_2BPP_SRGB_BLOCK_IMG                 = 1'000'054'006,
+    PVRTC2_4BPP_SRGB_BLOCK_IMG                 = 1'000'054'007
+};
+
+enum class ColorSpace : i32
+{
+    SRGB_NONLINEAR          = 0,
+    DISPLAY_P3_NONLINEAR    = 1'000'104'001,
+    EXTENDED_SRGB_LINEAR    = 1'000'104'002,
+    DISPLAY_P3_LINEAR       = 1'000'104'003,
+    DCI_P3_NONLINEAR        = 1'000'104'004,
+    BT709_LINEAR            = 1'000'104'005,
+    BT709_NONLINEAR         = 1'000'104'006,
+    BT2020_LINEAR           = 1'000'104'007,
+    HDR10_ST2084            = 1'000'104'008,
+    DOLBYVISION             = 1'000'104'009,
+    HDR10_HLG               = 1'000'104'010,
+    ADOBERGB_LINEAR         = 1'000'104'011,
+    ADOBERGB_NONLINEAR      = 1'000'104'012,
+    PASS_THROUGH            = 1'000'104'013,
+    EXTENDED_SRGB_NONLINEAR = 1'000'104'014
+};
+
+enum class FormatFeatures : u64
+{
+    None                              = 0x0000U,
+    SampledImage                      = 0x0001U,
+    StorageImage                      = 0x0002U,
+    StorageImageAtomic                = 0x0004U,
+    UniformTexelBuffer                = 0x0008U,
+    StorageTexelBuffer                = 0x0010U,
+    StorageTexelBufferAtomic          = 0x0020U,
+    VertexBuffer                      = 0x0040U,
+    ColorAttachment                   = 0x0080U,
+    ColorAttachmentBlend              = 0x0100U,
+    DepthStencilAttachment            = 0x0200U,
+    BlitSrc                           = 0x0400U,
+    BlitDst                           = 0x0800U,
+    SampledImageFilterLinear          = 0x1000U,
+    VideoDecodeOutput                 = 0x0200'0000,
+    VideoDecodeDpb                    = 0x0400'0000,
+    AccelerationStructureVertexBuffer = 0x2000'0000,
+    SampledImageFilterCubic           = 0x0000'2000,
+    FragmentDensityMap                = 0x0100'0000,
+    FragmentShadingRateAttachment     = 0x4000'0000,
+    VideoEncodeInput                  = 0x0800'0000,
+    VideoEncodeDpb                    = 0x1000'0000,
+};
+
+ASH_BIT_ENUM_OPS(FormatFeatures)
+
+enum class ImageAspects : u8
+{
+    None    = 0x00U,
+    Color   = 0x01U,
+    Depth   = 0x02U,
+    Stencil = 0x04U
+};
+
+ASH_BIT_ENUM_OPS(ImageAspects)
+
+enum class SampleCount : u8
+{
+    None = 0x00U,
+    C1   = 0x01U,
+    C2   = 0x02U,
+    C4   = 0x04U,
+    C8   = 0x08U,
+    C16  = 0x10U,
+    C32  = 0x20U,
+    C64  = 0x40U
+};
+
+ASH_BIT_ENUM_OPS(SampleCount)
+
+enum class LoadOp : u8
+{
+    Load     = 0,
+    Clear    = 1,
+    DontCare = 2
+};
+
+enum class StoreOp : u32
+{
+    Store    = 0,
+    DontCare = 1,
+    None     = 1'000'301'000
+};
+
+enum class BlendFactor : u8
+{
+    Zero                  = 0,
+    One                   = 1,
+    SrcColor              = 2,
+    OneMinusSrcColor      = 3,
+    DstColor              = 4,
+    OneMinusDstColor      = 5,
+    SrcAlpha              = 6,
+    OneMinusSrcAlpha      = 7,
+    DstAlpha              = 8,
+    OneMinusDstAlpha      = 9,
+    ConstantColor         = 10,
+    OneMinusConstantColor = 11,
+    ConstantAlpha         = 12,
+    OneMinusConstantAlpha = 13,
+    SrcAlphaSaturate      = 14,
+    Src1Color             = 15,
+    OneMinusSrc1Color     = 16,
+    Src1Alpha             = 17,
+    OneMinusSrc1Alpha     = 18
+};
+
+enum class BlendOp : u8
+{
+    Add             = 0,
+    Subtract        = 1,
+    ReverseSubtract = 2,
+    Min             = 3,
+    Max             = 4
+};
+
+enum class CompareOp : u8
+{
+    Never          = 0,
+    Less           = 1,
+    Equal          = 2,
+    LessOrEqual    = 3,
+    Greater        = 4,
+    NotEqual       = 5,
+    GreaterOrEqual = 6,
+    Always         = 7
+};
+
+enum class StencilOp : u8
+{
+    Keep              = 0,
+    Zero              = 1,
+    Replace           = 2,
+    IncrementAndClamp = 3,
+    DecrementAndClamp = 4,
+    Invert            = 5,
+    IncrementAndWrap  = 6,
+    DecrementAndWrap  = 7
+};
+
+enum class LogicOp : u8
+{
+    Clear        = 0,
+    And          = 1,
+    AndReverse   = 2,
+    Copy         = 3,
+    AndInverted  = 4,
+    NoOp         = 5,
+    Xor          = 6,
+    Or           = 7,
+    Nor          = 8,
+    Equivalent   = 9,
+    Invert       = 10,
+    OrReverse    = 11,
+    CopyInverted = 12,
+    OrInverted   = 13,
+    Nand         = 14,
+    Set          = 15
+};
+
+enum class SamplerAddressMode : u8
+{
+    Repeat            = 0,
+    MirroredRepeat    = 1,
+    ClampToEdge       = 2,
+    ClampToBorder     = 3,
+    MirrorClampToEdge = 4
+};
+
+enum class SamplerMipMapMode : u8
+{
+    Nearest = 0,
+    Linear  = 1
+};
+
+enum class Filter : u8
+{
+    Nearest = 0,
+    Linear  = 1
+};
+
+enum class CullMode : u8
+{
+    None         = 0,
+    Front        = 1,
+    Back         = 2,
+    FrontAndBack = Front | Back
+};
+
+enum class FrontFace : u8
+{
+    CounterClockWise = 0,
+    ClockWise        = 1
+};
+
+enum class StencilFaces : u8
+{
+    None         = 0,
+    Front        = 1,
+    Back         = 2,
+    FrontAndBack = 3
+};
+
+enum class ComponentSwizzle : u8
+{
+    Identity   = 0,
+    Zero       = 1,
+    One        = 2,
+    ComponentR = 3,
+    ComponentG = 4,
+    ComponentB = 5,
+    ComponentA = 6
+};
+
+enum class ColorComponents : u8
+{
+    None = 0x00,
+    R    = 0x01,
+    G    = 0x02,
+    B    = 0x04,
+    A    = 0x08,
+    All  = R | G | B | A
+};
+
+ASH_BIT_ENUM_OPS(ColorComponents)
+
+enum class BufferUsage : u32
+{
+    None                = 0x0000'0000U,
+    TransferSrc         = 0x0000'0001U,
+    TransferDst         = 0x0000'0002U,
+    UniformTexelBuffer  = 0x0000'0004U,
+    StorageTexelBuffer  = 0x0000'0008U,
+    UniformBuffer       = 0x0000'0010U,
+    StorageBuffer       = 0x0000'0020U,
+    IndexBuffer         = 0x0000'0040U,
+    VertexBuffer        = 0x0000'0080U,
+    IndirectBuffer      = 0x0000'0100U,
+    ShaderDeviceAddress = 0x0002'0000U
+};
+
+ASH_BIT_ENUM_OPS(BufferUsage)
+
+enum class ImageUsage : u32
+{
+    None                   = 0x00U,
+    TransferSrc            = 0x01U,
+    TransferDst            = 0x02U,
+    Sampled                = 0x04U,
+    Storage                = 0x08U,
+    ColorAttachment        = 0x10U,
+    DepthStencilAttachment = 0x20U,
+    InputAttachment        = 0x80U
+};
+
+ASH_BIT_ENUM_OPS(ImageUsage)
+
+enum class InputRate : u8
+{
+    Vertex   = 0,
+    Instance = 1
+};
+
+enum class ShaderStages : u8
+{
+    None        = 0x00U,
+    Vertex      = 0x01U,
+    Fragment    = 0x10U,
+    Compute     = 0x20U,
+    AllGraphics = 0x1FU,
+    All         = Vertex | Fragment | Compute | AllGraphics
+};
+
+ASH_BIT_ENUM_OPS(ShaderStages)
+
+enum class PipelineStages : u64
+{
+    None                  = 0x0000'0000,
+    TopOfPipe             = 0x0000'0001,
+    DrawIndirect          = 0x0000'0002,
+    VertexInput           = 0x0000'0004,
+    VertexShader          = 0x0000'0008,
+    GeometryShader        = 0x0000'0040,
+    FragmentShader        = 0x0000'0080,
+    EarlyFragmentTests    = 0x0000'0100,
+    LateFragmentTests     = 0x0000'0200,
+    ColorAttachmentOutput = 0x0000'0400,
+    ComputeShader         = 0x0000'0800,
+    Transfer              = 0x0000'1000,
+    BottomOfPipe          = 0x0000'2000,
+    Host                  = 0x0000'4000,
+    AllGraphics           = 0x0000'8000,
+    AllCommands           = 0x0001'0000
+};
+
+ASH_BIT_ENUM_OPS(PipelineStages)
+
+enum class BorderColor : u8
+{
+    FloatTransparentBlack = 0,
+    IntTransparentBlack   = 1,
+    FloatOpaqueBlack      = 2,
+    IntOpaqueBlack        = 3,
+    FloatOpaqueueWhite    = 4,
+    IntOpaqueueWhite      = 5,
+};
+
+enum class PolygonMode : u8
+{
+    Fill  = 0,
+    Line  = 1,
+    Point = 2
+};
+
+enum class PrimitiveTopology : u8
+{
+    PointList     = 0,
+    LineList      = 1,
+    LineStrip     = 2,
+    TriangleList  = 3,
+    TriangleStrip = 4,
+    TriangleFan   = 5
+};
+
+enum class ImageType : u8
+{
+    Type1D = 0,
+    Type2D = 1,
+    Type3D = 2
+};
+
+enum class ImageTiling : u8
+{
+    Optimal = 0,
+    Linear  = 1
+};
+
+enum class ImageViewType : u8
+{
+    Type1D        = 0,
+    Type2D        = 1,
+    Type3D        = 2,
+    TypeCube      = 3,
+    Type1DArray   = 4,
+    Type2DArray   = 5,
+    TypeCubeArray = 6
+};
+
+enum class DescriptorType : u8
+{
+    Sampler              = 0,
+    CombinedImageSampler = 1,
+    SampledImage         = 2,
+    StorageImage         = 3,
+    UniformTexelBuffer   = 4,
+    StorageTexelBuffer   = 5,
+    UniformBuffer        = 6,
+    ReadStorageBuffer    = 7,
+    RWStorageBuffer      = 8,
+    DynUniformBuffer     = 9,
+    DynReadStorageBuffer = 10,
+    DynRWStorageBuffer   = 11,
+    InputAttachment      = 12
+};
+
+using DeviceAddress = u64;
+
+constexpr u8 NUM_DESCRIPTOR_TYPES = 13;
+
+enum class IndexType : u8
+{
+    U16 = 0,
+    U32 = 1
+};
+
+enum class CompositeAlpha : u32
+{
+    None           = 0x00U,
+    Opaque         = 0x01U,
+    PreMultiplied  = 0x02U,
+    PostMultiplied = 0x04U,
+    Inherit        = 0x08U
+};
+
+ASH_BIT_ENUM_OPS(CompositeAlpha)
+
+enum class ResolveModes : u32
+{
+    None       = 0x00,
+    SampleZero = 0x01,
+    Average    = 0x02,
+    Min        = 0x04,
+    Max        = 0x08
+};
+
+ASH_BIT_ENUM_OPS(ResolveModes)
+
+enum class MemoryType : u8
+{
+    /// the resource is the sole owner
+    Unique  = 0,
+    /// the resource's memory is aliased with other resources
+    Aliased = 1
+};
+
+using Object = Enum<Instance, Device, CommandEncoder, CommandBuffer, Buffer, BufferView,
+                    Image, ImageView, Alias, Sampler, Shader, DescriptorSetLayout,
+                    DescriptorSet, PipelineCache, ComputePipeline, GraphicsPipeline,
+                    TimestampQuery, StatisticsQuery, Surface, Swapchain, QueueScope>;
+
+struct SurfaceFormat
+{
+    Format     format      = Format::Undefined;
+    ColorSpace color_space = ColorSpace::SRGB_NONLINEAR;
+};
+
+/// @brief Describes the region of the framebuffer the coordinates gotten from
+/// the shaders will be translated to. The shader coordinates are in range [0,
+/// 1]. The [0, 1] shader coordinates will be transformed to where this viewport
+/// points to. If either extent.x or extent.y are negative the axis is inverted.
+struct Viewport
+{
+    f32x2 offset    = {};
+    f32x2 extent    = {};
+    f32   min_depth = 0;
+    f32   max_depth = 0;
+
+    constexpr bool operator==(Viewport const & rhs) const = default;
+};
+
+struct StencilState
+{
+    StencilOp fail_op       = StencilOp::Keep;
+    StencilOp pass_op       = StencilOp::Keep;
+    StencilOp depth_fail_op = StencilOp::Keep;
+    CompareOp compare_op    = CompareOp::Never;
+    u32       compare_mask  = 0;
+    u32       write_mask    = 0;
+    u32       reference     = 0;
+
+    constexpr bool operator==(StencilState const & rhs) const = default;
+};
+
+struct ComponentMapping
+{
+    ComponentSwizzle r = ComponentSwizzle::Identity;
+    ComponentSwizzle g = ComponentSwizzle::Identity;
+    ComponentSwizzle b = ComponentSwizzle::Identity;
+    ComponentSwizzle a = ComponentSwizzle::Identity;
+};
+
+struct FormatProperties
+{
+    FormatFeatures linear_tiling_features  = FormatFeatures::None;
+    FormatFeatures optimal_tiling_features = FormatFeatures::None;
+    FormatFeatures buffer_features         = FormatFeatures::None;
+};
+
+struct ImageSubresourceRange
+{
+    ImageAspects aspects      = ImageAspects::None;
+    Slice32      mip_levels   = {};
+    Slice32      array_layers = {};
+};
+
+struct ImageSubresourceLayers
+{
+    ImageAspects aspects      = ImageAspects::None;
+    u32          mip_level    = 0;
+    Slice32      array_layers = {};
+};
+
+struct AliasInfo
+{
+    Str                             label     = {};
+    Span<Enum<Buffer, Image> const> resources = {};
+};
+
+struct BufferInfo
+{
+    Str         label       = {};
+    u64         size        = 0;
+    BufferUsage usage       = BufferUsage::None;
+    MemoryType  memory_type = MemoryType::Unique;
+    bool        host_mapped = false;
+};
+
+/// format interpretation of a buffer's contents
+struct BufferViewInfo
+{
+    Str     label  = {};
+    Buffer  buffer = nullptr;
+    Format  format = Format::Undefined;
+    Slice64 slice  = {};
+};
+
+struct ImageInfo
+{
+    Str          label        = {};
+    ImageType    type         = ImageType::Type1D;
+    Format       format       = Format::Undefined;
+    ImageUsage   usage        = ImageUsage::None;
+    ImageAspects aspects      = ImageAspects::None;
+    u32x3        extent       = {};
+    u32          mip_levels   = 0;
+    u32          array_layers = 0;
+    SampleCount  sample_count = SampleCount::None;
+    ImageTiling  tiling       = ImageTiling::Optimal;
+    MemoryType   memory_type  = MemoryType::Unique;
+};
+
+/// a sub-resource that specifies mips, aspects, layer, and component mapping of
+/// images. typically for reference in shaders.
+///
+/// @param mapping mapping of the components in the shader. i.e. for
+/// R8G8B8_UNORM the non-existent Alpha component is always 0. To set it to 1 we
+/// set its component mapping (mapping.a) to ComponentSwizzle::One.
+///
+struct ImageViewInfo
+{
+    Str              label        = {};
+    Image            image        = nullptr;
+    ImageViewType    view_type    = ImageViewType::Type1D;
+    Format           view_format  = Format::Undefined;
+    ComponentMapping mapping      = {};
+    ImageAspects     aspects      = ImageAspects::None;
+    Slice32          mip_levels   = {};
+    Slice32          array_layers = {};
+};
+
+struct SamplerInfo
+{
+    Str                label                    = {};
+    Filter             mag_filter               = Filter::Nearest;
+    Filter             min_filter               = Filter::Nearest;
+    SamplerMipMapMode  mip_map_mode             = SamplerMipMapMode::Nearest;
+    SamplerAddressMode address_mode_u           = SamplerAddressMode::Repeat;
+    SamplerAddressMode address_mode_v           = SamplerAddressMode::Repeat;
+    SamplerAddressMode address_mode_w           = SamplerAddressMode::Repeat;
+    f32                mip_lod_bias             = 0;
+    bool               anisotropy_enable        = false;
+    f32                max_anisotropy           = 1.0;
+    bool               compare_enable           = false;
+    CompareOp          compare_op               = CompareOp::Never;
+    f32                min_lod                  = 0;
+    f32                max_lod                  = 0;
+    BorderColor        border_color             = BorderColor::FloatTransparentBlack;
+    bool               unnormalized_coordinates = false;
+};
+
+struct ShaderInfo
+{
+    Str             label      = {};
+    Span<u32 const> spirv_code = {};
+};
+
+/// @param count represents maximum count of the binding if
+/// `is_variable_length` is true.
+/// @param is_variable_length if it is a dynamically sized binding
+struct DescriptorBindingInfo
+{
+    DescriptorType type               = DescriptorType::Sampler;
+    u32            count              = 0;
+    bool           is_variable_length = false;
+};
+
+struct DescriptorSetLayoutInfo
+{
+    Str                               label    = {};
+    Span<DescriptorBindingInfo const> bindings = {};
+};
+
+struct DescriptorSetInfo
+{
+    Str                 label            = {};
+    DescriptorSetLayout layout           = nullptr;
+    Span<u32 const>     variable_lengths = {};
+};
+
+struct PipelineCacheInfo
+{
+    Str            label        = {};
+    Span<u8 const> initial_data = {};
+};
+
+struct ImageBinding
+{
+    Sampler   sampler    = nullptr;
+    ImageView image_view = nullptr;
+};
+
+struct BufferBinding
+{
+    Buffer  buffer = nullptr;
+    Slice64 range  = {};
+};
+
+struct DescriptorSetUpdate
+{
+    DescriptorSet             set           = nullptr;
+    u32                       binding       = 0;
+    u32                       first_element = 0;
+    Span<ImageBinding const>  images        = {};
+    Span<BufferView const>    texel_buffers = {};
+    Span<BufferBinding const> buffers       = {};
+};
+
+struct SpecializationConstant
+{
+    u32   constant_id = 0;
+    u32   offset      = 0;
+    usize size        = 0;
+};
+
+struct ShaderStageInfo
+{
+    Shader                             shader                        = nullptr;
+    Str                                entry_point                   = {};
+    Span<SpecializationConstant const> specialization_constants      = {};
+    Span<u8 const>                     specialization_constants_data = {};
+};
+
+struct ComputePipelineInfo
+{
+    Str                             label                  = {};
+    ShaderStageInfo                 compute_shader         = {};
+    u32                             push_constants_size    = 0;
+    Span<DescriptorSetLayout const> descriptor_set_layouts = {};
+    PipelineCache                   cache                  = nullptr;
+};
+
+/// Specifies how the binded vertex buffers are iterated and the strides for
+/// them unique for each binded buffer.
+/// @param binding binding id this structure represents
+/// @param stride stride in bytes for each binding advance within the binded
+/// buffer
+/// @param input_rate advance-rate for this binding. on every vertex or every
+/// instance
+struct VertexInputBinding
+{
+    u32       binding    = 0;
+    u32       stride     = 0;
+    InputRate input_rate = InputRate::Vertex;
+};
+
+/// specifies representation/interpretation and shader location mapping of the
+/// values in the buffer this is a many to one mapping to the input binding.
+/// @param binding which binding this attribute binds to
+/// @param location binding's mapped location in the shader
+/// @param format data format interpretation
+/// @param offset offset of attribute in binding
+struct VertexAttribute
+{
+    u32    binding  = 0;
+    u32    location = 0;
+    Format format   = Format::Undefined;
+    u32    offset   = 0;
+};
+
+struct DepthStencilState
+{
+    bool         depth_test_enable        = false;
+    bool         depth_write_enable       = false;
+    CompareOp    depth_compare_op         = CompareOp::Never;
+    bool         depth_bounds_test_enable = false;
+    bool         stencil_test_enable      = false;
+    StencilState front_stencil            = {};
+    StencilState back_stencil             = {};
+    f32          min_depth_bounds         = 0;
+    f32          max_depth_bounds         = 0;
+};
+
+struct ColorBlendAttachmentState
+{
+    bool            blend_enable           = false;
+    BlendFactor     src_color_blend_factor = BlendFactor::Zero;
+    BlendFactor     dst_color_blend_factor = BlendFactor::Zero;
+    BlendOp         color_blend_op         = BlendOp::Add;
+    BlendFactor     src_alpha_blend_factor = BlendFactor::Zero;
+    BlendFactor     dst_alpha_blend_factor = BlendFactor::Zero;
+    BlendOp         alpha_blend_op         = BlendOp::Add;
+    ColorComponents color_write_mask       = ColorComponents::None;
+};
+
+struct ColorBlendState
+{
+    bool                                  logic_op_enable = false;
+    LogicOp                               logic_op        = LogicOp::Clear;
+    Span<ColorBlendAttachmentState const> attachments     = {};
+    f32x4                                 blend_constant  = {};
+};
+
+struct RasterizationState
+{
+    bool        depth_clamp_enable         = false;
+    PolygonMode polygon_mode               = PolygonMode::Fill;
+    CullMode    cull_mode                  = CullMode::None;
+    FrontFace   front_face                 = FrontFace::CounterClockWise;
+    bool        depth_bias_enable          = false;
+    f32         depth_bias_constant_factor = 0;
+    f32         depth_bias_clamp           = 0;
+    f32         depth_bias_slope_factor    = 0;
+    SampleCount sample_count               = SampleCount::C1;
+};
+
+struct GraphicsState
+{
+    RectU        scissor                  = {};
+    Viewport     viewport                 = {};
+    f32x4        blend_constant           = {};
+    bool         stencil_test_enable      = false;
+    StencilState front_face_stencil       = {};
+    StencilState back_face_stencil        = {};
+    CullMode     cull_mode                = CullMode::None;
+    FrontFace    front_face               = FrontFace::CounterClockWise;
+    bool         depth_test_enable        = false;
+    CompareOp    depth_compare_op         = CompareOp::Never;
+    bool         depth_write_enable       = false;
+    bool         depth_bounds_test_enable = false;
+};
+
+/// @param color_format, depth_format, stencil_format: with Format::Undefined
+/// means the attachment is unused.
+struct GraphicsPipelineInfo
+{
+    Str                             label                  = {};
+    ShaderStageInfo                 vertex_shader          = {};
+    ShaderStageInfo                 fragment_shader        = {};
+    Span<Format const>              color_formats          = {};
+    Option<Format>                  depth_format           = none;
+    Option<Format>                  stencil_format         = none;
+    Span<VertexInputBinding const>  vertex_input_bindings  = {};
+    Span<VertexAttribute const>     vertex_attributes      = {};
+    u32                             push_constants_size    = 0;
+    Span<DescriptorSetLayout const> descriptor_set_layouts = {};
+    PrimitiveTopology               primitive_topology  = PrimitiveTopology::PointList;
+    RasterizationState              rasterization_state = {};
+    DepthStencilState               depth_stencil_state = {};
+    ColorBlendState                 color_blend_state   = {};
+    PipelineCache                   cache               = nullptr;
+};
+
+struct SwapchainInfo
+{
+    Str            label               = {};
+    Surface        surface             = nullptr;
+    SurfaceFormat  format              = {};
+    ImageUsage     usage               = ImageUsage::None;
+    u32            preferred_buffering = 0;
+    PresentMode    present_mode        = PresentMode::Immediate;
+    u32x2          preferred_extent    = {};
+    CompositeAlpha composite_alpha     = CompositeAlpha::None;
+};
+
+struct QueueScopeInfo
+{
+    Str label     = {};
+    u32 buffering = 0;
+};
+
+struct StatisticsQueryInfo
+{
+    Str label = {};
+    u32 count = 0;
+};
+
+struct TimestampQueryInfo
+{
+    Str label = {};
+    u32 count = 0;
+};
+
+struct CommandBufferInfo
+{
+    Str label = {};
+};
+
+struct CommandEncoderInfo
+{
+    Str label = {};
+};
+
+struct DispatchCommand
+{
+    u32 x = 0;
+    u32 y = 0;
+    u32 z = 0;
+};
+
+struct DrawCommand
+{
+    u32 vertex_count   = 0;
+    u32 instance_count = 0;
+    u32 first_vertex   = 0;
+    u32 first_instance = 0;
+};
+
+struct DrawIndexedCommand
+{
+    u32 index_count    = 0;
+    u32 instance_count = 0;
+    u32 first_index    = 0;
+    i32 vertex_offset  = 0;
+    u32 first_instance = 0;
+};
+
+struct BufferCopy
+{
+    Slice64 src_range{};
+    u64     dst_offset = 0;
+};
+
+struct BufferImageCopy
+{
+    u64                    buffer_offset       = 0;
+    u32                    buffer_row_length   = 0;
+    u32                    buffer_image_height = 0;
+    ImageSubresourceLayers image_layers        = {};
+    BoxU                   image_area          = {};
+};
+
+struct ImageCopy
+{
+    ImageSubresourceLayers src_layers = {};
+    BoxU                   src_area   = {};
+    ImageSubresourceLayers dst_layers = {};
+    u32x3                  dst_offset = {};
+};
+
+struct ImageBlit
+{
+    ImageSubresourceLayers src_layers = {};
+    BoxU                   src_area   = {};
+    ImageSubresourceLayers dst_layers = {};
+    BoxU                   dst_area   = {};
+};
+
+struct ImageResolve
+{
+    ImageSubresourceLayers src_layers = {};
+    BoxU                   src_area   = {};
+    ImageSubresourceLayers dst_layers = {};
+    u32x3                  dst_offset = {};
+};
+
+/// x, y, z, w => R, G, B, A
+union Color
+{
+    u32x4 u32 = {0, 0, 0, 0};
+    i32x4 i32;
+    f32x4 f32;
+};
+
+struct DepthStencil
+{
+    f32 depth   = 0;
+    u32 stencil = 0;
+};
+
+union ClearValue
+{
+    Color        color = {};
+    DepthStencil depth_stencil;
+};
+
+struct SurfaceCapabilities
+{
+    ImageUsage     image_usage     = ImageUsage::None;
+    CompositeAlpha composite_alpha = CompositeAlpha::None;
+};
+
+struct PipelineStatistics
+{
+    u64 input_assembly_vertices     = 0;
+    u64 input_assembly_primitives   = 0;
+    u64 vertex_shader_invocations   = 0;
+    u64 clipping_invocations        = 0;
+    u64 clipping_primitives         = 0;
+    u64 fragment_shader_invocations = 0;
+    u64 compute_shader_invocations  = 0;
+};
+
+struct DeviceFeatures
+{
+    bool geometry_shader              = true;
+    bool tessellation_shader          = true;
+    bool depth_bounds                 = true;
+    bool wide_lines                   = true;
+    bool large_points                 = true;
+    bool alpha_to_one                 = true;
+    bool multi_viewport               = true;
+    bool texture_compression_etc2     = true;
+    bool texture_compression_astc_ldr = true;
+    bool texture_compression_bc       = true;
+    bool shader_float64               = true;
+    bool shader_int64                 = true;
+    bool shader_int16                 = true;
+};
+
+struct DeviceLimits
+{
+    u32 image_extent_1d    = U32_MAX;
+    u32 image_extent_2d    = U32_MAX;
+    u32 image_extent_3d    = U32_MAX;
+    u32 image_extent_cube  = U32_MAX;
+    u32 image_array_layers = U32_MAX;
+
+    u32 uniform_buffer_range = U32_MAX;
+    u32 storage_buffer_range = U32_MAX;
+    u32 push_constants_size  = U32_MAX;
+
+    u32 bound_descriptor_sets = U32_MAX;
+
+    u32 per_stage_samplers          = U32_MAX;
+    u32 per_stage_uniform_buffers   = U32_MAX;
+    u32 per_stage_storage_buffers   = U32_MAX;
+    u32 per_stage_sampled_images    = U32_MAX;
+    u32 per_stage_storage_images    = U32_MAX;
+    u32 per_stage_input_attachments = U32_MAX;
+    u32 per_stage_resources         = U32_MAX;
+
+    u32 descriptor_set_samplers                = U32_MAX;
+    u32 descriptor_set_uniform_buffers         = U32_MAX;
+    u32 descriptor_set_uniform_buffers_dynamic = U32_MAX;
+    u32 descriptor_set_storage_buffers         = U32_MAX;
+    u32 descriptor_set_storage_buffers_dynamic = U32_MAX;
+    u32 descriptor_set_sampled_images          = U32_MAX;
+    u32 descriptor_set_storage_images          = U32_MAX;
+    u32 descriptor_set_input_attachments       = U32_MAX;
+
+    u32   compute_work_group_invocations = U32_MAX;
+    u32   compute_shared_memory_size     = U32_MAX;
+    u32x3 compute_work_groups            = u32x3::splat(U32_MAX);
+    u32x3 compute_work_group_size        = u32x3::splat(U32_MAX);
+
+    u32 draw_indirect = U32_MAX;
+
+    f32 sampler_lod        = F32_INF;
+    f32 sampler_anisotropy = F32_INF;
+
+    u32   viewports       = U32_MAX;
+    u32x2 viewport_extent = u32x2::splat(U32_MAX);
+
+    u64 uniform_buffer_offset_alignment = 1;
+    u64 texel_buffer_offset_alignment   = 1;
+    u64 storage_buffer_offset_alignment = 1;
+
+    u32x2 framebuffer_extent = u32x2::splat(U32_MAX);
+    u32   framebuffer_layers = U32_MAX;
+
+    u32 framebuffer_color_samples   = U32_MAX;
+    u32 framebuffer_depth_samples   = U32_MAX;
+    u32 framebuffer_stencil_samples = U32_MAX;
+
+    u32 sampled_image_color_samples   = U32_MAX;
+    u32 sampled_image_depth_samples   = U32_MAX;
+    u32 sampled_image_stencil_samples = U32_MAX;
+    u32 storage_image_sample_samples  = U32_MAX;
+};
+
+/// @param timestamp_period number of timestamp ticks equivalent to 1
+/// nanosecond
+struct DeviceProperties
+{
+    u32            api_version        = 0;
+    u32            driver_version     = 0;
+    u32            vendor_id          = 0;
+    u32            device_id          = 0;
+    Str            device_name        = {};
+    DeviceType     type               = DeviceType::Other;
+    bool           has_unified_memory = false;
+    f32            timestamp_period   = 0;
+    DeviceFeatures features           = {};
+    DeviceLimits   limits             = {};
+};
+
+/// @param generation increases everytime the swapchain for the surface is
+/// recreated or re-configured
+/// @param images swapchain images, calling ref or unref on them will cause a
+/// panic as they are only meant to exist for the lifetime of the frame. avoid
+/// storing pointers to its data members.
+struct SwapchainState
+{
+    u32x2             extent          = {};
+    SurfaceFormat     format          = {};
+    PresentMode       present_mode    = PresentMode::Immediate;
+    CompositeAlpha    composite_alpha = CompositeAlpha::None;
+    Span<Image const> images          = {};
+    Option<u32>       current_image   = none;
+};
+
+struct QueueScopeState
+{
+    /// @brief The ring index when using (buffering) as the ring-buffer size
+    u64 ring_index = 0;
+
+    /// @brief The number of allowed concurrent submissions on the queue scope
+    u64 buffering = 0;
+};
+
+struct RenderingAttachment
+{
+    ImageView    view         = nullptr;
+    ImageView    resolve      = nullptr;
+    ResolveModes resolve_mode = ResolveModes::None;
+    LoadOp       load_op      = LoadOp::Load;
+    StoreOp      store_op     = StoreOp::Store;
+    ClearValue   clear        = {};
+};
+
+struct RenderingInfo
+{
+    RectU                           render_area        = {};
+    u32                             num_layers         = 0;
+    Span<RenderingAttachment const> color_attachments  = {};
+    Option<RenderingAttachment>     depth_attachment   = none;
+    Option<RenderingAttachment>     stencil_attachment = none;
+};
+
+struct ICommandEncoder
+{
+    virtual void begin() = 0;
+
+    virtual Result<Void, Status> end() = 0;
+
+    virtual void reset() = 0;
+
+    virtual void reset_timestamp_query(TimestampQuery query, Slice32 range) = 0;
+
+    virtual void reset_statistics_query(StatisticsQuery query, Slice32 range) = 0;
+
+    virtual void write_timestamp(TimestampQuery query, PipelineStages stage,
+                                 u32 index) = 0;
+
+    virtual void begin_statistics(StatisticsQuery query, u32 index) = 0;
+
+    virtual void end_statistics(StatisticsQuery query, u32 index) = 0;
+
+    virtual void begin_debug_marker(Str region_name, f32x4 color) = 0;
+
+    virtual void end_debug_marker() = 0;
+
+    virtual void fill_buffer(Buffer dst, Slice64 range, u32 data) = 0;
+
+    virtual void copy_buffer(Buffer src, Buffer dst, Span<BufferCopy const> copies) = 0;
+
+    virtual void update_buffer(Span<u8 const> src, u64 dst_offset, Buffer dst) = 0;
+
+    virtual void clear_color_image(Image dst, Color value,
+                                   Span<ImageSubresourceRange const> ranges) = 0;
+
+    virtual void
+      clear_depth_stencil_image(Image dst, DepthStencil value,
+                                Span<ImageSubresourceRange const> ranges) = 0;
+
+    virtual void copy_image(Image src, Image dst, Span<ImageCopy const> copies) = 0;
+
+    virtual void copy_buffer_to_image(Buffer src, Image dst,
+                                      Span<BufferImageCopy const> copies) = 0;
+
+    virtual void blit_image(Image src, Image dst, Span<ImageBlit const> blits,
+                            Filter filter) = 0;
+
+    virtual void resolve_image(Image src, Image dst,
+                               Span<ImageResolve const> resolves) = 0;
+
+    virtual void begin_compute_pass() = 0;
+
+    virtual void end_compute_pass() = 0;
+
+    virtual void begin_rendering(RenderingInfo const & info) = 0;
+
+    virtual void end_rendering() = 0;
+
+    virtual void bind_compute_pipeline(ComputePipeline pipeline) = 0;
+
+    virtual void bind_graphics_pipeline(GraphicsPipeline pipeline) = 0;
+
+    virtual void bind_descriptor_sets(Span<DescriptorSet const> descriptor_sets,
+                                      Span<u32 const>           dynamic_offsets) = 0;
+
+    virtual void push_constants(Span<u8 const> push_constants_data) = 0;
+
+    virtual void dispatch(u32x3 group_count) = 0;
+
+    virtual void dispatch_indirect(Buffer buffer, u64 offset) = 0;
+
+    virtual void set_graphics_state(GraphicsState const & state) = 0;
+
+    virtual void bind_vertex_buffers(Span<Buffer const> vertex_buffers,
+                                     Span<u64 const>    offsets) = 0;
+
+    virtual void bind_index_buffer(Buffer index_buffer, u64 offset,
+                                   IndexType index_type) = 0;
+
+    virtual void draw(Slice32 vertices, Slice32 instances) = 0;
+
+    virtual void draw_indexed(Slice32 indices, Slice32 instances,
+                              i32 vertex_offset) = 0;
+
+    virtual void draw_indirect(Buffer buffer, u64 offset, u32 draw_count,
+                               u32 stride) = 0;
+
+    virtual void draw_indexed_indirect(Buffer buffer, u64 offset, u32 draw_count,
+                                       u32 stride) = 0;
+
+    virtual void present(Swapchain swapchain) = 0;
+};
+
+struct ICommandBuffer
+{
+    /// @brief Begins the command buffer, preparing it for recording.
+    // It is at this point that the command buffer fetches the latest states of
+    // the resources from the device.
+    /// @warning resources created after calling `begin()` must not be accessed
+    /// via this command buffer.
+    // This is because the command buffer would not have captured the resource'
+    // state.
+    /// @warning resources destroyed before or during recording must also not be
+    /// accessed by both the command buffer and encoders
+    virtual void begin() = 0;
+
+    virtual Result<Void, Status> end() = 0;
+
+    virtual void reset() = 0;
+
+    virtual void record(CommandEncoder encoder) = 0;
+};
+
+struct IDevice
+{
+    virtual Result<Buffer, Status> create_buffer(BufferInfo const & info) = 0;
+
+    virtual Result<BufferView, Status>
+      create_buffer_view(BufferViewInfo const & info) = 0;
+
+    virtual Result<Image, Status> create_image(ImageInfo const & info) = 0;
+
+    virtual Result<ImageView, Status> create_image_view(ImageViewInfo const & info) = 0;
+
+    virtual Result<Alias, Status> create_alias(AliasInfo const & info) = 0;
+
+    virtual Result<Sampler, Status> create_sampler(SamplerInfo const & info) = 0;
+
+    virtual Result<Shader, Status> create_shader(ShaderInfo const & info) = 0;
+
+    virtual Result<DescriptorSetLayout, Status>
+      create_descriptor_set_layout(DescriptorSetLayoutInfo const & info) = 0;
+
+    virtual Result<DescriptorSet, Status>
+      create_descriptor_set(DescriptorSetInfo const & info) = 0;
+
+    virtual Result<PipelineCache, Status>
+      create_pipeline_cache(PipelineCacheInfo const & info) = 0;
+
+    virtual Result<ComputePipeline, Status>
+      create_compute_pipeline(ComputePipelineInfo const & info) = 0;
+
+    virtual Result<GraphicsPipeline, Status>
+      create_graphics_pipeline(GraphicsPipelineInfo const & info) = 0;
+
+    virtual Result<Swapchain, Status> create_swapchain(SwapchainInfo const & info) = 0;
+
+    virtual Result<TimestampQuery, Status>
+      create_timestamp_query(TimestampQueryInfo const & info) = 0;
+
+    virtual Result<StatisticsQuery, Status>
+      create_statistics_query(StatisticsQueryInfo const & info) = 0;
+
+    virtual Result<CommandEncoder, Status>
+      create_command_encoder(CommandEncoderInfo const & info) = 0;
+
+    virtual Result<CommandBuffer, Status>
+      create_command_buffer(CommandBufferInfo const & info) = 0;
+
+    virtual Result<QueueScope, Status>
+      create_queue_scope(QueueScopeInfo const & info) = 0;
+
+    virtual void uninit(Buffer buffer) = 0;
+
+    virtual void uninit(BufferView buffer_view) = 0;
+
+    virtual void uninit(Image image) = 0;
+
+    virtual void uninit(ImageView image_view) = 0;
+
+    virtual void uninit(Alias alias) = 0;
+
+    virtual void uninit(Sampler sampler) = 0;
+
+    virtual void uninit(Shader shader) = 0;
+
+    virtual void uninit(DescriptorSetLayout layout) = 0;
+
+    virtual void uninit(DescriptorSet set) = 0;
+
+    virtual void uninit(PipelineCache cache) = 0;
+
+    virtual void uninit(ComputePipeline pipeline) = 0;
+
+    virtual void uninit(GraphicsPipeline pipeline) = 0;
+
+    virtual void uninit(Swapchain swapchain) = 0;
+
+    virtual void uninit(TimestampQuery query) = 0;
+
+    virtual void uninit(StatisticsQuery query) = 0;
+
+    virtual void uninit(CommandEncoder encoder) = 0;
+
+    virtual void uninit(CommandBuffer buffer) = 0;
+
+    virtual void uninit(QueueScope scope) = 0;
+
+    void uninit_object(Object object);
+
+    virtual DeviceProperties get_properties() = 0;
+
+    virtual Result<FormatProperties, Status> get_format_properties(Format format) = 0;
+
+    virtual Result<Span<u8>, Status> get_memory_map(Buffer buffer) = 0;
+
+    virtual DeviceAddress get_device_address(Buffer buffer) = 0;
+
+    virtual Result<Void, Status> invalidate_mapped_memory(Buffer  buffer,
+                                                          Slice64 range) = 0;
+
+    virtual Result<Void, Status> flush_mapped_memory(Buffer buffer, Slice64 range) = 0;
+
+    virtual Result<usize, Status> get_pipeline_cache_size(PipelineCache cache) = 0;
+
+    virtual Result<Void, Status> get_pipeline_cache_data(PipelineCache cache,
+                                                         Vec<u8> &     out) = 0;
+
+    virtual Result<Void, Status>
+      merge_pipeline_cache(PipelineCache dst, Span<PipelineCache const> srcs) = 0;
+
+    virtual void update_descriptor_set(DescriptorSetUpdate const & update) = 0;
+
+    virtual QueueScopeState get_queue_scope_state(QueueScope scope) = 0;
+
+    virtual Result<Void, Status> await_idle() = 0;
+
+    virtual Result<Void, Status> await_queue_idle() = 0;
+
+    virtual Result<Void, Status> get_surface_formats(Surface              surface,
+                                                     Vec<SurfaceFormat> & formats) = 0;
+
+    virtual Result<Void, Status>
+      get_surface_present_modes(Surface surface, Vec<PresentMode> & modes) = 0;
+
+    virtual Result<SurfaceCapabilities, Status>
+      get_surface_capabilities(Surface surface) = 0;
+
+    virtual Result<SwapchainState, Status> get_swapchain_state(Swapchain swapchain) = 0;
+
+    virtual Result<Void, Status> get_timestamp_query_result(TimestampQuery query,
+                                                            u32            first,
+                                                            Span<u64> timestamps) = 0;
+
+    virtual Result<Void, Status>
+      get_statistics_query_result(StatisticsQuery query, u32 first,
+                                  Span<PipelineStatistics> statistics) = 0;
+
+    virtual Result<Void, Status>
+      mark_swapchain_out_of_date(Swapchain swapchain, SwapchainInfo const & info) = 0;
+
+    virtual Result<Void, Status> acquire_next(Swapchain swapchain) = 0;
+
+    virtual Result<u64, Status> submit(CommandBuffer buffer, QueueScope scope) = 0;
+
+    /// @brief Waits until all work submitted to the queue scope is complete or the
+    /// timeout elapses.
+    virtual Result<Void, Status> await_queue_scope_idle(QueueScope  scope,
+                                                        nanoseconds timeout) = 0;
+
+    /// @brief Waits until the specified frame in the queue scope is complete or the
+    /// timeout elapses.
+    virtual Result<Void, Status> await_queue_scope_frame(QueueScope scope, u64 frame,
+                                                         nanoseconds timeout) = 0;
+};
+
+inline void IDevice::uninit_object(Object object)
+{
+    object.match(
+      [](Instance) { ASH_CHECK_UNREACHABLE(); },
+      [](Device) { ASH_CHECK_UNREACHABLE(); }, [&](CommandEncoder r) { uninit(r); },
+      [&](CommandBuffer r) { uninit(r); }, [&](Buffer r) { uninit(r); },
+      [&](BufferView r) { uninit(r); }, [&](Image r) { uninit(r); },
+      [&](ImageView r) { uninit(r); }, [&](Alias r) { uninit(r); },
+      [&](Sampler r) { uninit(r); }, [&](Shader r) { uninit(r); },
+      [&](DescriptorSetLayout r) { uninit(r); }, [&](DescriptorSet r) { uninit(r); },
+      [&](PipelineCache r) { uninit(r); }, [&](ComputePipeline r) { uninit(r); },
+      [&](GraphicsPipeline r) { uninit(r); }, [&](TimestampQuery r) { uninit(r); },
+      [&](StatisticsQuery r) { uninit(r); }, [&](Surface) { ASH_CHECK_UNREACHABLE(); },
+      [&](Swapchain r) { uninit(r); }, [&](QueueScope r) { uninit(r); });
+}
+
+struct IInstance
+{
+    virtual ~IInstance() = default;
+
+    virtual Result<Device, Status>
+      create_device(Allocator allocator, Span<DeviceType const> preferred_types) = 0;
+
+    virtual Backend get_backend() = 0;
+
+    virtual void uninit(Device device) = 0;
+
+    virtual void uninit(Surface surface) = 0;
+};
+
+Result<Dyn<Instance>, Status> create_vulkan_instance(Allocator allocator,
+                                                     bool      enable_validation);
+
+static constexpr u32 BUFFER_OFFSET_ALIGNMENT = 512;
+
+/// @brief The three-dimensional extent of a texel block.
+constexpr u32x3 block_extent(Format format)
+{
+    switch (format)
+    {
+        case Format::BC1_RGB_UNORM_BLOCK:
+            return {4, 4, 1};
+        case Format::BC1_RGB_SRGB_BLOCK:
+            return {4, 4, 1};
+        case Format::BC1_RGBA_UNORM_BLOCK:
+            return {4, 4, 1};
+        case Format::BC1_RGBA_SRGB_BLOCK:
+            return {4, 4, 1};
+        case Format::BC2_UNORM_BLOCK:
+            return {4, 4, 1};
+        case Format::BC2_SRGB_BLOCK:
+            return {4, 4, 1};
+        case Format::BC3_UNORM_BLOCK:
+            return {4, 4, 1};
+        case Format::BC3_SRGB_BLOCK:
+            return {4, 4, 1};
+        case Format::BC4_UNORM_BLOCK:
+            return {4, 4, 1};
+        case Format::BC4_SNORM_BLOCK:
+            return {4, 4, 1};
+        case Format::BC5_UNORM_BLOCK:
+            return {4, 4, 1};
+        case Format::BC5_SNORM_BLOCK:
+            return {4, 4, 1};
+        case Format::BC6H_UFLOAT_BLOCK:
+            return {4, 4, 1};
+        case Format::BC6H_SFLOAT_BLOCK:
+            return {4, 4, 1};
+        case Format::BC7_UNORM_BLOCK:
+            return {4, 4, 1};
+        case Format::BC7_SRGB_BLOCK:
+            return {4, 4, 1};
+        case Format::ETC2_R8G8B8_UNORM_BLOCK:
+            return {4, 4, 1};
+        case Format::ETC2_R8G8B8_SRGB_BLOCK:
+            return {4, 4, 1};
+        case Format::ETC2_R8G8B8A1_UNORM_BLOCK:
+            return {4, 4, 1};
+        case Format::ETC2_R8G8B8A1_SRGB_BLOCK:
+            return {4, 4, 1};
+        case Format::ETC2_R8G8B8A8_UNORM_BLOCK:
+            return {4, 4, 1};
+        case Format::ETC2_R8G8B8A8_SRGB_BLOCK:
+            return {4, 4, 1};
+        case Format::EAC_R11_UNORM_BLOCK:
+            return {4, 4, 1};
+        case Format::EAC_R11_SNORM_BLOCK:
+            return {4, 4, 1};
+        case Format::EAC_R11G11_UNORM_BLOCK:
+            return {4, 4, 1};
+        case Format::EAC_R11G11_SNORM_BLOCK:
+            return {4, 4, 1};
+        case Format::ASTC_4x4_UNORM_BLOCK:
+            return {4, 4, 1};
+        case Format::ASTC_4x4_SRGB_BLOCK:
+            return {4, 4, 1};
+        case Format::ASTC_5x4_UNORM_BLOCK:
+            return {5, 4, 1};
+        case Format::ASTC_5x4_SRGB_BLOCK:
+            return {5, 4, 1};
+        case Format::ASTC_5x5_UNORM_BLOCK:
+            return {5, 5, 1};
+        case Format::ASTC_5x5_SRGB_BLOCK:
+            return {5, 5, 1};
+        case Format::ASTC_6x5_UNORM_BLOCK:
+            return {6, 5, 1};
+        case Format::ASTC_6x5_SRGB_BLOCK:
+            return {6, 5, 1};
+        case Format::ASTC_6x6_UNORM_BLOCK:
+            return {6, 6, 1};
+        case Format::ASTC_6x6_SRGB_BLOCK:
+            return {6, 6, 1};
+        case Format::ASTC_8x5_UNORM_BLOCK:
+            return {8, 5, 1};
+        case Format::ASTC_8x5_SRGB_BLOCK:
+            return {8, 5, 1};
+        case Format::ASTC_8x6_UNORM_BLOCK:
+            return {8, 6, 1};
+        case Format::ASTC_8x6_SRGB_BLOCK:
+            return {8, 6, 1};
+        case Format::ASTC_8x8_UNORM_BLOCK:
+            return {8, 8, 1};
+        case Format::ASTC_8x8_SRGB_BLOCK:
+            return {8, 8, 1};
+        case Format::ASTC_10x5_UNORM_BLOCK:
+            return {10, 5, 1};
+        case Format::ASTC_10x5_SRGB_BLOCK:
+            return {10, 5, 1};
+        case Format::ASTC_10x6_UNORM_BLOCK:
+            return {10, 6, 1};
+        case Format::ASTC_10x6_SRGB_BLOCK:
+            return {10, 6, 1};
+        case Format::ASTC_10x8_UNORM_BLOCK:
+            return {10, 8, 1};
+        case Format::ASTC_10x8_SRGB_BLOCK:
+            return {10, 8, 1};
+        case Format::ASTC_10x10_UNORM_BLOCK:
+            return {10, 10, 1};
+        case Format::ASTC_10x10_SRGB_BLOCK:
+            return {10, 10, 1};
+        case Format::ASTC_12x10_UNORM_BLOCK:
+            return {12, 10, 1};
+        case Format::ASTC_12x10_SRGB_BLOCK:
+            return {12, 10, 1};
+        case Format::ASTC_12x12_UNORM_BLOCK:
+            return {12, 12, 1};
+        case Format::ASTC_12x12_SRGB_BLOCK:
+            return {12, 12, 1};
+        case Format::G8B8G8R8_422_UNORM:
+            return {2, 1, 1};
+        case Format::B8G8R8G8_422_UNORM:
+            return {2, 1, 1};
+        case Format::G10X6B10X6G10X6R10X6_422_UNORM_4PACK16:
+            return {2, 1, 1};
+        case Format::B10X6G10X6R10X6G10X6_422_UNORM_4PACK16:
+            return {2, 1, 1};
+        case Format::G12X4B12X4G12X4R12X4_422_UNORM_4PACK16:
+            return {2, 1, 1};
+        case Format::B12X4G12X4R12X4G12X4_422_UNORM_4PACK16:
+            return {2, 1, 1};
+        case Format::G16B16G16R16_422_UNORM:
+            return {2, 1, 1};
+        case Format::B16G16R16G16_422_UNORM:
+            return {2, 1, 1};
+        case Format::ASTC_4x4_SFLOAT_BLOCK:
+            return {4, 4, 1};
+        case Format::ASTC_5x4_SFLOAT_BLOCK:
+            return {5, 4, 1};
+        case Format::ASTC_5x5_SFLOAT_BLOCK:
+            return {5, 5, 1};
+        case Format::ASTC_6x5_SFLOAT_BLOCK:
+            return {6, 5, 1};
+        case Format::ASTC_6x6_SFLOAT_BLOCK:
+            return {6, 6, 1};
+        case Format::ASTC_8x5_SFLOAT_BLOCK:
+            return {8, 5, 1};
+        case Format::ASTC_8x6_SFLOAT_BLOCK:
+            return {8, 6, 1};
+        case Format::ASTC_8x8_SFLOAT_BLOCK:
+            return {8, 8, 1};
+        case Format::ASTC_10x5_SFLOAT_BLOCK:
+            return {10, 5, 1};
+        case Format::ASTC_10x6_SFLOAT_BLOCK:
+            return {10, 6, 1};
+        case Format::ASTC_10x8_SFLOAT_BLOCK:
+            return {10, 8, 1};
+        case Format::ASTC_10x10_SFLOAT_BLOCK:
+            return {10, 10, 1};
+        case Format::ASTC_12x10_SFLOAT_BLOCK:
+            return {12, 10, 1};
+        case Format::ASTC_12x12_SFLOAT_BLOCK:
+            return {12, 12, 1};
+        case Format::PVRTC1_2BPP_UNORM_BLOCK_IMG:
+            return {8, 4, 1};
+        case Format::PVRTC1_4BPP_UNORM_BLOCK_IMG:
+            return {4, 4, 1};
+        case Format::PVRTC2_2BPP_UNORM_BLOCK_IMG:
+            return {8, 4, 1};
+        case Format::PVRTC2_4BPP_UNORM_BLOCK_IMG:
+            return {4, 4, 1};
+        case Format::PVRTC1_2BPP_SRGB_BLOCK_IMG:
+            return {8, 4, 1};
+        case Format::PVRTC1_4BPP_SRGB_BLOCK_IMG:
+            return {4, 4, 1};
+        case Format::PVRTC2_2BPP_SRGB_BLOCK_IMG:
+            return {8, 4, 1};
+        case Format::PVRTC2_4BPP_SRGB_BLOCK_IMG:
+            return {4, 4, 1};
+
+        default:
+            return {1, 1, 1};
+    }
+}
+
+/// @brief The texel block size in bytes.
+constexpr u8 block_size(Format format)
+{
+    switch (format)
+    {
+        case Format::R4G4_UNORM_PACK8:
+            return 1;
+        case Format::R4G4B4A4_UNORM_PACK16:
+            return 2;
+        case Format::B4G4R4A4_UNORM_PACK16:
+            return 2;
+        case Format::R5G6B5_UNORM_PACK16:
+            return 2;
+        case Format::B5G6R5_UNORM_PACK16:
+            return 2;
+        case Format::R5G5B5A1_UNORM_PACK16:
+            return 2;
+        case Format::B5G5R5A1_UNORM_PACK16:
+            return 2;
+        case Format::A1R5G5B5_UNORM_PACK16:
+            return 2;
+        case Format::R8_UNORM:
+            return 1;
+        case Format::R8_SNORM:
+            return 1;
+        case Format::R8_USCALED:
+            return 1;
+        case Format::R8_SSCALED:
+            return 1;
+        case Format::R8_UINT:
+            return 1;
+        case Format::R8_SINT:
+            return 1;
+        case Format::R8_SRGB:
+            return 1;
+        case Format::R8G8_UNORM:
+            return 2;
+        case Format::R8G8_SNORM:
+            return 2;
+        case Format::R8G8_USCALED:
+            return 2;
+        case Format::R8G8_SSCALED:
+            return 2;
+        case Format::R8G8_UINT:
+            return 2;
+        case Format::R8G8_SINT:
+            return 2;
+        case Format::R8G8_SRGB:
+            return 2;
+        case Format::R8G8B8_UNORM:
+            return 3;
+        case Format::R8G8B8_SNORM:
+            return 3;
+        case Format::R8G8B8_USCALED:
+            return 3;
+        case Format::R8G8B8_SSCALED:
+            return 3;
+        case Format::R8G8B8_UINT:
+            return 3;
+        case Format::R8G8B8_SINT:
+            return 3;
+        case Format::R8G8B8_SRGB:
+            return 3;
+        case Format::B8G8R8_UNORM:
+            return 3;
+        case Format::B8G8R8_SNORM:
+            return 3;
+        case Format::B8G8R8_USCALED:
+            return 3;
+        case Format::B8G8R8_SSCALED:
+            return 3;
+        case Format::B8G8R8_UINT:
+            return 3;
+        case Format::B8G8R8_SINT:
+            return 3;
+        case Format::B8G8R8_SRGB:
+            return 3;
+        case Format::R8G8B8A8_UNORM:
+            return 4;
+        case Format::R8G8B8A8_SNORM:
+            return 4;
+        case Format::R8G8B8A8_USCALED:
+            return 4;
+        case Format::R8G8B8A8_SSCALED:
+            return 4;
+        case Format::R8G8B8A8_UINT:
+            return 4;
+        case Format::R8G8B8A8_SINT:
+            return 4;
+        case Format::R8G8B8A8_SRGB:
+            return 4;
+        case Format::B8G8R8A8_UNORM:
+            return 4;
+        case Format::B8G8R8A8_SNORM:
+            return 4;
+        case Format::B8G8R8A8_USCALED:
+            return 4;
+        case Format::B8G8R8A8_SSCALED:
+            return 4;
+        case Format::B8G8R8A8_UINT:
+            return 4;
+        case Format::B8G8R8A8_SINT:
+            return 4;
+        case Format::B8G8R8A8_SRGB:
+            return 4;
+        case Format::A8B8G8R8_UNORM_PACK32:
+            return 4;
+        case Format::A8B8G8R8_SNORM_PACK32:
+            return 4;
+        case Format::A8B8G8R8_USCALED_PACK32:
+            return 4;
+        case Format::A8B8G8R8_SSCALED_PACK32:
+            return 4;
+        case Format::A8B8G8R8_UINT_PACK32:
+            return 4;
+        case Format::A8B8G8R8_SINT_PACK32:
+            return 4;
+        case Format::A8B8G8R8_SRGB_PACK32:
+            return 4;
+        case Format::A2R10G10B10_UNORM_PACK32:
+            return 4;
+        case Format::A2R10G10B10_SNORM_PACK32:
+            return 4;
+        case Format::A2R10G10B10_USCALED_PACK32:
+            return 4;
+        case Format::A2R10G10B10_SSCALED_PACK32:
+            return 4;
+        case Format::A2R10G10B10_UINT_PACK32:
+            return 4;
+        case Format::A2R10G10B10_SINT_PACK32:
+            return 4;
+        case Format::A2B10G10R10_UNORM_PACK32:
+            return 4;
+        case Format::A2B10G10R10_SNORM_PACK32:
+            return 4;
+        case Format::A2B10G10R10_USCALED_PACK32:
+            return 4;
+        case Format::A2B10G10R10_SSCALED_PACK32:
+            return 4;
+        case Format::A2B10G10R10_UINT_PACK32:
+            return 4;
+        case Format::A2B10G10R10_SINT_PACK32:
+            return 4;
+        case Format::R16_UNORM:
+            return 2;
+        case Format::R16_SNORM:
+            return 2;
+        case Format::R16_USCALED:
+            return 2;
+        case Format::R16_SSCALED:
+            return 2;
+        case Format::R16_UINT:
+            return 2;
+        case Format::R16_SINT:
+            return 2;
+        case Format::R16_SFLOAT:
+            return 2;
+        case Format::R16G16_UNORM:
+            return 4;
+        case Format::R16G16_SNORM:
+            return 4;
+        case Format::R16G16_USCALED:
+            return 4;
+        case Format::R16G16_SSCALED:
+            return 4;
+        case Format::R16G16_UINT:
+            return 4;
+        case Format::R16G16_SINT:
+            return 4;
+        case Format::R16G16_SFLOAT:
+            return 4;
+        case Format::R16G16B16_UNORM:
+            return 6;
+        case Format::R16G16B16_SNORM:
+            return 6;
+        case Format::R16G16B16_USCALED:
+            return 6;
+        case Format::R16G16B16_SSCALED:
+            return 6;
+        case Format::R16G16B16_UINT:
+            return 6;
+        case Format::R16G16B16_SINT:
+            return 6;
+        case Format::R16G16B16_SFLOAT:
+            return 6;
+        case Format::R16G16B16A16_UNORM:
+            return 8;
+        case Format::R16G16B16A16_SNORM:
+            return 8;
+        case Format::R16G16B16A16_USCALED:
+            return 8;
+        case Format::R16G16B16A16_SSCALED:
+            return 8;
+        case Format::R16G16B16A16_UINT:
+            return 8;
+        case Format::R16G16B16A16_SINT:
+            return 8;
+        case Format::R16G16B16A16_SFLOAT:
+            return 8;
+        case Format::R32_UINT:
+            return 4;
+        case Format::R32_SINT:
+            return 4;
+        case Format::R32_SFLOAT:
+            return 4;
+        case Format::R32G32_UINT:
+            return 8;
+        case Format::R32G32_SINT:
+            return 8;
+        case Format::R32G32_SFLOAT:
+            return 8;
+        case Format::R32G32B32_UINT:
+            return 12;
+        case Format::R32G32B32_SINT:
+            return 12;
+        case Format::R32G32B32_SFLOAT:
+            return 12;
+        case Format::R32G32B32A32_UINT:
+            return 16;
+        case Format::R32G32B32A32_SINT:
+            return 16;
+        case Format::R32G32B32A32_SFLOAT:
+            return 16;
+        case Format::R64_UINT:
+            return 8;
+        case Format::R64_SINT:
+            return 8;
+        case Format::R64_SFLOAT:
+            return 8;
+        case Format::R64G64_UINT:
+            return 16;
+        case Format::R64G64_SINT:
+            return 16;
+        case Format::R64G64_SFLOAT:
+            return 16;
+        case Format::R64G64B64_UINT:
+            return 24;
+        case Format::R64G64B64_SINT:
+            return 24;
+        case Format::R64G64B64_SFLOAT:
+            return 24;
+        case Format::R64G64B64A64_UINT:
+            return 32;
+        case Format::R64G64B64A64_SINT:
+            return 32;
+        case Format::R64G64B64A64_SFLOAT:
+            return 32;
+        case Format::B10G11R11_UFLOAT_PACK32:
+            return 4;
+        case Format::E5B9G9R9_UFLOAT_PACK32:
+            return 4;
+        case Format::D16_UNORM:
+            return 2;
+        case Format::X8_D24_UNORM_PACK32:
+            return 4;
+        case Format::D32_SFLOAT:
+            return 4;
+        case Format::S8_UINT:
+            return 1;
+        case Format::D16_UNORM_S8_UINT:
+            return 3;
+        case Format::D24_UNORM_S8_UINT:
+            return 4;
+        case Format::D32_SFLOAT_S8_UINT:
+            return 5;
+        case Format::BC1_RGB_UNORM_BLOCK:
+            return 8;
+        case Format::BC1_RGB_SRGB_BLOCK:
+            return 8;
+        case Format::BC1_RGBA_UNORM_BLOCK:
+            return 8;
+        case Format::BC1_RGBA_SRGB_BLOCK:
+            return 8;
+        case Format::BC2_UNORM_BLOCK:
+            return 16;
+        case Format::BC2_SRGB_BLOCK:
+            return 16;
+        case Format::BC3_UNORM_BLOCK:
+            return 16;
+        case Format::BC3_SRGB_BLOCK:
+            return 16;
+        case Format::BC4_UNORM_BLOCK:
+            return 8;
+        case Format::BC4_SNORM_BLOCK:
+            return 8;
+        case Format::BC5_UNORM_BLOCK:
+            return 16;
+        case Format::BC5_SNORM_BLOCK:
+            return 16;
+        case Format::BC6H_UFLOAT_BLOCK:
+            return 16;
+        case Format::BC6H_SFLOAT_BLOCK:
+            return 16;
+        case Format::BC7_UNORM_BLOCK:
+            return 16;
+        case Format::BC7_SRGB_BLOCK:
+            return 16;
+        case Format::ETC2_R8G8B8_UNORM_BLOCK:
+            return 8;
+        case Format::ETC2_R8G8B8_SRGB_BLOCK:
+            return 8;
+        case Format::ETC2_R8G8B8A1_UNORM_BLOCK:
+            return 8;
+        case Format::ETC2_R8G8B8A1_SRGB_BLOCK:
+            return 8;
+        case Format::ETC2_R8G8B8A8_UNORM_BLOCK:
+            return 16;
+        case Format::ETC2_R8G8B8A8_SRGB_BLOCK:
+            return 16;
+        case Format::EAC_R11_UNORM_BLOCK:
+            return 8;
+        case Format::EAC_R11_SNORM_BLOCK:
+            return 8;
+        case Format::EAC_R11G11_UNORM_BLOCK:
+            return 16;
+        case Format::EAC_R11G11_SNORM_BLOCK:
+            return 16;
+        case Format::ASTC_4x4_UNORM_BLOCK:
+            return 16;
+        case Format::ASTC_4x4_SRGB_BLOCK:
+            return 16;
+        case Format::ASTC_5x4_UNORM_BLOCK:
+            return 16;
+        case Format::ASTC_5x4_SRGB_BLOCK:
+            return 16;
+        case Format::ASTC_5x5_UNORM_BLOCK:
+            return 16;
+        case Format::ASTC_5x5_SRGB_BLOCK:
+            return 16;
+        case Format::ASTC_6x5_UNORM_BLOCK:
+            return 16;
+        case Format::ASTC_6x5_SRGB_BLOCK:
+            return 16;
+        case Format::ASTC_6x6_UNORM_BLOCK:
+            return 16;
+        case Format::ASTC_6x6_SRGB_BLOCK:
+            return 16;
+        case Format::ASTC_8x5_UNORM_BLOCK:
+            return 16;
+        case Format::ASTC_8x5_SRGB_BLOCK:
+            return 16;
+        case Format::ASTC_8x6_UNORM_BLOCK:
+            return 16;
+        case Format::ASTC_8x6_SRGB_BLOCK:
+            return 16;
+        case Format::ASTC_8x8_UNORM_BLOCK:
+            return 16;
+        case Format::ASTC_8x8_SRGB_BLOCK:
+            return 16;
+        case Format::ASTC_10x5_UNORM_BLOCK:
+            return 16;
+        case Format::ASTC_10x5_SRGB_BLOCK:
+            return 16;
+        case Format::ASTC_10x6_UNORM_BLOCK:
+            return 16;
+        case Format::ASTC_10x6_SRGB_BLOCK:
+            return 16;
+        case Format::ASTC_10x8_UNORM_BLOCK:
+            return 16;
+        case Format::ASTC_10x8_SRGB_BLOCK:
+            return 16;
+        case Format::ASTC_10x10_UNORM_BLOCK:
+            return 16;
+        case Format::ASTC_10x10_SRGB_BLOCK:
+            return 16;
+        case Format::ASTC_12x10_UNORM_BLOCK:
+            return 16;
+        case Format::ASTC_12x10_SRGB_BLOCK:
+            return 16;
+        case Format::ASTC_12x12_UNORM_BLOCK:
+            return 16;
+        case Format::ASTC_12x12_SRGB_BLOCK:
+            return 16;
+        case Format::G8B8G8R8_422_UNORM:
+            return 4;
+        case Format::B8G8R8G8_422_UNORM:
+            return 4;
+        case Format::G8_B8_R8_3PLANE_420_UNORM:
+            return 3;
+        case Format::G8_B8R8_2PLANE_420_UNORM:
+            return 3;
+        case Format::G8_B8_R8_3PLANE_422_UNORM:
+            return 3;
+        case Format::G8_B8R8_2PLANE_422_UNORM:
+            return 3;
+        case Format::G8_B8_R8_3PLANE_444_UNORM:
+            return 3;
+        case Format::R10X6_UNORM_PACK16:
+            return 2;
+        case Format::R10X6G10X6_UNORM_2PACK16:
+            return 4;
+        case Format::R10X6G10X6B10X6A10X6_UNORM_4PACK16:
+            return 8;
+        case Format::G10X6B10X6G10X6R10X6_422_UNORM_4PACK16:
+            return 8;
+        case Format::B10X6G10X6R10X6G10X6_422_UNORM_4PACK16:
+            return 8;
+        case Format::G10X6_B10X6_R10X6_3PLANE_420_UNORM_3PACK16:
+            return 6;
+        case Format::G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16:
+            return 6;
+        case Format::G10X6_B10X6_R10X6_3PLANE_422_UNORM_3PACK16:
+            return 6;
+        case Format::G10X6_B10X6R10X6_2PLANE_422_UNORM_3PACK16:
+            return 6;
+        case Format::G10X6_B10X6_R10X6_3PLANE_444_UNORM_3PACK16:
+            return 6;
+        case Format::R12X4_UNORM_PACK16:
+            return 2;
+        case Format::R12X4G12X4_UNORM_2PACK16:
+            return 4;
+        case Format::R12X4G12X4B12X4A12X4_UNORM_4PACK16:
+            return 8;
+        case Format::G12X4B12X4G12X4R12X4_422_UNORM_4PACK16:
+            return 8;
+        case Format::B12X4G12X4R12X4G12X4_422_UNORM_4PACK16:
+            return 8;
+        case Format::G12X4_B12X4_R12X4_3PLANE_420_UNORM_3PACK16:
+            return 6;
+        case Format::G12X4_B12X4R12X4_2PLANE_420_UNORM_3PACK16:
+            return 6;
+        case Format::G12X4_B12X4_R12X4_3PLANE_422_UNORM_3PACK16:
+            return 6;
+        case Format::G12X4_B12X4R12X4_2PLANE_422_UNORM_3PACK16:
+            return 6;
+        case Format::G12X4_B12X4_R12X4_3PLANE_444_UNORM_3PACK16:
+            return 6;
+        case Format::G16B16G16R16_422_UNORM:
+            return 8;
+        case Format::B16G16R16G16_422_UNORM:
+            return 8;
+        case Format::G16_B16_R16_3PLANE_420_UNORM:
+            return 6;
+        case Format::G16_B16R16_2PLANE_420_UNORM:
+            return 6;
+        case Format::G16_B16_R16_3PLANE_422_UNORM:
+            return 6;
+        case Format::G16_B16R16_2PLANE_422_UNORM:
+            return 6;
+        case Format::G16_B16_R16_3PLANE_444_UNORM:
+            return 6;
+        case Format::G8_B8R8_2PLANE_444_UNORM:
+            return 3;
+        case Format::G10X6_B10X6R10X6_2PLANE_444_UNORM_3PACK16:
+            return 6;
+        case Format::G12X4_B12X4R12X4_2PLANE_444_UNORM_3PACK16:
+            return 6;
+        case Format::G16_B16R16_2PLANE_444_UNORM:
+            return 6;
+        case Format::A4R4G4B4_UNORM_PACK16:
+            return 2;
+        case Format::A4B4G4R4_UNORM_PACK16:
+            return 2;
+        case Format::ASTC_4x4_SFLOAT_BLOCK:
+            return 16;
+        case Format::ASTC_5x4_SFLOAT_BLOCK:
+            return 16;
+        case Format::ASTC_5x5_SFLOAT_BLOCK:
+            return 16;
+        case Format::ASTC_6x5_SFLOAT_BLOCK:
+            return 16;
+        case Format::ASTC_6x6_SFLOAT_BLOCK:
+            return 16;
+        case Format::ASTC_8x5_SFLOAT_BLOCK:
+            return 16;
+        case Format::ASTC_8x6_SFLOAT_BLOCK:
+            return 16;
+        case Format::ASTC_8x8_SFLOAT_BLOCK:
+            return 16;
+        case Format::ASTC_10x5_SFLOAT_BLOCK:
+            return 16;
+        case Format::ASTC_10x6_SFLOAT_BLOCK:
+            return 16;
+        case Format::ASTC_10x8_SFLOAT_BLOCK:
+            return 16;
+        case Format::ASTC_10x10_SFLOAT_BLOCK:
+            return 16;
+        case Format::ASTC_12x10_SFLOAT_BLOCK:
+            return 16;
+        case Format::ASTC_12x12_SFLOAT_BLOCK:
+            return 16;
+        case Format::A1B5G5R5_UNORM_PACK16:
+            return 2;
+        case Format::A8_UNORM:
+            return 1;
+        case Format::PVRTC1_2BPP_UNORM_BLOCK_IMG:
+            return 8;
+        case Format::PVRTC1_4BPP_UNORM_BLOCK_IMG:
+            return 8;
+        case Format::PVRTC2_2BPP_UNORM_BLOCK_IMG:
+            return 8;
+        case Format::PVRTC2_4BPP_UNORM_BLOCK_IMG:
+            return 8;
+        case Format::PVRTC1_2BPP_SRGB_BLOCK_IMG:
+            return 8;
+        case Format::PVRTC1_4BPP_SRGB_BLOCK_IMG:
+            return 8;
+        case Format::PVRTC2_2BPP_SRGB_BLOCK_IMG:
+            return 8;
+        case Format::PVRTC2_4BPP_SRGB_BLOCK_IMG:
+            return 8;
+
+        default:
+            return 0;
+    }
+}
+
+/// @brief The number of bits in this component, if not compressed, otherwise
+/// empty.
+constexpr InplaceVec<u8, 4, 0> component_bits(Format format)
+{
+    switch (format)
+    {
+        case Format::R4G4_UNORM_PACK8:
+            return {4, 4};
+        case Format::R4G4B4A4_UNORM_PACK16:
+            return {4, 4, 4};
+        case Format::B4G4R4A4_UNORM_PACK16:
+            return {4, 4, 4, 4};
+        case Format::R5G6B5_UNORM_PACK16:
+            return {5, 6, 5};
+        case Format::B5G6R5_UNORM_PACK16:
+            return {5, 6, 5};
+        case Format::R5G5B5A1_UNORM_PACK16:
+            return {5, 5, 5, 1};
+        case Format::B5G5R5A1_UNORM_PACK16:
+            return {5, 5, 5, 1};
+        case Format::A1R5G5B5_UNORM_PACK16:
+            return {1, 5, 5, 5};
+        case Format::R8_UNORM:
+            return {8};
+        case Format::R8_SNORM:
+            return {8};
+        case Format::R8_USCALED:
+            return {8};
+        case Format::R8_SSCALED:
+            return {8};
+        case Format::R8_UINT:
+            return {8};
+        case Format::R8_SINT:
+            return {8};
+        case Format::R8_SRGB:
+            return {8};
+        case Format::R8G8_UNORM:
+            return {8, 8};
+        case Format::R8G8_SNORM:
+            return {8, 8};
+        case Format::R8G8_USCALED:
+            return {8, 8};
+        case Format::R8G8_SSCALED:
+            return {8, 8};
+        case Format::R8G8_UINT:
+            return {8, 8};
+        case Format::R8G8_SINT:
+            return {8, 8};
+        case Format::R8G8_SRGB:
+            return {8, 8};
+        case Format::R8G8B8_UNORM:
+            return {8, 8, 8};
+        case Format::R8G8B8_SNORM:
+            return {8, 8, 8};
+        case Format::R8G8B8_USCALED:
+            return {8, 8, 8};
+        case Format::R8G8B8_SSCALED:
+            return {8, 8, 8};
+        case Format::R8G8B8_UINT:
+            return {8, 8, 8};
+        case Format::R8G8B8_SINT:
+            return {8, 8, 8};
+        case Format::R8G8B8_SRGB:
+            return {8, 8, 8};
+        case Format::B8G8R8_UNORM:
+            return {8, 8, 8};
+        case Format::B8G8R8_SNORM:
+            return {8, 8, 8};
+        case Format::B8G8R8_USCALED:
+            return {8, 8, 8};
+        case Format::B8G8R8_SSCALED:
+            return {8, 8, 8};
+        case Format::B8G8R8_UINT:
+            return {8, 8, 8};
+        case Format::B8G8R8_SINT:
+            return {8, 8, 8};
+        case Format::B8G8R8_SRGB:
+            return {8, 8, 8};
+        case Format::R8G8B8A8_UNORM:
+            return {8, 8, 8, 8};
+        case Format::R8G8B8A8_SNORM:
+            return {8, 8, 8, 8};
+        case Format::R8G8B8A8_USCALED:
+            return {8, 8, 8, 8};
+        case Format::R8G8B8A8_SSCALED:
+            return {8, 8, 8, 8};
+        case Format::R8G8B8A8_UINT:
+            return {8, 8, 8, 8};
+        case Format::R8G8B8A8_SINT:
+            return {8, 8, 8, 8};
+        case Format::R8G8B8A8_SRGB:
+            return {8, 8, 8, 8};
+        case Format::B8G8R8A8_UNORM:
+            return {8, 8, 8, 8};
+        case Format::B8G8R8A8_SNORM:
+            return {8, 8, 8, 8};
+        case Format::B8G8R8A8_USCALED:
+            return {8, 8, 8, 8};
+        case Format::B8G8R8A8_SSCALED:
+            return {8, 8, 8, 8};
+        case Format::B8G8R8A8_UINT:
+            return {8, 8, 8, 8};
+        case Format::B8G8R8A8_SINT:
+            return {8, 8, 8, 8};
+        case Format::B8G8R8A8_SRGB:
+            return {8, 8, 8, 8};
+        case Format::A8B8G8R8_UNORM_PACK32:
+            return {8, 8, 8, 8};
+        case Format::A8B8G8R8_SNORM_PACK32:
+            return {8, 8, 8, 8};
+        case Format::A8B8G8R8_USCALED_PACK32:
+            return {8, 8, 8, 8};
+        case Format::A8B8G8R8_SSCALED_PACK32:
+            return {8, 8, 8, 8};
+        case Format::A8B8G8R8_UINT_PACK32:
+            return {8, 8, 8, 8};
+        case Format::A8B8G8R8_SINT_PACK32:
+            return {8, 8, 8, 8};
+        case Format::A8B8G8R8_SRGB_PACK32:
+            return {8, 8, 8, 8};
+        case Format::A2R10G10B10_UNORM_PACK32:
+            return {2, 10, 10, 10};
+        case Format::A2R10G10B10_SNORM_PACK32:
+            return {2, 10, 10, 10};
+        case Format::A2R10G10B10_USCALED_PACK32:
+            return {2, 10, 10, 10};
+        case Format::A2R10G10B10_SSCALED_PACK32:
+            return {2, 10, 10, 10};
+        case Format::A2R10G10B10_UINT_PACK32:
+            return {2, 10, 10, 10};
+        case Format::A2R10G10B10_SINT_PACK32:
+            return {2, 10, 10, 10};
+        case Format::A2B10G10R10_UNORM_PACK32:
+            return {2, 10, 10, 10};
+        case Format::A2B10G10R10_SNORM_PACK32:
+            return {2, 10, 10, 10};
+        case Format::A2B10G10R10_USCALED_PACK32:
+            return {2, 10, 10, 10};
+        case Format::A2B10G10R10_SSCALED_PACK32:
+            return {2, 10, 10, 10};
+        case Format::A2B10G10R10_UINT_PACK32:
+            return {2, 10, 10, 10};
+        case Format::A2B10G10R10_SINT_PACK32:
+            return {2, 10, 10, 10};
+        case Format::R16_UNORM:
+            return {16};
+        case Format::R16_SNORM:
+            return {16};
+        case Format::R16_USCALED:
+            return {16};
+        case Format::R16_SSCALED:
+            return {16};
+        case Format::R16_UINT:
+            return {16};
+        case Format::R16_SINT:
+            return {16};
+        case Format::R16_SFLOAT:
+            return {16};
+        case Format::R16G16_UNORM:
+            return {16, 16};
+        case Format::R16G16_SNORM:
+            return {16, 16};
+        case Format::R16G16_USCALED:
+            return {16, 16};
+        case Format::R16G16_SSCALED:
+            return {16, 16};
+        case Format::R16G16_UINT:
+            return {16, 16};
+        case Format::R16G16_SINT:
+            return {16, 16};
+        case Format::R16G16_SFLOAT:
+            return {16, 16};
+        case Format::R16G16B16_UNORM:
+            return {16, 16, 16};
+        case Format::R16G16B16_SNORM:
+            return {16, 16, 16};
+        case Format::R16G16B16_USCALED:
+            return {16, 16, 16};
+        case Format::R16G16B16_SSCALED:
+            return {16, 16, 16};
+        case Format::R16G16B16_UINT:
+            return {16, 16, 16};
+        case Format::R16G16B16_SINT:
+            return {16, 16, 16};
+        case Format::R16G16B16_SFLOAT:
+            return {16, 16, 16};
+        case Format::R16G16B16A16_UNORM:
+            return {16, 16, 16, 16};
+        case Format::R16G16B16A16_SNORM:
+            return {16, 16, 16, 16};
+        case Format::R16G16B16A16_USCALED:
+            return {16, 16, 16, 16};
+        case Format::R16G16B16A16_SSCALED:
+            return {16, 16, 16, 16};
+        case Format::R16G16B16A16_UINT:
+            return {16, 16, 16, 16};
+        case Format::R16G16B16A16_SINT:
+            return {16, 16, 16, 16};
+        case Format::R16G16B16A16_SFLOAT:
+            return {16, 16, 16, 16};
+        case Format::R32_UINT:
+            return {32};
+        case Format::R32_SINT:
+            return {32};
+        case Format::R32_SFLOAT:
+            return {32};
+        case Format::R32G32_UINT:
+            return {32, 32};
+        case Format::R32G32_SINT:
+            return {32, 32};
+        case Format::R32G32_SFLOAT:
+            return {32, 32};
+        case Format::R32G32B32_UINT:
+            return {32, 32, 32};
+        case Format::R32G32B32_SINT:
+            return {32, 32, 32};
+        case Format::R32G32B32_SFLOAT:
+            return {32, 32, 32};
+        case Format::R32G32B32A32_UINT:
+            return {32, 32, 32, 32};
+        case Format::R32G32B32A32_SINT:
+            return {32, 32, 32, 32};
+        case Format::R32G32B32A32_SFLOAT:
+            return {32, 32, 32, 32};
+        case Format::R64_UINT:
+            return {64};
+        case Format::R64_SINT:
+            return {64};
+        case Format::R64_SFLOAT:
+            return {64};
+        case Format::R64G64_UINT:
+            return {64, 64};
+        case Format::R64G64_SINT:
+            return {64, 64};
+        case Format::R64G64_SFLOAT:
+            return {64, 64};
+        case Format::R64G64B64_UINT:
+            return {64, 64, 64};
+        case Format::R64G64B64_SINT:
+            return {64, 64, 64};
+        case Format::R64G64B64_SFLOAT:
+            return {64, 64, 64};
+        case Format::R64G64B64A64_UINT:
+            return {64, 64, 64, 64};
+        case Format::R64G64B64A64_SINT:
+            return {64, 64, 64, 64};
+        case Format::R64G64B64A64_SFLOAT:
+            return {64, 64, 64, 64};
+        case Format::B10G11R11_UFLOAT_PACK32:
+            return {10, 11, 11};
+        case Format::E5B9G9R9_UFLOAT_PACK32:
+            return {9, 9, 9};
+        case Format::D16_UNORM:
+            return {16};
+        case Format::X8_D24_UNORM_PACK32:
+            return {24};
+        case Format::D32_SFLOAT:
+            return {32};
+        case Format::S8_UINT:
+            return {8};
+        case Format::D16_UNORM_S8_UINT:
+            return {16, 8};
+        case Format::D24_UNORM_S8_UINT:
+            return {24, 8};
+        case Format::D32_SFLOAT_S8_UINT:
+            return {32, 8};
+        case Format::EAC_R11_UNORM_BLOCK:
+            return {11};
+        case Format::EAC_R11_SNORM_BLOCK:
+            return {11};
+        case Format::EAC_R11G11_UNORM_BLOCK:
+            return {11, 11};
+        case Format::EAC_R11G11_SNORM_BLOCK:
+            return {11, 11};
+        case Format::G8B8G8R8_422_UNORM:
+            return {8, 8, 8, 8};
+        case Format::B8G8R8G8_422_UNORM:
+            return {8, 8, 8, 8};
+        case Format::G8_B8_R8_3PLANE_420_UNORM:
+            return {8, 8, 8};
+        case Format::G8_B8R8_2PLANE_420_UNORM:
+            return {8, 8, 8};
+        case Format::G8_B8_R8_3PLANE_422_UNORM:
+            return {8, 8, 8};
+        case Format::G8_B8R8_2PLANE_422_UNORM:
+            return {8, 8, 8};
+        case Format::G8_B8_R8_3PLANE_444_UNORM:
+            return {8, 8, 8};
+        case Format::R10X6_UNORM_PACK16:
+            return {10};
+        case Format::R10X6G10X6_UNORM_2PACK16:
+            return {10, 10};
+        case Format::R10X6G10X6B10X6A10X6_UNORM_4PACK16:
+            return {10, 10, 10, 10};
+        case Format::G10X6B10X6G10X6R10X6_422_UNORM_4PACK16:
+            return {10, 10, 10, 10};
+        case Format::B10X6G10X6R10X6G10X6_422_UNORM_4PACK16:
+            return {10, 10, 10, 10};
+        case Format::G10X6_B10X6_R10X6_3PLANE_420_UNORM_3PACK16:
+            return {10, 10, 10};
+        case Format::G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16:
+            return {10, 10, 10};
+        case Format::G10X6_B10X6_R10X6_3PLANE_422_UNORM_3PACK16:
+            return {10, 10, 10};
+        case Format::G10X6_B10X6R10X6_2PLANE_422_UNORM_3PACK16:
+            return {10, 10, 10};
+        case Format::G10X6_B10X6_R10X6_3PLANE_444_UNORM_3PACK16:
+            return {10, 10, 10};
+        case Format::R12X4_UNORM_PACK16:
+            return {12};
+        case Format::R12X4G12X4_UNORM_2PACK16:
+            return {12, 12};
+        case Format::R12X4G12X4B12X4A12X4_UNORM_4PACK16:
+            return {12, 12, 12, 12};
+        case Format::G12X4B12X4G12X4R12X4_422_UNORM_4PACK16:
+            return {12, 12, 12, 12};
+        case Format::B12X4G12X4R12X4G12X4_422_UNORM_4PACK16:
+            return {12, 12, 12};
+        case Format::G12X4_B12X4_R12X4_3PLANE_420_UNORM_3PACK16:
+            return {12, 12, 12};
+        case Format::G12X4_B12X4R12X4_2PLANE_420_UNORM_3PACK16:
+            return {12, 12, 12};
+        case Format::G12X4_B12X4_R12X4_3PLANE_422_UNORM_3PACK16:
+            return {12, 12, 12};
+        case Format::G12X4_B12X4R12X4_2PLANE_422_UNORM_3PACK16:
+            return {12, 12, 12};
+        case Format::G12X4_B12X4_R12X4_3PLANE_444_UNORM_3PACK16:
+            return {12, 12, 12};
+        case Format::G16B16G16R16_422_UNORM:
+            return {16, 16, 16, 16};
+        case Format::B16G16R16G16_422_UNORM:
+            return {16, 16, 16, 16};
+        case Format::G16_B16_R16_3PLANE_420_UNORM:
+            return {16, 16, 16};
+        case Format::G16_B16R16_2PLANE_420_UNORM:
+            return {16, 16, 16};
+        case Format::G16_B16_R16_3PLANE_422_UNORM:
+            return {16, 16, 16};
+        case Format::G16_B16R16_2PLANE_422_UNORM:
+            return {16, 16, 16};
+        case Format::G16_B16_R16_3PLANE_444_UNORM:
+            return {16, 16, 16};
+        case Format::G8_B8R8_2PLANE_444_UNORM:
+            return {8, 8, 8};
+        case Format::G10X6_B10X6R10X6_2PLANE_444_UNORM_3PACK16:
+            return {10, 10, 10};
+        case Format::G12X4_B12X4R12X4_2PLANE_444_UNORM_3PACK16:
+            return {12, 12, 12};
+        case Format::G16_B16R16_2PLANE_444_UNORM:
+            return {16, 16, 16};
+        case Format::A4R4G4B4_UNORM_PACK16:
+            return {4, 4, 4, 4};
+        case Format::A4B4G4R4_UNORM_PACK16:
+            return {4, 4, 4, 4};
+        case Format::A1B5G5R5_UNORM_PACK16:
+            return {1, 5, 5, 5};
+        case Format::A8_UNORM:
+            return {8};
+        default:
+            return {};
+    }
+}
+
+// The number of components of this format.
+constexpr u8 component_count(Format format)
+{
+    switch (format)
+    {
+        case Format::R4G4_UNORM_PACK8:
+            return 2;
+        case Format::R4G4B4A4_UNORM_PACK16:
+            return 4;
+        case Format::B4G4R4A4_UNORM_PACK16:
+            return 4;
+        case Format::R5G6B5_UNORM_PACK16:
+            return 3;
+        case Format::B5G6R5_UNORM_PACK16:
+            return 3;
+        case Format::R5G5B5A1_UNORM_PACK16:
+            return 4;
+        case Format::B5G5R5A1_UNORM_PACK16:
+            return 4;
+        case Format::A1R5G5B5_UNORM_PACK16:
+            return 4;
+        case Format::R8_UNORM:
+            return 1;
+        case Format::R8_SNORM:
+            return 1;
+        case Format::R8_USCALED:
+            return 1;
+        case Format::R8_SSCALED:
+            return 1;
+        case Format::R8_UINT:
+            return 1;
+        case Format::R8_SINT:
+            return 1;
+        case Format::R8_SRGB:
+            return 1;
+        case Format::R8G8_UNORM:
+            return 2;
+        case Format::R8G8_SNORM:
+            return 2;
+        case Format::R8G8_USCALED:
+            return 2;
+        case Format::R8G8_SSCALED:
+            return 2;
+        case Format::R8G8_UINT:
+            return 2;
+        case Format::R8G8_SINT:
+            return 2;
+        case Format::R8G8_SRGB:
+            return 2;
+        case Format::R8G8B8_UNORM:
+            return 3;
+        case Format::R8G8B8_SNORM:
+            return 3;
+        case Format::R8G8B8_USCALED:
+            return 3;
+        case Format::R8G8B8_SSCALED:
+            return 3;
+        case Format::R8G8B8_UINT:
+            return 3;
+        case Format::R8G8B8_SINT:
+            return 3;
+        case Format::R8G8B8_SRGB:
+            return 3;
+        case Format::B8G8R8_UNORM:
+            return 3;
+        case Format::B8G8R8_SNORM:
+            return 3;
+        case Format::B8G8R8_USCALED:
+            return 3;
+        case Format::B8G8R8_SSCALED:
+            return 3;
+        case Format::B8G8R8_UINT:
+            return 3;
+        case Format::B8G8R8_SINT:
+            return 3;
+        case Format::B8G8R8_SRGB:
+            return 3;
+        case Format::R8G8B8A8_UNORM:
+            return 4;
+        case Format::R8G8B8A8_SNORM:
+            return 4;
+        case Format::R8G8B8A8_USCALED:
+            return 4;
+        case Format::R8G8B8A8_SSCALED:
+            return 4;
+        case Format::R8G8B8A8_UINT:
+            return 4;
+        case Format::R8G8B8A8_SINT:
+            return 4;
+        case Format::R8G8B8A8_SRGB:
+            return 4;
+        case Format::B8G8R8A8_UNORM:
+            return 4;
+        case Format::B8G8R8A8_SNORM:
+            return 4;
+        case Format::B8G8R8A8_USCALED:
+            return 4;
+        case Format::B8G8R8A8_SSCALED:
+            return 4;
+        case Format::B8G8R8A8_UINT:
+            return 4;
+        case Format::B8G8R8A8_SINT:
+            return 4;
+        case Format::B8G8R8A8_SRGB:
+            return 4;
+        case Format::A8B8G8R8_UNORM_PACK32:
+            return 4;
+        case Format::A8B8G8R8_SNORM_PACK32:
+            return 4;
+        case Format::A8B8G8R8_USCALED_PACK32:
+            return 4;
+        case Format::A8B8G8R8_SSCALED_PACK32:
+            return 4;
+        case Format::A8B8G8R8_UINT_PACK32:
+            return 4;
+        case Format::A8B8G8R8_SINT_PACK32:
+            return 4;
+        case Format::A8B8G8R8_SRGB_PACK32:
+            return 4;
+        case Format::A2R10G10B10_UNORM_PACK32:
+            return 4;
+        case Format::A2R10G10B10_SNORM_PACK32:
+            return 4;
+        case Format::A2R10G10B10_USCALED_PACK32:
+            return 4;
+        case Format::A2R10G10B10_SSCALED_PACK32:
+            return 4;
+        case Format::A2R10G10B10_UINT_PACK32:
+            return 4;
+        case Format::A2R10G10B10_SINT_PACK32:
+            return 4;
+        case Format::A2B10G10R10_UNORM_PACK32:
+            return 4;
+        case Format::A2B10G10R10_SNORM_PACK32:
+            return 4;
+        case Format::A2B10G10R10_USCALED_PACK32:
+            return 4;
+        case Format::A2B10G10R10_SSCALED_PACK32:
+            return 4;
+        case Format::A2B10G10R10_UINT_PACK32:
+            return 4;
+        case Format::A2B10G10R10_SINT_PACK32:
+            return 4;
+        case Format::R16_UNORM:
+            return 1;
+        case Format::R16_SNORM:
+            return 1;
+        case Format::R16_USCALED:
+            return 1;
+        case Format::R16_SSCALED:
+            return 1;
+        case Format::R16_UINT:
+            return 1;
+        case Format::R16_SINT:
+            return 1;
+        case Format::R16_SFLOAT:
+            return 1;
+        case Format::R16G16_UNORM:
+            return 2;
+        case Format::R16G16_SNORM:
+            return 2;
+        case Format::R16G16_USCALED:
+            return 2;
+        case Format::R16G16_SSCALED:
+            return 2;
+        case Format::R16G16_UINT:
+            return 2;
+        case Format::R16G16_SINT:
+            return 2;
+        case Format::R16G16_SFLOAT:
+            return 2;
+        case Format::R16G16B16_UNORM:
+            return 3;
+        case Format::R16G16B16_SNORM:
+            return 3;
+        case Format::R16G16B16_USCALED:
+            return 3;
+        case Format::R16G16B16_SSCALED:
+            return 3;
+        case Format::R16G16B16_UINT:
+            return 3;
+        case Format::R16G16B16_SINT:
+            return 3;
+        case Format::R16G16B16_SFLOAT:
+            return 3;
+        case Format::R16G16B16A16_UNORM:
+            return 4;
+        case Format::R16G16B16A16_SNORM:
+            return 4;
+        case Format::R16G16B16A16_USCALED:
+            return 4;
+        case Format::R16G16B16A16_SSCALED:
+            return 4;
+        case Format::R16G16B16A16_UINT:
+            return 4;
+        case Format::R16G16B16A16_SINT:
+            return 4;
+        case Format::R16G16B16A16_SFLOAT:
+            return 4;
+        case Format::R32_UINT:
+            return 1;
+        case Format::R32_SINT:
+            return 1;
+        case Format::R32_SFLOAT:
+            return 1;
+        case Format::R32G32_UINT:
+            return 2;
+        case Format::R32G32_SINT:
+            return 2;
+        case Format::R32G32_SFLOAT:
+            return 2;
+        case Format::R32G32B32_UINT:
+            return 3;
+        case Format::R32G32B32_SINT:
+            return 3;
+        case Format::R32G32B32_SFLOAT:
+            return 3;
+        case Format::R32G32B32A32_UINT:
+            return 4;
+        case Format::R32G32B32A32_SINT:
+            return 4;
+        case Format::R32G32B32A32_SFLOAT:
+            return 4;
+        case Format::R64_UINT:
+            return 1;
+        case Format::R64_SINT:
+            return 1;
+        case Format::R64_SFLOAT:
+            return 1;
+        case Format::R64G64_UINT:
+            return 2;
+        case Format::R64G64_SINT:
+            return 2;
+        case Format::R64G64_SFLOAT:
+            return 2;
+        case Format::R64G64B64_UINT:
+            return 3;
+        case Format::R64G64B64_SINT:
+            return 3;
+        case Format::R64G64B64_SFLOAT:
+            return 3;
+        case Format::R64G64B64A64_UINT:
+            return 4;
+        case Format::R64G64B64A64_SINT:
+            return 4;
+        case Format::R64G64B64A64_SFLOAT:
+            return 4;
+        case Format::B10G11R11_UFLOAT_PACK32:
+            return 3;
+        case Format::E5B9G9R9_UFLOAT_PACK32:
+            return 3;
+        case Format::D16_UNORM:
+            return 1;
+        case Format::X8_D24_UNORM_PACK32:
+            return 1;
+        case Format::D32_SFLOAT:
+            return 1;
+        case Format::S8_UINT:
+            return 1;
+        case Format::D16_UNORM_S8_UINT:
+            return 2;
+        case Format::D24_UNORM_S8_UINT:
+            return 2;
+        case Format::D32_SFLOAT_S8_UINT:
+            return 2;
+        case Format::BC1_RGB_UNORM_BLOCK:
+            return 3;
+        case Format::BC1_RGB_SRGB_BLOCK:
+            return 3;
+        case Format::BC1_RGBA_UNORM_BLOCK:
+            return 4;
+        case Format::BC1_RGBA_SRGB_BLOCK:
+            return 4;
+        case Format::BC2_UNORM_BLOCK:
+            return 4;
+        case Format::BC2_SRGB_BLOCK:
+            return 4;
+        case Format::BC3_UNORM_BLOCK:
+            return 4;
+        case Format::BC3_SRGB_BLOCK:
+            return 4;
+        case Format::BC4_UNORM_BLOCK:
+            return 1;
+        case Format::BC4_SNORM_BLOCK:
+            return 1;
+        case Format::BC5_UNORM_BLOCK:
+            return 2;
+        case Format::BC5_SNORM_BLOCK:
+            return 2;
+        case Format::BC6H_UFLOAT_BLOCK:
+            return 3;
+        case Format::BC6H_SFLOAT_BLOCK:
+            return 3;
+        case Format::BC7_UNORM_BLOCK:
+            return 4;
+        case Format::BC7_SRGB_BLOCK:
+            return 4;
+        case Format::ETC2_R8G8B8_UNORM_BLOCK:
+            return 3;
+        case Format::ETC2_R8G8B8_SRGB_BLOCK:
+            return 3;
+        case Format::ETC2_R8G8B8A1_UNORM_BLOCK:
+            return 4;
+        case Format::ETC2_R8G8B8A1_SRGB_BLOCK:
+            return 4;
+        case Format::ETC2_R8G8B8A8_UNORM_BLOCK:
+            return 4;
+        case Format::ETC2_R8G8B8A8_SRGB_BLOCK:
+            return 4;
+        case Format::EAC_R11_UNORM_BLOCK:
+            return 1;
+        case Format::EAC_R11_SNORM_BLOCK:
+            return 1;
+        case Format::EAC_R11G11_UNORM_BLOCK:
+            return 2;
+        case Format::EAC_R11G11_SNORM_BLOCK:
+            return 2;
+        case Format::ASTC_4x4_UNORM_BLOCK:
+            return 4;
+        case Format::ASTC_4x4_SRGB_BLOCK:
+            return 4;
+        case Format::ASTC_5x4_UNORM_BLOCK:
+            return 4;
+        case Format::ASTC_5x4_SRGB_BLOCK:
+            return 4;
+        case Format::ASTC_5x5_UNORM_BLOCK:
+            return 4;
+        case Format::ASTC_5x5_SRGB_BLOCK:
+            return 4;
+        case Format::ASTC_6x5_UNORM_BLOCK:
+            return 4;
+        case Format::ASTC_6x5_SRGB_BLOCK:
+            return 4;
+        case Format::ASTC_6x6_UNORM_BLOCK:
+            return 4;
+        case Format::ASTC_6x6_SRGB_BLOCK:
+            return 4;
+        case Format::ASTC_8x5_UNORM_BLOCK:
+            return 4;
+        case Format::ASTC_8x5_SRGB_BLOCK:
+            return 4;
+        case Format::ASTC_8x6_UNORM_BLOCK:
+            return 4;
+        case Format::ASTC_8x6_SRGB_BLOCK:
+            return 4;
+        case Format::ASTC_8x8_UNORM_BLOCK:
+            return 4;
+        case Format::ASTC_8x8_SRGB_BLOCK:
+            return 4;
+        case Format::ASTC_10x5_UNORM_BLOCK:
+            return 4;
+        case Format::ASTC_10x5_SRGB_BLOCK:
+            return 4;
+        case Format::ASTC_10x6_UNORM_BLOCK:
+            return 4;
+        case Format::ASTC_10x6_SRGB_BLOCK:
+            return 4;
+        case Format::ASTC_10x8_UNORM_BLOCK:
+            return 4;
+        case Format::ASTC_10x8_SRGB_BLOCK:
+            return 4;
+        case Format::ASTC_10x10_UNORM_BLOCK:
+            return 4;
+        case Format::ASTC_10x10_SRGB_BLOCK:
+            return 4;
+        case Format::ASTC_12x10_UNORM_BLOCK:
+            return 4;
+        case Format::ASTC_12x10_SRGB_BLOCK:
+            return 4;
+        case Format::ASTC_12x12_UNORM_BLOCK:
+            return 4;
+        case Format::ASTC_12x12_SRGB_BLOCK:
+            return 4;
+        case Format::G8B8G8R8_422_UNORM:
+            return 4;
+        case Format::B8G8R8G8_422_UNORM:
+            return 4;
+        case Format::G8_B8_R8_3PLANE_420_UNORM:
+            return 3;
+        case Format::G8_B8R8_2PLANE_420_UNORM:
+            return 3;
+        case Format::G8_B8_R8_3PLANE_422_UNORM:
+            return 3;
+        case Format::G8_B8R8_2PLANE_422_UNORM:
+            return 3;
+        case Format::G8_B8_R8_3PLANE_444_UNORM:
+            return 3;
+        case Format::R10X6_UNORM_PACK16:
+            return 1;
+        case Format::R10X6G10X6_UNORM_2PACK16:
+            return 2;
+        case Format::R10X6G10X6B10X6A10X6_UNORM_4PACK16:
+            return 4;
+        case Format::G10X6B10X6G10X6R10X6_422_UNORM_4PACK16:
+            return 4;
+        case Format::B10X6G10X6R10X6G10X6_422_UNORM_4PACK16:
+            return 4;
+        case Format::G10X6_B10X6_R10X6_3PLANE_420_UNORM_3PACK16:
+            return 3;
+        case Format::G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16:
+            return 3;
+        case Format::G10X6_B10X6_R10X6_3PLANE_422_UNORM_3PACK16:
+            return 3;
+        case Format::G10X6_B10X6R10X6_2PLANE_422_UNORM_3PACK16:
+            return 3;
+        case Format::G10X6_B10X6_R10X6_3PLANE_444_UNORM_3PACK16:
+            return 3;
+        case Format::R12X4_UNORM_PACK16:
+            return 1;
+        case Format::R12X4G12X4_UNORM_2PACK16:
+            return 2;
+        case Format::R12X4G12X4B12X4A12X4_UNORM_4PACK16:
+            return 4;
+        case Format::G12X4B12X4G12X4R12X4_422_UNORM_4PACK16:
+            return 4;
+        case Format::B12X4G12X4R12X4G12X4_422_UNORM_4PACK16:
+            return 4;
+        case Format::G12X4_B12X4_R12X4_3PLANE_420_UNORM_3PACK16:
+            return 3;
+        case Format::G12X4_B12X4R12X4_2PLANE_420_UNORM_3PACK16:
+            return 3;
+        case Format::G12X4_B12X4_R12X4_3PLANE_422_UNORM_3PACK16:
+            return 3;
+        case Format::G12X4_B12X4R12X4_2PLANE_422_UNORM_3PACK16:
+            return 3;
+        case Format::G12X4_B12X4_R12X4_3PLANE_444_UNORM_3PACK16:
+            return 3;
+        case Format::G16B16G16R16_422_UNORM:
+            return 4;
+        case Format::B16G16R16G16_422_UNORM:
+            return 4;
+        case Format::G16_B16_R16_3PLANE_420_UNORM:
+            return 3;
+        case Format::G16_B16R16_2PLANE_420_UNORM:
+            return 3;
+        case Format::G16_B16_R16_3PLANE_422_UNORM:
+            return 3;
+        case Format::G16_B16R16_2PLANE_422_UNORM:
+            return 3;
+        case Format::G16_B16_R16_3PLANE_444_UNORM:
+            return 3;
+        case Format::G8_B8R8_2PLANE_444_UNORM:
+            return 3;
+        case Format::G10X6_B10X6R10X6_2PLANE_444_UNORM_3PACK16:
+            return 3;
+        case Format::G12X4_B12X4R12X4_2PLANE_444_UNORM_3PACK16:
+            return 3;
+        case Format::G16_B16R16_2PLANE_444_UNORM:
+            return 3;
+        case Format::A4R4G4B4_UNORM_PACK16:
+            return 4;
+        case Format::A4B4G4R4_UNORM_PACK16:
+            return 4;
+        case Format::ASTC_4x4_SFLOAT_BLOCK:
+            return 4;
+        case Format::ASTC_5x4_SFLOAT_BLOCK:
+            return 4;
+        case Format::ASTC_5x5_SFLOAT_BLOCK:
+            return 4;
+        case Format::ASTC_6x5_SFLOAT_BLOCK:
+            return 4;
+        case Format::ASTC_6x6_SFLOAT_BLOCK:
+            return 4;
+        case Format::ASTC_8x5_SFLOAT_BLOCK:
+            return 4;
+        case Format::ASTC_8x6_SFLOAT_BLOCK:
+            return 4;
+        case Format::ASTC_8x8_SFLOAT_BLOCK:
+            return 4;
+        case Format::ASTC_10x5_SFLOAT_BLOCK:
+            return 4;
+        case Format::ASTC_10x6_SFLOAT_BLOCK:
+            return 4;
+        case Format::ASTC_10x8_SFLOAT_BLOCK:
+            return 4;
+        case Format::ASTC_10x10_SFLOAT_BLOCK:
+            return 4;
+        case Format::ASTC_12x10_SFLOAT_BLOCK:
+            return 4;
+        case Format::ASTC_12x12_SFLOAT_BLOCK:
+            return 4;
+        case Format::A1B5G5R5_UNORM_PACK16:
+            return 4;
+        case Format::A8_UNORM:
+            return 1;
+        case Format::PVRTC1_2BPP_UNORM_BLOCK_IMG:
+            return 4;
+        case Format::PVRTC1_4BPP_UNORM_BLOCK_IMG:
+            return 4;
+        case Format::PVRTC2_2BPP_UNORM_BLOCK_IMG:
+            return 4;
+        case Format::PVRTC2_4BPP_UNORM_BLOCK_IMG:
+            return 4;
+        case Format::PVRTC1_2BPP_SRGB_BLOCK_IMG:
+            return 4;
+        case Format::PVRTC1_4BPP_SRGB_BLOCK_IMG:
+            return 4;
+        case Format::PVRTC2_2BPP_SRGB_BLOCK_IMG:
+            return 4;
+        case Format::PVRTC2_4BPP_SRGB_BLOCK_IMG:
+            return 4;
+        default:
+            return 0;
+    }
+}
+
+enum class NumericFormat : u8
+{
+    None    = 0,
+    UNORM   = 1,
+    SNORM   = 2,
+    USCALED = 3,
+    SSCALED = 4,
+    SINT    = 5,
+    SFLOAT  = 6,
+    UFLOAT  = 7,
+    UINT    = 8,
+    SRGB    = 9
+};
+
+// The numeric format of the component
+constexpr InplaceVec<NumericFormat, 4, 0> component_numeric_format(Format format)
+{
+    switch (format)
+    {
+        case Format::R4G4_UNORM_PACK8:
+            return {NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::R4G4B4A4_UNORM_PACK16:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::B4G4R4A4_UNORM_PACK16:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::R5G6B5_UNORM_PACK16:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::B5G6R5_UNORM_PACK16:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::R5G5B5A1_UNORM_PACK16:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::B5G5R5A1_UNORM_PACK16:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::A1R5G5B5_UNORM_PACK16:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::R8_UNORM:
+            return {NumericFormat::UNORM};
+        case Format::R8_SNORM:
+            return {NumericFormat::SNORM};
+        case Format::R8_USCALED:
+            return {NumericFormat::USCALED};
+        case Format::R8_SSCALED:
+            return {NumericFormat::SSCALED};
+        case Format::R8_UINT:
+            return {NumericFormat::UINT};
+        case Format::R8_SINT:
+            return {NumericFormat::SINT};
+        case Format::R8_SRGB:
+            return {NumericFormat::SRGB};
+        case Format::R8G8_UNORM:
+            return {NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::R8G8_SNORM:
+            return {NumericFormat::SNORM, NumericFormat::SNORM};
+        case Format::R8G8_USCALED:
+            return {NumericFormat::USCALED, NumericFormat::USCALED};
+        case Format::R8G8_SSCALED:
+            return {NumericFormat::SSCALED, NumericFormat::SSCALED};
+        case Format::R8G8_UINT:
+            return {NumericFormat::UINT, NumericFormat::UINT};
+        case Format::R8G8_SINT:
+            return {NumericFormat::SINT, NumericFormat::SINT};
+        case Format::R8G8_SRGB:
+            return {NumericFormat::SRGB, NumericFormat::SRGB};
+        case Format::R8G8B8_UNORM:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::R8G8B8_SNORM:
+            return {NumericFormat::SNORM, NumericFormat::SNORM, NumericFormat::SNORM};
+        case Format::R8G8B8_USCALED:
+            return {NumericFormat::USCALED, NumericFormat::USCALED,
+                    NumericFormat::USCALED};
+        case Format::R8G8B8_SSCALED:
+            return {NumericFormat::SSCALED, NumericFormat::SSCALED,
+                    NumericFormat::SSCALED};
+        case Format::R8G8B8_UINT:
+            return {NumericFormat::UINT, NumericFormat::UINT, NumericFormat::UINT};
+        case Format::R8G8B8_SINT:
+            return {NumericFormat::SINT, NumericFormat::SINT, NumericFormat::SINT};
+        case Format::R8G8B8_SRGB:
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB};
+        case Format::B8G8R8_UNORM:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::B8G8R8_SNORM:
+            return {NumericFormat::SNORM, NumericFormat::SNORM, NumericFormat::SNORM};
+        case Format::B8G8R8_USCALED:
+            return {NumericFormat::USCALED, NumericFormat::USCALED,
+                    NumericFormat::USCALED};
+        case Format::B8G8R8_SSCALED:
+            return {NumericFormat::SSCALED, NumericFormat::SSCALED,
+                    NumericFormat::SSCALED};
+        case Format::B8G8R8_UINT:
+            return {NumericFormat::UINT, NumericFormat::UINT, NumericFormat::UINT};
+        case Format::B8G8R8_SINT:
+            return {NumericFormat::SINT, NumericFormat::SINT, NumericFormat::SINT};
+        case Format::B8G8R8_SRGB:
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB};
+        case Format::R8G8B8A8_UNORM:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::R8G8B8A8_SNORM:
+            return {NumericFormat::SNORM, NumericFormat::SNORM, NumericFormat::SNORM,
+                    NumericFormat::SNORM};
+        case Format::R8G8B8A8_USCALED:
+            return {NumericFormat::USCALED, NumericFormat::USCALED,
+                    NumericFormat::USCALED, NumericFormat::USCALED};
+        case Format::R8G8B8A8_SSCALED:
+            return {NumericFormat::SSCALED, NumericFormat::SSCALED,
+                    NumericFormat::SSCALED, NumericFormat::SSCALED};
+        case Format::R8G8B8A8_UINT:
+            return {NumericFormat::UINT, NumericFormat::UINT, NumericFormat::UINT,
+                    NumericFormat::UINT};
+        case Format::R8G8B8A8_SINT:
+            return {NumericFormat::SINT, NumericFormat::SINT, NumericFormat::SINT,
+                    NumericFormat::SINT};
+        case Format::R8G8B8A8_SRGB:
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
+        case Format::B8G8R8A8_UNORM:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::B8G8R8A8_SNORM:
+            return {NumericFormat::SNORM, NumericFormat::SNORM, NumericFormat::SNORM,
+                    NumericFormat::SNORM};
+        case Format::B8G8R8A8_USCALED:
+            return {NumericFormat::USCALED, NumericFormat::USCALED,
+                    NumericFormat::USCALED, NumericFormat::USCALED};
+        case Format::B8G8R8A8_SSCALED:
+            return {NumericFormat::SSCALED, NumericFormat::SSCALED,
+                    NumericFormat::SSCALED, NumericFormat::SSCALED};
+        case Format::B8G8R8A8_UINT:
+            return {NumericFormat::UINT, NumericFormat::UINT, NumericFormat::UINT,
+                    NumericFormat::UINT};
+        case Format::B8G8R8A8_SINT:
+            return {NumericFormat::SINT, NumericFormat::SINT, NumericFormat::SINT,
+                    NumericFormat::SINT};
+        case Format::B8G8R8A8_SRGB:
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
+        case Format::A8B8G8R8_UNORM_PACK32:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::A8B8G8R8_SNORM_PACK32:
+            return {NumericFormat::SNORM, NumericFormat::SNORM, NumericFormat::SNORM,
+                    NumericFormat::SNORM};
+        case Format::A8B8G8R8_USCALED_PACK32:
+            return {NumericFormat::USCALED, NumericFormat::USCALED,
+                    NumericFormat::USCALED, NumericFormat::USCALED};
+        case Format::A8B8G8R8_SSCALED_PACK32:
+            return {NumericFormat::SSCALED, NumericFormat::SSCALED,
+                    NumericFormat::SSCALED, NumericFormat::SSCALED};
+        case Format::A8B8G8R8_UINT_PACK32:
+            return {NumericFormat::UINT, NumericFormat::UINT, NumericFormat::UINT,
+                    NumericFormat::UINT};
+        case Format::A8B8G8R8_SINT_PACK32:
+            return {NumericFormat::SINT, NumericFormat::SINT, NumericFormat::SINT,
+                    NumericFormat::SINT};
+        case Format::A8B8G8R8_SRGB_PACK32:
+            return {NumericFormat::UNORM, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::SRGB};
+        case Format::A2R10G10B10_UNORM_PACK32:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::A2R10G10B10_SNORM_PACK32:
+            return {NumericFormat::SNORM, NumericFormat::SNORM, NumericFormat::SNORM,
+                    NumericFormat::SNORM};
+        case Format::A2R10G10B10_USCALED_PACK32:
+            return {NumericFormat::USCALED, NumericFormat::USCALED,
+                    NumericFormat::USCALED, NumericFormat::USCALED};
+        case Format::A2R10G10B10_SSCALED_PACK32:
+            return {NumericFormat::SSCALED, NumericFormat::SSCALED,
+                    NumericFormat::SSCALED, NumericFormat::SSCALED};
+        case Format::A2R10G10B10_UINT_PACK32:
+            return {NumericFormat::UINT, NumericFormat::UINT, NumericFormat::UINT,
+                    NumericFormat::UINT};
+        case Format::A2R10G10B10_SINT_PACK32:
+            return {NumericFormat::SINT, NumericFormat::SINT, NumericFormat::SINT,
+                    NumericFormat::SINT};
+        case Format::A2B10G10R10_UNORM_PACK32:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::A2B10G10R10_SNORM_PACK32:
+            return {NumericFormat::SNORM, NumericFormat::SNORM, NumericFormat::SNORM,
+                    NumericFormat::SNORM};
+        case Format::A2B10G10R10_USCALED_PACK32:
+            return {NumericFormat::USCALED, NumericFormat::USCALED,
+                    NumericFormat::USCALED, NumericFormat::USCALED};
+        case Format::A2B10G10R10_SSCALED_PACK32:
+            return {NumericFormat::SSCALED, NumericFormat::SSCALED,
+                    NumericFormat::SSCALED, NumericFormat::SSCALED};
+        case Format::A2B10G10R10_UINT_PACK32:
+            return {NumericFormat::UINT, NumericFormat::UINT, NumericFormat::UINT,
+                    NumericFormat::UINT};
+        case Format::A2B10G10R10_SINT_PACK32:
+            return {NumericFormat::SINT, NumericFormat::SINT, NumericFormat::SINT,
+                    NumericFormat::SINT};
+        case Format::R16_UNORM:
+            return {NumericFormat::UNORM};
+        case Format::R16_SNORM:
+            return {NumericFormat::SNORM};
+        case Format::R16_USCALED:
+            return {NumericFormat::USCALED};
+        case Format::R16_SSCALED:
+            return {NumericFormat::SSCALED};
+        case Format::R16_UINT:
+            return {NumericFormat::UINT};
+        case Format::R16_SINT:
+            return {NumericFormat::SINT};
+        case Format::R16_SFLOAT:
+            return {NumericFormat::SFLOAT};
+        case Format::R16G16_UNORM:
+            return {NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::R16G16_SNORM:
+            return {NumericFormat::SNORM, NumericFormat::SNORM};
+        case Format::R16G16_USCALED:
+            return {NumericFormat::USCALED, NumericFormat::USCALED};
+        case Format::R16G16_SSCALED:
+            return {NumericFormat::SSCALED, NumericFormat::SSCALED};
+        case Format::R16G16_UINT:
+            return {NumericFormat::UINT, NumericFormat::UINT};
+        case Format::R16G16_SINT:
+            return {NumericFormat::SINT, NumericFormat::SINT};
+        case Format::R16G16_SFLOAT:
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT};
+        case Format::R16G16B16_UNORM:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::R16G16B16_SNORM:
+            return {NumericFormat::SNORM, NumericFormat::SNORM, NumericFormat::SNORM};
+        case Format::R16G16B16_USCALED:
+            return {NumericFormat::USCALED, NumericFormat::USCALED,
+                    NumericFormat::USCALED};
+        case Format::R16G16B16_SSCALED:
+            return {NumericFormat::SSCALED, NumericFormat::SSCALED,
+                    NumericFormat::SSCALED};
+        case Format::R16G16B16_UINT:
+            return {NumericFormat::UINT, NumericFormat::UINT, NumericFormat::UINT};
+        case Format::R16G16B16_SINT:
+            return {NumericFormat::SINT, NumericFormat::SINT, NumericFormat::SINT};
+        case Format::R16G16B16_SFLOAT:
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
+        case Format::R16G16B16A16_UNORM:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::R16G16B16A16_SNORM:
+            return {NumericFormat::SNORM, NumericFormat::SNORM, NumericFormat::SNORM,
+                    NumericFormat::SNORM};
+        case Format::R16G16B16A16_USCALED:
+            return {NumericFormat::USCALED, NumericFormat::USCALED,
+                    NumericFormat::USCALED, NumericFormat::USCALED};
+        case Format::R16G16B16A16_SSCALED:
+            return {NumericFormat::SSCALED, NumericFormat::SSCALED,
+                    NumericFormat::SSCALED, NumericFormat::SSCALED};
+        case Format::R16G16B16A16_UINT:
+            return {NumericFormat::UINT, NumericFormat::UINT, NumericFormat::UINT,
+                    NumericFormat::UINT};
+        case Format::R16G16B16A16_SINT:
+            return {NumericFormat::SINT, NumericFormat::SINT, NumericFormat::SINT,
+                    NumericFormat::SINT};
+        case Format::R16G16B16A16_SFLOAT:
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
+        case Format::R32_UINT:
+            return {NumericFormat::UINT};
+        case Format::R32_SINT:
+            return {NumericFormat::SINT};
+        case Format::R32_SFLOAT:
+            return {NumericFormat::SFLOAT};
+        case Format::R32G32_UINT:
+            return {NumericFormat::UINT, NumericFormat::UINT};
+        case Format::R32G32_SINT:
+            return {NumericFormat::SINT, NumericFormat::SINT};
+        case Format::R32G32_SFLOAT:
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT};
+        case Format::R32G32B32_UINT:
+            return {NumericFormat::UINT, NumericFormat::UINT, NumericFormat::UINT};
+        case Format::R32G32B32_SINT:
+            return {NumericFormat::SINT, NumericFormat::SINT, NumericFormat::SINT};
+        case Format::R32G32B32_SFLOAT:
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
+        case Format::R32G32B32A32_UINT:
+            return {NumericFormat::UINT, NumericFormat::UINT, NumericFormat::UINT,
+                    NumericFormat::UINT};
+        case Format::R32G32B32A32_SINT:
+            return {NumericFormat::SINT, NumericFormat::SINT, NumericFormat::SINT,
+                    NumericFormat::SINT};
+        case Format::R32G32B32A32_SFLOAT:
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
+        case Format::R64_UINT:
+            return {NumericFormat::UINT};
+        case Format::R64_SINT:
+            return {NumericFormat::SINT};
+        case Format::R64_SFLOAT:
+            return {NumericFormat::SFLOAT};
+        case Format::R64G64_UINT:
+            return {NumericFormat::UINT, NumericFormat::UINT};
+        case Format::R64G64_SINT:
+            return {NumericFormat::SINT, NumericFormat::SINT};
+        case Format::R64G64_SFLOAT:
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT};
+        case Format::R64G64B64_UINT:
+            return {NumericFormat::UINT, NumericFormat::UINT, NumericFormat::UINT};
+        case Format::R64G64B64_SINT:
+            return {NumericFormat::SINT, NumericFormat::SINT, NumericFormat::SINT};
+        case Format::R64G64B64_SFLOAT:
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
+        case Format::R64G64B64A64_UINT:
+            return {NumericFormat::UINT, NumericFormat::UINT, NumericFormat::UINT,
+                    NumericFormat::UINT};
+        case Format::R64G64B64A64_SINT:
+            return {NumericFormat::SINT, NumericFormat::SINT, NumericFormat::SINT,
+                    NumericFormat::SINT};
+        case Format::R64G64B64A64_SFLOAT:
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
+        case Format::B10G11R11_UFLOAT_PACK32:
+            return {NumericFormat::UFLOAT, NumericFormat::UFLOAT,
+                    NumericFormat::UFLOAT};
+        case Format::E5B9G9R9_UFLOAT_PACK32:
+            return {NumericFormat::UFLOAT, NumericFormat::UFLOAT,
+                    NumericFormat::UFLOAT};
+        case Format::D16_UNORM:
+            return {NumericFormat::UNORM};
+        case Format::X8_D24_UNORM_PACK32:
+            return {NumericFormat::UNORM};
+        case Format::D32_SFLOAT:
+            return {NumericFormat::SFLOAT};
+        case Format::S8_UINT:
+            return {NumericFormat::UINT};
+        case Format::D16_UNORM_S8_UINT:
+            return {NumericFormat::UNORM, NumericFormat::UINT};
+        case Format::D24_UNORM_S8_UINT:
+            return {NumericFormat::UNORM, NumericFormat::UINT};
+        case Format::D32_SFLOAT_S8_UINT:
+            return {NumericFormat::SFLOAT, NumericFormat::UINT};
+        case Format::BC1_RGB_UNORM_BLOCK:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::BC1_RGB_SRGB_BLOCK:
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB};
+        case Format::BC1_RGBA_UNORM_BLOCK:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::BC1_RGBA_SRGB_BLOCK:
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
+        case Format::BC2_UNORM_BLOCK:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::BC2_SRGB_BLOCK:
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
+        case Format::BC3_UNORM_BLOCK:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::BC3_SRGB_BLOCK:
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
+        case Format::BC4_UNORM_BLOCK:
+            return {NumericFormat::UNORM};
+        case Format::BC4_SNORM_BLOCK:
+            return {NumericFormat::SNORM};
+        case Format::BC5_UNORM_BLOCK:
+            return {NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::BC5_SNORM_BLOCK:
+            return {NumericFormat::SNORM, NumericFormat::SNORM};
+        case Format::BC6H_UFLOAT_BLOCK:
+            return {NumericFormat::UFLOAT, NumericFormat::UFLOAT,
+                    NumericFormat::UFLOAT};
+        case Format::BC6H_SFLOAT_BLOCK:
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
+        case Format::BC7_UNORM_BLOCK:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::BC7_SRGB_BLOCK:
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
+        case Format::ETC2_R8G8B8_UNORM_BLOCK:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::ETC2_R8G8B8_SRGB_BLOCK:
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB};
+        case Format::ETC2_R8G8B8A1_UNORM_BLOCK:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::ETC2_R8G8B8A1_SRGB_BLOCK:
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
+        case Format::ETC2_R8G8B8A8_UNORM_BLOCK:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::ETC2_R8G8B8A8_SRGB_BLOCK:
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
+        case Format::EAC_R11_UNORM_BLOCK:
+            return {NumericFormat::UNORM};
+        case Format::EAC_R11_SNORM_BLOCK:
+            return {NumericFormat::SNORM};
+        case Format::EAC_R11G11_UNORM_BLOCK:
+            return {NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::EAC_R11G11_SNORM_BLOCK:
+            return {NumericFormat::SNORM, NumericFormat::SNORM};
+        case Format::ASTC_4x4_UNORM_BLOCK:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::ASTC_4x4_SRGB_BLOCK:
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
+        case Format::ASTC_5x4_UNORM_BLOCK:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::ASTC_5x4_SRGB_BLOCK:
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
+        case Format::ASTC_5x5_UNORM_BLOCK:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::ASTC_5x5_SRGB_BLOCK:
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
+        case Format::ASTC_6x5_UNORM_BLOCK:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::ASTC_6x5_SRGB_BLOCK:
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
+        case Format::ASTC_6x6_UNORM_BLOCK:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::ASTC_6x6_SRGB_BLOCK:
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
+        case Format::ASTC_8x5_UNORM_BLOCK:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::ASTC_8x5_SRGB_BLOCK:
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
+        case Format::ASTC_8x6_UNORM_BLOCK:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::ASTC_8x6_SRGB_BLOCK:
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
+        case Format::ASTC_8x8_UNORM_BLOCK:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::ASTC_8x8_SRGB_BLOCK:
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
+        case Format::ASTC_10x5_UNORM_BLOCK:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::ASTC_10x5_SRGB_BLOCK:
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
+        case Format::ASTC_10x6_UNORM_BLOCK:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::ASTC_10x6_SRGB_BLOCK:
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
+        case Format::ASTC_10x8_UNORM_BLOCK:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::ASTC_10x8_SRGB_BLOCK:
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
+        case Format::ASTC_10x10_UNORM_BLOCK:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::ASTC_10x10_SRGB_BLOCK:
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
+        case Format::ASTC_12x10_UNORM_BLOCK:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::ASTC_12x10_SRGB_BLOCK:
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
+        case Format::ASTC_12x12_UNORM_BLOCK:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::ASTC_12x12_SRGB_BLOCK:
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
+        case Format::G8B8G8R8_422_UNORM:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::B8G8R8G8_422_UNORM:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::G8_B8_R8_3PLANE_420_UNORM:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::G8_B8R8_2PLANE_420_UNORM:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::G8_B8_R8_3PLANE_422_UNORM:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::G8_B8R8_2PLANE_422_UNORM:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::G8_B8_R8_3PLANE_444_UNORM:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::R10X6_UNORM_PACK16:
+            return {NumericFormat::UNORM};
+        case Format::R10X6G10X6_UNORM_2PACK16:
+            return {NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::R10X6G10X6B10X6A10X6_UNORM_4PACK16:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::G10X6B10X6G10X6R10X6_422_UNORM_4PACK16:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::B10X6G10X6R10X6G10X6_422_UNORM_4PACK16:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::G10X6_B10X6_R10X6_3PLANE_420_UNORM_3PACK16:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::G10X6_B10X6_R10X6_3PLANE_422_UNORM_3PACK16:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::G10X6_B10X6R10X6_2PLANE_422_UNORM_3PACK16:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::G10X6_B10X6_R10X6_3PLANE_444_UNORM_3PACK16:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::R12X4_UNORM_PACK16:
+            return {NumericFormat::UNORM};
+        case Format::R12X4G12X4_UNORM_2PACK16:
+            return {NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::R12X4G12X4B12X4A12X4_UNORM_4PACK16:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::G12X4B12X4G12X4R12X4_422_UNORM_4PACK16:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::B12X4G12X4R12X4G12X4_422_UNORM_4PACK16:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::G12X4_B12X4_R12X4_3PLANE_420_UNORM_3PACK16:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::G12X4_B12X4R12X4_2PLANE_420_UNORM_3PACK16:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::G12X4_B12X4_R12X4_3PLANE_422_UNORM_3PACK16:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::G12X4_B12X4R12X4_2PLANE_422_UNORM_3PACK16:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::G12X4_B12X4_R12X4_3PLANE_444_UNORM_3PACK16:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::G16B16G16R16_422_UNORM:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::B16G16R16G16_422_UNORM:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::G16_B16_R16_3PLANE_420_UNORM:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::G16_B16R16_2PLANE_420_UNORM:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::G16_B16_R16_3PLANE_422_UNORM:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::G16_B16R16_2PLANE_422_UNORM:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::G16_B16_R16_3PLANE_444_UNORM:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::G8_B8R8_2PLANE_444_UNORM:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::G10X6_B10X6R10X6_2PLANE_444_UNORM_3PACK16:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::G12X4_B12X4R12X4_2PLANE_444_UNORM_3PACK16:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::G16_B16R16_2PLANE_444_UNORM:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM};
+        case Format::A4R4G4B4_UNORM_PACK16:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::A4B4G4R4_UNORM_PACK16:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::ASTC_4x4_SFLOAT_BLOCK:
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
+        case Format::ASTC_5x4_SFLOAT_BLOCK:
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
+        case Format::ASTC_5x5_SFLOAT_BLOCK:
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
+        case Format::ASTC_6x5_SFLOAT_BLOCK:
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
+        case Format::ASTC_6x6_SFLOAT_BLOCK:
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
+        case Format::ASTC_8x5_SFLOAT_BLOCK:
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
+        case Format::ASTC_8x6_SFLOAT_BLOCK:
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
+        case Format::ASTC_8x8_SFLOAT_BLOCK:
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
+        case Format::ASTC_10x5_SFLOAT_BLOCK:
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
+        case Format::ASTC_10x6_SFLOAT_BLOCK:
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
+        case Format::ASTC_10x8_SFLOAT_BLOCK:
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
+        case Format::ASTC_10x10_SFLOAT_BLOCK:
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
+        case Format::ASTC_12x10_SFLOAT_BLOCK:
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
+        case Format::ASTC_12x12_SFLOAT_BLOCK:
+            return {NumericFormat::SFLOAT, NumericFormat::SFLOAT, NumericFormat::SFLOAT,
+                    NumericFormat::SFLOAT};
+        case Format::A1B5G5R5_UNORM_PACK16:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::A8_UNORM:
+            return {NumericFormat::UNORM};
+        case Format::PVRTC1_2BPP_UNORM_BLOCK_IMG:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::PVRTC1_4BPP_UNORM_BLOCK_IMG:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::PVRTC2_2BPP_UNORM_BLOCK_IMG:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::PVRTC2_4BPP_UNORM_BLOCK_IMG:
+            return {NumericFormat::UNORM, NumericFormat::UNORM, NumericFormat::UNORM,
+                    NumericFormat::UNORM};
+        case Format::PVRTC1_2BPP_SRGB_BLOCK_IMG:
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
+        case Format::PVRTC1_4BPP_SRGB_BLOCK_IMG:
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
+        case Format::PVRTC2_2BPP_SRGB_BLOCK_IMG:
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
+        case Format::PVRTC2_4BPP_SRGB_BLOCK_IMG:
+            return {NumericFormat::SRGB, NumericFormat::SRGB, NumericFormat::SRGB,
+                    NumericFormat::UNORM};
+        default:
+            return {};
+    }
+}
+
+enum class FormatCompression : u8
+{
+    None     = 0,
+    BC       = 1,
+    ETC2     = 2,
+    EAC      = 3,
+    ASTC_LDR = 4,
+    ASTC_HDR = 5,
+    PVRTC    = 6
+};
+
+constexpr FormatCompression compression_scheme(Format format)
+{
+    switch (format)
+    {
+        case Format::BC1_RGB_UNORM_BLOCK:
+            return FormatCompression::BC;
+        case Format::BC1_RGB_SRGB_BLOCK:
+            return FormatCompression::BC;
+        case Format::BC1_RGBA_UNORM_BLOCK:
+            return FormatCompression::BC;
+        case Format::BC1_RGBA_SRGB_BLOCK:
+            return FormatCompression::BC;
+        case Format::BC2_UNORM_BLOCK:
+            return FormatCompression::BC;
+        case Format::BC2_SRGB_BLOCK:
+            return FormatCompression::BC;
+        case Format::BC3_UNORM_BLOCK:
+            return FormatCompression::BC;
+        case Format::BC3_SRGB_BLOCK:
+            return FormatCompression::BC;
+        case Format::BC4_UNORM_BLOCK:
+            return FormatCompression::BC;
+        case Format::BC4_SNORM_BLOCK:
+            return FormatCompression::BC;
+        case Format::BC5_UNORM_BLOCK:
+            return FormatCompression::BC;
+        case Format::BC5_SNORM_BLOCK:
+            return FormatCompression::BC;
+        case Format::BC6H_UFLOAT_BLOCK:
+            return FormatCompression::BC;
+        case Format::BC6H_SFLOAT_BLOCK:
+            return FormatCompression::BC;
+        case Format::BC7_UNORM_BLOCK:
+            return FormatCompression::BC;
+        case Format::BC7_SRGB_BLOCK:
+            return FormatCompression::BC;
+        case Format::ETC2_R8G8B8_UNORM_BLOCK:
+            return FormatCompression::ETC2;
+        case Format::ETC2_R8G8B8_SRGB_BLOCK:
+            return FormatCompression::ETC2;
+        case Format::ETC2_R8G8B8A1_UNORM_BLOCK:
+            return FormatCompression::ETC2;
+        case Format::ETC2_R8G8B8A1_SRGB_BLOCK:
+            return FormatCompression::ETC2;
+        case Format::ETC2_R8G8B8A8_UNORM_BLOCK:
+            return FormatCompression::ETC2;
+        case Format::ETC2_R8G8B8A8_SRGB_BLOCK:
+            return FormatCompression::ETC2;
+        case Format::EAC_R11_UNORM_BLOCK:
+            return FormatCompression::EAC;
+        case Format::EAC_R11_SNORM_BLOCK:
+            return FormatCompression::EAC;
+        case Format::EAC_R11G11_UNORM_BLOCK:
+            return FormatCompression::EAC;
+        case Format::EAC_R11G11_SNORM_BLOCK:
+            return FormatCompression::EAC;
+        case Format::ASTC_4x4_UNORM_BLOCK:
+            return FormatCompression::ASTC_LDR;
+        case Format::ASTC_4x4_SRGB_BLOCK:
+            return FormatCompression::ASTC_LDR;
+        case Format::ASTC_5x4_UNORM_BLOCK:
+            return FormatCompression::ASTC_LDR;
+        case Format::ASTC_5x4_SRGB_BLOCK:
+            return FormatCompression::ASTC_LDR;
+        case Format::ASTC_5x5_UNORM_BLOCK:
+            return FormatCompression::ASTC_LDR;
+        case Format::ASTC_5x5_SRGB_BLOCK:
+            return FormatCompression::ASTC_LDR;
+        case Format::ASTC_6x5_UNORM_BLOCK:
+            return FormatCompression::ASTC_LDR;
+        case Format::ASTC_6x5_SRGB_BLOCK:
+            return FormatCompression::ASTC_LDR;
+        case Format::ASTC_6x6_UNORM_BLOCK:
+            return FormatCompression::ASTC_LDR;
+        case Format::ASTC_6x6_SRGB_BLOCK:
+            return FormatCompression::ASTC_LDR;
+        case Format::ASTC_8x5_UNORM_BLOCK:
+            return FormatCompression::ASTC_LDR;
+        case Format::ASTC_8x5_SRGB_BLOCK:
+            return FormatCompression::ASTC_LDR;
+        case Format::ASTC_8x6_UNORM_BLOCK:
+            return FormatCompression::ASTC_LDR;
+        case Format::ASTC_8x6_SRGB_BLOCK:
+            return FormatCompression::ASTC_LDR;
+        case Format::ASTC_8x8_UNORM_BLOCK:
+            return FormatCompression::ASTC_LDR;
+        case Format::ASTC_8x8_SRGB_BLOCK:
+            return FormatCompression::ASTC_LDR;
+        case Format::ASTC_10x5_UNORM_BLOCK:
+            return FormatCompression::ASTC_LDR;
+        case Format::ASTC_10x5_SRGB_BLOCK:
+            return FormatCompression::ASTC_LDR;
+        case Format::ASTC_10x6_UNORM_BLOCK:
+            return FormatCompression::ASTC_LDR;
+        case Format::ASTC_10x6_SRGB_BLOCK:
+            return FormatCompression::ASTC_LDR;
+        case Format::ASTC_10x8_UNORM_BLOCK:
+            return FormatCompression::ASTC_LDR;
+        case Format::ASTC_10x8_SRGB_BLOCK:
+            return FormatCompression::ASTC_LDR;
+        case Format::ASTC_10x10_UNORM_BLOCK:
+            return FormatCompression::ASTC_LDR;
+        case Format::ASTC_10x10_SRGB_BLOCK:
+            return FormatCompression::ASTC_LDR;
+        case Format::ASTC_12x10_UNORM_BLOCK:
+            return FormatCompression::ASTC_LDR;
+        case Format::ASTC_12x10_SRGB_BLOCK:
+            return FormatCompression::ASTC_LDR;
+        case Format::ASTC_12x12_UNORM_BLOCK:
+            return FormatCompression::ASTC_LDR;
+        case Format::ASTC_12x12_SRGB_BLOCK:
+            return FormatCompression::ASTC_LDR;
+        case Format::ASTC_4x4_SFLOAT_BLOCK:
+            return FormatCompression::ASTC_HDR;
+        case Format::ASTC_5x4_SFLOAT_BLOCK:
+            return FormatCompression::ASTC_HDR;
+        case Format::ASTC_5x5_SFLOAT_BLOCK:
+            return FormatCompression::ASTC_HDR;
+        case Format::ASTC_6x5_SFLOAT_BLOCK:
+            return FormatCompression::ASTC_HDR;
+        case Format::ASTC_6x6_SFLOAT_BLOCK:
+            return FormatCompression::ASTC_HDR;
+        case Format::ASTC_8x5_SFLOAT_BLOCK:
+            return FormatCompression::ASTC_HDR;
+        case Format::ASTC_8x6_SFLOAT_BLOCK:
+            return FormatCompression::ASTC_HDR;
+        case Format::ASTC_8x8_SFLOAT_BLOCK:
+            return FormatCompression::ASTC_HDR;
+        case Format::ASTC_10x5_SFLOAT_BLOCK:
+            return FormatCompression::ASTC_HDR;
+        case Format::ASTC_10x6_SFLOAT_BLOCK:
+            return FormatCompression::ASTC_HDR;
+        case Format::ASTC_10x8_SFLOAT_BLOCK:
+            return FormatCompression::ASTC_HDR;
+        case Format::ASTC_10x10_SFLOAT_BLOCK:
+            return FormatCompression::ASTC_HDR;
+        case Format::ASTC_12x10_SFLOAT_BLOCK:
+            return FormatCompression::ASTC_HDR;
+        case Format::ASTC_12x12_SFLOAT_BLOCK:
+            return FormatCompression::ASTC_HDR;
+        case Format::PVRTC1_2BPP_UNORM_BLOCK_IMG:
+            return FormatCompression::PVRTC;
+        case Format::PVRTC1_4BPP_UNORM_BLOCK_IMG:
+            return FormatCompression::PVRTC;
+        case Format::PVRTC2_2BPP_UNORM_BLOCK_IMG:
+            return FormatCompression::PVRTC;
+        case Format::PVRTC2_4BPP_UNORM_BLOCK_IMG:
+            return FormatCompression::PVRTC;
+        case Format::PVRTC1_2BPP_SRGB_BLOCK_IMG:
+            return FormatCompression::PVRTC;
+        case Format::PVRTC1_4BPP_SRGB_BLOCK_IMG:
+            return FormatCompression::PVRTC;
+        case Format::PVRTC2_2BPP_SRGB_BLOCK_IMG:
+            return FormatCompression::PVRTC;
+        case Format::PVRTC2_4BPP_SRGB_BLOCK_IMG:
+            return FormatCompression::PVRTC;
+
+        default:
+            return FormatCompression::None;
+    }
+}
+
+/// @brief The number of bits into which the format is packed. A single image
+/// element in this format can be stored in the same space as a scalar type of
+/// this bit width.
+constexpr u8 packed_size(Format format)
+{
+    switch (format)
+    {
+        case Format::R4G4_UNORM_PACK8:
+            return 8;
+        case Format::R4G4B4A4_UNORM_PACK16:
+            return 16;
+        case Format::B4G4R4A4_UNORM_PACK16:
+            return 16;
+        case Format::R5G6B5_UNORM_PACK16:
+            return 16;
+        case Format::B5G6R5_UNORM_PACK16:
+            return 16;
+        case Format::R5G5B5A1_UNORM_PACK16:
+            return 16;
+        case Format::B5G5R5A1_UNORM_PACK16:
+            return 16;
+        case Format::A1R5G5B5_UNORM_PACK16:
+            return 16;
+        case Format::A8B8G8R8_UNORM_PACK32:
+            return 32;
+        case Format::A8B8G8R8_SNORM_PACK32:
+            return 32;
+        case Format::A8B8G8R8_USCALED_PACK32:
+            return 32;
+        case Format::A8B8G8R8_SSCALED_PACK32:
+            return 32;
+        case Format::A8B8G8R8_UINT_PACK32:
+            return 32;
+        case Format::A8B8G8R8_SINT_PACK32:
+            return 32;
+        case Format::A8B8G8R8_SRGB_PACK32:
+            return 32;
+        case Format::A2R10G10B10_UNORM_PACK32:
+            return 32;
+        case Format::A2R10G10B10_SNORM_PACK32:
+            return 32;
+        case Format::A2R10G10B10_USCALED_PACK32:
+            return 32;
+        case Format::A2R10G10B10_SSCALED_PACK32:
+            return 32;
+        case Format::A2R10G10B10_UINT_PACK32:
+            return 32;
+        case Format::A2R10G10B10_SINT_PACK32:
+            return 32;
+        case Format::A2B10G10R10_UNORM_PACK32:
+            return 32;
+        case Format::A2B10G10R10_SNORM_PACK32:
+            return 32;
+        case Format::A2B10G10R10_USCALED_PACK32:
+            return 32;
+        case Format::A2B10G10R10_SSCALED_PACK32:
+            return 32;
+        case Format::A2B10G10R10_UINT_PACK32:
+            return 32;
+        case Format::A2B10G10R10_SINT_PACK32:
+            return 32;
+        case Format::B10G11R11_UFLOAT_PACK32:
+            return 32;
+        case Format::E5B9G9R9_UFLOAT_PACK32:
+            return 32;
+        case Format::X8_D24_UNORM_PACK32:
+            return 32;
+        case Format::R10X6_UNORM_PACK16:
+            return 16;
+        case Format::R10X6G10X6_UNORM_2PACK16:
+            return 16;
+        case Format::R10X6G10X6B10X6A10X6_UNORM_4PACK16:
+            return 16;
+        case Format::G10X6B10X6G10X6R10X6_422_UNORM_4PACK16:
+            return 16;
+        case Format::B10X6G10X6R10X6G10X6_422_UNORM_4PACK16:
+            return 16;
+        case Format::G10X6_B10X6_R10X6_3PLANE_420_UNORM_3PACK16:
+            return 16;
+        case Format::G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16:
+            return 16;
+        case Format::G10X6_B10X6_R10X6_3PLANE_422_UNORM_3PACK16:
+            return 16;
+        case Format::G10X6_B10X6R10X6_2PLANE_422_UNORM_3PACK16:
+            return 16;
+        case Format::G10X6_B10X6_R10X6_3PLANE_444_UNORM_3PACK16:
+            return 16;
+        case Format::R12X4_UNORM_PACK16:
+            return 16;
+        case Format::R12X4G12X4_UNORM_2PACK16:
+            return 16;
+        case Format::R12X4G12X4B12X4A12X4_UNORM_4PACK16:
+            return 16;
+        case Format::G12X4B12X4G12X4R12X4_422_UNORM_4PACK16:
+            return 16;
+        case Format::B12X4G12X4R12X4G12X4_422_UNORM_4PACK16:
+            return 16;
+        case Format::G12X4_B12X4_R12X4_3PLANE_420_UNORM_3PACK16:
+            return 16;
+        case Format::G12X4_B12X4R12X4_2PLANE_420_UNORM_3PACK16:
+            return 16;
+        case Format::G12X4_B12X4_R12X4_3PLANE_422_UNORM_3PACK16:
+            return 16;
+        case Format::G12X4_B12X4R12X4_2PLANE_422_UNORM_3PACK16:
+            return 16;
+        case Format::G12X4_B12X4_R12X4_3PLANE_444_UNORM_3PACK16:
+            return 16;
+        case Format::G10X6_B10X6R10X6_2PLANE_444_UNORM_3PACK16:
+            return 16;
+        case Format::G12X4_B12X4R12X4_2PLANE_444_UNORM_3PACK16:
+            return 16;
+        case Format::A4R4G4B4_UNORM_PACK16:
+            return 16;
+        case Format::A4B4G4R4_UNORM_PACK16:
+            return 16;
+        case Format::A1B5G5R5_UNORM_PACK16:
+            return 16;
+
+        default:
+            return 0;
+    }
+}
+}    // namespace gpu
+
+inline void format(fmt::Sink sink, fmt::Spec, gpu::Status const & status)
+{
+    sink(to_str(status));
+}
+
+}    // namespace ash
