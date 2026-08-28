@@ -1862,6 +1862,16 @@ void Box::render(Scope const &, Canvas canvas, RenderInfo const & info)
         canvas->rrect(shape);
     }
 }
+
+CheckBox::CheckBox(Allocator allocator) :
+  allocator_{allocator},
+  style_{},
+  state_{},
+  callbacks_{},
+  checked_text_{allocator, static_rc(U"check_box"_s), TextStyle{}, FontStyle{}},
+  unchecked_text_{allocator, static_rc(U"check_box_outline_blank"_s), TextStyle{},
+                  FontStyle{}}
+{
 }
 
 }    // namespace ui
