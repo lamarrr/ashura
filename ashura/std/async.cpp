@@ -1,7 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/std/async.hpp"
 #include "ashura/std/alias_count.hpp"
-#include "ashura/std/allocator.hpp"
 #include "ashura/std/allocators.hpp"
 #include "ashura/std/cfg.hpp"
 #include "ashura/std/error.hpp"

@@ -12,17 +12,19 @@
 namespace ash
 {
 
-/// While we use nanoseconds as the unit of time for the animation API,
-/// it is a virtual nanosecond, the application or target user can decide
-/// what the nanoseconds interprets to, the animation API does not
-/// manage or request operating system timestamps.
-/// i64 precision is important for externally synchronized animations.
+/// @file animation.hpp
+/// The Animation API uses a virtual nanosecond as the unit of time.
+/// The application can decide what the nanoseconds interprets to.
+/// `i64` precision is important for externally synchronized animations.
 
-/// @brief An object used to tween/interpolate between two values.
+/// @brief A function used to tween/interpolate between two values.
 /// This is a separate object to allow users customize the definition of the
-/// values depending on the context. And it isn't bundled with the interpolated
-/// objects to allow for more efficient storage of the values.
-struct Tween
+/// values depending on the context.
+template <typename T>
+using Tween = Lambda<T(T, T, f32)>;
+
+/// @brief A linear interpolator for animation values
+struct LinearTween
 {
     constexpr f32 operator()(f32 low, f32 high, f32 t) const
     {
@@ -49,18 +51,21 @@ struct Tween
         return lerp(low, high, f32x4::splat(t));
     }
 
+    constexpr u8x3 operator()(u8x3 const & low, u8x3 const & high, f32 t) const
+    {
+        return lerp(low.to<f32>(), high.to<f32>(), f32x3::splat(t)).to<u8>();
+    }
+
     constexpr u8x4 operator()(u8x4 const & low, u8x4 const & high, f32 t) const
     {
         return lerp(low.to<f32>(), high.to<f32>(), f32x4::splat(t)).to<u8>();
     }
 };
 
-template <typename T>
-using Tweener = Lambda<T(T, T, f32)>;
-
-/// @brief Easing function
-/// @param t the linear interpolator to be eased.
-typedef Lambda<f32(f32 t)> Easing;
+/// @brief A function that defines the easing curve of an animation.
+/// It takes a normalized time value in the range [0, 1] and returns
+/// a normalized value in the range [0, 1].
+typedef Lambda<f32(f32)> Easing;
 
 namespace easing
 {
@@ -222,44 +227,9 @@ inline Easing in_out_circ()
     }};
 }
 
-};    // namespace easing
+}    // namespace easing
 
-template <typename T>
-struct TimelineView
-{
-    Tweener<T> const *      tweener = nullptr;
-    Span<nanoseconds const> timestamps;
-    Span<Easing const>      easings;
-    Span<T const>           frames;
-
-    constexpr TimelineView(Tweener<T> const &      tweener,
-                           Span<nanoseconds const> timestamps,
-                           Span<Easing const> easings, Span<T const> frames) :
-      tweener{&tweener},
-      timestamps{timestamps},
-      easings{easings},
-      frames{frames}
-    {
-    }
-
-    constexpr TimelineView(TimelineView const &)             = default;
-    constexpr TimelineView(TimelineView &&)                  = default;
-    constexpr TimelineView & operator=(TimelineView const &) = default;
-    constexpr TimelineView & operator=(TimelineView &&)      = default;
-    constexpr ~TimelineView()                                = default;
-
-    constexpr bool is_empty() const
-    {
-        return timestamps.is_empty();
-    }
-
-    constexpr nanoseconds duration() const
-    {
-        return timestamps.is_empty() ? 0ns : timestamps.last();
-    }
-};
-
-/// @brief An animtion Timeline containing timestamps, values, and easing
+/// @brief An animation Timeline containing timestamps, values, and easing
 /// functions needed to execute an animation.
 /// This is well optimized for serialization, deserialization,
 /// and dynamic updates. The associated keyframe data is also dynamic and not
@@ -303,26 +273,31 @@ struct TimelineView
 /// @param frames_ animation values of each segment
 ///
 ///
-template <typename T>
-struct Timeline
+template <typename... T>
+requires (sizeof...(T) > 0)
+struct AnimationTimeline
 {
-    Tweener<T>       tweener_{Tween{}};
-    Vec<nanoseconds> timestamps_;
-    Vec<Easing>      easings_;
-    Vec<T>           frames_;
+    Tuple<Tween<T>...> tweener_;
+    Vec<nanoseconds>   timestamps_;
+    Vec<Easing>        easings_;
+    Tuple<Vec<T>...>   frames_;
+
+    AnimationTimeline(Allocator allocator) :
+      tweener_{
+        ([]<typename P>() { return LinearTween{}; }).template operator()<T>()...},
+      timestamps_{allocator},
+      easings_{allocator},
+      frames_{[allocator]<typename P>() {
+          return Vec<P>{allocator};
+      }.template operator()<T>()...}
+    {
+    }
 
     constexpr bool is_empty() const
     {
         // we only need to check the timestamps, the invariant
         // is that it is either an empty or valid timeline
         return timestamps_.is_empty();
-    }
-
-    constexpr void clear()
-    {
-        timestamps_.clear();
-        easings_.clear();
-        frames_.clear();
     }
 
     constexpr nanoseconds duration() const
@@ -334,19 +309,11 @@ struct Timeline
         return timestamps_.last();
     }
 
-    /// @brief Add a tween key frame
-    Timeline & frame(T start, T end, nanoseconds duration, Easing easing)
-    {
-        T frames[] = {std::move(start), std::move(end)};
-
-        return key_frame(frames, span<nanoseconds>({duration}), {&easing, 1});
-    }
-
     /// @brief Add a multi-point key-frame
-    Timeline & key_frame(Span<T> frames, Span<nanoseconds const> durations,
-                         Span<Easing> easings)
+    AnimationTimeline & key_frame(Span<nanoseconds const> durations,
+                                  Span<Easing> easings, Span<T const>... frames)
     {
-        ASH_CHECK(frames.size() == (durations.size() * 2), "");
+        ASH_CHECK(frames...[0].size() == (durations.size() * 2), "");
         ASH_CHECK(durations.size() == easings.size(), "");
 
         if (timestamps_.is_empty()) [[unlikely]]
@@ -366,14 +333,11 @@ struct Timeline
 
         easings_.append_move(easings).unwrap();
 
-        frames_.append_move(frames).unwrap();
+        index_apply<sizeof...(T)>([&]<usize... I>() {
+            (frames.template get<I>().append(frames...[I]).unwrap(), ...);
+        });
 
         return *this;
-    }
-
-    constexpr TimelineView<T> view() const
-    {
-        return TimelineView<T>{tweener_, timestamps_, easings_, frames_};
     }
 };
 
@@ -488,9 +452,9 @@ struct AnimationState
         return *this;
     }
 
-    template <typename T>
-    constexpr AnimationState & iterations(TimelineView<T> const & timeline,
-                                          i64                     num_iterations)
+    template <typename... T>
+    constexpr AnimationState & iterations(AnimationTimeline<T...> const & timeline,
+                                          i64 num_iterations)
     {
         run_time_ = timeline.duration() * num_iterations;
         return *this;
@@ -498,8 +462,8 @@ struct AnimationState
 
     /// @brief Synchronize with the timeline and get the current animated value
     /// @returns None, if there's no animation data, otherwise the animated value.
-    template <typename T>
-    T animate(TimelineView<T> const & timeline)
+    template <typename... T>
+    auto animate(AnimationTimeline<T...> const & timeline)
     {
         ASH_CHECK(!timeline.is_empty(), "");
 
@@ -531,8 +495,11 @@ struct AnimationState
 
         auto & easing = timeline.easings[ease_idx];
 
-        return (*timeline.tweener)(timeline.frames[frame_idx],
-                                   timeline.frames[frame_idx + 1], easing(t));
+        return index_apply<sizeof...(T)>([&]<usize... I>() {
+            return Tuple{(*timeline.tweener.template get<I>())(
+              timeline.frames.template get<I>()[frame_idx],
+              timeline.frames.template get<I>()[frame_idx + 1], easing(t))...};
+        });
     }
 
     /// @brief Drive the animation. Cheap enough to be called every frame
@@ -732,14 +699,14 @@ struct RippleStagger final : Stagger
 template <typename... T>
 struct StaggeredAnimation
 {
-    Vec<AnimationState>   states_;
-    Super<Stagger>        stagger_{Unstaggered{}};
-    u64                   stagger_width_ = 1;
-    Tuple<Timeline<T>...> timelines_{};
-    nanoseconds           delay_ = 0ns;
+    Vec<AnimationState>            states_;
+    Super<Stagger>                 stagger_{Unstaggered{}};
+    u64                            stagger_width_ = 1;
+    Tuple<AnimationTimeline<T>...> timelines_{};
+    nanoseconds                    delay_ = 0ns;
 
     StaggeredAnimation(Vec<AnimationState> states, Super<Stagger> stagger,
-                       u64 stagger_width, Tuple<Timeline<T>...> timelines) :
+                       u64 stagger_width, Tuple<AnimationTimeline<T>...> timelines) :
       states_{std::move(states)},
       stagger_{std::move(stagger)},
       stagger_width_{stagger_width},
@@ -755,21 +722,23 @@ struct StaggeredAnimation
 
     ~StaggeredAnimation() = default;
 
+    /*
     static auto make(u64 stagger_width, u64 num_items, Super<Stagger> stagger,
                      Allocator allocator)
     {
         Vec<AnimationState> states{allocator};
         states.resize(num_items).unwrap();
 
-        Tuple<Timeline<T>...> timelines{
-          Timeline<T>{
-                      .timestamps_{allocator}, .easings_{allocator}, .frames_{allocator}}
+        Tuple<AnimationTimeline<T>...> timelines{
+          AnimationTimeline<T>{
+                               .timestamps_{allocator}, .easings_{allocator}, .frames_{allocator}}
           ...
         };
 
         return StaggeredAnimation<T...>{std::move(states), std::move(stagger),
                                         stagger_width, std::move(timelines)};
     }
+*/
 
     StaggeredAnimation & delay(nanoseconds delay)
     {
@@ -870,7 +839,7 @@ struct StaggeredAnimation
         return states_[item];
     }
 
-    Tuple<Timeline<T> &...> timelines()
+    Tuple<AnimationTimeline<T> &...> timelines()
     {
         return apply(
           [](auto &... timelines) {

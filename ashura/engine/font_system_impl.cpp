@@ -1,7 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/engine/font_system_impl.hpp"
 #include "ashura/engine/file_system.hpp"
-#include "ashura/engine/rect_pack.hpp"
+#include "ashura/engine/rect_packer.hpp"
 #include "ashura/engine/systems.hpp"
 #include "ashura/std/range.hpp"
 #include "ashura/std/trace.hpp"
@@ -326,7 +326,7 @@ Result<CpuFontAtlas, SysErr> FontSysImpl::rasterize_(Font font_, u32 font_height
 
     u32 num_layers = 0;
     {
-        Vec<rect_pack::Rect> rects{allocator_};
+        Vec<RectPacker::Rect> rects{allocator_};
 
         if (!rects.resize_uninit(num_glyphs))
         {
@@ -344,31 +344,30 @@ Result<CpuFontAtlas, SysErr> FontSysImpl::rasterize_(Font font_, u32 font_height
                 padded_extent = ag.area.extent + GLYPH_PADDING * 2;
             }
 
-            rect = rect_pack::Rect{.id         = i,
-                                   .extent     = padded_extent.to<i32>(),
-                                   .pos        = {},
-                                   .was_packed = false};
+            rect = RectPacker::Rect{.id         = i,
+                                    .extent     = padded_extent.to<i32>(),
+                                    .pos        = {},
+                                    .was_packed = false};
         }
 
-        Vec<rect_pack::Node> nodes{allocator_};
-        auto                 num_nodes = atlas_extent.x();
+        Vec<RectPacker::Node> nodes{allocator_};
+        auto                  num_nodes = atlas_extent.x();
         nodes.resize_uninit(num_nodes).unwrap();
 
-        Span<rect_pack::Rect> unpacked = rects;
+        Span<RectPacker::Rect> unpacked = rects;
 
         while (!unpacked.is_empty())
         {
             // tries to pack all the glyph rects into the provided extent
-            rect_pack::Context ctx;
-            rect_pack::init(ctx, atlas_extent.to<i32>(), nodes.data(), (i32) num_nodes);
-            rect_pack::pack_rects(ctx, unpacked.data(), (i32) size32(unpacked));
+            RectPacker ctx{atlas_extent.to<i32>(), nodes};
+            ctx.pack(unpacked);
 
-            auto [just_packed, still_unpacked] = partition(
-              unpacked, [](rect_pack::Rect const & r) { return r.was_packed; });
+            auto [just_packed, still_unpacked] =
+              partition(unpacked, [](auto & r) { return r.was_packed; });
 
             ASH_CHECK(!just_packed.is_empty(), "");
 
-            for (rect_pack::Rect const & r : just_packed)
+            for (auto & r : just_packed)
             {
                 atlas.glyphs[r.id].layer = num_layers;
             }

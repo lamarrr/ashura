@@ -213,10 +213,10 @@ Texture2D textures[];
         }
         case SdfShadeType::Feathered:
         {
-            f32 edge_mask = sdf::antialiased_mask(edge_signed_dist);
+            f32 edge_mask     = sdf::antialiased_mask(edge_signed_dist);
             // Keep the feather coverage outside the composite SDF boundary.
-            f32 aa_width             = max(fwidth(edge_signed_dist), 1e-6);
-            f32 feather_width        = max(c.feather, aa_width);
+            f32 aa_width      = max(fwidth(edge_signed_dist), 1e-6);
+            f32 feather_width = max(c.feather, aa_width);
             f32 feather_signed_dist =
               1 - smoothstep(-aa_width, feather_width, edge_signed_dist);
             f32 feather_alpha = feather_signed_dist;

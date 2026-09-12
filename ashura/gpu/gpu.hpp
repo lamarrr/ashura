@@ -1,6 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
-#include "ashura/std/allocator.hpp"
+#include "ashura/std/allocators.hpp"
 #include "ashura/std/dyn.hpp"
 #include "ashura/std/enum.hpp"
 #include "ashura/std/math.hpp"

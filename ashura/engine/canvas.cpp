@@ -2053,7 +2053,7 @@ ICanvas & ICanvas::paths(Span<PathInfo const> info, bool has_overlaps)
 }
 
 ICanvas & ICanvas::text(TextRenderInfo const &    info,
-                        TextPlacementInfo const & placement, f32x2 center)
+                        TextPlacementInfo const & placement, f32x4x4 const & transform)
 {
     ASH_TRACE_SCOPE;
 
@@ -2062,12 +2062,11 @@ ICanvas & ICanvas::text(TextRenderInfo const &    info,
     push_clip();
     set_clip(info.clip.intersection(this->clip_));
     defer clip_{[&] { pop_clip(); }};
-    auto  world_transform = info.transform * translate3d(center.append(0));
 
     for (auto & b : placement.backgrounds)
     {
         auto & style = info.runs[b.run_style];
-        rect(Shape{.world_transform = world_transform,
+        rect(Shape{.world_transform = transform,
                    .uv_transform    = f32x4x4::identity(),
                    .area            = b.bbox,
                    .bbox_extent     = b.bbox.extent,
@@ -2085,7 +2084,7 @@ ICanvas & ICanvas::text(TextRenderInfo const &    info,
     for (auto & b : placement.glyph_shadows)
     {
         auto & style = info.runs[b.run_style];
-        rect(Shape{.world_transform = world_transform,
+        rect(Shape{.world_transform = transform,
                    .uv_transform    = f32x4x4::identity(),
                    .area            = b.bbox,
                    .bbox_extent     = b.bbox.extent,
@@ -2122,7 +2121,7 @@ ICanvas & ICanvas::text(TextRenderInfo const &    info,
         auto   uv_transform =
           translate2d(atlas_glyph.uv.center) * scale2d(atlas_glyph.uv.extent);
 
-        rect(Shape{.world_transform = world_transform,
+        rect(Shape{.world_transform = transform,
                    .uv_transform    = transform2d_to_3d(uv_transform).to_mat(),
                    .area            = b.bbox,
                    .bbox_extent     = b.bbox.extent,
@@ -2140,7 +2139,7 @@ ICanvas & ICanvas::text(TextRenderInfo const &    info,
     for (auto & b : placement.underlines)
     {
         auto & style = info.runs[b.run_style];
-        rect(Shape{.world_transform = world_transform,
+        rect(Shape{.world_transform = transform,
                    .uv_transform    = f32x4x4::identity(),
                    .area            = b.bbox,
                    .bbox_extent     = b.bbox.extent,
@@ -2158,7 +2157,7 @@ ICanvas & ICanvas::text(TextRenderInfo const &    info,
     for (auto & b : placement.strikethroughs)
     {
         auto & style = info.runs[b.run_style];
-        rect(Shape{.world_transform = world_transform,
+        rect(Shape{.world_transform = transform,
                    .uv_transform    = f32x4x4::identity(),
                    .area            = b.bbox,
                    .bbox_extent     = b.bbox.extent,
@@ -2175,7 +2174,7 @@ ICanvas & ICanvas::text(TextRenderInfo const &    info,
 
     for (auto & b : placement.highlights)
     {
-        rect(Shape{.world_transform = world_transform,
+        rect(Shape{.world_transform = transform,
                    .uv_transform    = f32x4x4::identity(),
                    .area            = b.bbox,
                    .bbox_extent     = b.bbox.extent,
@@ -2193,7 +2192,7 @@ ICanvas & ICanvas::text(TextRenderInfo const &    info,
     for (auto & b : placement.carets)
     {
         auto & style = info.caret_styles[b.id];
-        rect(Shape{.world_transform = world_transform,
+        rect(Shape{.world_transform = transform,
                    .uv_transform    = f32x4x4::identity(),
                    .area            = b.bbox,
                    .bbox_extent     = b.bbox.extent,

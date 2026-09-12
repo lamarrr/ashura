@@ -689,6 +689,137 @@ struct ScratchScope : IAllocator
     }
 };
 
+struct AllocatorStatsAdapter : IAllocator
+{
+    Allocator upstream_;
+    usize     num_allocs_         = 0;
+    usize     num_deallocs_       = 0;
+    usize     num_live_allocs_    = 0;
+    usize     total_allocated_    = 0;
+    usize     num_live_allocated_ = 0;
+
+    explicit constexpr AllocatorStatsAdapter(Allocator upstream) : upstream_{upstream}
+    {
+    }
+
+    /// @copydoc IAllocator::alloc
+    virtual bool alloc(Layout layout, u8 *& mem) override
+    {
+        std::atomic_ref num_allocs(num_allocs_);
+        std::atomic_ref num_live_allocs(num_live_allocs_);
+        std::atomic_ref total_allocated(total_allocated_);
+        std::atomic_ref num_live_allocated(num_live_allocated_);
+
+        if (layout.size != 0)
+        {
+            num_allocs.fetch_add(1, std::memory_order_relaxed);
+            num_live_allocs.fetch_add(1, std::memory_order_relaxed);
+            total_allocated.fetch_add(layout.size, std::memory_order_relaxed);
+            num_live_allocated.fetch_add(layout.size, std::memory_order_relaxed);
+        }
+
+        return upstream_->alloc(layout, mem);
+    }
+
+    /// @copydoc IAllocator::zalloc
+    virtual bool zalloc(Layout layout, u8 *& mem) override
+    {
+        std::atomic_ref num_allocs(num_allocs_);
+        std::atomic_ref num_live_allocs(num_live_allocs_);
+        std::atomic_ref total_allocated(total_allocated_);
+        std::atomic_ref num_live_allocated(num_live_allocated_);
+
+        if (layout.size != 0)
+        {
+            num_allocs.fetch_add(1, std::memory_order_relaxed);
+            num_live_allocs.fetch_add(1, std::memory_order_relaxed);
+            total_allocated.fetch_add(layout.size, std::memory_order_relaxed);
+            num_live_allocated.fetch_add(layout.size, std::memory_order_relaxed);
+        }
+
+        return upstream_->zalloc(layout, mem);
+    }
+
+    /// @copydoc IAllocator::realloc
+    virtual bool realloc(Layout layout, usize new_size, u8 *& mem) override
+    {
+        std::atomic_ref num_allocs(num_allocs_);
+        std::atomic_ref num_deallocs(num_deallocs_);
+        std::atomic_ref num_live_allocs(num_live_allocs_);
+        std::atomic_ref total_allocated(total_allocated_);
+        std::atomic_ref num_live_allocated(num_live_allocated_);
+
+        if (layout.size == 0 && new_size != 0)
+        {
+            num_allocs.fetch_add(1, std::memory_order_relaxed);
+            num_live_allocs.fetch_add(1, std::memory_order_relaxed);
+            total_allocated.fetch_add(new_size, std::memory_order_relaxed);
+            num_live_allocated.fetch_add(new_size, std::memory_order_relaxed);
+        }
+        else if (layout.size != 0 && new_size == 0)
+        {
+            num_deallocs.fetch_add(1, std::memory_order_relaxed);
+            num_live_allocs.fetch_sub(1, std::memory_order_relaxed);
+            num_live_allocated.fetch_sub(layout.size, std::memory_order_relaxed);
+        }
+        else if (layout.size != 0 && new_size != 0)
+        {
+            total_allocated.fetch_add(new_size, std::memory_order_relaxed);
+            num_live_allocated.fetch_add(new_size - layout.size,
+                                         std::memory_order_relaxed);
+        }
+
+        return upstream_->realloc(layout, new_size, mem);
+    }
+
+    /// @copydoc IAllocator::dealloc
+    virtual void dealloc(Layout layout, u8 * mem) override
+    {
+        std::atomic_ref num_deallocs(num_deallocs_);
+        std::atomic_ref num_live_allocs(num_live_allocs_);
+        std::atomic_ref num_live_allocated(num_live_allocated_);
+
+        if (layout.size != 0)
+        {
+            num_deallocs.fetch_add(1, std::memory_order_relaxed);
+            num_live_allocs.fetch_sub(1, std::memory_order_relaxed);
+            num_live_allocated.fetch_sub(layout.size, std::memory_order_relaxed);
+        }
+
+        upstream_->dealloc(layout, mem);
+    }
+
+    constexpr Allocator ref()
+    {
+        return Allocator{*this};
+    }
+
+    constexpr usize num_allocs() const
+    {
+        return num_allocs_;
+    }
+
+    constexpr usize num_deallocs() const
+    {
+        return num_deallocs_;
+    }
+
+    constexpr usize num_live_allocs() const
+    {
+        return num_live_allocs_;
+    }
+
+    constexpr usize total_allocated() const
+    {
+        return total_allocated_;
+    }
+
+    constexpr usize num_live_allocated() const
+    {
+        return num_live_allocated_;
+    }
+};
+
 Allocator get_thread_arena_upstream();
 
 Layout get_thread_arena_layout();
@@ -701,5 +832,12 @@ struct ThreadScratchScope final : ScratchScope
     {
     }
 };
+
+#ifndef ASH_DISABLE_ALLOCATOR_STATS
+extern AllocatorStatsAdapter default_allocator_adapter;
+inline constexpr Allocator   default_allocator{default_allocator_adapter};
+#else
+inline constexpr Allocator default_allocator = heap_allocator;
+#endif
 
 }    // namespace ash

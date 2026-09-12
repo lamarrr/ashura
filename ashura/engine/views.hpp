@@ -1,7 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 
-#include "ashura/engine/render_text.hpp"
 #include "ashura/engine/text.hpp"
 #include "ashura/engine/view.hpp"
 #include "ashura/std/types.hpp"
@@ -11,6 +10,7 @@ namespace ash
 namespace ui
 {
 
+/// @brief A shadow that can be applied to views
 struct Shadow
 {
     /// @brief The offset of the shadow from the view
@@ -26,24 +26,37 @@ struct Shadow
     ColorGradient tint = colors::BLACK;
 };
 
+/// @brief A focus ring that can be applied to views
+struct FocusRing
+{
+    /// @brief The feather of the focus ring
+    f32 feather = 1;
+
+    /// @brief The thickness of the focus ring
+    f32 thickness = 1.0F;
+
+    /// @brief The tint of the focus ring
+    ColorGradient tint = ColorGradient{colors::GRAY_100};
+};
+
 /// @brief A space that occupies a given extent.
 /// This is useful for creating padding or spacing between other views.
 struct Space : View
 {
-    struct Style_
+    struct Style
     {
         Frame frame{};
     };
 
-    Style_ style_;
+    Style style_;
 
     /// @brief Constructs a blank space view with a given frame
     /// @param frame the frame of the space
-    Space(Frame frame);
+    explicit Space(Frame frame);
 
     /// @brief Constructs a blank space view with a given extent
     /// @param extent the extent of the space
-    Space(f32x2 extent = f32x2{0, 0});
+    explicit Space(f32x2 extent = f32x2::zero());
 
     Space(Space const &)             = delete;
     Space(Space &&)                  = default;
@@ -110,11 +123,7 @@ struct Text : View
 
         Rc<Str32> text = static_rc(U""_s);
 
-        f32x2 center = f32x2::zero();
-
-        f32x4x4 transform = f32x4x4::identity();
-
-        f32x2 transformed_position = f32x2::zero();
+        f32x2 position = f32x2::zero();
     };
 
     enum class CoreActionType : u8
@@ -143,7 +152,7 @@ struct Text : View
 
     using Renderer =
       Fn<void(ui::Scope const &, Cfg const &, State const &, TextRenderInfo const &,
-              TextPlacementInfo const &, f32x2, Canvas)>;
+              TextPlacementInfo const &, f32x4x4 const &, Canvas)>;
 
     struct Cfg
     {
@@ -158,8 +167,8 @@ struct Text : View
 
         static void default_renderer(ui::Scope const & scope, Cfg const & cfg,
                                      State const & s, TextRenderInfo const & info,
-                                     TextPlacementInfo const & placement, f32x2 center,
-                                     Canvas canvas);
+                                     TextPlacementInfo const & placement,
+                                     f32x4x4 const & transform, Canvas canvas);
 
         bool copyable : 1 = false;
 
@@ -204,11 +213,14 @@ struct Text : View
 
         Vec<TextHighlightStyle> highlight_styles_;
 
-        State(Allocator allocator) :
+        bool hidden_ : 1;
+
+        explicit State(Allocator allocator) :
           allocator_{allocator},
           text_{allocator},
           highlights_{allocator},
-          highlight_styles_{allocator}
+          highlight_styles_{allocator},
+          hidden_{false}
         {
         }
 
@@ -362,6 +374,10 @@ struct Text : View
     /// @param frame The frame to set for the text view
     Text & frame(Frame const & frame);
 
+    /// @brief Sets the hidden state of the text view
+    /// @param v True if the text view should be hidden, false otherwise
+    Text & hidden(bool v);
+
     virtual ViewState tick(Scope const & scope, Events const & events,
                            Fn<void(View &)> build) override;
 
@@ -417,9 +433,11 @@ struct Image : View
         ImageInfo info;
     };
 
-    Style   style_;
+    Style style_;
+
     ImageId source_;
-    State   state_;
+
+    State state_;
 
     /// @brief Constructs an image view with the given source
     /// @param src The source of the image
@@ -565,11 +583,13 @@ struct Stack : View
         Frame frame = Frame{}.rel(1, 1);
     };
 
-    Allocator      allocator_;
-    Style          style_;
+    Allocator allocator_;
+
+    Style style_;
+
     Vec<ref<View>> items_;
 
-    Stack(Allocator allocator);
+    explicit Stack(Allocator allocator);
     Stack(Stack const &)             = delete;
     Stack(Stack &&)                  = default;
     Stack & operator=(Stack const &) = delete;
@@ -635,6 +655,7 @@ struct Stack : View
     virtual i32 z_index(Scope const & scope, i32 allocated, Span<i32> indices) override;
 };
 
+// TODO: implement squircle?
 /// @brief A button view that can be clicked, held, and released
 struct Button : View
 {
@@ -644,26 +665,15 @@ struct Button : View
         Squircle = 1
     };
 
-    struct State
-    {
-        bool disabled : 1 = false;
-        bool pointed  : 1 = false;
-        bool focused  : 1 = false;
-        bool held     : 1 = false;
-        bool hovered  : 1 = false;
-    };
-
     struct Style
     {
-        ColorGradient idle_color = ColorGradient{mdc::BLUE_300};
+        ColorGradient idle_color = ColorGradient{colors::DEEP_PURPLE_300};
 
-        ColorGradient disabled_color = ColorGradient{mdc::BLUE_100};
+        ColorGradient disabled_color = ColorGradient{colors::GRAY_100};
 
-        ColorGradient hovered_color = ColorGradient{mdc::BLUE_400};
+        ColorGradient pointed_color = ColorGradient{colors::DEEP_PURPLE_400};
 
-        ColorGradient pressed_color = ColorGradient{mdc::BLUE_500};
-
-        ColorGradient focus_ring_color = ColorGradient{mdc::GRAY_100};
+        ColorGradient pressed_color = ColorGradient{colors::DEEP_PURPLE_500};
 
         bool stroke : 1 = false;
 
@@ -673,31 +683,51 @@ struct Button : View
 
         Padding padding = {};
 
-        CornerRadii corner_radii = CornerRadii::all(2);
+        CornerRadii radii = CornerRadii::all(2);
 
         Frame frame = Frame{}.rel(1, 1);
 
         Frame item_frame = Frame{}.rel(1, 1);
 
-        f32 focus_ring_thickness = 1.0F;
+        FocusRing focus_ring = {};
 
         Option<Shadow> shadow = none;
     };
 
-    struct Callbacks
+    struct State
     {
-        Dyn<Fn<void(u32)>> on_click{noop, dyn_noop};
-        Dyn<Fn<void()>>    on_hold{noop, dyn_noop};
-        Dyn<Fn<void()>>    on_release{noop, dyn_noop};
-        Dyn<Fn<void()>>    on_hover{noop, dyn_noop};
-        Dyn<Fn<void()>>    on_blur{noop, dyn_noop};
-        Dyn<Fn<void()>>    on_focus_in{noop, dyn_noop};
-        Dyn<Fn<void()>>    on_focus_out{noop, dyn_noop};
+        bool disabled : 1 = false;
+
+        bool pointed : 1 = false;
+
+        bool focused : 1 = false;
+
+        bool held : 1 = false;
     };
 
-    State          state_;
-    Style          style_;
-    Callbacks      callbacks_;
+    struct Callbacks
+    {
+        Fn<void(u32)> on_click = noop;
+
+        Fn<void()> on_hold = noop;
+
+        Fn<void()> on_release = noop;
+
+        Fn<void()> on_pointer_in = noop;
+
+        Fn<void()> on_pointer_out = noop;
+
+        Fn<void()> on_focus_in = noop;
+
+        Fn<void()> on_focus_out = noop;
+    };
+
+    State state_;
+
+    Style style_;
+
+    Callbacks callbacks_;
+
     Option<View &> item_;
 
     Button()                           = default;
@@ -711,10 +741,6 @@ struct Button : View
     /// @param disable True if the button should be disabled, false otherwise
     Button & disable(bool disable);
 
-    /// @brief Sets the color of the button
-    /// @param color The color to set for the button
-    Button & color(ColorGradient const & color);
-
     /// @brief Sets the idle color of the button
     /// @param color The idle color to set for the button
     Button & idle_color(ColorGradient const & color);
@@ -723,17 +749,17 @@ struct Button : View
     /// @param color The disabled color to set for the button
     Button & disabled_color(ColorGradient const & color);
 
-    /// @brief Sets the hovered color of the button
+    /// @brief Sets the hovered/pointed color of the button
     /// @param color The hovered color to set for the button
-    Button & hovered_color(ColorGradient const & color);
+    Button & pointed_color(ColorGradient const & color);
 
     /// @brief Sets the pressed color of the button
     /// @param color The pressed color to set for the button
     Button & pressed_color(ColorGradient const & color);
 
-    /// @brief Sets the focus ring color of the button
-    /// @param color The focus ring color to set for the button
-    Button & focus_ring_color(ColorGradient const & color);
+    /// @brief Sets the focus ring of the button
+    /// @param focus_ring The focus ring to set for the button
+    Button & focus_ring(FocusRing const & focus_ring);
 
     /// @brief Sets the shape of the button to a rounded rectangle with the specified corner radii
     /// @param radii The corner radii to set for the button
@@ -755,10 +781,6 @@ struct Button : View
     /// @param padding The padding to set for the button
     Button & padding(Padding const & padding);
 
-    /// @brief Sets the thickness of the button's focus ring
-    /// @param thickness The thickness of the button's focus ring to set
-    Button & focus_ring_thickness(f32 thickness);
-
     /// @brief Sets the frame of the item view of the button
     /// @param frame The frame to set for the item view of the button
     Button & item_frame(Frame const & frame);
@@ -769,15 +791,7 @@ struct Button : View
 
     /// @brief Set the callback function to be called when the button is clicked
     /// @param fn The callback function to set for the button click event
-    Button & on_click(Dyn<Fn<void(u32)>> fn);
-
-    /// @brief Set the callback function to be called when the button is clicked
-    /// @param fn The callback function to set for the button click event
     Button & on_click(Fn<void(u32)> fn);
-
-    /// @brief Set the callback function to be called when the button is held
-    /// @param fn The callback function to set for the button hold event
-    Button & on_hold(Dyn<Fn<void()>> fn);
 
     /// @brief Set the callback function to be called when the button is held
     /// @param fn The callback function to set for the button hold event
@@ -785,23 +799,15 @@ struct Button : View
 
     /// @brief Set the callback function to be called when the button is released
     /// @param fn The callback function to set for the button release event
-    Button & on_release(Dyn<Fn<void()>> fn);
-
-    /// @brief Set the callback function to be called when the button is released
-    /// @param fn The callback function to set for the button release event
     Button & on_release(Fn<void()> fn);
 
     /// @brief Set the callback function to be called when the button is hovered
     /// @param fn The callback function to set for the button hover event
-    Button & on_hover(Dyn<Fn<void()>> fn);
+    Button & on_pointer_in(Fn<void()> fn);
 
-    /// @brief Set the callback function to be called when the button is hovered
-    /// @param fn The callback function to set for the button hover event
-    Button & on_hover(Fn<void()> fn);
-
-    /// @brief Set the callback function to be called when the button loses focus
-    /// @param fn The callback function to set for the button blur event
-    Button & on_blur(Dyn<Fn<void()>> fn);
+    /// @brief Set the callback function to be called when the button is no longer hovered
+    /// @param fn The callback function to set for the button pointer out event
+    Button & on_pointer_out(Fn<void()> fn);
 
     /// @brief Set the callback function to be called when the button loses focus
     /// @param fn The callback function to set for the button blur event
@@ -809,15 +815,7 @@ struct Button : View
 
     /// @brief Set the callback function to be called when the button is focused in
     /// @param fn The callback function to set for the button focus in event
-    Button & on_focus_in(Dyn<Fn<void()>> fn);
-
-    /// @brief Set the callback function to be called when the button is focused in
-    /// @param fn The callback function to set for the button focus in event
     Button & on_focus_in(Fn<void()> fn);
-
-    /// @brief Set the callback function to be called when the button is focused out
-    /// @param fn The callback function to set for the button focus out event
-    Button & on_focus_out(Dyn<Fn<void()>> fn);
 
     /// @brief Set the callback function to be called when the button is focused out
     /// @param fn The callback function to set for the button focus out event
@@ -873,7 +871,8 @@ struct Box : View
         Option<Shadow> shadow = none;
     };
 
-    Style          style_;
+    Style style_;
+
     Option<View &> item_;
 
     Box()                        = default;
@@ -945,27 +944,56 @@ struct CheckBox : View
 {
     struct Style
     {
-        Frame frame;
+        Frame frame = Frame{}.rel(1, 1);
+
+        Frame text_frame = Frame{}.rel(1, 1);
+
+        Padding padding = Padding::all(2.5F);
+
+        CornerRadii radii = CornerRadii::all(3.5F);
+
+        ColorGradient color = colors::DEEP_PURPLE_300;
+
+        ColorGradient disabled_color = colors::GRAY_100;
+
+        ColorGradient pointed_color = colors::DEEP_PURPLE_400;
+
+        ColorGradient pressed_color = colors::DEEP_PURPLE_500;
+
+        FocusRing focus_ring = {};
     };
 
     struct State
     {
-        bool checked = false;
+        bool disabled : 1 = false;
+
+        bool pointed : 1 = false;
+
+        bool focused : 1 = false;
+
+        bool held : 1 = false;
+
+        bool checked : 1 = false;
     };
 
     struct Callbacks
     {
-        Dyn<Fn<void(bool)>> on_change{noop, dyn_noop};
+        Fn<void(bool)> on_change = noop;
+
+        Fn<void()> on_pointer_in = noop;
+
+        Fn<void()> on_pointer_out = noop;
     };
 
     Allocator allocator_;
-    Style     style_;
-    State     state_;
-    Callbacks callbacks_;
-    Text      checked_text_;
-    Text      unchecked_text_;
 
-    // TODO: animation control and states
+    Style style_;
+
+    State state_;
+
+    Callbacks callbacks_;
+
+    Text check_text_;
 
     explicit CheckBox(Allocator allocator);
     CheckBox(CheckBox const &)             = delete;
@@ -973,6 +1001,66 @@ struct CheckBox : View
     CheckBox & operator=(CheckBox const &) = delete;
     CheckBox & operator=(CheckBox &&)      = default;
     virtual ~CheckBox() override           = default;
+
+    /// @brief Sets the frame of the checkbox
+    /// @param frame The frame to set for the checkbox
+    CheckBox & frame(Frame const & frame);
+
+    /// @brief Sets the frame of the text within the checkbox
+    /// @param frame The frame to set for the text within the checkbox
+    CheckBox & text_frame(Frame const & frame);
+
+    /// @brief Sets the padding of the checkbox
+    /// @param padding The padding to set for the checkbox
+    CheckBox & padding(Padding const & padding);
+
+    /// @brief Sets the corner radii of the checkbox
+    /// @param radii The corner radii to set for the checkbox
+    CheckBox & radii(CornerRadii const & radii);
+
+    /// @brief Sets the text color of the checkbox
+    /// @param color The text color to set for the checkbox
+    CheckBox & text_color(ColorGradient const & color);
+
+    /// @brief Sets the primary color of the checkbox
+    /// @param color The primary color to set for the checkbox
+    CheckBox & color(ColorGradient const & color);
+
+    /// @brief Sets the disabled color of the checkbox
+    /// @param color The disabled color to set for the checkbox
+    CheckBox & disabled_color(ColorGradient const & color);
+
+    /// @brief Sets the pointed color of the checkbox
+    /// @param color The pointed color to set for the checkbox
+    CheckBox & pointed_color(ColorGradient const & color);
+
+    /// @brief Sets the pressed color of the checkbox
+    /// @param color The pressed color to set for the checkbox
+    CheckBox & pressed_color(ColorGradient const & color);
+
+    /// @brief Sets the focus ring of the checkbox
+    /// @param focus_ring The focus ring to set for the checkbox
+    CheckBox & focus_ring(FocusRing const & focus_ring);
+
+    /// @brief Sets whether the checkbox is disabled
+    /// @param disable True if the checkbox should be disabled, false otherwise
+    CheckBox & disable(bool disable);
+
+    /// @brief Sets the change callback function for the checkbox
+    /// @param fn The callback function to set for the checkbox change event
+    CheckBox & on_change(Fn<void(bool)> fn);
+
+    /// @brief Sets the pointer in callback function for the checkbox
+    /// @param fn The callback function to set for the checkbox pointer in event
+    CheckBox & on_pointer_in(Fn<void()> fn);
+
+    /// @brief Sets the pointer out callback function for the checkbox
+    /// @param fn The callback function to set for the checkbox pointer out event
+    CheckBox & on_pointer_out(Fn<void()> fn);
+
+    /// @brief Sets whether the checkbox is checked
+    /// @param check True if the checkbox should be checked, false otherwise
+    CheckBox & check(bool check);
 
     virtual ViewState tick(Scope const & scope, Events const & events,
                            Fn<void(View &)> build) override;
@@ -984,18 +1072,506 @@ struct CheckBox : View
 
     virtual void render(Scope const & scope, Canvas canvas,
                         RenderInfo const & info) override;
+
+    virtual Cursor cursor(Scope const & scope, f32x2 extent, f32x2 position) override;
 };
 
-struct Switch
+// TODO: Implement the Switch view
+struct Switch : View
 {
+    struct Style
+    {
+        Frame frame = Frame{}.rel(1, 1);
+
+        Frame text_frame = Frame{}.rel(1, 1);
+
+        Padding padding = Padding::all(2.5F);
+
+        ColorGradient knob_on_color = colors::GRAY_50;
+
+        ColorGradient knob_off_color = colors::GRAY_700;
+
+        ColorGradient track_on_color = colors::DEEP_PURPLE_300;
+
+        ColorGradient track_off_color = colors::GRAY_500;
+
+        FocusRing focus_ring = {};
+    };
+
+    struct State
+    {
+        bool disabled : 1 = false;
+
+        bool pointed : 1 = false;
+
+        bool focused : 1 = false;
+
+        bool held : 1 = false;
+
+        bool on : 1 = false;
+    };
+
+    struct Callbacks
+    {
+        Fn<void(bool)> on_change = noop;
+    };
+
+    Allocator allocator_;
+
+    Style style_;
+
+    State state_;
+
+    Callbacks callbacks_;
+
+    Text check_text_;
+
+    explicit Switch(Allocator allocator);
+    Switch(Switch const &)             = delete;
+    Switch(Switch &&)                  = default;
+    Switch & operator=(Switch const &) = delete;
+    Switch & operator=(Switch &&)      = default;
+    virtual ~Switch() override         = default;
+
+    /// @brief Sets the frame of the switch view
+    /// @param frame The frame to set
+    Switch & frame(Frame const & frame);
+
+    /// @brief Sets the text frame of the switch view
+    /// @param frame The text frame to set
+    Switch & text_frame(Frame const & frame);
+
+    /// @brief Sets the padding of the switch view
+    /// @param padding The padding to set
+    Switch & padding(Padding const & padding);
+
+    /// @brief Sets the knob on color of the switch view
+    /// @param color The color to set
+    Switch & knob_on_color(ColorGradient const & color);
+
+    /// @brief Sets the knob off color of the switch view
+    /// @param color The color to set
+    Switch & knob_off_color(ColorGradient const & color);
+
+    /// @brief Sets the track on color of the switch view
+    /// @param color The color to set
+    Switch & track_on_color(ColorGradient const & color);
+
+    /// @brief Sets the track off color of the switch view
+    /// @param color The color to set
+    Switch & track_off_color(ColorGradient const & color);
+
+    /// @brief Sets the focus ring of the switch view
+    /// @param focus_ring The focus ring to set
+    Switch & focus_ring(FocusRing const & focus_ring);
+
+    /// @brief Sets the on change callback of the switch view
+    /// @param fn The callback function to set
+    Switch & on_change(Fn<void(bool)> fn);
+
+    /// @brief Sets the on state of the switch view
+    /// @param on The on state to set
+    Switch & on(bool on);
+
+    virtual ViewState tick(Scope const & scope, Events const & events,
+                           Fn<void(View &)> build) override;
+
+    virtual void size(Scope const & scope, f32x2 allocated, Span<f32x2> sizes) override;
+
+    virtual Layout fit(Scope const & scope, f32x2 allocated, Span<f32x2 const> sizes,
+                       Span<f32x2> centers) override;
+
+    virtual void render(Scope const & scope, Canvas canvas,
+                        RenderInfo const & info) override;
+
+    virtual Cursor cursor(Scope const & scope, f32x2 extent, f32x2 position) override;
 };
 
-struct Slider
+/// @brief A horizontal slider view that allows users to select a value within a specified range
+struct Slider : View
 {
+    struct Style
+    {
+        Option<u32> snaps = none;
+
+        ColorGradient track_color = colors::GRAY_700;
+
+        ColorGradient progress_color = colors::DEEP_PURPLE_300;
+
+        ColorGradient snaps_color = colors::DEEP_PURPLE_300;
+
+        ColorGradient disabled_color = colors::GRAY_100;
+
+        f32 slider_thickness = 40;
+
+        f32 track_thickness = 5;
+
+        f32 track_corner_radius = 2;
+
+        f32 knob_radius = 7.5F;
+
+        f32 knob_focus_ring_radius = 15.0F;
+
+        ColorGradient knob_color = colors::DEEP_PURPLE_300;
+
+        Size extent = Size{}.rel(1).max(300);
+    };
+
+    struct State
+    {
+        bool disabled : 1 = false;
+
+        bool pointed : 1 = false;
+
+        bool focused : 1 = false;
+
+        bool held : 1 = false;
+
+        bool horizontal : 1 = true;
+
+        f32 value = 0.0F;
+    };
+
+    struct Callbacks
+    {
+        Fn<void(f32)> on_changed = noop;
+
+        Fn<void()> on_hold = noop;
+
+        Fn<void()> on_release = noop;
+
+        Fn<void()> on_pointer_in = noop;
+
+        Fn<void()> on_pointer_out = noop;
+
+        Fn<void()> on_focus_in = noop;
+
+        Fn<void()> on_focus_out = noop;
+    };
+
+    State state_;
+
+    Callbacks callbacks_;
+
+    Style style_;
+
+    Slider()                           = default;
+    Slider(Slider const &)             = delete;
+    Slider(Slider &&)                  = default;
+    Slider & operator=(Slider const &) = delete;
+    Slider & operator=(Slider &&)      = default;
+    virtual ~Slider() override         = default;
+
+    /// @brief Sets whether the slider is disabled
+    /// @param disable True if the slider should be disabled, false otherwise
+    Slider & disable(bool disable);
+
+    /// @brief Sets the number of snaps for the slider
+    /// @param snaps The number of snaps to set for the slider
+    Slider & snaps(Option<u32> snaps);
+
+    /// @brief Sets the track color of the slider
+    /// @param color The track color to set for the slider
+    Slider & track_color(ColorGradient const & color);
+
+    /// @brief Sets the progress color of the slider
+    /// @param color The progress color to set for the slider
+    Slider & progress_color(ColorGradient const & color);
+
+    /// @brief Sets the snaps color of the slider
+    /// @param color The snaps color to set for the slider
+    Slider & snaps_color(ColorGradient const & color);
+
+    /// @brief Sets the disabled color of the slider
+    /// @param color The disabled color to set for the slider
+    Slider & disabled_color(ColorGradient const & color);
+
+    /// @brief Sets the thickness of the slider
+    /// @param thickness The thickness to set for the slider
+    Slider & slider_thickness(f32 thickness);
+
+    /// @brief Sets the track thickness of the slider
+    /// @param thickness The track thickness to set for the slider
+    Slider & track_thickness(f32 thickness);
+
+    /// @brief Sets the corner radius of the slider track
+    /// @param radius The corner radius to set for the slider track
+    Slider & track_corner_radius(f32 radius);
+
+    /// @brief Sets the radius of the knob
+    /// @param radius The radius to set for the knob
+    Slider & knob_radius(f32 radius);
+
+    /// @brief Sets the focus ring radius of the knob
+    /// @param radius The focus ring radius to set for the knob
+    Slider & knob_focus_ring_radius(f32 radius);
+
+    /// @brief Sets the color of the knob
+    /// @param color The color to set for the knob
+    Slider & knob_color(ColorGradient const & color);
+
+    /// @brief Sets the extent of the horizontal slider
+    /// @param extent The extent to set for the horizontal slider
+    Slider & extent(Size extent);
+
+    /// @brief Sets the orientation of the slider
+    /// @param horizontal True if the slider is horizontal, false if vertical
+    Slider & horizontal(bool horizontal);
+
+    /// @brief Sets the callback function to be called when the value changes
+    /// @param fn The callback function to set for the value change event
+    Slider & on_changed(Fn<void(f32)> fn);
+
+    /// @brief Sets the callback function to be called when the is held
+    /// @param fn The callback function to set for the hold event
+    Slider & on_hold(Fn<void()> fn);
+
+    /// @brief Sets the callback function to be called when the is released
+    /// @param fn The callback function to set for the release event
+    Slider & on_release(Fn<void()> fn);
+
+    /// @brief Sets the callback function to be called when the pointer enters the area
+    /// @param fn The callback function to set for the pointer in event
+    Slider & on_pointer_in(Fn<void()> fn);
+
+    /// @brief Sets the callback function to be called when the pointer leaves the area
+    /// @param fn The callback function to set for the pointer out event
+    Slider & on_pointer_out(Fn<void()> fn);
+
+    /// @brief Sets the callback function to be called when the gains focus
+    /// @param fn The callback function to set for the focus in event
+    Slider & on_focus_in(Fn<void()> fn);
+
+    /// @brief Sets the callback function to be called when the loses focus
+    /// @param fn The callback function to set for the focus out event
+    Slider & on_focus_out(Fn<void()> fn);
+
+    virtual ViewState tick(Scope const & scope, Events const & events,
+                           Fn<void(View &)> build) override;
+
+    virtual Layout fit(Scope const & scope, f32x2 allocated, Span<f32x2 const> sizes,
+                       Span<f32x2> centers) override;
+
+    virtual void render(Scope const & scope, Canvas canvas,
+                        RenderInfo const & info) override;
+
+    virtual Cursor cursor(Scope const & scope, f32x2 extent, f32x2 position) override;
 };
 
-struct ScrollView
+/// @brief Represents a viewport that can hold other views and manage scrollbars.
+struct ScrollBox : View
 {
+    struct Bar : View
+    {
+        struct Style
+        {
+            f32 thickness = 7.5F;
+
+            f32 corner_radius = 5.0F;
+
+            ColorGradient track_color = colors::GRAY_700;
+
+            ColorGradient idle_color = colors::DEEP_PURPLE_300;
+
+            ColorGradient pointed_color = colors::DEEP_PURPLE_400;
+
+            ColorGradient pressed_color = colors::DEEP_PURPLE_500;
+
+            ColorGradient disabled_color = colors::GRAY_500;
+
+            FocusRing focus_ring = FocusRing{};
+
+            Option<u32> snaps = none;
+        };
+
+        struct State
+        {
+            bool disabled : 1 = false;
+
+            bool hidden : 1 = false;
+
+            bool focused : 1 = false;
+
+            bool pointed : 1 = false;
+
+            bool held : 1 = false;
+
+            bool horizontal : 1 = false;
+
+            f32x2 * offset = nullptr;
+
+            f32x2 * viewport_extent = nullptr;
+
+            f32x2 * content_extent = nullptr;
+        };
+
+        struct Callbacks
+        {
+            Fn<void()> on_scroll = noop;
+        };
+
+        Style style_;
+
+        State state_;
+
+        Callbacks callbacks_;
+
+        Bar()                              = default;
+        Bar(Bar const & other)             = delete;
+        Bar(Bar && other)                  = default;
+        Bar & operator=(Bar const & other) = delete;
+        Bar & operator=(Bar && other)      = default;
+        virtual ~Bar() override            = default;
+
+        /// @brief Sets the thickness of the scrollbar
+        /// @param value The thickness value to set
+        Bar & thickness(f32 value);
+
+        /// @brief Sets the corner radius of the scrollbar
+        /// @param value The corner radius value to set
+        Bar & corner_radius(f32 value);
+
+        /// @brief Sets the track color of the scrollbar
+        /// @param value The track color value to set
+        Bar & track_color(ColorGradient const & value);
+
+        /// @brief Sets the idle knob color of the scrollbar
+        /// @param value The idle knob color value to set
+        Bar & idle_color(ColorGradient const & value);
+
+        /// @brief Sets the pointed knob color of the scrollbar
+        /// @param value The pointed knob color value to set
+        Bar & pointed_color(ColorGradient const & value);
+
+        /// @brief Sets the pressed knob color of the scrollbar
+        /// @param value The pressed knob color value to set
+        Bar & pressed_color(ColorGradient const & value);
+
+        /// @brief Sets the disabled knob color of the scrollbar
+        /// @param value The disabled knob color value to set
+        Bar & disabled_color(ColorGradient const & value);
+
+        /// @brief Sets the focus ring of the scrollbar knob
+        /// @param value The focus ring value to set
+        Bar & focus_ring(FocusRing const & value);
+
+        /// @brief Sets the snaps of the scrollbar
+        /// @param value The snaps value to set
+        Bar & snaps(Option<u32> value);
+
+        /// @brief Sets the horizontal state of the scrollbar
+        /// @param horizontal The horizontal state to set
+        Bar & horizontal(bool horizontal);
+
+        /// @brief Sets the disabled state of the scrollbar
+        /// @param value The disabled state to set
+        Bar & disable(bool disable);
+
+        /// @brief Sets the hidden state of the scrollbar
+        /// @param hidden The hidden state to set
+        Bar & hidden(bool hidden);
+
+        virtual ViewState tick(Scope const & scope, Events const & events,
+                               Fn<void(View &)> build) override;
+
+        virtual Layout fit(Scope const & scope, f32x2 allocated,
+                           Span<f32x2 const> sizes, Span<f32x2> centers) override;
+
+        virtual void render(Scope const & scope, Canvas canvas,
+                            RenderInfo const & info) override;
+
+        virtual Cursor cursor(Scope const & scope, f32x2 extent,
+                              f32x2 position) override;
+    };
+
+    struct Viewport : View
+    {
+        struct Style
+        {
+            Frame viewport_frame = Frame{}.rel(1, 1);
+
+            Frame content_frame = Frame{}.rel(1, 1);
+        };
+
+        struct State
+        {
+            bool disabled : 1 = false;
+
+            f32x2 viewport_extent = {};
+
+            f32x2 content_extent = {};
+
+            f32x2 offset = {};
+        };
+
+        struct Callbacks
+        {
+            Fn<void()> on_scroll = noop;
+        };
+
+        Style style_;
+
+        State state_;
+
+        Callbacks callbacks_;
+
+        Option<View &> item_;
+
+        Viewport()                             = default;
+        Viewport(Viewport const &)             = delete;
+        Viewport(Viewport &&)                  = default;
+        Viewport & operator=(Viewport const &) = delete;
+        Viewport & operator=(Viewport &&)      = default;
+        virtual ~Viewport() override           = default;
+
+        virtual ViewState tick(Scope const & scope, Events const & events,
+                               Fn<void(View &)> build) override;
+
+        virtual void size(Scope const & scope, f32x2 allocated,
+                          Span<f32x2> sizes) override;
+
+        virtual Layout fit(Scope const & scope, f32x2 allocated,
+                           Span<f32x2 const> sizes, Span<f32x2> centers) override;
+    };
+
+    Viewport viewport_;
+
+    Bar x_bar_;
+
+    Bar y_bar_;
+
+    ScrollBox();
+    ScrollBox(ScrollBox const &)             = delete;
+    ScrollBox(ScrollBox &&)                  = default;
+    ScrollBox & operator=(ScrollBox const &) = delete;
+    ScrollBox & operator=(ScrollBox &&)      = default;
+    virtual ~ScrollBox() override            = default;
+
+    Viewport & viewport();
+
+    Bar & x_bar();
+
+    Bar & y_bar();
+
+    ScrollBox & disable(bool disabled);
+
+    ScrollBox & viewport_frame(Frame const & frame);
+
+    ScrollBox & content_frame(Frame const & frame);
+
+    ScrollBox & on_scroll(Fn<void()> callback);
+
+    ScrollBox & item(Option<View &> item);
+
+    virtual ViewState tick(Scope const & scope, Events const & events,
+                           Fn<void(View &)> build) override;
+
+    virtual void size(Scope const & scope, f32x2 allocated, Span<f32x2> sizes) override;
+
+    virtual Layout fit(Scope const & scope, f32x2 allocated, Span<f32x2 const> sizes,
+                       Span<f32x2> centers) override;
+
+    virtual i32 layer(Scope const & scope, i32 allocated, Span<i32> indices) override;
 };
 
 }    // namespace ui

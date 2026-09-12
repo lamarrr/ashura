@@ -531,9 +531,7 @@ if(ASH_BUILD_ENGINE)
     add_library(
         ashura_engine STATIC
         # ENGINE CORE
-        ashura/engine/animation_system.cpp
         ashura/engine/animation.cpp
-        ashura/engine/audio_system.cpp
         ashura/engine/canvas.cpp
         ashura/engine/encoders.cpp
         ashura/engine/engine.cpp
@@ -547,11 +545,10 @@ if(ASH_BUILD_ENGINE)
         ashura/engine/input.cpp
         ashura/engine/pipeline_system.cpp
         ashura/engine/pipeline.cpp
-        ashura/engine/render_text.cpp
+        ashura/engine/rect_packer.cpp
         ashura/engine/shader_system.cpp
         ashura/engine/systems.cpp
         ashura/engine/text.cpp
-        ashura/engine/video_system.cpp
         ashura/engine/view_system.cpp
         ashura/engine/view.cpp
         ashura/engine/window_system.cpp

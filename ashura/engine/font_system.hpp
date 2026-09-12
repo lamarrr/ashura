@@ -4,7 +4,7 @@
 #include "ashura/engine/errors.hpp"
 #include "ashura/engine/font.hpp"
 #include "ashura/engine/text.hpp"
-#include "ashura/std/allocator.hpp"
+#include "ashura/std/allocators.hpp"
 #include "ashura/std/dyn.hpp"
 #include "ashura/std/result.hpp"
 #include "ashura/std/types.hpp"
@@ -29,10 +29,12 @@ struct IFontSys
                                    f32 align_width) = 0;
 
     virtual Future<Result<FontId, SysErr>>
-      load_from_memory(Str label, RcBlob8 encoded, u32 font_height, u32 face, Option<FontId> target_id) = 0;
+      load_from_memory(Str label, RcBlob8 encoded, u32 font_height, u32 face,
+                       Option<FontId> target_id) = 0;
 
-    virtual Future<Result<FontId, SysErr>>
-      load_from_path(Str label, Str path, u32 font_height, u32 face, Option<FontId> target_id) = 0;
+    virtual Future<Result<FontId, SysErr>> load_from_path(Str label, Str path,
+                                                          u32 font_height, u32 face,
+                                                          Option<FontId> target_id) = 0;
 
     virtual FontInfo get(FontId id) = 0;
 

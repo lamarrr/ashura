@@ -116,7 +116,7 @@ struct Fn<R(Args...)>
         return Fn{nullptr, nullptr};
     }
 
-    Fn(R (*pfn)(Args...)) :
+    constexpr Fn(R (*pfn)(Args...)) :
       data{reinterpret_cast<void *>(pfn)},
       thunk{&PFnThunk<R(Args...)>::thunk}
     {
@@ -124,14 +124,14 @@ struct Fn<R(Args...)>
 
     template <typename PFn>
     requires (Convertible<PFn, R (*)(Args...)>)
-    Fn(PFn pfn) : Fn{static_cast<R (*)(Args...)>(pfn)}
+    constexpr Fn(PFn pfn) : Fn{static_cast<R (*)(Args...)>(pfn)}
     {
     }
 
     /// @brief Create a function view from an object reference and a function
     /// thunk to execute using the object reference as its first argument.
     template <typename T>
-    Fn(T * data, R (*thunk)(T *, Args...)) :
+    constexpr Fn(T * data, R (*thunk)(T *, Args...)) :
       data{const_cast<void *>(reinterpret_cast<void const *>(data))},
       thunk{reinterpret_cast<Thunk>(thunk)}
     {
@@ -139,7 +139,8 @@ struct Fn<R(Args...)>
 
     template <typename T, typename PFn>
     requires (Convertible<PFn, R (*)(T *, Args...)>)
-    Fn(T * data, PFn thunk) : Fn{data, static_cast<R (*)(T *, Args...)>(thunk)}
+    constexpr Fn(T * data, PFn thunk) :
+      Fn{data, static_cast<R (*)(T *, Args...)>(thunk)}
     {
     }
 
@@ -147,7 +148,8 @@ struct Fn<R(Args...)>
     /// outlive the Fn
     template <typename F>
     requires (CallableOf<F, R, Args...>)
-    Fn(F * functor) : Fn{(void *) (functor), &FunctorThunk<F, R(Args...)>::thunk}
+    constexpr Fn(F * functor) :
+      Fn{(void *) (functor), &FunctorThunk<F, R(Args...)>::thunk}
     {
     }
 

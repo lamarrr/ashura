@@ -43,8 +43,8 @@ struct RootView final : ui::View
     constexpr virtual ui::Layout fit(ui::Scope const &, f32x2       allocated,
                                      Span<f32x2 const>, Span<f32x2> centers) override
     {
-        fill(centers, f32x2{0, 0});
-        return ui::Layout{.extent = allocated, .viewport_extent = allocated};
+        fill(centers, f32x2::zero());
+        return ui::Layout{.extent = allocated, .content_extent = allocated};
     }
 
     constexpr virtual i32 layer(ui::Scope const &, i32, Span<i32> indices) override
@@ -192,9 +192,9 @@ struct IViewSys
         /// Computed data
         Vec<f32x2> extents;
         Vec<f32x2> centers;
-        Vec<f32x2> viewport_extents;
-        Vec<f32x2> viewport_centers;
-        Vec<f32x2> viewport_zooms;
+        Vec<f32x2> content_extents;
+        Vec<f32x2> content_centers;
+        Vec<f32x2> content_zooms;
 
         /// @brief If the view is at a fixed location in the viewport
         BitVec<u64> fixed;
@@ -234,15 +234,15 @@ struct IViewSys
 
     struct Event
     {
-        u16                    dst    = 0;
-        ui::Events::Type       type   = ui::Events::PointerIn;
-        Option<ui::HitInfo>    hit    = none;
-        Option<ui::ScrollInfo> scroll = none;
+        u16                     dst          = 0;
+        ui::Events::Type        type         = ui::Events::PointerIn;
+        Option<ui::HitInfo>     hit          = none;
+        Option<ui::ScrollFocus> scroll_focus = none;
     };
 
     struct FocusRequest
     {
-        u16  tgt        = false;
+        u16  tgt        = 0;
         bool active     = false;
         bool grab_focus = false;
     };
@@ -286,7 +286,7 @@ struct IViewSys
       initial_nodes_capacity_{1'024},
       prev_frame_sys_state_{},
       prev_frame_win_state_{noop_allocator},
-      prev_frame_sys_scope_{ui::default_core_theme(), std::move(user_data_map)},
+      prev_frame_sys_scope_{std::move(user_data_map)},
       prev_frame_scope_{ui::InputScope{prev_frame_sys_state_, prev_frame_win_state_},
                         prev_frame_sys_scope_},
       root_view_{none},
@@ -361,7 +361,7 @@ struct IViewSys
                          RequestQueue & request_queue);
 
     void compose_event_(Tree & tree, ui::ViewId id, ui::Events::Type event,
-                        Option<ui::HitInfo> hit, Option<ui::ScrollInfo> scroll);
+                        Option<ui::HitInfo> hit, Option<ui::ScrollFocus> scroll);
 
     Tuple<Option<ui::FocusRect>, Option<TextInputInfo>, Cursor>
       prepare_events_(Tree & tree, ui::InputScope const & input,
