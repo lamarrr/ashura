@@ -2,7 +2,6 @@
 #pragma once
 
 #include "ashura/gpu/gpu.hpp"
-#include "ashura/std/allocator.hpp"
 #include "ashura/std/allocators.hpp"
 #include "ashura/std/async.hpp"
 #include "ashura/std/vec.hpp"

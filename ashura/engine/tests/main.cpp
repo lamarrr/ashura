@@ -3,7 +3,7 @@
 #include "gtest/gtest.h"
 #include <cstdio>
 
-#include "ashura/std/allocator.hpp"
+#include "ashura/std/allocators.hpp"
 #include "ashura/std/error.hpp"
 #include "ashura/std/log.hpp"
 #include "ashura/std/log_sinks.hpp"

@@ -261,10 +261,9 @@ enum class MainAlign : u8
     SpaceEvenly  = 4
 };
 
-struct ScrollInfo
+struct ScrollFocus
 {
     f32x2 center = {};
-    f32x2 zoom   = {1, 1};
 };
 
 struct HitInfo
@@ -308,7 +307,7 @@ struct Events
         /// @brief The pointer's press has been released from the view
         PointerUp   = 5,
         /// @brief A scroll request has been sent to the view
-        Scroll      = 6,
+        WheelScroll = 6,
         /// @brief Drag event has begun on this view
         DragStart   = 7,
         /// @brief An update on the drag state has been gotten
@@ -337,7 +336,9 @@ struct Events
         /// @brief The view has received composition text whilst it has focus
         TextInput   = 19,
         /// @brief The view has received a click event
-        Click       = 20
+        Click       = 20,
+        /// @brief A viewport scroll event has been sent to the view
+        ScrollView  = 21
     };
 
     struct Bits
@@ -351,7 +352,7 @@ struct Events
             PointerOver = 1U << Events::PointerOver,
             PointerDown = 1U << Events::PointerDown,
             PointerUp   = 1U << Events::PointerUp,
-            Scroll      = 1U << Events::Scroll,
+            WheelScroll = 1U << Events::WheelScroll,
             DragStart   = 1U << Events::DragStart,
             DragUpdate  = 1U << Events::DragUpdate,
             DragEnd     = 1U << Events::DragEnd,
@@ -365,7 +366,8 @@ struct Events
             KeyDown     = 1U << Events::KeyDown,
             KeyUp       = 1U << Events::KeyUp,
             TextInput   = 1U << Events::TextInput,
-            Click       = 1U << Events::Click
+            Click       = 1U << Events::Click,
+            ScrollView  = 1U << Events::ScrollView
         };
 
         static constexpr Type at(Events::Type e)
@@ -379,8 +381,8 @@ struct Events
     /// @brief The view's hit data
     Option<HitInfo> hit_info_ = none;
 
-    /// @brief Scroll request
-    Option<ScrollInfo> scroll_info_ = none;
+    /// @brief UI Scroll to request
+    Option<ScrollFocus> scroll_to_ = none;
 
     constexpr bool mount() const
     {
@@ -412,9 +414,9 @@ struct Events
         return bits_ & Bits::PointerUp;
     }
 
-    constexpr bool scroll() const
+    constexpr bool wheel_scroll() const
     {
-        return bits_ & Bits::Scroll;
+        return bits_ & Bits::WheelScroll;
     }
 
     constexpr bool drag_start() const
@@ -486,6 +488,16 @@ struct Events
     {
         return bits_ & Bits::Click;
     }
+
+    constexpr Option<HitInfo> hit_info() const
+    {
+        return hit_info_;
+    }
+
+    constexpr Option<ScrollFocus> scroll_to() const
+    {
+        return scroll_to_;
+    }
 };
 
 struct FocusRect
@@ -493,37 +505,6 @@ struct FocusRect
     CRect area = {};
     CRect clip = {};
 };
-
-struct CoreTheme
-{
-    u8x4   background       = {};
-    u8x4   surface          = {};
-    u8x4   surface_variant  = {};
-    u8x4   primary          = {};
-    u8x4   primary_variant  = {};
-    u8x4   error            = {};
-    u8x4   warning          = {};
-    u8x4   success          = {};
-    u8x4   active           = {};
-    u8x4   inactive         = {};
-    u8x4   on_background    = {};
-    u8x4   on_surface       = {};
-    u8x4   on_primary       = {};
-    u8x4   on_error         = {};
-    u8x4   on_warning       = {};
-    u8x4   on_success       = {};
-    u8x4   focus            = {};
-    u8x4   highlight        = {};
-    u8x4   caret            = {};
-    f32    head_font_height = {};
-    f32    body_font_height = {};
-    f32    line_height      = {};
-    FontId head_font        = FontId::Default;
-    FontId body_font        = FontId::Default;
-    FontId icon_font        = FontId::Default;
-};
-
-extern CoreTheme default_core_theme();
 
 struct InputScope
 {
@@ -586,12 +567,7 @@ using UserDataMap = ByteDict<Dyn<void *>>;
 
 struct ViewSysScope
 {
-    /// @brief Canvas-space region the system is currently focused on
-    Option<FocusRect> focus_rect_;
-
     Option<Cursor> cursor_;
-
-    CoreTheme core_theme_;
 
     bool closing_;
 
@@ -602,10 +578,8 @@ struct ViewSysScope
 
     UserDataMap user_data_map_;
 
-    ViewSysScope(CoreTheme const & core_theme, UserDataMap user_data_map) :
-      focus_rect_{none},
+    ViewSysScope(UserDataMap user_data_map) :
       cursor_{none},
-      core_theme_{core_theme},
       closing_{false},
       closing_deferred_{false},
       frame_{0},
@@ -613,19 +587,9 @@ struct ViewSysScope
     {
     }
 
-    Option<FocusRect> focus_rect() const
-    {
-        return focus_rect_;
-    }
-
     Option<Cursor> cursor() const
     {
         return cursor_;
-    }
-
-    CoreTheme const & core_theme() const
-    {
-        return core_theme_;
     }
 
     bool closing() const
@@ -706,16 +670,6 @@ struct Scope
         return input_.theme();
     }
 
-    CoreTheme const & core_theme() const
-    {
-        return view_->core_theme();
-    }
-
-    Option<FocusRect> focus_rect() const
-    {
-        return view_->focus_rect();
-    }
-
     Option<void *> get_user_data(Span<u8 const> tag) const
     {
         return view_->get_user_data(tag);
@@ -780,11 +734,11 @@ struct Layout
     f32x2 extent = {};
 
     /// @brief Inner extent, if it is a viewport
-    f32x2 viewport_extent = {};
+    f32x2 content_extent = {};
 
-    f32x2 viewport_center = {};
+    f32x2 content_center = {};
 
-    f32x2 viewport_zoom = {1, 1};
+    f32x2 content_zoom = {1, 1};
 
     /// @brief Viewport-space re-positioning of the view
     Option<f32x2> fixed_center = none;
@@ -810,16 +764,6 @@ struct RenderInfo
     /// @brief Displacement and scale transform from the viewports to canvas-space
     affinef32x3 canvas_transform = affinef32x3::identity();
 };
-
-struct LayerStack
-{
-    i32 views         = 0x0000'0000;
-    i32 viewport_bars = 0x000F'FFFF;
-    i32 modals        = 0x001F'FFFF;
-    i32 overlays      = 0x002F'FFFF;
-};
-
-inline constexpr LayerStack LAYERS;
 
 struct ViewInternalState
 {
@@ -905,7 +849,7 @@ struct View
         (void) scope;
         (void) allocated;
         (void) sizes;
-        fill(centers, f32x2{0, 0});
+        fill(centers, f32x2::zero());
         return {};
     }
 

@@ -32,9 +32,9 @@ IViewSys::Props IViewSys::Props::create(Allocator allocator, usize capacity)
       .is_viewport{BitVec<u64>::make(capacity, allocator).unwrap()},
       .extents{Vec<f32x2>::make(capacity, allocator).unwrap()},
       .centers{Vec<f32x2>::make(capacity, allocator).unwrap()},
-      .viewport_extents{Vec<f32x2>::make(capacity, allocator).unwrap()},
-      .viewport_centers{Vec<f32x2>::make(capacity, allocator).unwrap()},
-      .viewport_zooms{Vec<f32x2>::make(capacity, allocator).unwrap()},
+      .content_extents{Vec<f32x2>::make(capacity, allocator).unwrap()},
+      .content_centers{Vec<f32x2>::make(capacity, allocator).unwrap()},
+      .content_zooms{Vec<f32x2>::make(capacity, allocator).unwrap()},
       .fixed{BitVec<u64>::make(capacity, allocator).unwrap()},
       .fixed_centers{Vec<f32x2>::make(capacity, allocator).unwrap()},
       .z_idx{Vec<i32>::make(capacity, allocator).unwrap()},
@@ -64,9 +64,9 @@ IViewSys::Props IViewSys::Props::none()
                            .is_viewport{noop_allocator},
                            .extents{noop_allocator},
                            .centers{noop_allocator},
-                           .viewport_extents{noop_allocator},
-                           .viewport_centers{noop_allocator},
-                           .viewport_zooms{noop_allocator},
+                           .content_extents{noop_allocator},
+                           .content_centers{noop_allocator},
+                           .content_zooms{noop_allocator},
                            .fixed{noop_allocator},
                            .fixed_centers{noop_allocator},
                            .z_idx{noop_allocator},
@@ -193,9 +193,9 @@ void IViewSys::build_states_(Tree & tree)
 
     tree.props.extents.resize_uninit(within_capacity, n).unwrap();
     tree.props.centers.resize_uninit(within_capacity, n).unwrap();
-    tree.props.viewport_extents.resize_uninit(within_capacity, n).unwrap();
-    tree.props.viewport_centers.resize_uninit(within_capacity, n).unwrap();
-    tree.props.viewport_zooms.resize_uninit(within_capacity, n).unwrap();
+    tree.props.content_extents.resize_uninit(within_capacity, n).unwrap();
+    tree.props.content_centers.resize_uninit(within_capacity, n).unwrap();
+    tree.props.content_zooms.resize_uninit(within_capacity, n).unwrap();
 
     tree.props.fixed.resize_uninit(within_capacity, n).unwrap();
 
@@ -283,10 +283,10 @@ void IViewSys::layout_(Tree & tree, f32x2 viewport_extent)
           tree.nodes.views[i]->fit(prev_frame_scope_, tree.props.extents[i],
                                    tree.props.extents.view().slice(children),
                                    tree.props.centers.view().slice(children));
-        tree.props.extents[i]          = layout.extent;
-        tree.props.viewport_extents[i] = layout.viewport_extent;
-        tree.props.viewport_centers[i] = layout.viewport_center;
-        tree.props.viewport_zooms[i]   = layout.viewport_zoom;
+        tree.props.extents[i]         = layout.extent;
+        tree.props.content_extents[i] = layout.content_extent;
+        tree.props.content_centers[i] = layout.content_center;
+        tree.props.content_zooms[i]   = layout.content_zoom;
         tree.props.fixed.set(i, layout.fixed_center.is_some());
         tree.props.fixed_centers[i] = layout.fixed_center.unwrap_or();
     }
@@ -324,8 +324,8 @@ void IViewSys::layout_(Tree & tree, f32x2 viewport_extent)
 
             // transform we are applying to the viewport's contents
             auto transform = translate2d(tree.props.fixed_centers[i]) *
-                             scale2d(tree.props.viewport_zooms[i]) *
-                             translate2d(-tree.props.viewport_centers[i]);
+                             scale2d(tree.props.content_zooms[i]) *
+                             translate2d(-tree.props.content_centers[i]);
 
             auto inv_transform = translate_scale_inv2d(transform);
 
@@ -507,13 +507,10 @@ void IViewSys::dispatch_focus_(Tree & tree, FocusRequest const & request,
         while (true)
         {
             events
-              .push(Event{
-                .dst  = it_viewport,
-                .type = ui::Events::Scroll,
-                .scroll =
-                  ui::ScrollInfo{.center = tree.props.fixed_centers[it],
-                                 .zoom   = tree.props.viewport_zooms[it_viewport]}
-            })
+              .push(Event{.dst  = it_viewport,
+                          .type = ui::Events::ScrollView,
+                          .scroll_focus =
+                            ui::ScrollFocus{.center = tree.props.fixed_centers[it]}})
               .unwrap();
 
             if (it == RootView::NODE)
@@ -863,17 +860,10 @@ IViewSys::HitState IViewSys::point_sequence_(Tree & tree, ui::InputScope const &
 
             diff(i, hit);
             events
-              .push(Event{
-                .dst  = i,
-                .type = ui::Events::Scroll,
-                .hit  = hit,
-                .scroll =
-                  ui::ScrollInfo{.center =
-                                   tree.props.viewport_centers[i] +
-                                   -1 * input.window().scroll_delta() *
-                                     input.mouse().wheel_translation().v().to<f32>(),
-                                 .zoom = tree.props.viewport_zooms[i]}
-            })
+              .push(Event{.dst          = i,
+                          .type         = ui::Events::WheelScroll,
+                          .hit          = hit,
+                          .scroll_focus = none})
               .unwrap();
             return PointState{.tgt = tgt};
         }
@@ -1145,7 +1135,7 @@ void IViewSys::focus_sequence_(Tree & tree, ui::InputScope const & input,
 }
 
 void IViewSys::compose_event_(Tree &, ui::ViewId id, ui::Events::Type event,
-                              Option<ui::HitInfo> hit, Option<ui::ScrollInfo> scroll)
+                              Option<ui::HitInfo> hit, Option<ui::ScrollFocus> scroll)
 {
     auto [_, v] = event_queue_.push(id, ui::Events{}, nullptr, false).v();
 
@@ -1158,7 +1148,7 @@ void IViewSys::compose_event_(Tree &, ui::ViewId id, ui::Events::Type event,
 
     if (scroll)
     {
-        v.scroll_info_ = scroll;
+        v.scroll_to_ = scroll;
     }
 }
 
@@ -1182,7 +1172,7 @@ Tuple<Option<ui::FocusRect>, Option<TextInputInfo>, Cursor>
         auto i     = event.dst;
         ref  view  = tree.nodes.views[i];
         view->hot_ = true;
-        compose_event_(tree, view->id(), event.type, event.hit, event.scroll);
+        compose_event_(tree, view->id(), event.type, event.hit, event.scroll_focus);
 
         if (event.type == ui::Events::PointerOver)
         {
@@ -1255,8 +1245,7 @@ ViewSysState IViewSys::tick(Engine engine, ui::InputScope const & input, Canvas 
     bool was_closing             = prev_frame_sys_scope_.closing_;
     bool has_close_defer_request = request_queue.defer_close;
 
-    prev_frame_sys_scope_.focus_rect_ = focus_rect;
-    prev_frame_sys_scope_.cursor_     = cursor;
+    prev_frame_sys_scope_.cursor_ = cursor;
     prev_frame_sys_scope_.closing_ =
       prev_frame_sys_scope_.closing_ || input.window().close_requested();
     prev_frame_sys_scope_.closing_deferred_ = request_queue.defer_close;

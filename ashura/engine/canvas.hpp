@@ -1,7 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/engine/color.hpp"
-#include "ashura/engine/color_gradient.hpp"
 #include "ashura/engine/encoders.hpp"
 #include "ashura/engine/pipeline.hpp"
 #include "ashura/engine/text.hpp"
@@ -729,7 +728,7 @@ struct ICanvas
 
     /// @brief Render a text block
     ICanvas & text(TextRenderInfo const & info, TextPlacementInfo const & placement,
-                   f32x2 center);
+                   f32x4x4 const & transform);
 };
 
 }    // namespace ash

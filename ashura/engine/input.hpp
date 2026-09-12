@@ -673,7 +673,7 @@ struct MouseClickEvent
 struct MouseWheelEvent
 {
     f32x2 position    = {};
-    i32x2 translation = {};
+    f32x2 translation = {};
 };
 
 enum class WindowEventType : u8
@@ -1119,7 +1119,7 @@ struct MouseState
     Option<f32x2> translation_ = none;
 
     /// @brief Translation of the mouse wheel on this frame
-    Option<i32x2> wheel_translation_ = none;
+    Option<f32x2> wheel_translation_ = none;
 
     bool focused() const
     {
@@ -1186,7 +1186,7 @@ struct MouseState
         return translation_;
     }
 
-    Option<i32x2> wheel_translation() const
+    Option<f32x2> wheel_translation() const
     {
         return wheel_translation_;
     }

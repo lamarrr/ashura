@@ -94,10 +94,9 @@ Allocator get_thread_arena_upstream()
 
 Layout get_thread_arena_layout()
 {
-    static constexpr usize CFG_THREAD_ARENA_SIZE = 8_MB;
+    static constexpr usize CFG_THREAD_ARENA_SIZE = 4_MB;
     return Layout{alignof(max_align_t), CFG_THREAD_ARENA_SIZE};
 }
-
 
 // TODO: make this defer-initialized so that not all threads will allocate memory?
 // otherwise consider making arena smaller?
@@ -114,5 +113,11 @@ Arena get_thread_arena()
 
     return &thread_arena.v.arena;
 }
+
+#ifndef ASH_DISABLE_ALLOCATOR_STATS
+AllocatorStatsAdapter default_allocator_adapter{heap_allocator};
+#else
+inline constexpr Allocator default_allocator = heap_allocator;
+#endif
 
 }    // namespace ash

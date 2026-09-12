@@ -228,12 +228,12 @@ static void apply_action(Text::Cfg const & cfg, Text::CursorAction a, Text::Stat
         break;
         case Text::CursorActionType::Hit:
         {
-            s.text_.hit(a.center, a.transform, a.transformed_position);
+            s.text_.hit(a.position);
         }
         break;
         case Text::CursorActionType::HitSelectSpan:
         {
-            s.text_.hit_select(a.center, a.transform, a.transformed_position);
+            s.text_.hit_select(a.position);
         }
         break;
     }
@@ -296,58 +296,45 @@ static Text::Action input_to_action(ui::Scope const & scope, Text::Cfg const & c
         return Text::CursorAction{.type = Text::CursorActionType::Escape};
     }
 
+    auto get_text_pos = [&] {
+        auto hit           = events.hit_info_.unwrap();
+        auto transform     = transform2d_to_3d(hit.canvas_transform) *
+                             translate3d(hit.viewport_region.center.append(0));
+        auto inv_transform = inverse(transform.to_mat());
+        auto local_pos     = ::ash::transform(inv_transform, hit.canvas_hit.append(0));
+        return local_pos.xy();
+    };
+
     if (cfg.highlightable)
     {
         if (events.pointer_down())
         {
-            return Text::CursorAction{
-              .type   = Text::CursorActionType::Hit,
-              .center = events.hit_info_.v().canvas_region.center,
-              .transform =
-                transform2d_to_3d(events.hit_info_.v().canvas_transform).to_mat(),
-              .transformed_position = events.hit_info_.v().canvas_hit};
+            return Text::CursorAction{.type     = Text::CursorActionType::Hit,
+                                      .position = get_text_pos()};
         }
 
         if (events.drag_update())
         {
-            auto center = events.hit_info_.v().canvas_region.center;
-            auto transform =
-              transform2d_to_3d(events.hit_info_.v().canvas_transform).to_mat();
-            auto transformed_position = events.hit_info_.v().canvas_hit;
-
-            return Text::CursorAction{.type   = Text::CursorActionType::HitSelectSpan,
-                                      .center = center,
-                                      .transform            = transform,
-                                      .transformed_position = transformed_position};
+            return Text::CursorAction{.type     = Text::CursorActionType::HitSelectSpan,
+                                      .position = get_text_pos()};
         }
 
         if (events.click())
         {
-            auto center = events.hit_info_.v().canvas_region.center;
-            auto transform =
-              transform2d_to_3d(events.hit_info_.v().canvas_transform).to_mat();
-            auto transformed_position = events.hit_info_.v().canvas_hit;
-
             if (m.clicks(MouseButton::Primary) == 2)
             {
-                return Text::CursorAction{.type   = Text::CursorActionType::SelectWord,
-                                          .center = center,
-                                          .transform            = transform,
-                                          .transformed_position = transformed_position};
+                return Text::CursorAction{.type = Text::CursorActionType::SelectWord,
+                                          .position = get_text_pos()};
             }
             else if (m.clicks(MouseButton::Primary) == 3)
             {
-                return Text::CursorAction{.type   = Text::CursorActionType::SelectLine,
-                                          .center = center,
-                                          .transform            = transform,
-                                          .transformed_position = transformed_position};
+                return Text::CursorAction{.type = Text::CursorActionType::SelectLine,
+                                          .position = get_text_pos()};
             }
             else if (m.clicks(MouseButton::Primary) == 4)
             {
-                return Text::CursorAction{.type   = Text::CursorActionType::SelectAll,
-                                          .center = center,
-                                          .transform            = transform,
-                                          .transformed_position = transformed_position};
+                return Text::CursorAction{.type     = Text::CursorActionType::SelectAll,
+                                          .position = get_text_pos()};
             }
         }
     }
@@ -509,10 +496,10 @@ Vec<Text::Action> Text::Cfg::default_input_to_actions_map(ui::Scope const & scop
 
 void Text::Cfg::default_renderer(ui::Scope const &, Cfg const &, State const &,
                                  TextRenderInfo const &    info,
-                                 TextPlacementInfo const & placement, f32x2 center,
-                                 Canvas canvas)
+                                 TextPlacementInfo const & placement,
+                                 f32x4x4 const & transform, Canvas canvas)
 {
-    canvas->text(info, placement, center);
+    canvas->text(info, placement, transform);
 }
 
 void Text::State::tick(ui::Scope const & scope, Cfg const & cfg, Events const & events)
@@ -564,9 +551,10 @@ void Text::State::render(ui::Scope const & scope, Cfg const & cfg, Canvas canvas
         caret_styles.push(text_.caret_style_).unwrap();
     }
 
-    auto [text_info, placement] =
-      text_.text_.place(transform2d_to_3d(info.canvas_transform).to_mat(), info.clip,
-                        highlights, highlight_styles, carets, caret_styles, scratch);
+    // TODO: properly handle clip
+
+    auto [text_info, placement] = text_.text_.place(
+      info.clip, highlights, highlight_styles, carets, caret_styles, scratch);
 
     auto placement_info = TextPlacementInfo{
       .blocks         = placement.blocks,
@@ -580,8 +568,11 @@ void Text::State::render(ui::Scope const & scope, Cfg const & cfg, Canvas canvas
       .carets         = placement.carets,
     };
 
-    cfg.renderer(scope, cfg, *this, text_info, placement_info,
-                 info.canvas_region.center, canvas);
+    auto transform = transform2d_to_3d(info.canvas_transform) *
+                     translate3d(info.viewport_region.center.append(0));
+
+    cfg.renderer(scope, cfg, *this, text_info, placement_info, transform.to_mat(),
+                 canvas);
 }
 
 Text::Text(Allocator allocator) :
@@ -779,10 +770,17 @@ Text & Text::frame(Frame const & f)
     return *this;
 }
 
+Text & Text::hidden(bool v)
+{
+    state_.hidden_ = v;
+    return *this;
+}
+
 ViewState Text::tick(Scope const & scope, Events const & events, Fn<void(View &)>)
 {
     state_.tick(scope, cfg_, events);
-    auto interactable = cfg_.copyable || cfg_.highlightable || cfg_.editable;
+    auto interactable =
+      !state_.hidden_ && (cfg_.copyable || cfg_.highlightable || cfg_.editable);
     return ViewState{
       .text{.enabled     = interactable,
             .type        = TextInputType::Text,
@@ -791,9 +789,10 @@ ViewState Text::tick(Scope const & scope, Events const & events, Fn<void(View &)
             .tab_input   = interactable && cfg_.accept_tab_input,
             .cap         = TextCapitalization::None,
             .autocorrect = false},
+      .hidden    = state_.hidden_,
       .clickable = interactable,
       .draggable = interactable,
-      .focusable = interactable
+      .focusable = interactable,
     };
 }
 
@@ -1301,15 +1300,6 @@ Button & Button::disable(bool disable)
     return *this;
 }
 
-Button & Button::color(ColorGradient const & color)
-{
-    style_.idle_color     = color;
-    style_.disabled_color = color;
-    style_.hovered_color  = color;
-    style_.pressed_color  = color;
-    return *this;
-}
-
 Button & Button::idle_color(ColorGradient const & color)
 {
     style_.idle_color = color;
@@ -1322,9 +1312,9 @@ Button & Button::disabled_color(ColorGradient const & color)
     return *this;
 }
 
-Button & Button::hovered_color(ColorGradient const & color)
+Button & Button::pointed_color(ColorGradient const & color)
 {
-    style_.hovered_color = color;
+    style_.pointed_color = color;
     return *this;
 }
 
@@ -1334,23 +1324,23 @@ Button & Button::pressed_color(ColorGradient const & color)
     return *this;
 }
 
-Button & Button::focus_ring_color(ColorGradient const & color)
+Button & Button::focus_ring(FocusRing const & focus_ring)
 {
-    style_.focus_ring_color = color;
+    style_.focus_ring = focus_ring;
     return *this;
 }
 
 Button & Button::rrect(CornerRadii const & radii)
 {
-    style_.corner_radii = radii;
-    style_.shape        = Shape::RRect;
+    style_.radii = radii;
+    style_.shape = Shape::RRect;
     return *this;
 }
 
 Button & Button::squircle(f32 degree)
 {
-    style_.corner_radii = CornerRadii{degree, degree, degree, degree};
-    style_.shape        = Shape::Squircle;
+    style_.radii = CornerRadii{degree, degree, degree, degree};
+    style_.shape = Shape::Squircle;
     return *this;
 }
 
@@ -1372,12 +1362,6 @@ Button & Button::padding(Padding const & p)
     return *this;
 }
 
-Button & Button::focus_ring_thickness(f32 thickness)
-{
-    style_.focus_ring_thickness = thickness;
-    return *this;
-}
-
 Button & Button::item_frame(Frame const & f)
 {
     style_.item_frame = f;
@@ -1390,87 +1374,45 @@ Button & Button::frame(Frame const & f)
     return *this;
 }
 
-Button & Button::on_click(Dyn<Fn<void(u32)>> f)
+Button & Button::on_click(Fn<void(u32)> fn)
 {
-    callbacks_.on_click = std::move(f);
+    callbacks_.on_click = fn;
     return *this;
 }
 
-Button & Button::on_click(Fn<void(u32)> f)
+Button & Button::on_hold(Fn<void()> fn)
 {
-    callbacks_.on_click = Dyn<Fn<void(u32)>>{f, dyn_noop};
+    callbacks_.on_hold = fn;
     return *this;
 }
 
-Button & Button::on_hold(Dyn<Fn<void()>> f)
+Button & Button::on_release(Fn<void()> fn)
 {
-    callbacks_.on_hold = std::move(f);
+    callbacks_.on_release = fn;
     return *this;
 }
 
-Button & Button::on_hold(Fn<void()> f)
+Button & Button::on_pointer_in(Fn<void()> fn)
 {
-    callbacks_.on_hold = Dyn<Fn<void()>>{f, dyn_noop};
+    callbacks_.on_pointer_in = fn;
     return *this;
 }
 
-Button & Button::on_release(Dyn<Fn<void()>> f)
+Button & Button::on_pointer_out(Fn<void()> fn)
 {
-    callbacks_.on_release = std::move(f);
-    return *this;
-}
-
-Button & Button::on_release(Fn<void()> f)
-{
-    callbacks_.on_release = Dyn<Fn<void()>>{f, dyn_noop};
-    return *this;
-}
-
-Button & Button::on_hover(Dyn<Fn<void()>> fn)
-{
-    callbacks_.on_hover = std::move(fn);
-    return *this;
-}
-
-Button & Button::on_hover(Fn<void()> fn)
-{
-    callbacks_.on_hover = Dyn<Fn<void()>>{fn, dyn_noop};
-    return *this;
-}
-
-Button & Button::on_blur(Dyn<Fn<void()>> fn)
-{
-    callbacks_.on_blur = std::move(fn);
-    return *this;
-}
-
-Button & Button::on_blur(Fn<void()> fn)
-{
-    callbacks_.on_blur = Dyn<Fn<void()>>{fn, dyn_noop};
-    return *this;
-}
-
-Button & Button::on_focus_in(Dyn<Fn<void()>> fn)
-{
-    callbacks_.on_focus_in = std::move(fn);
+    callbacks_.on_pointer_out = fn;
     return *this;
 }
 
 Button & Button::on_focus_in(Fn<void()> fn)
 {
-    callbacks_.on_focus_in = Dyn<Fn<void()>>{fn, dyn_noop};
-    return *this;
-}
-
-Button & Button::on_focus_out(Dyn<Fn<void()>> fn)
-{
-    callbacks_.on_focus_out = std::move(fn);
+    callbacks_.on_focus_in = fn;
     return *this;
 }
 
 Button & Button::on_focus_out(Fn<void()> fn)
 {
-    callbacks_.on_focus_out = Dyn<Fn<void()>>{fn, dyn_noop};
+    callbacks_.on_focus_out = fn;
     return *this;
 }
 
@@ -1514,27 +1456,17 @@ ViewState Button::tick(Scope const & scope, Events const & events,
             callbacks_.on_hold();
         }
 
-        if (events.pointer_over())
-        {
-            state_.pointed = true;
-        }
-
         if (events.pointer_out())
         {
-            state_.held = false;
-            callbacks_.on_release();
+            state_.held    = false;
+            state_.pointed = false;
+            callbacks_.on_pointer_out();
         }
 
         if (events.pointer_in())
         {
             state_.pointed = true;
-            callbacks_.on_hover();
-        }
-
-        if (events.pointer_out())
-        {
-            state_.pointed = false;
-            callbacks_.on_blur();
+            callbacks_.on_pointer_in();
         }
 
         if (events.focus_in())
@@ -1562,8 +1494,8 @@ void Button::size(Scope const &, f32x2 allocated, Span<f32x2> sizes)
 
 Layout Button::fit(Scope const &, f32x2, Span<f32x2 const> sizes, Span<f32x2> centers)
 {
-    fill(centers, f32x2{0, 0});
-    auto size   = sizes.is_empty() ? f32x2{0, 0} : sizes[0];
+    fill(centers, f32x2::zero());
+    auto size   = sizes.is_empty() ? f32x2::zero() : sizes[0];
     auto padded = style_.frame(size) + style_.padding.axes();
 
     if (style_.shape == Shape::Squircle)
@@ -1574,6 +1506,40 @@ Layout Button::fit(Scope const &, f32x2, Span<f32x2 const> sizes, Span<f32x2> ce
     return {.extent = padded};
 }
 
+void draw_focus_ring(Canvas canvas, FocusRing const & ring, Button::Shape shape,
+                     CRect const & area, f32x4 radii)
+{
+    auto extent = area.extent + ring.thickness;
+
+    auto shape_info = Shape{
+      .world_transform = f32x4x4::identity(),
+      .uv_transform    = f32x4x4::identity(),
+      .area{area.center, extent},
+      .bbox_extent = extent + 2 * ring.feather,
+      .radii       = radii,
+      .shade       = ShadeType::Stroked,
+      .feather     = ring.feather,
+      .tint        = ring.tint,
+      .sampler     = SamplerIndex::LinearEdgeClampBlackFloat,
+      .texture_set = sampled_textures,
+      .map         = TextureIndex::White,
+      .sdf_sampler = SamplerIndex::LinearRepeatWhiteFloat,
+      .sdf_map     = TextureIndex::White
+    };
+
+    switch (shape)
+    {
+        case Button::Shape::RRect:
+            canvas->rrect(shape_info);
+            break;
+        case Button::Shape::Squircle:
+            canvas->squircle(shape_info);
+            break;
+        default:
+            break;
+    }
+}
+
 void Button::render(Scope const &, Canvas canvas, RenderInfo const & info)
 {
     ColorGradient tint;
@@ -1582,50 +1548,18 @@ void Button::render(Scope const &, Canvas canvas, RenderInfo const & info)
     {
         tint = style_.disabled_color;
     }
-    else if (state_.hovered)
-    {
-        tint = style_.hovered_color;
-    }
     else if (state_.held)
     {
         tint = style_.pressed_color;
     }
     else if (state_.pointed)
     {
-        tint = style_.hovered_color;
+        tint = style_.pointed_color;
     }
     else
     {
         tint = style_.idle_color;
     }
-
-    auto draw = [&](bool stroke, ColorGradient tint) {
-        auto shape = ash::Shape{.world_transform = f32x4x4::identity(),
-                                .uv_transform    = f32x4x4::identity(),
-                                .area            = info.canvas_region,
-                                .bbox_extent     = info.canvas_region.extent,
-                                .radii           = style_.corner_radii,
-                                .shade = stroke ? ShadeType::Stroked : ShadeType::Flood,
-                                .feather     = stroke ? style_.thickness : 0,
-                                .tint        = tint,
-                                .sampler     = SamplerIndex::LinearEdgeClampBlackFloat,
-                                .texture_set = sampled_textures,
-                                .map         = TextureIndex::White,
-                                .sdf_sampler = SamplerIndex::LinearRepeatWhiteFloat,
-                                .sdf_map     = TextureIndex::White};
-
-        switch (style_.shape)
-        {
-            case Shape::RRect:
-                canvas->rrect(shape);
-                break;
-            case Shape::Squircle:
-                canvas->squircle(shape);
-                break;
-            default:
-                break;
-        }
-    };
 
     style_.shadow.match([&](Shadow const & shadow) {
         auto shape = ash::Shape{
@@ -1634,7 +1568,7 @@ void Button::render(Scope const &, Canvas canvas, RenderInfo const & info)
           .area{info.canvas_region.center + shadow.offset,
                 info.canvas_region.extent + shadow.spread},
           .bbox_extent = info.canvas_region.extent + shadow.spread + 2 * shadow.feather,
-          .radii       = style_.corner_radii,
+          .radii       = style_.radii,
           .shade       = ShadeType::Feathered,
           .feather     = shadow.feather,
           .tint        = shadow.tint,
@@ -1658,11 +1592,36 @@ void Button::render(Scope const &, Canvas canvas, RenderInfo const & info)
         }
     });
 
-    draw(style_.stroke, tint);
+    auto shape = ash::Shape{.world_transform = f32x4x4::identity(),
+                            .uv_transform    = f32x4x4::identity(),
+                            .area            = info.canvas_region,
+                            .bbox_extent     = info.canvas_region.extent,
+                            .radii           = style_.radii,
+                            .shade           = ShadeType::Flood,
+                            .feather         = 0,
+                            .tint            = tint,
+                            .sampler         = SamplerIndex::LinearEdgeClampBlackFloat,
+                            .texture_set     = sampled_textures,
+                            .map             = TextureIndex::White,
+                            .sdf_sampler     = SamplerIndex::LinearRepeatWhiteFloat,
+                            .sdf_map         = TextureIndex::White};
+
+    switch (style_.shape)
+    {
+        case Shape::RRect:
+            canvas->rrect(shape);
+            break;
+        case Shape::Squircle:
+            canvas->squircle(shape);
+            break;
+        default:
+            break;
+    }
 
     if (state_.focused)
     {
-        draw(true, style_.focus_ring_color);
+        draw_focus_ring(canvas, style_.focus_ring, style_.shape, info.canvas_region,
+                        style_.radii);
     }
 }
 
@@ -1751,10 +1710,10 @@ void Box::size(Scope const &, f32x2 allocated, Span<f32x2> sizes)
 
 Layout Box::fit(Scope const &, f32x2, Span<f32x2 const> sizes, Span<f32x2> centers)
 {
-    auto item_size = sizes.is_empty() ? f32x2{0, 0} : sizes[0];
+    auto item_size = sizes.is_empty() ? f32x2::zero() : sizes[0];
     auto size      = style_.frame(item_size) + style_.padding.axes();
 
-    fill(centers, f32x2{0, 0});
+    fill(centers, f32x2::zero());
 
     return Layout{.extent = size};
 }
@@ -1861,17 +1820,1209 @@ void Box::render(Scope const &, Canvas canvas, RenderInfo const & info)
         };
         canvas->rrect(shape);
     }
+
+    // TODO: noise overlay
 }
 
 CheckBox::CheckBox(Allocator allocator) :
-  allocator_{allocator},
+  allocator_{
+    allocator
+},
   style_{},
   state_{},
   callbacks_{},
-  checked_text_{allocator, static_rc(U"check_box"_s), TextStyle{}, FontStyle{}},
-  unchecked_text_{allocator, static_rc(U"check_box_outline_blank"_s), TextStyle{},
-                  FontStyle{}}
+  check_text_{allocator, static_rc(U"check"_s), TextStyle{},
+              FontStyle{.font = FontId::Icons, .line_height = 1.0F}}
 {
+}
+
+CheckBox & CheckBox::frame(Frame const & frame)
+{
+    style_.frame = frame;
+    return *this;
+}
+
+CheckBox & CheckBox::text_frame(Frame const & frame)
+{
+    style_.text_frame = frame;
+    return *this;
+}
+
+CheckBox & CheckBox::padding(Padding const & padding)
+{
+    style_.padding = padding;
+    return *this;
+}
+
+CheckBox & CheckBox::radii(CornerRadii const & radii)
+{
+    style_.radii = radii;
+    return *this;
+}
+
+CheckBox & CheckBox::text_color(ColorGradient const & color)
+{
+    check_text_.state_.text_.text_.runs_style_.styles_[0].foreground = color;
+    return *this;
+}
+
+CheckBox & CheckBox::color(ColorGradient const & color)
+{
+    style_.color = color;
+    return *this;
+}
+
+CheckBox & CheckBox::disabled_color(ColorGradient const & color)
+{
+    style_.disabled_color = color;
+    return *this;
+}
+
+CheckBox & CheckBox::pointed_color(ColorGradient const & color)
+{
+    style_.pointed_color = color;
+    return *this;
+}
+
+CheckBox & CheckBox::pressed_color(ColorGradient const & color)
+{
+    style_.pressed_color = color;
+    return *this;
+}
+
+CheckBox & CheckBox::focus_ring(FocusRing const & focus_ring)
+{
+    style_.focus_ring = focus_ring;
+    return *this;
+}
+
+CheckBox & CheckBox::disable(bool disable)
+{
+    state_.disabled = disable;
+    return *this;
+}
+
+CheckBox & CheckBox::on_change(Fn<void(bool)> fn)
+{
+    callbacks_.on_change = fn;
+    return *this;
+}
+
+CheckBox & CheckBox::on_pointer_in(Fn<void()> fn)
+{
+    callbacks_.on_pointer_in = fn;
+    return *this;
+}
+
+CheckBox & CheckBox::on_pointer_out(Fn<void()> fn)
+{
+    callbacks_.on_pointer_out = fn;
+    return *this;
+}
+
+CheckBox & CheckBox::check(bool check)
+{
+    if (state_.checked != check)
+    {
+        state_.checked = check;
+        callbacks_.on_change(static_cast<bool>(state_.checked));
+    }
+    return *this;
+}
+
+ViewState CheckBox::tick(Scope const & scope, Events const & events,
+                         Fn<void(View &)> build)
+{
+    auto & key = scope.key();
+
+    check_text_.hidden(!state_.checked);
+    build(check_text_);
+
+    if (state_.disabled)
+    {
+        state_.focused = false;
+        state_.pointed = false;
+        state_.held    = false;
+    }
+    else
+    {
+        if (events.click() || (events.focus_over() && key.down(KeyCode::Return)))
+        {
+            state_.checked = !state_.checked;
+            callbacks_.on_change(static_cast<bool>(state_.checked));
+            state_.held = false;
+        }
+
+        if (events.pointer_down())
+        {
+            state_.held = true;
+        }
+
+        if (events.pointer_up())
+        {
+            state_.held = false;
+        }
+
+        if (events.pointer_out())
+        {
+            state_.held    = false;
+            state_.pointed = false;
+            callbacks_.on_pointer_out();
+        }
+
+        if (events.pointer_in())
+        {
+            state_.pointed = true;
+            callbacks_.on_pointer_in();
+        }
+
+        if (events.focus_in())
+        {
+            state_.focused = true;
+        }
+
+        if (events.focus_out())
+        {
+            state_.focused = false;
+        }
+    }
+
+    return ViewState{.pointable = !state_.disabled,
+                     .clickable = !state_.disabled,
+                     .focusable = !state_.disabled};
+}
+
+void CheckBox::size(Scope const &, f32x2 allocated, Span<f32x2> sizes)
+{
+    fill(sizes, style_.frame(allocated));
+}
+
+Layout CheckBox::fit(Scope const &, f32x2, Span<f32x2 const> sizes, Span<f32x2> centers)
+{
+    fill(centers, f32x2::zero());
+    auto item_size = sizes[0];
+    auto size      = style_.frame(item_size) + style_.padding.axes();
+    auto padded    = style_.frame(size) + style_.padding.axes();
+    return Layout{.extent = padded};
+}
+
+void CheckBox::render(Scope const &, Canvas canvas, RenderInfo const & info)
+{
+    ColorGradient tint;
+
+    if (state_.disabled)
+    {
+        tint = style_.disabled_color;
+    }
+    else if (state_.held)
+    {
+        tint = style_.pressed_color;
+    }
+    else if (state_.pointed)
+    {
+        tint = style_.pointed_color;
+    }
+    else
+    {
+        tint = style_.color;
+    }
+
+    auto shape =
+      ash::Shape{.world_transform = f32x4x4::identity(),
+                 .uv_transform    = f32x4x4::identity(),
+                 .area            = info.canvas_region,
+                 .bbox_extent     = info.canvas_region.extent,
+                 .radii           = style_.radii,
+                 .shade       = state_.checked ? ShadeType::Flood : ShadeType::Stroked,
+                 .feather     = state_.checked ? 0.0F : 1.5F,
+                 .tint        = tint,
+                 .sampler     = SamplerIndex::LinearEdgeClampBlackFloat,
+                 .texture_set = sampled_textures,
+                 .map         = TextureIndex::White,
+                 .sdf_sampler = SamplerIndex::LinearRepeatWhiteFloat,
+                 .sdf_map     = TextureIndex::White};
+
+    canvas->rrect(shape);
+
+    if (state_.focused)
+    {
+        draw_focus_ring(canvas, style_.focus_ring, Button::Shape::RRect,
+                        info.canvas_region, style_.radii);
+    }
+}
+
+Cursor CheckBox::cursor(Scope const &, f32x2, f32x2)
+{
+    return state_.disabled ? Cursor::Default : Cursor::Pointer;
+}
+
+Switch::Switch(Allocator allocator) :
+  allocator_{
+    allocator
+},
+  style_{},
+  state_{},
+  callbacks_{},
+  check_text_{allocator, static_rc(U"check"_s), TextStyle{},
+              FontStyle{.font = FontId::Icons, .line_height = 1.0F}}
+{
+}
+
+Switch & Switch::frame(Frame const & frame)
+{
+    style_.frame = frame;
+    return *this;
+}
+
+Switch & Switch::text_frame(Frame const & frame)
+{
+    style_.text_frame = frame;
+    return *this;
+}
+
+Switch & Switch::padding(Padding const & padding)
+{
+    style_.padding = padding;
+    return *this;
+}
+
+Switch & Switch::knob_on_color(ColorGradient const & color)
+{
+    style_.knob_on_color = color;
+    return *this;
+}
+
+Switch & Switch::knob_off_color(ColorGradient const & color)
+{
+    style_.knob_off_color = color;
+    return *this;
+}
+
+Switch & Switch::track_on_color(ColorGradient const & color)
+{
+    style_.track_on_color = color;
+    return *this;
+}
+
+Switch & Switch::track_off_color(ColorGradient const & color)
+{
+    style_.track_off_color = color;
+    return *this;
+}
+
+Switch & Switch::focus_ring(FocusRing const & focus_ring)
+{
+    style_.focus_ring = focus_ring;
+    return *this;
+}
+
+Switch & Switch::on_change(Fn<void(bool)> fn)
+{
+    callbacks_.on_change = fn;
+    return *this;
+}
+
+Switch & Switch::on(bool on)
+{
+    state_.on = on;
+    return *this;
+}
+
+ViewState Switch::tick(Scope const & scope, Events const & events,
+                       Fn<void(View &)> build)
+{
+    return ViewState{};
+}
+
+void Switch::size(Scope const & scope, f32x2 allocated, Span<f32x2> sizes)
+{
+}
+
+Layout Switch::fit(Scope const & scope, f32x2 allocated, Span<f32x2 const> sizes,
+                   Span<f32x2> centers)
+{
+}
+
+void Switch::render(Scope const & scope, Canvas canvas, RenderInfo const & info)
+{
+}
+
+Cursor Switch::cursor(Scope const & scope, f32x2 extent, f32x2 position)
+{
+    return state_.disabled ? Cursor::Default : Cursor::Pointer;
+}
+
+Slider & Slider::disable(bool disable)
+{
+    state_.disabled = disable;
+    return *this;
+}
+
+Slider & Slider::snaps(Option<u32> snaps)
+{
+    style_.snaps = snaps;
+    return *this;
+}
+
+Slider & Slider::track_color(ColorGradient const & color)
+{
+    style_.track_color = color;
+    return *this;
+}
+
+Slider & Slider::progress_color(ColorGradient const & color)
+{
+    style_.progress_color = color;
+    return *this;
+}
+
+Slider & Slider::snaps_color(ColorGradient const & color)
+{
+    style_.snaps_color = color;
+    return *this;
+}
+
+Slider & Slider::disabled_color(ColorGradient const & color)
+{
+    style_.disabled_color = color;
+    return *this;
+}
+
+Slider & Slider::slider_thickness(f32 thickness)
+{
+    style_.slider_thickness = thickness;
+    return *this;
+}
+
+Slider & Slider::track_thickness(f32 thickness)
+{
+    style_.track_thickness = thickness;
+    return *this;
+}
+
+Slider & Slider::track_corner_radius(f32 radius)
+{
+    style_.track_corner_radius = radius;
+    return *this;
+}
+
+Slider & Slider::knob_radius(f32 radius)
+{
+    style_.knob_radius = radius;
+    return *this;
+}
+
+Slider & Slider::knob_focus_ring_radius(f32 radius)
+{
+    style_.knob_focus_ring_radius = radius;
+    return *this;
+}
+
+Slider & Slider::knob_color(ColorGradient const & color)
+{
+    style_.knob_color = color;
+    return *this;
+}
+
+Slider & Slider::extent(Size extent)
+{
+    style_.extent = extent;
+    return *this;
+}
+
+Slider & Slider::horizontal(bool horizontal)
+{
+    state_.horizontal = horizontal;
+    return *this;
+}
+
+Slider & Slider::on_changed(Fn<void(f32)> fn)
+{
+    callbacks_.on_changed = fn;
+    return *this;
+}
+
+Slider & Slider::on_hold(Fn<void()> fn)
+{
+    callbacks_.on_hold = fn;
+    return *this;
+}
+
+Slider & Slider::on_release(Fn<void()> fn)
+{
+    callbacks_.on_release = fn;
+    return *this;
+}
+
+Slider & Slider::on_pointer_in(Fn<void()> fn)
+{
+    callbacks_.on_pointer_in = fn;
+    return *this;
+}
+
+Slider & Slider::on_pointer_out(Fn<void()> fn)
+{
+    callbacks_.on_pointer_out = fn;
+    return *this;
+}
+
+Slider & Slider::on_focus_in(Fn<void()> fn)
+{
+    callbacks_.on_focus_in = fn;
+    return *this;
+}
+
+Slider & Slider::on_focus_out(Fn<void()> fn)
+{
+    callbacks_.on_focus_out = fn;
+    return *this;
+}
+
+ViewState Slider::tick(Scope const & scope, Events const & events, Fn<void(View &)>)
+{
+    auto & key = scope.key();
+
+    if (state_.disabled)
+    {
+        state_.focused = false;
+        state_.pointed = false;
+        state_.held    = false;
+    }
+    else
+    {
+        if (events.pointer_down() || events.drag_update())
+        {
+            auto info = events.hit_info().unwrap();
+            auto x0   = info.viewport_region.begin().x();
+            auto x1   = info.viewport_region.end().x();
+            auto x    = info.viewport_hit.x();
+            auto t    = unlerp(x0, x1, x);
+            t         = style_.snaps.match(
+              [&](u32 snaps) {
+                  snaps = snaps < 2 ? 2 : snaps;
+                  return grid_snap(t, 1.0F / (snaps - 1));
+              },
+              [&] { return t; });
+            state_.value = clamp(t, 0.0F, 1.0F);
+        }
+
+        if (events.pointer_down() || events.drag_start())
+        {
+            state_.held = true;
+            callbacks_.on_hold();
+        }
+
+        if (events.pointer_up() || events.drag_end())
+        {
+            state_.held    = false;
+            state_.pointed = false;
+            callbacks_.on_release();
+        }
+
+        if (events.focus_over() &&
+            (key.down(KeyCode::Left) || key.down(KeyCode::Right)))
+        {
+            bool left = key.down(KeyCode::Left);
+            auto t    = style_.snaps.match(
+              [&](u32 snaps) {
+                  snaps      = snaps < 2 ? 2 : snaps;
+                  auto count = snaps - 1;
+                  auto value = state_.value;
+                  auto step  = 1.0F / count;
+
+                  if (left)
+                  {
+                      value -= step;
+                  }
+                  else
+                  {
+                      value += step;
+                  }
+
+                  return value;
+              },
+              [&] {
+                  auto default_step = 0.1F;
+                  auto value        = state_.value;
+
+                  if (left)
+                  {
+                      value -= default_step;
+                  }
+                  else
+                  {
+                      value += default_step;
+                  }
+
+                  return value;
+              });
+
+            state_.value = clamp(t, 0.0F, 1.0F);
+            callbacks_.on_changed(state_.value);
+        }
+
+        if (events.pointer_out())
+        {
+            state_.pointed = false;
+            callbacks_.on_pointer_out();
+        }
+
+        if (events.pointer_in())
+        {
+            state_.pointed = true;
+            callbacks_.on_pointer_in();
+        }
+
+        if (events.focus_in())
+        {
+            state_.focused = true;
+        }
+
+        if (events.focus_out())
+        {
+            state_.focused = false;
+        }
+    }
+
+    return ViewState{.pointable = !state_.disabled,
+                     .clickable = !state_.disabled,
+                     .draggable = !state_.disabled,
+                     .focusable = !state_.disabled};
+}
+
+Layout Slider::fit(Scope const &, f32x2 allocated, Span<f32x2 const>, Span<f32x2>)
+{
+    auto extent = f32x2::zero();
+
+    auto main  = state_.horizontal ? 0 : 1;
+    auto cross = state_.horizontal ? 1 : 0;
+
+    extent[main]  = style_.extent(allocated[main]);
+    extent[cross] = style_.slider_thickness;
+
+    return Layout{.extent = extent};
+}
+
+void Slider::render(Scope const &, Canvas canvas, RenderInfo const & info)
+{
+    auto main  = state_.horizontal ? 0 : 1;
+    auto cross = state_.horizontal ? 1 : 0;
+
+    {
+        f32x2 track_extent{};
+        track_extent[main]  = info.canvas_region.extent[main];
+        track_extent[cross] = style_.track_thickness;
+        auto track_shape    = Shape{
+          .world_transform = f32x4x4::identity(),
+          .uv_transform    = f32x4x4::identity(),
+          .area            = {info.canvas_region.center, track_extent},
+          .bbox_extent     = track_extent,
+          .radii           = f32x4::splat(style_.track_corner_radius),
+          .shade           = ShadeType::Flood,
+          .feather         = 0,
+          .tint        = state_.disabled ? style_.disabled_color : style_.track_color,
+          .sampler     = SamplerIndex::LinearEdgeClampBlackFloat,
+          .texture_set = sampled_textures,
+          .map         = TextureIndex::White,
+          .sdf_sampler = SamplerIndex::LinearRepeatWhiteFloat,
+          .sdf_map     = TextureIndex::White
+        };
+
+        canvas->rrect(track_shape);
+
+        f32x2 progress_extent{};
+        progress_extent[main]  = info.canvas_region.extent[main] * state_.value;
+        progress_extent[cross] = style_.track_thickness;
+        auto progress_center_main =
+          info.canvas_region.begin()[main] + 0.5F * progress_extent[main];
+        auto progress_center =
+          f32x2{progress_center_main, info.canvas_region.center[cross]};
+        auto progress_shape = Shape{
+          .world_transform = f32x4x4::identity(),
+          .uv_transform    = f32x4x4::identity(),
+          .area            = {progress_center, progress_extent},
+          .bbox_extent     = progress_extent,
+          .radii           = f32x4::splat(style_.track_corner_radius),
+          .shade           = ShadeType::Flood,
+          .feather         = 0,
+          .tint    = state_.disabled ? style_.disabled_color : style_.progress_color,
+          .sampler = SamplerIndex::LinearEdgeClampBlackFloat,
+          .texture_set = sampled_textures,
+          .map         = TextureIndex::White,
+          .sdf_sampler = SamplerIndex::LinearRepeatWhiteFloat,
+          .sdf_map     = TextureIndex::White
+        };
+
+        canvas->rrect(progress_shape);
+
+        style_.snaps.match([&](u32 snaps) {
+            if (snaps > 2)
+            {
+                auto count = snaps - 1;
+                auto unit  = info.canvas_region.extent[main] / count;
+
+                for (u32 i : range(1U, count))
+                {
+                    f32x2 center;
+
+                    center[main]  = info.canvas_region.begin()[main] + i * unit;
+                    center[cross] = info.canvas_region.center[cross];
+
+                    f32x2 extent;
+                    extent[main]  = 4.0F;
+                    extent[cross] = style_.track_thickness;
+
+                    auto shape = Shape{
+                      .world_transform = f32x4x4::identity(),
+                      .uv_transform    = f32x4x4::identity(),
+                      .area{.center = center, .extent = extent},
+                      .bbox_extent = extent,
+                      .radii       = {},
+                      .shade       = ShadeType::Flood,
+                      .feather     = 0,
+                      .tint        = style_.snaps_color,
+                      .sampler     = SamplerIndex::LinearEdgeClampBlackFloat,
+                      .texture_set = sampled_textures,
+                      .map         = TextureIndex::White,
+                      .sdf_sampler = SamplerIndex::LinearRepeatWhiteFloat,
+                      .sdf_map     = TextureIndex::White
+                    };
+
+                    canvas->rrect(shape);
+                }
+            }
+        });
+    }
+
+    {
+        f32x2 center;
+
+        center[main] =
+          lerp(info.canvas_region.begin()[main], info.canvas_region.end()[main],
+               clamp(state_.value, 0.0F, 1.0F));
+        center[cross] = info.canvas_region.center[cross];
+        auto extent   = f32x2::splat(style_.knob_radius * 2.0F);
+        auto shape    = Shape{
+          .world_transform = f32x4x4::identity(),
+          .uv_transform    = f32x4x4::identity(),
+          .area            = {center, extent},
+          .bbox_extent     = extent,
+          .radii           = f32x4::splat(style_.knob_radius),
+          .shade           = ShadeType::Flood,
+          .feather         = 0,
+          .tint            = style_.knob_color,
+          .sampler         = SamplerIndex::LinearEdgeClampBlackFloat,
+          .texture_set     = sampled_textures,
+          .map             = TextureIndex::White,
+          .sdf_sampler     = SamplerIndex::LinearRepeatWhiteFloat,
+          .sdf_map         = TextureIndex::White
+        };
+
+        canvas->rrect(shape);
+
+        //  TODO: separate active and inactive focus
+        if (state_.focused || state_.pointed || state_.held)
+        {
+            auto shape = Shape{
+              .world_transform = f32x4x4::identity(),
+              .uv_transform    = f32x4x4::identity(),
+              .area{.center = center,
+                    .extent = f32x2::splat(2 * style_.knob_focus_ring_radius)},
+              .bbox_extent = f32x2::splat(2 * style_.knob_focus_ring_radius),
+              .radii       = f32x4::splat(style_.knob_focus_ring_radius),
+              .shade       = ShadeType::Flood,
+              .feather     = 0,
+              .tint =
+                ColorGradient{style_.knob_color.top() * f32x4{1, 1, 1, 0.35F},
+                    style_.knob_color.bottom() * f32x4{1, 1, 1, 0.35F},
+                    style_.knob_color.angle(), style_.knob_color.center()},
+              .sampler     = SamplerIndex::LinearEdgeClampBlackFloat,
+              .texture_set = sampled_textures,
+              .map         = TextureIndex::White,
+              .sdf_sampler = SamplerIndex::LinearRepeatWhiteFloat,
+              .sdf_map     = TextureIndex::White
+            };
+            canvas->rrect(shape);
+        }
+    }
+}
+
+Cursor Slider::cursor(Scope const &, f32x2, f32x2)
+{
+    return state_.disabled ? Cursor::Default : Cursor::Pointer;
+}
+
+ScrollBox::Bar & ScrollBox::Bar::thickness(f32 value)
+{
+    style_.thickness = value;
+    return *this;
+}
+
+ScrollBox::Bar & ScrollBox::Bar::corner_radius(f32 value)
+{
+    style_.corner_radius = value;
+    return *this;
+}
+
+ScrollBox::Bar & ScrollBox::Bar::track_color(ColorGradient const & value)
+{
+    style_.track_color = value;
+    return *this;
+}
+
+ScrollBox::Bar & ScrollBox::Bar::idle_color(ColorGradient const & value)
+{
+    style_.idle_color = value;
+    return *this;
+}
+
+ScrollBox::Bar & ScrollBox::Bar::pointed_color(ColorGradient const & value)
+{
+    style_.pointed_color = value;
+    return *this;
+}
+
+ScrollBox::Bar & ScrollBox::Bar::pressed_color(ColorGradient const & value)
+{
+    style_.pressed_color = value;
+    return *this;
+}
+
+ScrollBox::Bar & ScrollBox::Bar::disabled_color(ColorGradient const & value)
+{
+    style_.disabled_color = value;
+    return *this;
+}
+
+ScrollBox::Bar & ScrollBox::Bar::focus_ring(FocusRing const & value)
+{
+    style_.focus_ring = value;
+    return *this;
+}
+
+ScrollBox::Bar & ScrollBox::Bar::snaps(Option<u32> value)
+{
+    style_.snaps = value;
+    return *this;
+}
+
+ScrollBox::Bar & ScrollBox::Bar::horizontal(bool horizontal)
+{
+    state_.horizontal = horizontal;
+    return *this;
+}
+
+ScrollBox::Bar & ScrollBox::Bar::disable(bool disable)
+{
+    state_.disabled = disable;
+    return *this;
+}
+
+ScrollBox::Bar & ScrollBox::Bar::hidden(bool hidden)
+{
+    state_.hidden = hidden;
+    return *this;
+}
+
+ViewState ScrollBox::Bar::tick(Scope const & scope, Events const & events,
+                               Fn<void(View &)>)
+{
+    auto & key  = scope.key();
+    auto   main = state_.horizontal ? 0 : 1;
+
+    if (state_.disabled)
+    {
+        state_.focused = false;
+        state_.pointed = false;
+        state_.held    = false;
+    }
+    else
+    {
+        // TODO: scroll wheel interaction
+        // TODO: drag interaction should be based on drag delta rather than hit position
+        if (events.pointer_down() || events.drag_update())
+        {
+            auto info              = events.hit_info().unwrap();
+            auto x0                = info.viewport_region.begin()[main];
+            auto x1                = info.viewport_region.end()[main];
+            auto track_extent_main = info.viewport_region.extent[main];
+            auto hit               = info.viewport_hit[main];
+            auto visibility_ratio =
+              (*state_.viewport_extent)[main] / (*state_.content_extent)[main];
+            auto knob_extent_main  = visibility_ratio * track_extent_main;
+            auto knob_offset_begin = x0 + knob_extent_main * 0.5F;
+            auto knob_offset_end   = x1 - knob_extent_main * 0.5F;
+            auto t                 = unlerp(knob_offset_begin, knob_offset_end, hit);
+            t                      = clamp(t, 0.0F, 1.0F);
+            t                      = style_.snaps.match(
+              [&](u32 snaps) {
+                  snaps      = snaps < 2 ? 2 : snaps;
+                  auto count = snaps - 1;
+                  auto value = (*state_.offset)[main];
+                  auto step  = 1.0F / count;
+
+                  value = grid_snap(value, step);
+                  return clamp(value, 0.0F, 1.0F);
+              },
+              [&] { return t; });
+            (*state_.offset)[main] = t;
+            callbacks_.on_scroll();
+        }
+
+        if (events.pointer_down() || events.drag_start())
+        {
+            state_.held = true;
+        }
+
+        if (events.pointer_up() || events.drag_end())
+        {
+            state_.held    = false;
+            state_.pointed = false;
+        }
+
+        if (events.focus_over() && state_.horizontal ?
+              (key.down(KeyCode::Left) || key.down(KeyCode::Right)) :
+              (key.down(KeyCode::Up) || key.down(KeyCode::Down)))
+        {
+            bool left = key.down(KeyCode::Left);
+            auto t    = style_.snaps.match(
+              [&](u32 snaps) {
+                  snaps      = snaps < 2 ? 2 : snaps;
+                  auto count = snaps - 1;
+                  auto value = (*state_.offset)[main];
+                  auto step  = 1.0F / count;
+
+                  if (left)
+                  {
+                      value -= step;
+                  }
+                  else
+                  {
+                      value += step;
+                  }
+
+                  return value;
+              },
+              [&] {
+                  auto default_step = 0.1F;
+                  auto value        = (*state_.offset)[main];
+
+                  if (left)
+                  {
+                      value -= default_step;
+                  }
+                  else
+                  {
+                      value += default_step;
+                  }
+
+                  return value;
+              });
+
+            t = clamp(t, 0.0F, 1.0F);
+
+            (*state_.offset)[main] = t;
+
+            callbacks_.on_scroll();
+        }
+
+        if (events.pointer_out())
+        {
+            state_.pointed = false;
+        }
+
+        if (events.pointer_in())
+        {
+            state_.pointed = true;
+        }
+
+        if (events.focus_in())
+        {
+            state_.focused = true;
+        }
+
+        if (events.focus_out())
+        {
+            state_.focused = false;
+        }
+    }
+
+    bool hidden = state_.hidden;
+
+    if ((*state_.viewport_extent)[main] >= (*state_.content_extent)[main])
+    {
+        hidden = true;
+    }
+
+    bool interactable = !state_.disabled && !hidden;
+
+    return ViewState{.hidden    = hidden,
+                     .pointable = interactable,
+                     .clickable = interactable,
+                     .draggable = interactable,
+                     .focusable = interactable};
+}
+
+Layout ScrollBox::Bar::fit(Scope const &, f32x2 allocated, Span<f32x2 const>,
+                           Span<f32x2>)
+{
+    auto main  = state_.horizontal ? 0 : 1;
+    auto cross = state_.horizontal ? 1 : 0;
+
+    f32x2 extent;
+    extent[main]  = allocated[main];
+    extent[cross] = 2 * style_.thickness;
+    return Layout{.extent = extent};
+}
+
+void ScrollBox::Bar::render(Scope const &, Canvas canvas, RenderInfo const & info)
+{
+    auto main              = state_.horizontal ? 0 : 1;
+    auto cross             = state_.horizontal ? 1 : 0;
+    auto x0                = info.viewport_region.begin()[main];
+    auto x1                = info.viewport_region.end()[main];
+    auto track_extent_main = info.viewport_region.extent[main];
+    auto visibility_ratio =
+      (*state_.viewport_extent)[main] / (*state_.content_extent)[main];
+    auto knob_extent_main  = visibility_ratio * track_extent_main;
+    auto knob_offset_begin = x0 + knob_extent_main * 0.5F;
+    auto knob_offset_end   = x1 - knob_extent_main * 0.5F;
+
+    auto track_shape = Shape{.world_transform = f32x4x4::identity(),
+                             .uv_transform    = f32x4x4::identity(),
+                             .area            = info.canvas_region,
+                             .bbox_extent     = info.canvas_region.extent,
+                             .radii           = f32x4::splat(style_.corner_radius),
+                             .shade           = ShadeType::Flood,
+                             .feather         = 0,
+                             .tint            = style_.track_color,
+                             .sampler         = SamplerIndex::LinearEdgeClampBlackFloat,
+                             .texture_set     = sampled_textures,
+                             .map             = TextureIndex::White,
+                             .sdf_sampler     = SamplerIndex::LinearRepeatWhiteFloat,
+                             .sdf_map         = TextureIndex::White};
+
+    canvas->rrect(track_shape);
+
+    auto knob_center_main =
+      lerp(knob_offset_begin, knob_offset_end, (*state_.offset)[main]);
+    f32x2 knob_center;
+    knob_center[main]  = knob_center_main;
+    knob_center[cross] = info.canvas_region.center[cross];
+    f32x2 knob_extent;
+    knob_extent[main]  = knob_extent_main;
+    knob_extent[cross] = info.canvas_region.extent[cross];
+
+    ColorGradient knob_color;
+
+    if (state_.disabled)
+    {
+        knob_color = style_.disabled_color;
+    }
+    else if (state_.held)
+    {
+        knob_color = style_.pressed_color;
+    }
+    else if (state_.pointed)
+    {
+        knob_color = style_.pointed_color;
+    }
+    else
+    {
+        knob_color = style_.idle_color;
+    }
+
+    auto knob_shape = Shape{
+      .world_transform = f32x4x4::identity(),
+      .uv_transform    = f32x4x4::identity(),
+      .area{.center = knob_center, .extent = knob_extent},
+      .bbox_extent = knob_extent,
+      .radii       = f32x4::splat(style_.corner_radius),
+      .shade       = ShadeType::Flood,
+      .feather     = 0,
+      .tint        = knob_color,
+      .sampler     = SamplerIndex::LinearEdgeClampBlackFloat,
+      .texture_set = sampled_textures,
+      .map         = TextureIndex::White,
+      .sdf_sampler = SamplerIndex::LinearRepeatWhiteFloat,
+      .sdf_map     = TextureIndex::White
+    };
+
+    canvas->rrect(knob_shape);
+
+    if (state_.focused)
+    {
+        draw_focus_ring(canvas, style_.focus_ring, Button::Shape::RRect,
+                        info.canvas_region, f32x4::splat(style_.corner_radius));
+    }
+}
+
+Cursor ScrollBox::Bar::cursor(Scope const &, f32x2, f32x2)
+{
+    return state_.disabled ? Cursor::Default : Cursor::Pointer;
+}
+
+ViewState ScrollBox::Viewport::tick(Scope const & scope, Events const & events,
+                                    Fn<void(View &)> build)
+{
+    auto & win   = scope.window();
+    auto & mouse = scope.mouse();
+
+    item_.match(build);
+
+    if (state_.disabled)
+    {
+    }
+    else
+    {
+        if (events.wheel_scroll())
+        {
+            auto delta =
+              -1 * win.scroll_delta() * mouse.wheel_translation().v().to<f32>();
+            auto diff = delta / state_.content_extent;
+            state_.offset += diff;
+            state_.offset = state_.offset.clamp(0.0F, 1.0F);
+            callbacks_.on_scroll();
+        }
+
+        events.scroll_to().match([&](ScrollFocus const & s) {
+            auto pos      = s.center / state_.content_extent;
+            state_.offset = pos.clamp(0.0F, 1.0F);
+            callbacks_.on_scroll();
+        });
+    }
+
+    return ViewState{.scrollable = !state_.disabled, .viewport = true};
+}
+
+void ScrollBox::Viewport::size(Scope const &, f32x2 allocated, Span<f32x2> sizes)
+{
+    auto extent = style_.viewport_frame(allocated);
+    if (!sizes.is_empty())
+    {
+        sizes[0] = style_.content_frame(extent);
+    }
+}
+
+Layout ScrollBox::Viewport::fit(Scope const &, f32x2 allocated, Span<f32x2 const> sizes,
+                                Span<f32x2> centers)
+{
+    auto extent         = style_.viewport_frame(allocated);
+    auto content_extent = sizes.is_empty() ? f32x2::zero() : sizes[0];
+    content_extent      = content_extent.max(extent);
+
+    if (!centers.is_empty())
+    {
+        centers[0] = f32x2::zero();
+    }
+
+    // TODO: smooth scrolling
+    state_.viewport_extent = extent;
+    state_.content_extent  = content_extent;
+
+    auto begin = 0.5F * state_.viewport_extent;
+    auto end   = state_.content_extent - 0.5F * state_.viewport_extent;
+
+    auto content_center = lerp(begin, end, state_.offset);
+    content_center -= 0.5F * state_.content_extent;
+
+    return Layout{.extent         = extent,
+                  .content_extent = content_extent,
+                  .content_center = content_center,
+                  .content_zoom   = f32x2::splat(1.0f)};
+}
+
+ScrollBox::ScrollBox()
+{
+    x_bar_.horizontal(true);
+    y_bar_.horizontal(false);
+}
+
+ScrollBox & ScrollBox::disable(bool disabled)
+{
+    viewport_.state_.disabled = disabled;
+    x_bar_.state_.disabled    = disabled;
+    y_bar_.state_.disabled    = disabled;
+    return *this;
+}
+
+ScrollBox & ScrollBox::viewport_frame(Frame const & frame)
+{
+    viewport_.style_.viewport_frame = frame;
+    return *this;
+}
+
+ScrollBox & ScrollBox::content_frame(Frame const & frame)
+{
+    viewport_.style_.content_frame = frame;
+    return *this;
+}
+
+ScrollBox & ScrollBox::on_scroll(Fn<void()> callback)
+{
+    viewport_.callbacks_.on_scroll = callback;
+    return *this;
+}
+
+ScrollBox & ScrollBox::item(Option<View &> item)
+{
+    viewport_.item_ = item;
+    return *this;
+}
+
+ScrollBox::Bar & ScrollBox::x_bar()
+{
+    return x_bar_;
+}
+
+ScrollBox::Bar & ScrollBox::y_bar()
+{
+    return y_bar_;
+}
+
+i32 ScrollBox::layer(Scope const &, i32 allocated, Span<i32> indices)
+{
+    indices[0] = allocated + 1;
+    indices[1] = allocated + 1;
+    indices[2] = allocated;
+
+    return allocated;
+}
+
+ViewState ScrollBox::tick(Scope const &, Events const &, Fn<void(View &)> build)
+{
+    x_bar_.state_.offset = y_bar_.state_.offset = &viewport_.state_.offset;
+    x_bar_.state_.viewport_extent               = y_bar_.state_.viewport_extent =
+      &viewport_.state_.viewport_extent;
+    x_bar_.state_.content_extent = y_bar_.state_.content_extent =
+      &viewport_.state_.content_extent;
+    x_bar_.callbacks_.on_scroll = y_bar_.callbacks_.on_scroll =
+      viewport_.callbacks_.on_scroll;
+
+    build(x_bar_);
+    build(y_bar_);
+    build(viewport_);
+
+    return ViewState{};
+}
+
+void ScrollBox::size(Scope const &, f32x2 allocated, Span<f32x2> sizes)
+{
+    auto extent = viewport_.style_.viewport_frame(allocated);
+    sizes[0]    = extent;
+    sizes[1]    = extent;
+    sizes[2]    = allocated;
+}
+
+Layout ScrollBox::fit(Scope const &, f32x2 allocated, Span<f32x2 const> sizes,
+                      Span<f32x2> centers)
+{
+    auto extent = viewport_.style_.viewport_frame(allocated);
+    centers[0]  = f32x2{0, 0.5F * extent.y() - 0.5F * sizes[0].y()};
+    centers[1]  = f32x2{0.5F * extent.x() - 0.5F * sizes[1].x(), 0};
+    centers[2]  = f32x2::zero();
+
+    return Layout{.extent = extent};
 }
 
 }    // namespace ui

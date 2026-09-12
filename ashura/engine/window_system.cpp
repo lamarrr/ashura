@@ -613,8 +613,8 @@ struct WindowSysImpl final : IWindowSys
                     push_window_event(
                       event.wheel.windowID,
                       MouseWheelEvent{
-                        .position{event.wheel.mouse_x,   event.wheel.mouse_y  },
-                        .translation{event.wheel.integer_x, event.wheel.integer_y}
+                        .position{event.wheel.mouse_x, event.wheel.mouse_y},
+                        .translation{event.wheel.x,       event.wheel.y      }
                     });
                     break;
 
